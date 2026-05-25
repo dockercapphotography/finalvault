@@ -2,6 +2,7 @@
   "name": "finalvault-worker",
   "main": "src/index.js",
   "compatibility_date": "2025-01-01",
+
   "r2_buckets": [
     {
       "binding": "BUCKET",
@@ -9,8 +10,15 @@
       "preview_bucket_name": "finalvault-images-dev"
     }
   ],
+
+  // Environment variables (non-secret)
   "vars": {
-    "SUPABASE_URL": ""
-  },
-  "secrets": ["JWT_SECRET", "SUPABASE_SERVICE_KEY"]
+    "SUPABASE_URL": "https://xxxx.supabase.co"
+  }
+
+  // Secrets — set via Wrangler CLI, never stored here:
+  //   npx wrangler secret put SUPABASE_SERVICE_KEY
+  //
+  // Required secrets:
+  //   SUPABASE_SERVICE_KEY  — Supabase service role key (for bypassing RLS)
 }

@@ -12,7 +12,7 @@ const CORS_HEADERS = {
 
 export default {
   async fetch(request, env, ctx) {
-    // Handle CORS preflight
+    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS })
     }
@@ -21,35 +21,41 @@ export default {
     const pathname = url.pathname
 
     try {
-      // POST /upload — photographer uploads image (JWT required)
+      // POST /upload — photographer uploads original image
       if (request.method === 'POST' && pathname === '/upload') {
         return await handleUpload(request, env, CORS_HEADERS)
       }
 
-      // GET /preview/:key — serve watermarked WebP preview (share token required)
+      // GET /preview/:key — serve watermarked WebP preview (photographer or client)
       if (request.method === 'GET' && pathname.startsWith('/preview/')) {
         return await handlePreview(request, env, CORS_HEADERS)
       }
 
-      // GET /original/:key — serve original file (JWT or share token + PIN)
+      // GET /original/:key — serve original file (photographer always, client with PIN)
       if (request.method === 'GET' && pathname.startsWith('/original/')) {
         return await handleOriginal(request, env, CORS_HEADERS)
       }
 
-      // DELETE /:key — photographer deletes image (JWT required)
-      if (request.method === 'DELETE') {
+      // DELETE /delete/:key — photographer deletes image (both original + preview)
+      if (request.method === 'DELETE' && pathname.startsWith('/delete/')) {
         return await handleDelete(request, env, CORS_HEADERS)
       }
 
-      // POST /download-zip — generate ZIP of gallery (share token + optional PIN)
+      // POST /download-zip — client downloads full gallery as ZIP
       if (request.method === 'POST' && pathname === '/download-zip') {
         return await handleZip(request, env, CORS_HEADERS)
       }
 
-      return new Response('Not found', { status: 404, headers: CORS_HEADERS })
+      return new Response(JSON.stringify({ ok: false, error: 'Not found' }), {
+        status: 404,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+      })
     } catch (err) {
-      console.error('Worker error:', err)
-      return new Response('Internal server error', { status: 500, headers: CORS_HEADERS })
+      console.error('Worker unhandled error:', err)
+      return new Response(JSON.stringify({ ok: false, error: 'Internal server error' }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+      })
     }
   }
 }
