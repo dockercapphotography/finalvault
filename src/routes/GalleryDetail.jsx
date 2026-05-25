@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Trash2, Upload } from 'lucide-react'
 import { getGallery, deleteGallery } from '../utils/galleryApi.js'
-import { getImages, deleteImage } from '../utils/imageApi.js'
+import { getImages, deleteImage, saveImageOrder } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
 import { supabase } from '../supabaseClient.js'
 import { useImageUpload } from '../hooks/useImageUpload.js'
@@ -12,6 +12,7 @@ import ImageUploader from '../components/images/ImageUploader.jsx'
 import ImageGrid from '../components/images/ImageGrid.jsx'
 import UploadProgress from '../components/images/UploadProgress.jsx'
 import BulkActionBar from '../components/images/BulkActionBar.jsx'
+import SortDropdown, { sortImages } from '../components/images/SortDropdown.jsx'
 import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -29,10 +30,12 @@ export default function GalleryDetail() {
   const [deleting, setDeleting] = useState(false)
   const [photographerId, setPhotographerId] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [sortBy, setSortBy] = useState('uploaded_desc')
+  const [savingOrder, setSavingOrder] = useState(false)
 
-  const selectionMode = selectedIds.size > 0
-  const previewUrls = usePreviewUrls(images)
   const hasImages = images.length > 0
+  const sortedImages = sortImages(images, sortBy)
+  const previewUrls = usePreviewUrls(images)
 
   const { uploadFiles, uploadItems, isUploading, reset: resetUpload } = useImageUpload({
     galleryId: id,
@@ -45,8 +48,6 @@ export default function GalleryDetail() {
     },
   })
 
-  // Only enable full-page drop when images already exist
-  // When gallery is empty the inline drop zone handles it
   const isDragOver = usePageDrop(uploadFiles, hasImages)
 
   useEffect(() => {
@@ -67,6 +68,22 @@ export default function GalleryDetail() {
     }
   }
 
+  async function handleSortChange(newSort) {
+    setSortBy(newSort)
+    // Apply sort and persist the new order to the database
+    const sorted = sortImages(images, newSort)
+    setImages(sorted)
+    setSavingOrder(true)
+    try {
+      await saveImageOrder(sorted.map(i => i.id))
+      setToast({ message: 'Image order saved', type: 'success' })
+    } catch {
+      setToast({ message: 'Failed to save order', type: 'error' })
+    } finally {
+      setSavingOrder(false)
+    }
+  }
+
   function handleCopyLink() {
     navigator.clipboard.writeText(`${window.location.origin}/g/${gallery.share_token}`)
     setToast({ message: 'Gallery link copied!', type: 'success' })
@@ -80,13 +97,8 @@ export default function GalleryDetail() {
     })
   }
 
-  function handleSelectAll() {
-    setSelectedIds(new Set(images.map(i => i.id)))
-  }
-
-  function handleClearSelection() {
-    setSelectedIds(new Set())
-  }
+  function handleSelectAll() { setSelectedIds(new Set(images.map(i => i.id))) }
+  function handleClearSelection() { setSelectedIds(new Set()) }
 
   async function handleDeleteSelected() {
     const toDelete = [...selectedIds]
@@ -160,16 +172,11 @@ export default function GalleryDetail() {
 
   return (
     <>
-      {/* Full-page drag overlay — only when images exist */}
       {isDragOver && hasImages && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
-          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)' }}
-        >
-          <div
-            className="flex flex-col items-center justify-center w-72 h-48 rounded-2xl"
-            style={{ background: 'var(--surface)', border: '2px dashed var(--accent)' }}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)' }}>
+          <div className="flex flex-col items-center justify-center w-72 h-48 rounded-2xl"
+            style={{ background: 'var(--surface)', border: '2px dashed var(--accent)' }}>
             <Upload size={28} className="mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="font-semibold text-lg mb-1" style={{ color: 'var(--text)' }}>Drop to upload</p>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Release to add to this gallery</p>
@@ -182,7 +189,6 @@ export default function GalleryDetail() {
           <ArrowLeft size={15} />Back to galleries
         </Button>
 
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -214,38 +220,36 @@ export default function GalleryDetail() {
 
         <div style={{ borderTop: '1px solid var(--border)' }} />
 
-        {/* Images section */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <h2 className="font-medium text-sm" style={{ color: 'var(--text)' }}>
               Images ({images.length})
+              {savingOrder && <span className="ml-2 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>Saving order...</span>}
             </h2>
-            {hasImages && (
-              <ImageUploader onUpload={uploadFiles} compact />
-            )}
+            <div className="flex items-center gap-2">
+              {hasImages && <SortDropdown value={sortBy} onChange={handleSortChange} />}
+              {hasImages && <ImageUploader onUpload={uploadFiles} compact />}
+            </div>
           </div>
 
           {uploadItems.length > 0 && <UploadProgress items={uploadItems} />}
 
           {hasImages && (
             <ImageGrid
-              images={images}
+              images={sortedImages}
               previewUrls={previewUrls}
               onDelete={handleDeleteImage}
               selectedIds={selectedIds}
               onSelect={handleSelect}
-              selectionMode={selectionMode}
+              selectionMode={selectedIds.size > 0}
             />
           )}
 
-          {!hasImages && !isUploading && (
-            <ImageUploader onUpload={uploadFiles} />
-          )}
+          {!hasImages && !isUploading && <ImageUploader onUpload={uploadFiles} />}
         </div>
 
         <div style={{ borderTop: '1px solid var(--border)' }} />
 
-        {/* Danger zone */}
         <div className="space-y-3">
           <h2 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Danger Zone</h2>
           {!confirmDelete ? (
@@ -278,7 +282,7 @@ export default function GalleryDetail() {
         </div>
       </div>
 
-      {selectionMode && (
+      {selectedIds.size > 0 && (
         <BulkActionBar
           count={selectedIds.size}
           totalCount={images.length}

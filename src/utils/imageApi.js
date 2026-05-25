@@ -32,10 +32,13 @@ export async function deleteImage(id) {
   if (error) throw error
 }
 
-export async function reorderImages(updates) {
+export async function saveImageOrder(orderedIds) {
+  // Update sort_order for each image based on its position in the array
+  const updates = orderedIds.map((id, index) => ({ id, sort_order: index }))
+
   const { error } = await supabase
     .from('gallery_images')
-    .upsert(updates.map(({ id, sort_order }) => ({ id, sort_order })))
+    .upsert(updates, { onConflict: 'id' })
 
   if (error) throw error
 }
