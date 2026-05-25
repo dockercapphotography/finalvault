@@ -14,44 +14,40 @@ export default defineConfig({
         name: 'FinalVault',
         short_name: 'FinalVault',
         description: 'Beautiful client gallery delivery for photographers.',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
         scope: '/',
         icons: [
-          {
-            src: 'icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: 'icon-512-maskable.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable'
-          }
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {
+        // Only precache local app assets — never external domains
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Silence "no route found" warnings for external URLs (R2 Worker, Supabase)
+        navigateFallbackDenylist: [/^\/api/, /^\/rest/],
         runtimeCaching: [
+          {
+            // Cache R2 Worker preview images at runtime
+            urlPattern: ({ url }) => url.hostname.includes('workers.dev'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'r2-preview-cache',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+              fetchOptions: { credentials: 'include' },
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365
-              },
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] }
             }
           },
@@ -60,10 +56,7 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'gstatic-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365
-              },
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] }
             }
           }
@@ -72,7 +65,5 @@ export default defineConfig({
       devOptions: { enabled: true }
     })
   ],
-  server: {
-    host: true
-  }
+  server: { host: true }
 })
