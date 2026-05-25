@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, Save, RefreshCw } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
@@ -29,58 +29,60 @@ function generatePin() {
   return String(Math.floor(1000 + Math.random() * 9000))
 }
 
+function generatePassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
 const inputStyle = {
   width: '100%',
   background: 'var(--surface)',
   border: '1px solid var(--border)',
   color: 'var(--text)',
   borderRadius: '8px',
-  padding: '9px 40px 9px 12px',
+  padding: '9px 72px 9px 12px',
   fontSize: '14px',
   outline: 'none',
+  fontFamily: 'monospace',
+  letterSpacing: '0.1em',
 }
 
-function PinField({ value, onChange, onRefresh, showValue, onToggleShow, placeholder }) {
+function CodeField({ value, onChange, onRefresh, showValue, onToggleShow, placeholder, hint }) {
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <input
-            type={showValue ? 'text' : 'password'}
-            value={value}
-            onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder={placeholder}
-            maxLength={4}
-            style={{ ...inputStyle, paddingRight: '72px', fontFamily: 'monospace', letterSpacing: '0.15em' }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'}
-          />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            <button
-              type="button"
-              onClick={onRefresh}
-              title="Generate new PIN"
-              style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-            >
-              <RefreshCw size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={onToggleShow}
-              style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-            >
-              {showValue ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
-          </div>
+      <div className="relative">
+        <input
+          type={showValue ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={inputStyle}
+          onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+          onBlur={e => e.target.style.borderColor = 'var(--border)'}
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onRefresh}
+            title="Generate new code"
+            style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+          >
+            <RefreshCw size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleShow}
+            style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+          >
+            {showValue ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
         </div>
       </div>
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-        4-digit numeric PIN · Click <RefreshCw size={10} style={{ display: 'inline', marginBottom: '-1px' }} /> to generate a new one
-      </p>
+      {hint && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
     </div>
   )
 }
@@ -94,10 +96,8 @@ export default function GallerySettings() {
   const [toast, setToast] = useState(null)
   const [activeTab, setActiveTab] = useState('general')
   const [showPassword, setShowPassword] = useState(false)
-  const [showPin, setShowPin] = useState(false)
   const [showDownloadPin, setShowDownloadPin] = useState(false)
 
-  // Form state
   const [title, setTitle] = useState('')
   const [clientName, setClientName] = useState('')
   const [notes, setNotes] = useState('')
@@ -106,17 +106,15 @@ export default function GallerySettings() {
   const [expiresAt, setExpiresAt] = useState('')
   const [requirePassword, setRequirePassword] = useState(false)
   const [password, setPassword] = useState('')
+  const [passwordChanged, setPasswordChanged] = useState(false)
   const [requireDownloadPin, setRequireDownloadPin] = useState(false)
   const [downloadPin, setDownloadPin] = useState('')
+  const [pinChanged, setPinChanged] = useState(false)
   const [allowDownloads, setAllowDownloads] = useState(true)
   const [downloadWatermarked, setDownloadWatermarked] = useState(false)
   const [allowFavorites, setAllowFavorites] = useState(true)
   const [allowComments, setAllowComments] = useState(true)
   const [template, setTemplate] = useState('classic')
-
-  // Track whether PINs are newly set this session (need hashing) vs unchanged
-  const [passwordChanged, setPasswordChanged] = useState(false)
-  const [pinChanged, setPinChanged] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -138,7 +136,6 @@ export default function GallerySettings() {
       setAllowFavorites(g.allow_favorites ?? true)
       setAllowComments(g.allow_comments ?? true)
       setTemplate(g.template || 'classic')
-      // Show existing PINs as placeholder — don't show actual hash
       setPassword('')
       setDownloadPin('')
       setPasswordChanged(false)
@@ -150,17 +147,26 @@ export default function GallerySettings() {
     }
   }
 
-  // Auto-generate PIN when toggling on
   function handleTogglePassword(val) {
     setRequirePassword(val)
-    if (val && !password) {
-      // Generate a random password suggestion? No — passwords stay manual
+    if (val && !password && !gallery?.password_hash) {
+      const pw = generatePassword()
+      setPassword(pw)
+      setPasswordChanged(true)
+      setShowPassword(true)
     }
+  }
+
+  function handleRefreshPassword() {
+    const pw = generatePassword()
+    setPassword(pw)
+    setPasswordChanged(true)
+    setShowPassword(true)
   }
 
   function handleToggleDownloadPin(val) {
     setRequireDownloadPin(val)
-    if (val && !downloadPin) {
+    if (val && !downloadPin && !gallery?.download_pin_hash) {
       const pin = generatePin()
       setDownloadPin(pin)
       setPinChanged(true)
@@ -175,16 +181,6 @@ export default function GallerySettings() {
     setShowDownloadPin(true)
   }
 
-  function handlePasswordChange(val) {
-    setPassword(val)
-    setPasswordChanged(true)
-  }
-
-  function handlePinChange(val) {
-    setDownloadPin(val)
-    setPinChanged(true)
-  }
-
   async function handleSave() {
     if (!title) {
       setToast({ message: 'Gallery title is required', type: 'error' })
@@ -193,9 +189,7 @@ export default function GallerySettings() {
     setSaving(true)
     try {
       const updates = {
-        title,
-        client_name: clientName,
-        notes,
+        title, client_name: clientName, notes,
         event_date: eventDate || null,
         is_active: isActive,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
@@ -249,14 +243,12 @@ export default function GallerySettings() {
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{gallery.title}</p>
         </div>
         <Button onClick={handleSave} disabled={saving}>
-          <Save size={14} />
-          {saving ? 'Saving...' : 'Save Changes'}
+          <Save size={14} />{saving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
 
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-      {/* ── General ── */}
       {activeTab === 'general' && (
         <div className="space-y-4">
           <SettingsSection title="Gallery Info">
@@ -272,7 +264,6 @@ export default function GallerySettings() {
                 placeholder="Not visible to clients" type="textarea" />
             </div>
           </SettingsSection>
-
           <SettingsSection title="Status">
             <SettingsRow label="Gallery active" description="Inactive galleries are inaccessible to clients">
               <Toggle checked={isActive} onChange={setIsActive} />
@@ -285,7 +276,6 @@ export default function GallerySettings() {
         </div>
       )}
 
-      {/* ── Access ── */}
       {activeTab === 'access' && (
         <div className="space-y-4">
           <SettingsSection title="Password Protection"
@@ -295,49 +285,42 @@ export default function GallerySettings() {
             </SettingsRow>
             {requirePassword && (
               <div className="px-5 py-4 space-y-1.5" style={{ background: 'var(--surface)' }}>
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                <label className="text-sm font-medium block" style={{ color: 'var(--text)' }}>
                   Gallery password
                 </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={e => handlePasswordChange(e.target.value)}
-                    placeholder={gallery.password_hash ? 'Leave blank to keep current password' : 'Set a password'}
-                    style={{ ...inputStyle, paddingRight: '40px' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
-                  />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                    style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {gallery.password_hash ? 'A password is currently set. Leave blank to keep it.' : 'Clients will need this to view the gallery.'}
-                </p>
+                <CodeField
+                  value={password}
+                  onChange={v => { setPassword(v); setPasswordChanged(true) }}
+                  onRefresh={handleRefreshPassword}
+                  showValue={showPassword}
+                  onToggleShow={() => setShowPassword(!showPassword)}
+                  placeholder={gallery.password_hash ? 'Leave blank to keep current' : 'Auto-generated'}
+                  hint={gallery.password_hash
+                    ? 'A password is set. Leave blank to keep it, or generate/type a new one.'
+                    : 'Share this with your client so they can access the gallery.'}
+                />
               </div>
             )}
           </SettingsSection>
 
           <SettingsSection title="Download PIN"
-            description="A separate PIN required to download images">
+            description="A separate 4-digit PIN required to download images">
             <SettingsRow label="Require download PIN" description="Clients need a PIN to download">
               <Toggle checked={requireDownloadPin} onChange={handleToggleDownloadPin} />
             </SettingsRow>
             {requireDownloadPin && (
-              <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
-                <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>
+              <div className="px-5 py-4 space-y-1.5" style={{ background: 'var(--surface)' }}>
+                <label className="text-sm font-medium block" style={{ color: 'var(--text)' }}>
                   Download PIN
                 </label>
-                <PinField
+                <CodeField
                   value={downloadPin}
-                  onChange={handlePinChange}
+                  onChange={v => { setDownloadPin(v.replace(/[^0-9]/g, '').slice(0, 4)); setPinChanged(true) }}
                   onRefresh={handleRefreshPin}
                   showValue={showDownloadPin}
                   onToggleShow={() => setShowDownloadPin(!showDownloadPin)}
                   placeholder={gallery.download_pin_hash ? '••••' : 'Auto-generated'}
+                  hint="4-digit numeric PIN · Click ↺ to generate a new one"
                 />
               </div>
             )}
@@ -345,7 +328,6 @@ export default function GallerySettings() {
         </div>
       )}
 
-      {/* ── Sharing ── */}
       {activeTab === 'sharing' && (
         <div className="space-y-4">
           <SettingsSection title="Downloads"
@@ -360,9 +342,7 @@ export default function GallerySettings() {
               </SettingsRow>
             )}
           </SettingsSection>
-
-          <SettingsSection title="Client Interactions"
-            description="Control what clients can do in their gallery">
+          <SettingsSection title="Client Interactions">
             <SettingsRow label="Allow favorites" description="Clients can heart their favorite images">
               <Toggle checked={allowFavorites} onChange={setAllowFavorites} />
             </SettingsRow>
@@ -373,7 +353,6 @@ export default function GallerySettings() {
         </div>
       )}
 
-      {/* ── Display ── */}
       {activeTab === 'display' && (
         <div className="space-y-4">
           <SettingsSection title="Gallery Template"
@@ -398,8 +377,7 @@ export default function GallerySettings() {
 
       <div className="flex justify-end pb-6">
         <Button onClick={handleSave} disabled={saving}>
-          <Save size={14} />
-          {saving ? 'Saving...' : 'Save Changes'}
+          <Save size={14} />{saving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
 
