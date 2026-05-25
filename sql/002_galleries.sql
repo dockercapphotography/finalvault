@@ -5,7 +5,9 @@ CREATE TABLE galleries (
   title                TEXT NOT NULL,
   client_name          TEXT,
   notes                TEXT,
-  cover_image_id       UUID,  -- FK added after gallery_images table exists
+  event_date           DATE,
+  template             TEXT DEFAULT 'classic' CHECK (template IN ('classic', 'minimal', 'editorial', 'bold')),
+  cover_image_id       UUID,
   password_hash        TEXT,
   download_pin_hash    TEXT,
   allow_downloads      BOOLEAN DEFAULT true,
@@ -16,7 +18,7 @@ CREATE TABLE galleries (
   require_download_pin BOOLEAN DEFAULT false,
   expires_at           TIMESTAMPTZ,
   is_active            BOOLEAN DEFAULT true,
-  share_token          TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(24), 'base64url'),
+  share_token          TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
   created_at           TIMESTAMPTZ DEFAULT now(),
   updated_at           TIMESTAMPTZ DEFAULT now()
 );

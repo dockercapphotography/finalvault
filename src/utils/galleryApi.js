@@ -1,10 +1,15 @@
 import { supabase } from '../supabaseClient.js'
 
+function generateShareToken() {
+  return crypto.randomUUID().replace(/-/g, '')
+}
+
 export async function getGalleries() {
   const { data, error } = await supabase
     .from('galleries')
     .select(`
-      id, title, client_name, is_active, share_token,
+      id, title, client_name, event_date, template,
+      is_active, share_token, require_password,
       created_at, updated_at, expires_at,
       cover_image_id,
       gallery_images!cover_image_id (preview_r2_key)
@@ -26,7 +31,7 @@ export async function getGallery(id) {
   return data
 }
 
-export async function createGallery({ title, clientName, notes }) {
+export async function createGallery({ title, clientName, notes, eventDate, template }) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
     .from('galleries')
@@ -34,7 +39,10 @@ export async function createGallery({ title, clientName, notes }) {
       title,
       client_name: clientName,
       notes,
-      photographer_id: user.id
+      event_date: eventDate || null,
+      template: template || 'classic',
+      photographer_id: user.id,
+      share_token: generateShareToken(),
     })
     .select()
     .single()
