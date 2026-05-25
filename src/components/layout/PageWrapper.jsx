@@ -3,7 +3,7 @@ import Sidebar from './Sidebar.jsx'
 
 export default function PageWrapper({ session, children }) {
   return (
-    <div className="min-h-screen bg-slate-950 flex">
+    <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header session={session} />

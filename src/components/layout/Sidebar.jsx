@@ -9,10 +9,15 @@ const navItems = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-52 bg-slate-900 border-r border-slate-800 flex flex-col py-6 px-3 shrink-0">
-      <div className="px-3 mb-8">
-        <h1 className="text-white font-bold text-base tracking-tight">FinalVault</h1>
-        <p className="text-slate-600 text-xs mt-0.5">Gallery Delivery</p>
+    <aside className="w-52 flex flex-col py-5 px-3 shrink-0" style={{
+      background: 'var(--surface)',
+      borderRight: '1px solid var(--border)'
+    }}>
+      <div className="px-3 mb-6">
+        <h1 className="font-semibold text-sm tracking-tight" style={{ color: 'var(--text)' }}>
+          FinalVault
+        </h1>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Gallery Delivery</p>
       </div>
       <nav className="flex flex-col gap-0.5">
         {navItems.map(({ to, label, icon: Icon, end }) => (
@@ -20,13 +25,12 @@ export default function Sidebar() {
             key={to}
             to={to}
             end={end}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                isActive
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-500 hover:text-white hover:bg-slate-800/60'
-              }`
-            }
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors"
+            style={({ isActive }) => ({
+              background: isActive ? 'var(--surface-raised)' : 'transparent',
+              color: isActive ? 'var(--text)' : 'var(--text-secondary)',
+              fontWeight: isActive ? '500' : '400',
+            })}
           >
             <Icon size={15} />
             {label}

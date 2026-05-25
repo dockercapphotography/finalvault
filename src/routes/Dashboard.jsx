@@ -14,15 +14,12 @@ export default function Dashboard() {
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState(null)
 
-  useEffect(() => {
-    loadGalleries()
-  }, [])
+  useEffect(() => { loadGalleries() }, [])
 
   async function loadGalleries() {
     try {
       setLoading(true)
-      const data = await getGalleries()
-      setGalleries(data)
+      setGalleries(await getGalleries())
     } catch (err) {
       setError(err.message)
     } finally {
@@ -31,8 +28,7 @@ export default function Dashboard() {
   }
 
   function handleCopyLink(shareToken) {
-    const url = `${window.location.origin}/g/${shareToken}`
-    navigator.clipboard.writeText(url)
+    navigator.clipboard.writeText(`${window.location.origin}/g/${shareToken}`)
     setToast({ message: 'Gallery link copied!', type: 'success' })
   }
 
@@ -43,80 +39,91 @@ export default function Dashboard() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-white text-xl font-semibold">Galleries</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Galleries</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {galleries.length} {galleries.length === 1 ? 'gallery' : 'galleries'}
           </p>
         </div>
         <Button onClick={() => navigate('/galleries/new')}>
-          <Plus size={16} />
+          <Plus size={15} />
           New Gallery
         </Button>
       </div>
 
       {/* Search */}
       {galleries.length > 0 && (
-        <div className="relative max-w-sm">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <div className="relative max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search galleries..."
-            className="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 text-sm pl-9 pr-4 py-2 rounded-lg focus:outline-none focus:border-slate-500"
+            className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none transition-colors"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'}
           />
         </div>
       )}
 
-      {/* States */}
+      {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-24">
-          <div className="w-6 h-6 border-2 border-slate-700 border-t-slate-400 rounded-full animate-spin" />
+          <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+            style={{ borderColor: 'var(--border-strong)', borderTopColor: 'transparent' }} />
         </div>
       )}
 
+      {/* Error */}
       {!loading && error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm">
+        <div className="px-4 py-3 rounded-xl text-sm"
+          style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid var(--danger)' }}>
           Failed to load galleries: {error}
         </div>
       )}
 
+      {/* Empty state */}
       {!loading && !error && galleries.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
-            <Plus size={24} className="text-slate-600" />
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+            style={{ background: 'var(--surface-raised)' }}>
+            <Plus size={22} style={{ color: 'var(--text-muted)' }} />
           </div>
-          <h2 className="text-white font-medium mb-1">No galleries yet</h2>
-          <p className="text-slate-500 text-sm mb-6">Create your first gallery to get started</p>
+          <h2 className="font-medium mb-1" style={{ color: 'var(--text)' }}>No galleries yet</h2>
+          <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+            Create your first gallery to get started
+          </p>
           <Button onClick={() => navigate('/galleries/new')}>
-            <Plus size={16} />
+            <Plus size={15} />
             Create Gallery
           </Button>
         </div>
       )}
 
+      {/* Gallery grid */}
       {!loading && !error && filtered.length > 0 && (
         <GalleryGrid galleries={filtered} onCopyLink={handleCopyLink} />
       )}
 
+      {/* No search results */}
       {!loading && !error && galleries.length > 0 && filtered.length === 0 && (
-        <p className="text-slate-500 text-sm py-12 text-center">
+        <p className="text-sm py-12 text-center" style={{ color: 'var(--text-muted)' }}>
           No galleries match &ldquo;{search}&rdquo;
         </p>
       )}
 
-      {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50">
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onDismiss={() => setToast(null)}
-          />
+          <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />
         </div>
       )}
     </div>

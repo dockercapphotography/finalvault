@@ -9,16 +9,25 @@ export default function Header({ session }) {
   const initials = email ? email[0].toUpperCase() : '?'
 
   return (
-    <header className="h-13 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+    <header className="h-12 flex items-center justify-between px-6 shrink-0" style={{
+      background: 'var(--surface)',
+      borderBottom: '1px solid var(--border)'
+    }}>
       <div />
       <div className="flex items-center gap-3">
-        <span className="text-slate-500 text-xs hidden sm:block">{email}</span>
-        <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium text-white">
+        <span className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>{email}</span>
+        <div
+          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
+          style={{ background: 'var(--surface-raised)', color: 'var(--text)' }}
+        >
           {initials}
         </div>
         <button
           onClick={handleSignOut}
-          className="text-xs text-slate-500 hover:text-white transition-colors"
+          className="text-xs transition-colors"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={e => e.target.style.color = 'var(--text)'}
+          onMouseLeave={e => e.target.style.color = 'var(--text-muted)'}
         >
           Sign out
         </button>

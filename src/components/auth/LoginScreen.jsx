@@ -2,13 +2,9 @@ import { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginScreen({
-  onLogin,
-  onRegister,
-  onResetPassword,
-  onUpdatePassword,
-  isPasswordRecovery
+  onLogin, onRegister, onResetPassword, onUpdatePassword, isPasswordRecovery
 }) {
-  const [mode, setMode] = useState('login') // 'login' | 'register' | 'forgot' | 'newPassword'
+  const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -20,25 +16,17 @@ export default function LoginScreen({
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [passwordRequirements, setPasswordRequirements] = useState({
-    minLength: false,
-    hasLowercase: false,
-    hasUppercase: false,
-    hasNumber: false,
-    hasSymbol: false
+    minLength: false, hasLowercase: false, hasUppercase: false,
+    hasNumber: false, hasSymbol: false
   })
 
-  // Switch to new password mode when recovery link is clicked
   useEffect(() => {
     if (isPasswordRecovery) {
-      setMode('newPassword')
-      setError('')
-      setSuccessMessage('')
-      setPassword('')
-      setConfirmPassword('')
+      setMode('newPassword'); setError(''); setSuccessMessage('')
+      setPassword(''); setConfirmPassword('')
     }
   }, [isPasswordRecovery])
 
-  // Live password requirement checks
   useEffect(() => {
     if (mode === 'register' || mode === 'newPassword') {
       setPasswordRequirements({
@@ -51,269 +39,196 @@ export default function LoginScreen({
     }
   }, [password, mode])
 
-  // Clear messages when switching modes
   useEffect(() => {
-    setError('')
-    setSuccessMessage('')
-    if (mode !== 'register') {
-      setFirstName('')
-      setLastName('')
-    }
+    setError(''); setSuccessMessage('')
+    if (mode !== 'register') { setFirstName(''); setLastName('') }
   }, [mode])
 
   const allPasswordReqsMet =
-    passwordRequirements.minLength &&
-    passwordRequirements.hasLowercase &&
-    passwordRequirements.hasUppercase &&
-    passwordRequirements.hasNumber &&
+    passwordRequirements.minLength && passwordRequirements.hasLowercase &&
+    passwordRequirements.hasUppercase && passwordRequirements.hasNumber &&
     passwordRequirements.hasSymbol
 
   const handleSubmit = async () => {
-    // Forgot password
     if (mode === 'forgot') {
       if (!email) { setError('Please enter your email address'); return }
-      setError('')
-      setIsSubmitting(true)
+      setError(''); setIsSubmitting(true)
       try {
         await onResetPassword(email)
-        setSuccessMessage('Reset email sent! Check your inbox and click the link.')
-      } catch (err) {
-        setError(err.message || 'Failed to send reset email. Please try again.')
-      } finally {
-        setIsSubmitting(false)
-      }
+        setSuccessMessage('Reset email sent! Check your inbox.')
+      } catch (err) { setError(err.message || 'Failed to send reset email.') }
+      finally { setIsSubmitting(false) }
       return
     }
-
-    // Set new password
     if (mode === 'newPassword') {
       if (!password || !confirmPassword) { setError('Please enter and confirm your new password'); return }
       if (!allPasswordReqsMet) { setError('Password does not meet all requirements'); return }
       if (password !== confirmPassword) { setError('Passwords do not match'); return }
-      setError('')
-      setIsSubmitting(true)
-      try {
-        await onUpdatePassword(password)
-        setSuccessMessage('Password updated! You are now signed in.')
-      } catch (err) {
-        setError(err.message || 'Failed to update password. Please try again.')
-      } finally {
-        setIsSubmitting(false)
-      }
+      setError(''); setIsSubmitting(true)
+      try { await onUpdatePassword(password); setSuccessMessage('Password updated!') }
+      catch (err) { setError(err.message || 'Failed to update password.') }
+      finally { setIsSubmitting(false) }
       return
     }
-
-    // Login / Register shared validation
     if (!email || !password) { setError('Please enter both email and password'); return }
-
     if (mode === 'register') {
       if (!firstName || !lastName) { setError('Please enter your first and last name'); return }
       if (!allPasswordReqsMet) { setError('Password does not meet all requirements'); return }
       if (password !== confirmPassword) { setError('Passwords do not match'); return }
     }
-
-    setError('')
-    setIsSubmitting(true)
-
+    setError(''); setIsSubmitting(true)
     try {
       if (mode === 'register') {
         const result = await onRegister(email, password, { firstName, lastName })
         if (result.needsEmailConfirmation) {
-          setSuccessMessage('Account created! Check your email for a confirmation link, then sign in.')
-          setMode('login')
-          setPassword('')
-          setConfirmPassword('')
+          setSuccessMessage('Account created! Check your email to confirm, then sign in.')
+          setMode('login'); setPassword(''); setConfirmPassword('')
         }
       } else {
         await onLogin(email, password)
       }
-    } catch (err) {
-      setError(err.message || 'Authentication failed. Please try again.')
-    } finally {
-      setIsSubmitting(false)
-    }
+    } catch (err) { setError(err.message || 'Authentication failed.') }
+    finally { setIsSubmitting(false) }
   }
 
-  const isSubmitDisabled =
-    isSubmitting ||
-    (mode === 'register' && (!firstName || !lastName || !email || !password || !confirmPassword || password !== confirmPassword || !allPasswordReqsMet)) ||
-    (mode === 'newPassword' && (!password || !confirmPassword || password !== confirmPassword || !allPasswordReqsMet))
+  const isSubmitDisabled = isSubmitting ||
+    (mode === 'register' && (!firstName || !lastName || !email || !password ||
+      !confirmPassword || password !== confirmPassword || !allPasswordReqsMet)) ||
+    (mode === 'newPassword' && (!password || !confirmPassword ||
+      password !== confirmPassword || !allPasswordReqsMet))
 
-  const getTitle = () => {
-    if (mode === 'forgot') return 'Reset your password'
-    if (mode === 'newPassword') return 'Set a new password'
-    if (mode === 'register') return 'Create your account'
-    return 'Sign in to FinalVault'
-  }
+  const getTitle = () => ({
+    forgot: 'Reset your password', newPassword: 'Set a new password',
+    register: 'Create your account', login: 'Sign in to FinalVault'
+  }[mode])
 
   const getButtonLabel = () => {
-    if (isSubmitting) {
-      if (mode === 'forgot') return 'Sending...'
-      if (mode === 'newPassword') return 'Updating...'
-      if (mode === 'register') return 'Creating account...'
-      return 'Signing in...'
-    }
-    if (mode === 'forgot') return 'Send Reset Email'
-    if (mode === 'newPassword') return 'Update Password'
-    if (mode === 'register') return 'Create Account'
-    return 'Sign In'
+    if (isSubmitting) return { forgot: 'Sending...', newPassword: 'Updating...', register: 'Creating...', login: 'Signing in...' }[mode]
+    return { forgot: 'Send Reset Email', newPassword: 'Update Password', register: 'Create Account', login: 'Sign In' }[mode]
+  }
+
+  const inputStyle = {
+    width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
+    color: 'var(--text)', borderRadius: '8px', padding: '10px 14px',
+    fontSize: '14px', outline: 'none', transition: 'border-color 0.15s'
   }
 
   const showPasswordFields = mode === 'register' || mode === 'newPassword'
 
   return (
-    <div className="min-h-[100dvh] bg-slate-950 text-white flex items-center justify-center py-8 px-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-md w-full">
-
-        {/* Logo / Wordmark */}
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-white">FinalVault</h1>
-          <p className="text-slate-400 text-sm mt-1">{getTitle()}</p>
+    <div className="min-h-[100dvh] flex items-center justify-center py-8 px-4"
+      style={{ background: 'var(--bg)' }}>
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>FinalVault</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{getTitle()}</p>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm">
-            {error}
-          </div>
-        )}
+        <div className="rounded-xl p-6 space-y-3"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
 
-        {/* Success */}
-        {successMessage && (
-          <div className="bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-3 rounded-lg mb-4 text-sm">
-            {successMessage}
-          </div>
-        )}
-
-        <div className="space-y-3">
-
-          {/* Name fields — register only */}
-          {mode === 'register' && (
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="First Name *"
-                className="bg-slate-800 border border-slate-700 text-white placeholder-slate-500 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 text-sm"
-                disabled={isSubmitting}
-              />
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Last Name *"
-                className="bg-slate-800 border border-slate-700 text-white placeholder-slate-500 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 text-sm"
-                disabled={isSubmitting}
-              />
+          {error && (
+            <div className="px-3 py-2.5 rounded-lg text-sm"
+              style={{ background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
+              {error}
+            </div>
+          )}
+          {successMessage && (
+            <div className="px-3 py-2.5 rounded-lg text-sm"
+              style={{ background: 'var(--success-subtle)', color: 'var(--success)' }}>
+              {successMessage}
             </div>
           )}
 
-          {/* Email — not shown on newPassword */}
+          {mode === 'register' && (
+            <div className="grid grid-cols-2 gap-2">
+              <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
+                placeholder="First Name *" style={inputStyle} disabled={isSubmitting}
+                onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              <input type="text" value={lastName} onChange={e => setLastName(e.target.value)}
+                placeholder="Last Name *" style={inputStyle} disabled={isSubmitting}
+                onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            </div>
+          )}
+
           {mode !== 'newPassword' && (
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              className="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 text-sm"
-              disabled={isSubmitting}
-            />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="Email" style={inputStyle} disabled={isSubmitting}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           )}
 
-          {mode === 'forgot' && (
-            <p className="text-slate-500 text-xs -mt-1">
-              Enter your email and we'll send you a link to reset your password.
-            </p>
-          )}
-
-          {/* Password — not shown on forgot */}
           {mode !== 'forgot' && (
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && mode === 'login' && !isSubmitting && handleSubmit()}
+                value={password} onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && mode === 'login' && !isSubmitting && handleSubmit()}
                 placeholder={mode === 'newPassword' ? 'New Password' : 'Password'}
-                className="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 px-4 py-3 pr-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 text-sm"
-                disabled={isSubmitting}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                disabled={isSubmitting}
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                style={{ ...inputStyle, paddingRight: '40px' }} disabled={isSubmitting}
+                onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                style={{ color: 'var(--text-muted)' }}>
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
           )}
 
-          {/* Confirm password + requirements — register and newPassword */}
           {showPasswordFields && (
             <>
               <div className="relative">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !isSubmitting && handleSubmit()}
+                  value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !isSubmitting && handleSubmit()}
                   placeholder="Confirm Password"
-                  className="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 px-4 py-3 pr-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 text-sm"
-                  disabled={isSubmitting}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                  disabled={isSubmitting}
-                >
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  style={{ ...inputStyle, paddingRight: '40px' }} disabled={isSubmitting}
+                  onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--text-muted)' }}>
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
 
-              {/* Passwords match indicator */}
               {confirmPassword && (
-                <p className={`text-xs flex items-center gap-1.5 -mt-1 ${password === confirmPassword ? 'text-green-400' : 'text-red-400'}`}>
+                <p className="text-xs flex items-center gap-1.5"
+                  style={{ color: password === confirmPassword ? 'var(--success)' : 'var(--danger)' }}>
                   <span>{password === confirmPassword ? '✓' : '✗'}</span>
                   {password === confirmPassword ? 'Passwords match' : 'Passwords do not match'}
                 </p>
               )}
 
-              {/* Password strength */}
               {password && (
-                <div className="space-y-2 bg-slate-800/50 rounded-lg p-3">
-                  {/* Progress bar */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className={password.length >= 8 ? 'text-green-400' : 'text-slate-500'}>
-                        Character count
-                      </span>
-                      <span className={password.length >= 8 ? 'text-green-400' : 'text-slate-500'}>
-                        {password.length}/8
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-300 rounded-full ${password.length >= 8 ? 'bg-green-500' : 'bg-slate-500'}`}
-                        style={{ width: `${Math.min((password.length / 8) * 100, 100)}%` }}
-                      />
-                    </div>
+                <div className="rounded-lg p-3 space-y-2"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <span>Character count</span>
+                    <span style={{ color: password.length >= 8 ? 'var(--success)' : 'var(--text-muted)' }}>
+                      {password.length}/8
+                    </span>
                   </div>
-
-                  {/* Requirements checklist */}
+                  <div className="w-full rounded-full h-1 overflow-hidden" style={{ background: 'var(--border)' }}>
+                    <div className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.min((password.length / 8) * 100, 100)}%`,
+                        background: password.length >= 8 ? 'var(--success)' : 'var(--text-muted)'
+                      }} />
+                  </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                     {[
                       { key: 'hasLowercase', label: 'Lowercase (a-z)' },
                       { key: 'hasUppercase', label: 'Uppercase (A-Z)' },
-                      { key: 'hasNumber', label: 'Number (0-9)' },
-                      { key: 'hasSymbol', label: 'Symbol (!@#...)' }
+                      { key: 'hasNumber',    label: 'Number (0-9)' },
+                      { key: 'hasSymbol',    label: 'Symbol (!@#...)' },
                     ].map(({ key, label }) => (
-                      <div
-                        key={key}
-                        className={`flex items-center gap-1.5 text-xs ${passwordRequirements[key] ? 'text-green-400' : 'text-slate-500'}`}
-                      >
+                      <div key={key} className="flex items-center gap-1.5 text-xs"
+                        style={{ color: passwordRequirements[key] ? 'var(--success)' : 'var(--text-muted)' }}>
                         <span>{passwordRequirements[key] ? '✓' : '○'}</span>
                         <span>{label}</span>
                       </div>
@@ -324,51 +239,44 @@ export default function LoginScreen({
             </>
           )}
 
-          {/* Submit */}
           <button
-            onClick={handleSubmit}
-            disabled={isSubmitDisabled}
-            className={`w-full py-3 rounded-lg font-semibold text-sm transition-colors mt-1 ${
-              isSubmitDisabled
-                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                : 'bg-white text-slate-900 hover:bg-slate-100 cursor-pointer'
-            }`}
-          >
+            onClick={handleSubmit} disabled={isSubmitDisabled}
+            className="w-full py-2.5 rounded-lg font-medium text-sm transition-opacity mt-1"
+            style={{
+              background: 'var(--accent)', color: 'var(--accent-fg)',
+              opacity: isSubmitDisabled ? 0.4 : 1,
+              cursor: isSubmitDisabled ? 'not-allowed' : 'pointer'
+            }}>
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 border-t-slate-900" />
+                <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+                  style={{ borderColor: 'var(--accent-fg)', borderTopColor: 'transparent' }} />
                 {getButtonLabel()}
               </span>
             ) : getButtonLabel()}
           </button>
 
-          {/* Mode switchers — login mode */}
           {mode === 'login' && (
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <button
-                onClick={() => setMode('forgot')}
-                disabled={isSubmitting}
-                className="text-sm text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg py-2.5 transition-colors"
-              >
-                Forgot password?
-              </button>
-              <button
-                onClick={() => setMode('register')}
-                disabled={isSubmitting}
-                className="text-sm text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg py-2.5 transition-colors"
-              >
-                Create account
-              </button>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {[
+                { label: 'Forgot password?', action: () => setMode('forgot') },
+                { label: 'Create account', action: () => setMode('register') },
+              ].map(({ label, action }) => (
+                <button key={label} onClick={action} disabled={isSubmitting}
+                  className="text-sm py-2 rounded-lg transition-colors"
+                  style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                  onMouseEnter={e => e.target.style.borderColor = 'var(--border-strong)'}
+                  onMouseLeave={e => e.target.style.borderColor = 'var(--border)'}>
+                  {label}
+                </button>
+              ))}
             </div>
           )}
 
-          {/* Back to sign in — all other modes */}
           {mode !== 'login' && (
-            <button
-              onClick={() => setMode('login')}
-              disabled={isSubmitting}
-              className="w-full text-sm text-slate-500 hover:text-slate-300 transition-colors pt-1"
-            >
+            <button onClick={() => setMode('login')} disabled={isSubmitting}
+              className="w-full text-sm pt-1 transition-colors"
+              style={{ color: 'var(--text-muted)' }}>
               ← Back to sign in
             </button>
           )}
