@@ -2,15 +2,18 @@ import { verifyJWT } from '../middleware/auth.js'
 
 /**
  * POST /upload
- * Photographer uploads an image to R2.
- * Stores the original file under:
- *   photographers/{photographerId}/galleries/{galleryId}/original/{uuid}.{ext}
+ * Stores a file to R2. Used for both originals and previews.
  *
- * The preview (watermarked WebP) is generated separately by a
- * Supabase Edge Function triggered after this upload completes.
+ * Form fields:
+ *   file       - The file to store
+ *   key        - The exact R2 key to store it under
+ *
+ * The client is responsible for:
+ *   - Generating the preview (resize + watermark) via Canvas API
+ *   - Uploading both original and preview separately
+ *   - Writing metadata to Supabase after both uploads succeed
  */
 export async function handleUpload(request, env, corsHeaders) {
-  // Verify photographer JWT
   const auth = await verifyJWT(request)
   if (!auth.valid) {
     return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
@@ -24,67 +27,50 @@ export async function handleUpload(request, env, corsHeaders) {
   }
 
   const file = formData.get('file')
-  const galleryId = formData.get('galleryId')
-  const imageId = formData.get('imageId') // UUID generated client-side
+  const key = formData.get('key')
 
-  if (!file || !galleryId || !imageId) {
-    return jsonResponse({ ok: false, error: 'Missing required fields: file, galleryId, imageId' }, 400, corsHeaders)
+  if (!file || !key) {
+    return jsonResponse({ ok: false, error: 'Missing required fields: file, key' }, 400, corsHeaders)
   }
 
-  // Validate file type
-  const allowedTypes = [
-    'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-    'image/tiff', 'image/heic', 'image/heif',
-    'image/x-canon-cr2', 'image/x-canon-cr3',
-    'image/x-nikon-nef', 'image/x-sony-arw',
-    'image/x-adobe-dng', 'image/x-fuji-raf',
-  ]
+  // Security: key must belong to this photographer
+  if (!key.startsWith(`photographers/${auth.userId}/`)) {
+    return jsonResponse({ ok: false, error: 'Access denied: invalid key prefix' }, 403, corsHeaders)
+  }
 
-  // Check MIME type — also allow generic octet-stream for RAW files
+  // Key must follow expected pattern (original or preview)
+  if (!key.includes('/original/') && !key.includes('/preview/')) {
+    return jsonResponse({ ok: false, error: 'Invalid key: must contain /original/ or /preview/' }, 400, corsHeaders)
+  }
+
+  const isPreview = key.includes('/preview/')
   const fileType = file.type || 'application/octet-stream'
-  const ext = file.name?.split('.').pop()?.toLowerCase() || ''
-  const rawExtensions = ['cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'pef', 'srw']
-  const isRaw = rawExtensions.includes(ext)
-  const isAllowed = allowedTypes.includes(fileType) || isRaw || fileType === 'application/octet-stream'
-
-  if (!isAllowed) {
-    return jsonResponse({ ok: false, error: `Unsupported file type: ${fileType}` }, 400, corsHeaders)
-  }
-
-  // Build R2 key — verify photographer owns this gallery via key prefix
-  const originalKey = `photographers/${auth.userId}/galleries/${galleryId}/original/${imageId}.${ext}`
 
   try {
-    // Store original file in R2 — no processing, no compression
-    await env.BUCKET.put(originalKey, file.stream(), {
+    await env.BUCKET.put(key, file.stream(), {
       httpMetadata: {
         contentType: fileType,
-        cacheControl: 'private, no-cache', // originals are private
+        cacheControl: isPreview
+          ? 'public, max-age=31536000, immutable'
+          : 'private, no-cache',
       },
       customMetadata: {
         photographerId: auth.userId,
-        galleryId,
-        imageId,
-        originalName: file.name || '',
         uploadedAt: new Date().toISOString(),
+        type: isPreview ? 'preview' : 'original',
       }
     })
 
-    // Update storage usage in Supabase
-    try {
-      await updateStorageUsage(env, auth.userId, file.size)
-    } catch (storageErr) {
-      // Non-fatal — upload succeeded, storage count is best-effort
-      console.error('Failed to update storage usage:', storageErr)
+    // Update storage usage for originals only
+    if (!isPreview) {
+      try {
+        await updateStorageUsage(env, auth.userId, file.size)
+      } catch (err) {
+        console.error('Failed to update storage usage:', err)
+      }
     }
 
-    return jsonResponse({
-      ok: true,
-      originalKey,
-      imageId,
-      fileSize: file.size,
-      fileType,
-    }, 200, corsHeaders)
+    return jsonResponse({ ok: true, key, size: file.size }, 200, corsHeaders)
 
   } catch (err) {
     console.error('R2 upload error:', err)
@@ -96,19 +82,18 @@ async function updateStorageUsage(env, photographerId, fileSize) {
   const url = `${env.SUPABASE_URL}/rest/v1/photographer_storage?photographer_id=eq.${photographerId}`
   const resp = await fetch(url, {
     headers: {
-      'apikey': env.SUPABASE_SERVICE_KEY,
-      'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      apikey: env.SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
     }
   })
   const rows = await resp.json()
-  if (!rows || rows.length === 0) return
-
+  if (!rows?.length) return
   const current = rows[0].bytes_used || 0
   await fetch(url, {
     method: 'PATCH',
     headers: {
-      'apikey': env.SUPABASE_SERVICE_KEY,
-      'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      apikey: env.SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ bytes_used: current + fileSize, updated_at: new Date().toISOString() })

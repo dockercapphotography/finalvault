@@ -12,7 +12,6 @@ const CORS_HEADERS = {
 
 export default {
   async fetch(request, env, ctx) {
-    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS })
     }
@@ -21,27 +20,27 @@ export default {
     const pathname = url.pathname
 
     try {
-      // POST /upload — photographer uploads original image
+      // POST /upload — store original or preview (client decides which)
       if (request.method === 'POST' && pathname === '/upload') {
         return await handleUpload(request, env, CORS_HEADERS)
       }
 
-      // GET /preview/:key — serve watermarked WebP preview (photographer or client)
+      // GET /preview/:key — serve watermarked WebP preview
       if (request.method === 'GET' && pathname.startsWith('/preview/')) {
         return await handlePreview(request, env, CORS_HEADERS)
       }
 
-      // GET /original/:key — serve original file (photographer always, client with PIN)
+      // GET /original/:key — serve original file
       if (request.method === 'GET' && pathname.startsWith('/original/')) {
         return await handleOriginal(request, env, CORS_HEADERS)
       }
 
-      // DELETE /delete/:key — photographer deletes image (both original + preview)
+      // DELETE /delete/:key — delete both original and preview
       if (request.method === 'DELETE' && pathname.startsWith('/delete/')) {
         return await handleDelete(request, env, CORS_HEADERS)
       }
 
-      // POST /download-zip — client downloads full gallery as ZIP
+      // POST /download-zip — stream ZIP of gallery
       if (request.method === 'POST' && pathname === '/download-zip') {
         return await handleZip(request, env, CORS_HEADERS)
       }

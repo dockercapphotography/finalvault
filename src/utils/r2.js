@@ -1,19 +1,36 @@
 /**
- * R2 helpers — all communication with the finalvault-worker.
- * Components never call these directly; use imageApi.js or clientApi.js instead.
+ * r2.js — All communication with the finalvault-worker.
+ *
+ * Simple cloud-only model:
+ *   - Originals and previews both upload via POST /upload
+ *   - Client generates the preview (resize + watermark) before uploading
+ *   - No local storage, no sync, no offline support
  */
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 /**
- * Upload an original image file to R2.
- * Called during photographer image upload flow.
+ * Build R2 key for an original file.
  */
-export async function uploadOriginalToR2({ file, galleryId, imageId, token }) {
+export function buildOriginalKey(photographerId, galleryId, imageId, ext) {
+  return `photographers/${photographerId}/galleries/${galleryId}/original/${imageId}.${ext}`
+}
+
+/**
+ * Build R2 key for a preview file.
+ */
+export function buildPreviewKey(photographerId, galleryId, imageId) {
+  return `photographers/${photographerId}/galleries/${galleryId}/preview/${imageId}.webp`
+}
+
+/**
+ * Upload a file to R2 under a specific key.
+ * Used for both originals and previews.
+ */
+export async function uploadToR2({ file, key, token }) {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('galleryId', galleryId)
-  formData.append('imageId', imageId)
+  formData.append('key', key)
 
   const resp = await fetch(`${WORKER_URL}/upload`, {
     method: 'POST',
@@ -28,7 +45,6 @@ export async function uploadOriginalToR2({ file, galleryId, imageId, token }) {
 
 /**
  * Delete an image from R2 (removes both original and preview).
- * Called during photographer image delete flow.
  */
 export async function deleteFromR2({ key, token }) {
   const resp = await fetch(`${WORKER_URL}/delete/${encodeURIComponent(key)}`, {
@@ -42,30 +58,38 @@ export async function deleteFromR2({ key, token }) {
 }
 
 /**
- * Build a URL to serve a watermarked preview image.
- * Used in <img src> tags throughout the app.
+ * Get the URL for a preview image.
+ * Pass to <img src> — the browser handles auth via the share token or JWT.
+ *
+ * Note: R2 Worker requires auth headers, so we use fetch + object URL
+ * for display rather than a plain <img src> URL.
+ * See useImageUrl() hook for the recommended display pattern.
  */
-export function getPreviewUrl({ key, shareToken, token }) {
-  const encodedKey = encodeURIComponent(key)
-  const url = new URL(`${WORKER_URL}/preview/${encodedKey}`)
-  return url.toString()
+export function getPreviewUrl(key) {
+  return `${WORKER_URL}/preview/${encodeURIComponent(key)}`
 }
 
 /**
- * Build headers for fetching a preview image.
- * Pass either a JWT (photographer) or share token (client).
+ * Fetch a preview image as an object URL for display in <img>.
+ * Handles auth header injection.
  */
-export function getPreviewHeaders({ shareToken, token }) {
-  if (token) return { Authorization: `Bearer ${token}` }
-  if (shareToken) return { 'X-Share-Token': shareToken }
-  return {}
+export async function fetchPreviewObjectUrl({ key, shareToken, token }) {
+  const headers = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (shareToken) headers['X-Share-Token'] = shareToken
+
+  const resp = await fetch(`${WORKER_URL}/preview/${encodeURIComponent(key)}`, { headers })
+  if (!resp.ok) throw new Error('Failed to fetch preview')
+
+  const blob = await resp.blob()
+  return URL.createObjectURL(blob)
 }
 
 /**
  * Download a single original file.
- * Triggers browser download via anchor click.
+ * Triggers browser file download.
  */
-export async function downloadOriginal({ key, shareToken, downloadPin, token, fileName }) {
+export async function downloadOriginal({ key, shareToken, downloadPin, token }) {
   const headers = {}
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
@@ -74,28 +98,22 @@ export async function downloadOriginal({ key, shareToken, downloadPin, token, fi
     if (downloadPin) headers['X-Download-Pin'] = downloadPin
   }
 
-  const encodedKey = encodeURIComponent(key)
-  const resp = await fetch(`${WORKER_URL}/original/${encodedKey}`, { headers })
+  const resp = await fetch(`${WORKER_URL}/original/${encodeURIComponent(key)}`, { headers })
 
   if (!resp.ok) {
     const data = await resp.json().catch(() => ({}))
-    throw new Error(data.error || 'Download failed')
+    const err = new Error(data.error || 'Download failed')
+    err.needsPin = data.needsPin
+    throw err
   }
 
   const blob = await resp.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = fileName || key.split('/').pop()
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  const fileName = key.split('/').pop() || 'download'
+  triggerDownload(blob, fileName)
 }
 
 /**
  * Download all gallery images as a ZIP.
- * Requires share token + optional PIN.
  */
 export async function downloadGalleryZip({ galleryId, imageKeys, shareToken, downloadPin }) {
   const headers = {
@@ -118,10 +136,17 @@ export async function downloadGalleryZip({ galleryId, imageKeys, shareToken, dow
   }
 
   const blob = await resp.blob()
+  triggerDownload(blob, `gallery-${galleryId}.zip`)
+}
+
+/**
+ * Trigger a file download in the browser.
+ */
+function triggerDownload(blob, fileName) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `gallery-${galleryId}.zip`
+  a.download = fileName
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
