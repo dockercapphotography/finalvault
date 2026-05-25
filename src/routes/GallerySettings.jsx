@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Eye, EyeOff, Save, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, RefreshCw, CheckCircle } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
+import { useDebounce } from '../hooks/useDebounce.js'
 import Tabs from '../components/ui/Tabs.jsx'
 import SettingsSection from '../components/ui/SettingsSection.jsx'
 import SettingsRow from '../components/ui/SettingsRow.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
 import Input from '../components/ui/Input.jsx'
 import Button from '../components/ui/Button.jsx'
-import Toast from '../components/ui/Toast.jsx'
 
 const TABS = [
   { id: 'general',  label: 'General' },
@@ -61,23 +61,16 @@ function CodeField({ value, onChange, onRefresh, showValue, onToggleShow, placeh
           onBlur={e => e.target.style.borderColor = 'var(--border)'}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onRefresh}
-            title="Generate new code"
+          <button type="button" onClick={onRefresh} title="Generate new code"
             style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-          >
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
             <RefreshCw size={14} />
           </button>
-          <button
-            type="button"
-            onClick={onToggleShow}
+          <button type="button" onClick={onToggleShow}
             style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-          >
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
             {showValue ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
         </div>
@@ -87,16 +80,42 @@ function CodeField({ value, onChange, onRefresh, showValue, onToggleShow, placeh
   )
 }
 
+// Compact save indicator — not a full Toast, just a subtle pill
+function SaveIndicator({ state }) {
+  if (state === 'idle') return null
+
+  const config = {
+    saving: { text: 'Saving...', color: 'var(--text-muted)', bg: 'var(--surface-raised)' },
+    saved:  { text: 'Changes saved', color: 'var(--success)', bg: 'var(--success-subtle)', icon: true },
+    error:  { text: 'Failed to save', color: 'var(--danger)', bg: 'var(--danger-subtle)' },
+  }
+
+  const { text, color, bg, icon } = config[state]
+
+  return (
+    <div
+      className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg z-50 transition-all"
+      style={{ background: bg, color, border: `1px solid ${color}30` }}
+    >
+      {icon && <CheckCircle size={14} />}
+      {text}
+    </div>
+  )
+}
+
 export default function GallerySettings() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [gallery, setGallery] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState(null)
+  const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [activeTab, setActiveTab] = useState('general')
   const [showPassword, setShowPassword] = useState(false)
   const [showDownloadPin, setShowDownloadPin] = useState(false)
+  const saveTimer = useRef(null)
+  const isFirstLoad = useRef(true)
+  const passwordChanged = useRef(false)
+  const pinChanged = useRef(false)
 
   const [title, setTitle] = useState('')
   const [clientName, setClientName] = useState('')
@@ -106,10 +125,8 @@ export default function GallerySettings() {
   const [expiresAt, setExpiresAt] = useState('')
   const [requirePassword, setRequirePassword] = useState(false)
   const [password, setPassword] = useState('')
-  const [passwordChanged, setPasswordChanged] = useState(false)
   const [requireDownloadPin, setRequireDownloadPin] = useState(false)
   const [downloadPin, setDownloadPin] = useState('')
-  const [pinChanged, setPinChanged] = useState(false)
   const [allowDownloads, setAllowDownloads] = useState(true)
   const [downloadWatermarked, setDownloadWatermarked] = useState(false)
   const [allowFavorites, setAllowFavorites] = useState(true)
@@ -138,55 +155,40 @@ export default function GallerySettings() {
       setTemplate(g.template || 'classic')
       setPassword('')
       setDownloadPin('')
-      setPasswordChanged(false)
-      setPinChanged(false)
+      passwordChanged.current = false
+      pinChanged.current = false
     } catch (err) {
-      setToast({ message: err.message, type: 'error' })
+      setSaveState('error')
     } finally {
       setLoading(false)
+      // Mark first load complete after a tick so the debounce doesn't fire immediately
+      setTimeout(() => { isFirstLoad.current = false }, 100)
     }
   }
 
-  function handleTogglePassword(val) {
-    setRequirePassword(val)
-    if (val && !password && !gallery?.password_hash) {
-      const pw = generatePassword()
-      setPassword(pw)
-      setPasswordChanged(true)
-      setShowPassword(true)
+  // Auto-save with 800ms debounce after any field changes
+  useDebounce(
+    () => {
+      if (isFirstLoad.current || !gallery || !title) return
+      save()
+    },
+    800,
+    [title, clientName, notes, eventDate, isActive, expiresAt,
+     requirePassword, password, requireDownloadPin, downloadPin,
+     allowDownloads, downloadWatermarked, allowFavorites, allowComments, template]
+  )
+
+  // Dismiss 'saved' indicator after 2.5s
+  useEffect(() => {
+    if (saveState === 'saved') {
+      const t = setTimeout(() => setSaveState('idle'), 2500)
+      return () => clearTimeout(t)
     }
-  }
+  }, [saveState])
 
-  function handleRefreshPassword() {
-    const pw = generatePassword()
-    setPassword(pw)
-    setPasswordChanged(true)
-    setShowPassword(true)
-  }
-
-  function handleToggleDownloadPin(val) {
-    setRequireDownloadPin(val)
-    if (val && !downloadPin && !gallery?.download_pin_hash) {
-      const pin = generatePin()
-      setDownloadPin(pin)
-      setPinChanged(true)
-      setShowDownloadPin(true)
-    }
-  }
-
-  function handleRefreshPin() {
-    const pin = generatePin()
-    setDownloadPin(pin)
-    setPinChanged(true)
-    setShowDownloadPin(true)
-  }
-
-  async function handleSave() {
-    if (!title) {
-      setToast({ message: 'Gallery title is required', type: 'error' })
-      return
-    }
-    setSaving(true)
+  async function save() {
+    if (!title) return
+    setSaveState('saving')
     try {
       const updates = {
         title, client_name: clientName, notes,
@@ -202,24 +204,56 @@ export default function GallerySettings() {
         template,
       }
 
-      if (requirePassword && password && passwordChanged) {
+      if (requirePassword && password && passwordChanged.current) {
         const { data } = await supabase.rpc('hash_gallery_password', { p_password: password })
         updates.password_hash = data
+        passwordChanged.current = false
       }
-      if (requireDownloadPin && downloadPin && pinChanged) {
+      if (requireDownloadPin && downloadPin && pinChanged.current) {
         const { data } = await supabase.rpc('hash_gallery_password', { p_password: downloadPin })
         updates.download_pin_hash = data
+        pinChanged.current = false
       }
 
       await updateGallery(id, updates)
-      setToast({ message: 'Settings saved', type: 'success' })
-      setPasswordChanged(false)
-      setPinChanged(false)
+      setSaveState('saved')
     } catch (err) {
-      setToast({ message: err.message, type: 'error' })
-    } finally {
-      setSaving(false)
+      setSaveState('error')
     }
+  }
+
+  function handleTogglePassword(val) {
+    setRequirePassword(val)
+    if (val && !password && !gallery?.password_hash) {
+      const pw = generatePassword()
+      setPassword(pw)
+      passwordChanged.current = true
+      setShowPassword(true)
+    }
+  }
+
+  function handleRefreshPassword() {
+    const pw = generatePassword()
+    setPassword(pw)
+    passwordChanged.current = true
+    setShowPassword(true)
+  }
+
+  function handleToggleDownloadPin(val) {
+    setRequireDownloadPin(val)
+    if (val && !downloadPin && !gallery?.download_pin_hash) {
+      const pin = generatePin()
+      setDownloadPin(pin)
+      pinChanged.current = true
+      setShowDownloadPin(true)
+    }
+  }
+
+  function handleRefreshPin() {
+    const pin = generatePin()
+    setDownloadPin(pin)
+    pinChanged.current = true
+    setShowDownloadPin(true)
   }
 
   if (loading) return (
@@ -242,9 +276,10 @@ export default function GallerySettings() {
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Settings</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{gallery.title}</p>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
-          <Save size={14} />{saving ? 'Saving...' : 'Save Changes'}
-        </Button>
+        {/* Subtle saving state in header instead of a button */}
+        {saveState === 'saving' && (
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Saving...</span>
+        )}
       </div>
 
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
@@ -290,7 +325,7 @@ export default function GallerySettings() {
                 </label>
                 <CodeField
                   value={password}
-                  onChange={v => { setPassword(v); setPasswordChanged(true) }}
+                  onChange={v => { setPassword(v); passwordChanged.current = true }}
                   onRefresh={handleRefreshPassword}
                   showValue={showPassword}
                   onToggleShow={() => setShowPassword(!showPassword)}
@@ -315,7 +350,7 @@ export default function GallerySettings() {
                 </label>
                 <CodeField
                   value={downloadPin}
-                  onChange={v => { setDownloadPin(v.replace(/[^0-9]/g, '').slice(0, 4)); setPinChanged(true) }}
+                  onChange={v => { setDownloadPin(v.replace(/[^0-9]/g, '').slice(0, 4)); pinChanged.current = true }}
                   onRefresh={handleRefreshPin}
                   showValue={showDownloadPin}
                   onToggleShow={() => setShowDownloadPin(!showDownloadPin)}
@@ -375,17 +410,7 @@ export default function GallerySettings() {
         </div>
       )}
 
-      <div className="flex justify-end pb-6">
-        <Button onClick={handleSave} disabled={saving}>
-          <Save size={14} />{saving ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
-
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />
-        </div>
-      )}
+      <SaveIndicator state={saveState} />
     </div>
   )
 }
