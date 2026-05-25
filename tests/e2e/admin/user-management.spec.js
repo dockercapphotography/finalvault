@@ -1,6 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
-test.describe('Admin - User Management', () => {
-  test.todo('lists all photographers')
-  test.todo('deactivates a user')
-})
+test.skip('lists all photographers', async () => tests/e2e/admin/user-management.spec.js)
+test.skip('deactivates a user', async () => tests/e2e/admin/user-management.spec.js)

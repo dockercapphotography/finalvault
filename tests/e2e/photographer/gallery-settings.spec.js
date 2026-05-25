@@ -1,8 +1,6 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
-test.describe('Gallery Settings', () => {
-  test.todo('sets a gallery password')
-  test.todo('sets a download PIN')
-  test.todo('disables downloads')
-  test.todo('sets an expiry date')
-})
+test.skip('sets a gallery password', async () => tests/e2e/photographer/gallery-settings.spec.js)
+test.skip('sets a download PIN', async () => tests/e2e/photographer/gallery-settings.spec.js)
+test.skip('disables downloads', async () => tests/e2e/photographer/gallery-settings.spec.js)
+test.skip('sets an expiry date', async () => tests/e2e/photographer/gallery-settings.spec.js)

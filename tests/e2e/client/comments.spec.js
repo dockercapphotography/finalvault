@@ -1,6 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
-test.describe('Comments', () => {
-  test.todo('leaves a comment on an image')
-  test.todo('leaves a gallery-level comment')
-})
+test.skip('leaves a comment on an image', async () => tests/e2e/client/comments.spec.js)
+test.skip('leaves a gallery-level comment', async () => tests/e2e/client/comments.spec.js)

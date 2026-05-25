@@ -1,7 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
-test.describe('Watermark Config', () => {
-  test.todo('uploads a watermark image')
-  test.todo('sets watermark opacity')
-  test.todo('sets watermark position')
-})
+test.skip('uploads a watermark image', async () => tests/e2e/photographer/watermark.spec.js)
+test.skip('sets watermark opacity', async () => tests/e2e/photographer/watermark.spec.js)
+test.skip('sets watermark position', async () => tests/e2e/photographer/watermark.spec.js)

@@ -1,7 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
-test.describe('Client Gallery Access', () => {
-  test.todo('enters name to access gallery')
-  test.todo('enters correct password to unlock gallery')
-  test.todo('rejects wrong password')
-})
+test.skip('enters name to access gallery', async () => tests/e2e/client/gallery-access.spec.js)
+test.skip('enters correct password to unlock gallery', async () => tests/e2e/client/gallery-access.spec.js)
+test.skip('rejects wrong password', async () => tests/e2e/client/gallery-access.spec.js)

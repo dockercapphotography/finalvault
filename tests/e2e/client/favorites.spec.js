@@ -1,6 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
-test.describe('Favorites', () => {
-  test.todo('hearts an image')
-  test.todo('unhearts an image')
-})
+test.skip('hearts an image', async () => tests/e2e/client/favorites.spec.js)
+test.skip('unhearts an image', async () => tests/e2e/client/favorites.spec.js)

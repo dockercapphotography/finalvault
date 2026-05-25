@@ -1,7 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
-test.describe('ZIP Download', () => {
-  test.todo('downloads full gallery as ZIP')
-  test.todo('requires PIN when configured')
-  test.todo('rejects wrong PIN')
-})
+test.skip('downloads full gallery as ZIP', async () => tests/e2e/client/download-zip.spec.js)
+test.skip('requires PIN when configured', async () => tests/e2e/client/download-zip.spec.js)
+test.skip('rejects wrong PIN', async () => tests/e2e/client/download-zip.spec.js)

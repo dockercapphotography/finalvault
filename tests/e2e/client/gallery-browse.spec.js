@@ -1,7 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
-test.describe('Client Gallery Browsing', () => {
-  test.todo('displays gallery images')
-  test.todo('opens full-screen viewer')
-  test.todo('navigates between images')
-})
+test.skip('displays gallery images', async () => tests/e2e/client/gallery-browse.spec.js)
+test.skip('opens full-screen viewer', async () => tests/e2e/client/gallery-browse.spec.js)
+test.skip('navigates between images', async () => tests/e2e/client/gallery-browse.spec.js)
