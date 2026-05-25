@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+r2-worker/node_modules/
+
+# Build output
+dist/
+r2-worker/dist/
+
+# Environment variables — never commit these
+.env
+.env.local
+.env.*.local
+
+# Playwright
+playwright-report/
+test-results/
+.playwright/
+
+# Vite
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Wrangler
+.wrangler/

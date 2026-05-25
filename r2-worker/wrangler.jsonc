@@ -1,0 +1,16 @@
+{
+  "name": "finalvault-worker",
+  "main": "src/index.js",
+  "compatibility_date": "2025-01-01",
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "finalvault-images",
+      "preview_bucket_name": "finalvault-images-dev"
+    }
+  ],
+  "vars": {
+    "SUPABASE_URL": ""
+  },
+  "secrets": ["JWT_SECRET", "SUPABASE_SERVICE_KEY"]
+}
