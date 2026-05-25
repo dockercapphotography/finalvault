@@ -82,7 +82,6 @@ function CodeField({ value, onChange, onRefresh, showValue, onToggleShow, placeh
 function SaveIndicator({ state }) {
   if (state === 'idle') return null
   const config = {
-    saving: { text: 'Saving...', color: 'var(--text-muted)', bg: 'var(--surface-raised)', border: 'var(--border)' },
     saved:  { text: 'Changes saved', color: 'var(--success)', bg: 'var(--success-subtle)', border: 'var(--success)', icon: true },
     error:  { text: 'Failed to save', color: 'var(--danger)', bg: 'var(--danger-subtle)', border: 'var(--danger)' },
   }
@@ -109,7 +108,6 @@ export default function GallerySettings() {
   const isFirstLoad = useRef(true)
   const passwordChanged = useRef(false)
   const pinChanged = useRef(false)
-  const saveStartTime = useRef(null)
   const dismissTimer = useRef(null)
 
   const [title, setTitle] = useState('')
@@ -130,13 +128,11 @@ export default function GallerySettings() {
 
   useEffect(() => { load() }, [id])
 
-  // Ensure "Saving..." shows for at least 600ms before "Changes saved" appears
+  // Dismiss 'Changes saved' after 2.5s
   useEffect(() => {
     if (saveState === 'saved') {
       if (dismissTimer.current) clearTimeout(dismissTimer.current)
-      const elapsed = Date.now() - (saveStartTime.current || 0)
-      const minVisible = Math.max(600 - elapsed, 0)
-      dismissTimer.current = setTimeout(() => setSaveState('idle'), 2500 + minVisible)
+      dismissTimer.current = setTimeout(() => setSaveState('idle'), 2500)
     }
     return () => { if (dismissTimer.current) clearTimeout(dismissTimer.current) }
   }, [saveState])
@@ -173,8 +169,7 @@ export default function GallerySettings() {
 
   const save = useCallback(async (overrides = {}) => {
     if (isFirstLoad.current || !gallery || !title) return
-    saveStartTime.current = Date.now()
-    setSaveState('saving')
+    // Jump straight to saved — no intermediate 'saving' flash
     try {
       const s = {
         title, clientName, notes, eventDate, isActive, expiresAt,
@@ -285,9 +280,7 @@ export default function GallerySettings() {
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Settings</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{gallery.title}</p>
         </div>
-        {saveState === 'saving' && (
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Saving...</span>
-        )}
+
       </div>
 
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
