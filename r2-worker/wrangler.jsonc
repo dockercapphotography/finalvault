@@ -13,7 +13,7 @@
 
   // Environment variables (non-secret)
   "vars": {
-    "SUPABASE_URL": "https://xxxx.supabase.co"
+    "SUPABASE_URL": "https://imukbaawmtmctfqchxdx.supabase.co"
   }
 
   // Secrets — set via Wrangler CLI, never stored here:
