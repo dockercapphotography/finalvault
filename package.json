@@ -1,42 +1,12 @@
 {
-  "name": "finalvault",
-  "private": true,
+  "name": "finalvault-worker",
   "version": "0.1.0",
-  "type": "module",
+  "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "test": "playwright test",
-    "test:ui": "playwright test --ui",
-    "test:report": "playwright show-report"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.91.1",
-    "@tailwindcss/vite": "^4.1.18",
-    "jszip": "^3.10.1",
-    "lucide-react": "^0.562.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^7.6.1",
-    "react-zoom-pan-pinch": "^3.7.0",
-    "swiper": "^12.0.3",
-    "tailwindcss": "^4.1.18"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@playwright/test": "^1.52.0",
-    "@types/react": "^19.2.5",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
-    "eslint": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
-    "globals": "^16.5.0",
-    "sharp": "^0.34.5",
-    "vite": "^7.2.4",
-    "vite-plugin-pwa": "^1.2.0",
     "wrangler": "^4.60.0"
   }
 }
