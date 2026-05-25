@@ -26,20 +26,15 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Only precache local app assets — never external domains
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        // Silence "no route found" warnings for external URLs (R2 Worker, Supabase)
-        navigateFallbackDenylist: [/^\/api/, /^\/rest/],
         runtimeCaching: [
           {
-            // Cache R2 Worker preview images at runtime
             urlPattern: ({ url }) => url.hostname.includes('workers.dev'),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'r2-preview-cache',
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
               cacheableResponse: { statuses: [0, 200] },
-              fetchOptions: { credentials: 'include' },
             }
           },
           {

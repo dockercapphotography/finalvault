@@ -33,12 +33,14 @@ export async function deleteImage(id) {
 }
 
 export async function saveImageOrder(orderedIds) {
-  // Update sort_order for each image based on its position in the array
-  const updates = orderedIds.map((id, index) => ({ id, sort_order: index }))
-
-  const { error } = await supabase
-    .from('gallery_images')
-    .upsert(updates, { onConflict: 'id' })
-
-  if (error) throw error
+  const results = await Promise.all(
+    orderedIds.map((id, index) =>
+      supabase
+        .from('gallery_images')
+        .update({ sort_order: index })
+        .eq('id', id)
+    )
+  )
+  const failed = results.filter(r => r.error)
+  if (failed.length > 0) throw new Error(failed[0].error.message)
 }
