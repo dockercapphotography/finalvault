@@ -2,10 +2,17 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Settings, BarChart2, Copy, ExternalLink,
-  Trash2, Upload, Images, CheckCircle
+  Trash2, Upload, Images
 } from 'lucide-react'
 import { getGallery, deleteGallery } from '../utils/galleryApi.js'
-import { getImages } from '../utils/imageApi.js'
+import { getImages, deleteImage } from '../utils/imageApi.js'
+import { deleteFromR2 } from '../utils/r2.js'
+import { supabase } from '../supabaseClient.js'
+import { useImageUpload } from '../hooks/useImageUpload.js'
+import { usePreviewUrls } from '../hooks/usePreviewUrls.js'
+import ImageUploader from '../components/images/ImageUploader.jsx'
+import ImageGrid from '../components/images/ImageGrid.jsx'
+import UploadProgress from '../components/images/UploadProgress.jsx'
 import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -21,8 +28,21 @@ export default function GalleryDetail() {
   const [toast, setToast] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [photographerId, setPhotographerId] = useState(null)
 
-  useEffect(() => { load() }, [id])
+  const previewUrls = usePreviewUrls(images)
+
+  const { uploadFiles, uploadItems, isUploading, reset: resetUpload } = useImageUpload({
+    galleryId: id,
+    photographerId,
+    watermark: null, // TODO: load from photographer profile in Account step
+    onComplete: () => loadImages(),
+  })
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id))
+    load()
+  }, [id])
 
   async function load() {
     try {
@@ -37,12 +57,32 @@ export default function GalleryDetail() {
     }
   }
 
+  async function loadImages() {
+    const imgs = await getImages(id)
+    setImages(imgs)
+    resetUpload()
+  }
+
   function handleCopyLink() {
     navigator.clipboard.writeText(`${window.location.origin}/g/${gallery.share_token}`)
     setToast({ message: 'Gallery link copied!', type: 'success' })
   }
 
-  async function handleDelete() {
+  async function handleDeleteImage(imageId) {
+    const image = images.find(i => i.id === imageId)
+    if (!image) return
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await deleteFromR2({ key: image.original_r2_key, token: session.access_token })
+      await deleteImage(imageId)
+      setImages(prev => prev.filter(i => i.id !== imageId))
+      setToast({ message: 'Image deleted', type: 'success' })
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' })
+    }
+  }
+
+  async function handleDeleteGallery() {
     setDeleting(true)
     try {
       await deleteGallery(id)
@@ -80,7 +120,6 @@ export default function GalleryDetail() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      {/* Back */}
       <Button variant="ghost" onClick={() => navigate('/')} className="-ml-2">
         <ArrowLeft size={15} />
         Back to galleries
@@ -98,39 +137,30 @@ export default function GalleryDetail() {
           )}
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
             Created {formatDate(gallery.created_at)}
+            {gallery.event_date && ` · Event ${formatDate(gallery.event_date)}`}
             {gallery.expires_at && ` · Expires ${formatDate(gallery.expires_at)}`}
           </p>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="secondary" onClick={handleCopyLink}>
             <Copy size={14} />
             Copy Link
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => window.open(`/g/${gallery.share_token}`, '_blank')}
-          >
+          <Button variant="secondary"
+            onClick={() => window.open(`/g/${gallery.share_token}`, '_blank')}>
             <ExternalLink size={14} />
             Preview
           </Button>
           <Link to={`/galleries/${id}/activity`}>
-            <Button variant="secondary">
-              <BarChart2 size={14} />
-              Activity
-            </Button>
+            <Button variant="secondary"><BarChart2 size={14} />Activity</Button>
           </Link>
           <Link to={`/galleries/${id}/settings`}>
-            <Button variant="secondary">
-              <Settings size={14} />
-              Settings
-            </Button>
+            <Button variant="secondary"><Settings size={14} />Settings</Button>
           </Link>
         </div>
       </div>
 
-      {/* Divider */}
       <div style={{ borderTop: '1px solid var(--border)' }} />
 
       {/* Images section */}
@@ -139,77 +169,67 @@ export default function GalleryDetail() {
           <h2 className="font-medium text-sm" style={{ color: 'var(--text)' }}>
             Images ({images.length})
           </h2>
-          <Button>
-            <Upload size={14} />
-            Upload Images
-          </Button>
         </div>
 
-        {images.length === 0 ? (
-          <div
-            className="flex flex-col items-center justify-center py-16 rounded-xl text-center"
-            style={{ border: '2px dashed var(--border)', background: 'var(--bg-subtle)' }}
-          >
-            <Images size={28} className="mb-3" style={{ color: 'var(--text-muted)' }} />
-            <p className="font-medium text-sm mb-1" style={{ color: 'var(--text)' }}>No images yet</p>
-            <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
-              Upload images to add them to this gallery
-            </p>
-            <Button>
-              <Upload size={14} />
-              Upload Images
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-            {images.map(image => (
-              <div key={image.id}
-                className="aspect-square rounded-lg overflow-hidden"
-                style={{ background: 'var(--surface-raised)' }}
-              />
-            ))}
-          </div>
+        {/* Upload progress */}
+        {uploadItems.length > 0 && (
+          <UploadProgress items={uploadItems} />
+        )}
+
+        {/* Image grid */}
+        {images.length > 0 && !isUploading && (
+          <ImageGrid
+            images={images}
+            previewUrls={previewUrls}
+            onDelete={handleDeleteImage}
+          />
+        )}
+
+        {/* Upload zone */}
+        {!isUploading && (
+          <ImageUploader
+            onUpload={uploadFiles}
+            disabled={isUploading}
+          />
+        )}
+
+        {images.length === 0 && uploadItems.length === 0 && (
+          <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>
+            Drop images above or click to browse
+          </p>
         )}
       </div>
 
-      {/* Divider */}
       <div style={{ borderTop: '1px solid var(--border)' }} />
 
       {/* Danger zone */}
       <div className="space-y-3">
         <h2 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Danger Zone</h2>
         {!confirmDelete ? (
-          <div
-            className="flex items-center justify-between p-4 rounded-xl"
-            style={{ border: '1px solid var(--border)' }}
-          >
+          <div className="flex items-center justify-between p-4 rounded-xl"
+            style={{ border: '1px solid var(--border)' }}>
             <div>
               <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Delete this gallery</p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Permanently deletes the gallery and all its images. This cannot be undone.
+                Permanently deletes the gallery and all its images. Cannot be undone.
               </p>
             </div>
             <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-              <Trash2 size={14} />
-              Delete
+              <Trash2 size={14} />Delete
             </Button>
           </div>
         ) : (
-          <div
-            className="p-4 rounded-xl space-y-3"
-            style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}
-          >
+          <div className="p-4 rounded-xl space-y-3"
+            style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
             <p className="text-sm font-medium" style={{ color: 'var(--danger)' }}>
               Are you sure? This will permanently delete &ldquo;{gallery.title}&rdquo; and all its images.
             </p>
             <div className="flex gap-2">
-              <Button variant="danger" onClick={handleDelete} disabled={deleting}>
+              <Button variant="danger" onClick={handleDeleteGallery} disabled={deleting}>
                 <Trash2 size={14} />
                 {deleting ? 'Deleting...' : 'Yes, delete permanently'}
               </Button>
-              <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </Button>
+              <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
             </div>
           </div>
         )}
