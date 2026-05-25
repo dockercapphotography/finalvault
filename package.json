@@ -1,9 +1,9 @@
 {
-  "name": "finalvault-worker",
+  "name": "finalvault",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "vite",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
