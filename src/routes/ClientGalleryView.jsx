@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import {
@@ -6,6 +6,10 @@ import {
   getViewerFavorites, toggleFavorite, getComments, addComment,
   getPreviewUrl, downloadOriginal, downloadZip, verifyDownloadPin, logActivity
 } from '../utils/clientApi.js'
+
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+
+function noContext(e) { e.preventDefault() }
 
 // ── Lightbox ─────────────────────────────────────────────────────────────────
 
@@ -28,10 +32,11 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.95)' }}
+      onContextMenu={noContext}
       onClick={onClose}>
 
       {/* Controls */}
-      <div className="absolute top-4 right-4 flex items-center gap-2 z-10"
+      <div className="absolute top-4 right-4 flex items-center gap-2 z-20"
         onClick={e => e.stopPropagation()}>
         {allowDownloads && (
           <button onClick={() => onDownload(image)}
@@ -61,7 +66,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
       {/* Prev */}
       {index > 0 && (
         <button onClick={e => { e.stopPropagation(); onPrev() }}
-          className="absolute left-4 w-10 h-10 rounded-full flex items-center justify-center z-10"
+          className="absolute left-4 w-10 h-10 rounded-full flex items-center justify-center z-20"
           style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
           onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
@@ -69,18 +74,22 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
         </button>
       )}
 
-      {/* Image */}
-      <img
-        src={getPreviewUrl(image.preview_r2_key, token)}
-        alt={image.file_name}
-        onClick={e => e.stopPropagation()}
-        style={{ maxHeight: '90vh', maxWidth: '90vw', objectFit: 'contain', borderRadius: 4 }}
-      />
+      {/* Image + protection overlay */}
+      <div className="relative" onClick={e => e.stopPropagation()}>
+        <img
+          src={getPreviewUrl(image.preview_r2_key, token)}
+          alt=""
+          draggable={false}
+          onContextMenu={noContext}
+          style={{ maxHeight: '90vh', maxWidth: '90vw', objectFit: 'contain', borderRadius: 4, display: 'block', userSelect: 'none' }}
+        />
+        <div className="absolute inset-0 z-10" onContextMenu={noContext} />
+      </div>
 
       {/* Next */}
       {index < images.length - 1 && (
         <button onClick={e => { e.stopPropagation(); onNext() }}
-          className="absolute right-4 w-10 h-10 rounded-full flex items-center justify-center z-10"
+          className="absolute right-4 w-10 h-10 rounded-full flex items-center justify-center z-20"
           style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
           onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
@@ -99,17 +108,22 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
 
 // ── PIN Gate ─────────────────────────────────────────────────────────────────
 
-function PinGate({ onSubmit, error, loading }) {
+function PinGate({ onSubmit, onCancel, error, loading }) {
   const [pin, setPin] = useState('')
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center px-4"
-      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      onClick={onCancel}>
       <div className="w-full max-w-xs rounded-2xl p-6 space-y-4"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <div className="text-center space-y-1">
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
           <p className="font-semibold" style={{ color: 'var(--text)' }}>Download PIN required</p>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Enter the 4-digit PIN to download</p>
+          <button onClick={onCancel} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <X size={16} />
+          </button>
         </div>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Enter the 4-digit PIN to download</p>
         <input
           type="number"
           maxLength={4}
@@ -121,13 +135,21 @@ function PinGate({ onSubmit, error, loading }) {
           style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
         />
         {error && <p className="text-sm text-center" style={{ color: 'var(--danger)' }}>{error}</p>}
-        <button
-          onClick={() => onSubmit(pin)}
-          disabled={pin.length !== 4 || loading}
-          className="w-full py-2.5 rounded-xl font-medium text-sm transition-opacity"
-          style={{ background: '#6366f1', color: '#fff', opacity: pin.length !== 4 || loading ? 0.5 : 1, cursor: pin.length !== 4 || loading ? 'not-allowed' : 'pointer' }}>
-          {loading ? 'Verifying…' : 'Download'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onSubmit(pin)}
+            disabled={pin.length !== 4 || loading}
+            className="flex-1 py-2.5 rounded-xl font-medium text-sm"
+            style={{ background: '#6366f1', color: '#fff', opacity: pin.length !== 4 || loading ? 0.5 : 1, cursor: pin.length !== 4 || loading ? 'not-allowed' : 'pointer' }}>
+            {loading ? 'Verifying…' : 'Download'}
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium"
+            style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -184,7 +206,7 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
           <button
             onClick={handleSubmit}
             disabled={!body.trim() || submitting}
-            className="text-sm px-3 py-2 rounded-lg font-medium transition-opacity"
+            className="text-sm px-3 py-2 rounded-lg font-medium"
             style={{ background: '#6366f1', color: '#fff', opacity: !body.trim() || submitting ? 0.5 : 1, cursor: !body.trim() || submitting ? 'not-allowed' : 'pointer' }}>
             Post
           </button>
@@ -195,8 +217,6 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
 }
 
 // ── Main View ─────────────────────────────────────────────────────────────────
-
-const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 export default function ClientGalleryView() {
   const { token } = useParams()
@@ -217,7 +237,6 @@ export default function ClientGalleryView() {
   const [pinError, setPinError] = useState('')
   const [pinLoading, setPinLoading] = useState(false)
   const [pendingDownload, setPendingDownload] = useState(null)
-
   const [downloadingZip, setDownloadingZip] = useState(false)
 
   useEffect(() => { load() }, [token])
@@ -226,17 +245,10 @@ export default function ClientGalleryView() {
     try {
       setLoading(true)
       const g = await getGalleryByToken(token)
-
-      if (!g || !g.is_active) {
-        navigate(`/g/${token}`, { replace: true })
-        return
-      }
+      if (!g || !g.is_active) { navigate(`/g/${token}`, { replace: true }); return }
 
       const v = getViewerFromSession(g.id)
-      if (!v) {
-        navigate(`/g/${token}`, { replace: true })
-        return
-      }
+      if (!v) { navigate(`/g/${token}`, { replace: true }); return }
 
       const [imgs, favs] = await Promise.all([
         getClientImages(g.id),
@@ -249,7 +261,7 @@ export default function ClientGalleryView() {
       setFavorites(favs)
       logActivity(g.id, v.id, 'view')
 
-      // Resolve hero URL
+      // Resolve hero cover URL
       if (g.cover_r2_key) {
         setHeroUrl(`${WORKER_URL}/preview/${encodeURIComponent(g.cover_r2_key)}?share_token=${token}`)
       } else if (g.cover_image_id && imgs.length > 0) {
@@ -314,10 +326,7 @@ export default function ClientGalleryView() {
     setPinError('')
     try {
       const valid = await verifyDownloadPin(gallery.id, pin)
-      if (!valid) {
-        setPinError('Incorrect PIN. Please try again.')
-        return
-      }
+      if (!valid) { setPinError('Incorrect PIN. Please try again.'); return }
       setShowPinGate(false)
       if (pendingDownload?.type === 'single') {
         await downloadOriginal(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
@@ -347,23 +356,29 @@ export default function ClientGalleryView() {
   )
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+    <div className="min-h-screen" style={{ background: 'var(--bg)' }} onContextMenu={noContext}>
 
       {/* Hero */}
       {heroUrl && (
         <div className="relative w-full overflow-hidden" style={{ height: '70vh', minHeight: 400 }}>
           <img
             src={heroUrl}
-            alt={gallery.title}
+            alt=""
+            draggable={false}
+            onContextMenu={noContext}
             className="w-full h-full"
             style={{
               objectFit: 'cover',
               objectPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`,
+              userSelect: 'none',
             }}
           />
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)' }} />
-          <div className="absolute bottom-0 left-0 right-0 px-8 pb-8">
+          {/* Protection overlay */}
+          <div className="absolute inset-0" style={{ zIndex: 1 }} onContextMenu={noContext} />
+          {/* Gradient + title overlay */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)', zIndex: 2 }} />
+          <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pointer-events-none" style={{ zIndex: 3 }}>
             {gallery.client_name && (
               <p className="text-xs font-medium uppercase tracking-widest mb-2"
                 style={{ color: 'rgba(255,255,255,0.7)' }}>
@@ -388,7 +403,7 @@ export default function ClientGalleryView() {
           <button
             onClick={handleDownloadZip}
             disabled={downloadingZip}
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-opacity"
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: downloadingZip ? 0.5 : 1, cursor: downloadingZip ? 'not-allowed' : 'pointer' }}>
             <Download size={14} />
             {downloadingZip ? 'Preparing…' : 'Download All'}
@@ -400,18 +415,22 @@ export default function ClientGalleryView() {
       <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {images.map((image, i) => (
           <div key={image.id}
-            className="relative overflow-hidden rounded-lg group cursor-pointer"
+            className="relative overflow-hidden rounded-lg group"
+            style={{ cursor: 'pointer' }}
             onClick={() => setLightboxIndex(i)}>
             <img
               src={getPreviewUrl(image.preview_r2_key, token)}
-              alt={image.file_name}
+              alt=""
               loading="lazy"
+              draggable={false}
+              onContextMenu={noContext}
               className="w-full block aspect-square"
-              style={{ objectFit: 'cover', borderRadius: 8 }}
+              style={{ objectFit: 'cover', borderRadius: 8, userSelect: 'none' }}
             />
-            {/* Overlay */}
+            {/* Protection + hover overlay */}
             <div className="absolute inset-0 flex items-end justify-between p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)' }}>
+              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)', zIndex: 2 }}
+              onContextMenu={noContext}>
               <div className="flex items-center gap-1.5">
                 {gallery.allow_favorites && (
                   <button
@@ -490,6 +509,7 @@ export default function ClientGalleryView() {
       {showPinGate && (
         <PinGate
           onSubmit={handlePinSubmit}
+          onCancel={() => { setShowPinGate(false); setPinError(''); setPendingDownload(null) }}
           error={pinError}
           loading={pinLoading}
         />
