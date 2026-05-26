@@ -1,13 +1,31 @@
+import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Images, Settings, Shield } from 'lucide-react'
+import { supabase } from '../../supabaseClient.js'
 
-const navItems = [
+const baseNavItems = [
   { to: '/', label: 'Galleries', icon: Images, end: true },
   { to: '/account', label: 'Account', icon: Settings },
-  { to: '/admin', label: 'Admin', icon: Shield },
 ]
 
 export default function Sidebar() {
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('photographers')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => setIsAdmin(data?.is_admin || false))
+    })
+  }, [])
+
+  const navItems = isAdmin
+    ? [...baseNavItems, { to: '/admin', label: 'Admin', icon: Shield }]
+    : baseNavItems
+
   return (
     <aside className="w-52 flex flex-col py-5 px-3 shrink-0" style={{
       background: 'var(--surface)',
