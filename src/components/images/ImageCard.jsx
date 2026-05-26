@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, ImageIcon } from 'lucide-react'
 
-export default function ImageCard({ image, previewUrl, onDelete, selected, onSelect, selectionMode }) {
+export default function ImageCard({ image, previewUrl, onDelete, onSetCover, isCover, selected, onSelect, selectionMode }) {
   const [hovered, setHovered] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -12,12 +12,17 @@ export default function ImageCard({ image, previewUrl, onDelete, selected, onSel
     catch { setDeleting(false) }
   }
 
+  function handleSetCover(e) {
+    e.stopPropagation()
+    onSetCover?.(image)
+  }
+
   return (
     <div
       className="relative aspect-square rounded-lg overflow-hidden transition-all"
       style={{
         background: 'var(--surface-raised)',
-        outline: selected ? '3px solid #6366f1' : hovered ? '3px solid rgba(99,102,241,0.4)' : '3px solid transparent',
+        outline: selected ? '3px solid #6366f1' : isCover ? '3px solid #f59e0b' : hovered ? '3px solid rgba(99,102,241,0.4)' : '3px solid transparent',
         outlineOffset: '2px',
         cursor: 'pointer',
       }}
@@ -39,14 +44,34 @@ export default function ImageCard({ image, previewUrl, onDelete, selected, onSel
         </div>
       )}
 
+      {/* Cover badge */}
+      {isCover && (
+        <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-xs font-medium"
+          style={{ background: '#f59e0b', color: '#fff' }}>
+          Cover
+        </div>
+      )}
+
       {hovered && !selectionMode && !selected && !deleting && (
-        <button
-          onClick={handleDelete}
-          className="absolute top-2 right-2 p-1.5 rounded-lg"
-          style={{ background: 'rgba(0,0,0,0.65)', cursor: 'pointer' }}
-        >
-          <Trash2 size={12} className="text-white" />
-        </button>
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {onSetCover && !isCover && (
+            <button
+              onClick={handleSetCover}
+              title="Set as cover"
+              className="p-1.5 rounded-lg"
+              style={{ background: 'rgba(0,0,0,0.65)', cursor: 'pointer' }}
+            >
+              <ImageIcon size={12} className="text-white" />
+            </button>
+          )}
+          <button
+            onClick={handleDelete}
+            className="p-1.5 rounded-lg"
+            style={{ background: 'rgba(0,0,0,0.65)', cursor: 'pointer' }}
+          >
+            <Trash2 size={12} className="text-white" />
+          </button>
+        </div>
       )}
 
       {deleting && (

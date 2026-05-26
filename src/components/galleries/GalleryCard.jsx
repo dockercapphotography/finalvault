@@ -3,7 +3,7 @@ import { Images, Lock, Clock } from 'lucide-react'
 import Badge from '../ui/Badge.jsx'
 import { formatDate } from '../../utils/formatters.js'
 
-export default function GalleryCard({ gallery, onCopyLink }) {
+export default function GalleryCard({ gallery, coverUrl, onCopyLink }) {
   const navigate = useNavigate()
 
   const isExpired = gallery.expires_at && new Date(gallery.expires_at) < new Date()
@@ -25,7 +25,11 @@ export default function GalleryCard({ gallery, onCopyLink }) {
       {/* Cover */}
       <div className="aspect-[4/3] relative overflow-hidden flex items-center justify-center"
         style={{ background: 'var(--surface-raised)' }}>
-        <Images size={28} style={{ color: 'var(--text-muted)' }} />
+        {coverUrl ? (
+          <img src={coverUrl} alt={gallery.title} className="w-full h-full" style={{ objectFit: 'cover' }} />
+        ) : (
+          <Images size={28} style={{ color: 'var(--text-muted)' }} />
+        )}
         <div className="absolute top-3 left-3">{statusBadge[status]}</div>
         {gallery.require_password && (
           <div className="absolute top-3 right-3 p-1.5 rounded-full" style={{ background: 'var(--surface)' }}>

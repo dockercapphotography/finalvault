@@ -228,6 +228,7 @@ export default function ClientGalleryView() {
   const [pendingDownload, setPendingDownload] = useState(null) // { type: 'single'|'zip', image? }
 
   const [downloadingZip, setDownloadingZip] = useState(false)
+  const [heroUrl, setHeroUrl] = useState(null)
 
   useEffect(() => { load() }, [token])
 
@@ -256,6 +257,16 @@ export default function ClientGalleryView() {
       setImages(imgs)
       setViewer(v)
       setFavorites(favs)
+
+      // Resolve cover image URL
+      if (g.cover_r2_key) {
+        setHeroUrl(`${import.meta.env.VITE_R2_WORKER_URL}/preview/${encodeURIComponent(g.cover_r2_key)}?share_token=${token}`)
+      } else if (g.cover_image_id && imgs.length > 0) {
+        const coverImg = imgs.find(i => i.id === g.cover_image_id) || imgs[0]
+        if (coverImg) setHeroUrl(getPreviewUrl(coverImg.preview_r2_key, token))
+      } else if (imgs.length > 0) {
+        setHeroUrl(getPreviewUrl(imgs[0].preview_r2_key, token))
+      }
     } catch (err) {
       setError('Could not load gallery.')
     } finally {
@@ -342,21 +353,45 @@ export default function ClientGalleryView() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      {/* Header */}
-      <div className="sticky top-0 z-30 px-6 py-4 flex items-center justify-between"
-        style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-            {gallery.photographers?.display_name || ''}
-          </p>
-          <h1 className="text-base font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
+      {/* Hero */}
+      {heroUrl && (
+        <div className="relative w-full overflow-hidden" style={{ height: '70vh', minHeight: 400 }}>
+          <img
+            src={heroUrl}
+            alt={gallery.title}
+            className="w-full h-full"
+            style={{
+              objectFit: 'cover',
+              objectPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`,
+            }}
+          />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)' }} />
+          <div className="absolute bottom-0 left-0 right-0 px-8 pb-8">
+            {gallery.client_name && (
+              <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                {gallery.client_name}
+              </p>
+            )}
+            <h1 className="text-3xl font-bold mb-1" style={{ color: '#fff' }}>{gallery.title}</h1>
+            {gallery.event_date && (
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                {new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Sticky nav */}
+      <div className="sticky top-0 z-30 px-6 py-3 flex items-center justify-between"
+        style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
+        <h1 className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
         {gallery.allow_downloads && (
           <button
             onClick={handleDownloadZip}
             disabled={downloadingZip}
             className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-opacity"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: downloadingZip ? 0.5 : 1 }}>
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: downloadingZip ? 0.5 : 1, cursor: downloadingZip ? 'not-allowed' : 'pointer' }}>
             <Download size={14} />
             {downloadingZip ? 'Preparing…' : 'Download All'}
           </button>

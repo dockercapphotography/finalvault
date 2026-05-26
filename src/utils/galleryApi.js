@@ -11,7 +11,7 @@ export async function getGalleries() {
       id, title, client_name, event_date, template,
       is_active, share_token, require_password,
       created_at, updated_at, expires_at,
-      cover_image_id,
+      cover_image_id, cover_r2_key,
       gallery_images!cover_image_id (preview_r2_key)
     `)
     .order('created_at', { ascending: false })

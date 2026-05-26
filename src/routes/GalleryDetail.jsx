@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Trash2, Upload } from 'lucide-react'
-import { getGallery, deleteGallery } from '../utils/galleryApi.js'
+import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Trash2, Upload, ImageIcon } from 'lucide-react'
+import { getGallery, deleteGallery, updateGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
 import { supabase } from '../supabaseClient.js'
@@ -17,6 +17,8 @@ import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { formatDate } from '../utils/formatters.js'
+import CoverPickerModal from '../components/galleries/CoverPickerModal.jsx'
+import { getActiveWatermark, getWatermarkUrl } from '../utils/watermarkApi.js'
 
 export default function GalleryDetail() {
   const { id } = useParams()
@@ -30,8 +32,11 @@ export default function GalleryDetail() {
   const [deleting, setDeleting] = useState(false)
   const [photographerId, setPhotographerId] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
-  const [sortBy, setSortBy] = useState('uploaded_desc')
+  const [sortBy, setSortBy] = useState('custom')
   const [savingOrder, setSavingOrder] = useState(false)
+  const [coverId, setCoverId] = useState(null)
+  const [activeWatermark, setActiveWatermark] = useState(null)
+  const [showCoverPicker, setShowCoverPicker] = useState(false)
 
   const hasImages = images.length > 0
   const previewUrls = usePreviewUrls(images)
@@ -39,7 +44,7 @@ export default function GalleryDetail() {
   const { uploadFiles, uploadItems, isUploading, reset: resetUpload } = useImageUpload({
     galleryId: id,
     photographerId,
-    watermark: null,
+    watermark: activeWatermark,
     onComplete: async () => {
       const fresh = await getImages(id)
       setImages(fresh)
@@ -52,7 +57,21 @@ export default function GalleryDetail() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id))
     load()
+    loadWatermark()
   }, [id])
+
+  async function loadWatermark() {
+    try {
+      const wm = await getActiveWatermark()
+      if (wm) {
+        const { data: { session } } = await supabase.auth.getSession()
+        const url = `${import.meta.env.VITE_R2_WORKER_URL}/watermark/${encodeURIComponent(wm.r2_key)}?token=${session.access_token}`
+        setActiveWatermark({ url, opacity: wm.opacity, position: wm.position })
+      }
+    } catch (err) {
+      console.warn('Could not load watermark:', err)
+    }
+  }
 
   async function load() {
     try {
@@ -60,6 +79,7 @@ export default function GalleryDetail() {
       const [g, imgs] = await Promise.all([getGallery(id), getImages(id)])
       setGallery(g)
       setImages(imgs)
+      setCoverId(g.cover_image_id || null)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -80,6 +100,38 @@ export default function GalleryDetail() {
       setToast({ message: 'Failed to save order', type: 'error' })
     } finally {
       setSavingOrder(false)
+    }
+  }
+
+  async function handleSetCover(image, focusX = 0.5, focusY = 0.5) {
+    try {
+      await updateGallery(id, { cover_image_id: image.id, cover_r2_key: null, cover_focus_x: focusX, cover_focus_y: focusY })
+      setCoverId(image.id)
+      setToast({ message: 'Cover image set', type: 'success' })
+    } catch {
+      setToast({ message: 'Failed to set cover', type: 'error' })
+    }
+  }
+
+  async function handleCoverUpload(file, focusX = 0.5, focusY = 0.5) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const ext = file.name.split('.').pop().toLowerCase()
+      const key = `photographers/${photographerId}/galleries/${id}/preview/cover-${crypto.randomUUID()}.${ext}`
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('key', key)
+      const resp = await fetch(`${import.meta.env.VITE_R2_WORKER_URL}/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: formData,
+      })
+      if (!resp.ok) throw new Error('Upload failed')
+      await updateGallery(id, { cover_r2_key: key, cover_image_id: null, cover_focus_x: focusX, cover_focus_y: focusY })
+      setCoverId(null)
+      setToast({ message: 'Cover image uploaded', type: 'success' })
+    } catch {
+      setToast({ message: 'Failed to upload cover', type: 'error' })
     }
   }
 
@@ -205,6 +257,9 @@ export default function GalleryDetail() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="secondary" onClick={handleCopyLink}><Copy size={14} />Copy Link</Button>
+            <Button variant="secondary" onClick={() => setShowCoverPicker(true)}>
+              <ImageIcon size={14} />Cover Image
+            </Button>
             <Button variant="secondary" onClick={() => window.open(`/g/${gallery.share_token}`, '_blank')}>
               <ExternalLink size={14} />Preview
             </Button>
@@ -238,6 +293,8 @@ export default function GalleryDetail() {
               images={images}
               previewUrls={previewUrls}
               onDelete={handleDeleteImage}
+              onSetCover={handleSetCover}
+              coverId={coverId}
               selectedIds={selectedIds}
               onSelect={handleSelect}
               selectionMode={selectedIds.size > 0}
@@ -288,6 +345,16 @@ export default function GalleryDetail() {
           onClearSelection={handleClearSelection}
           onSelectAll={handleSelectAll}
           onDeleteSelected={handleDeleteSelected}
+        />
+      )}
+
+      {showCoverPicker && (
+        <CoverPickerModal
+          images={images}
+          previewUrls={previewUrls}
+          onSelect={handleSetCover}
+          onUpload={handleCoverUpload}
+          onClose={() => setShowCoverPicker(false)}
         />
       )}
 
