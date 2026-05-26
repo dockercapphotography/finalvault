@@ -148,6 +148,8 @@ export async function addComment(galleryId, imageId, viewerId, body) {
     `)
     .single()
   if (error) throw error
+  // Log comment activity with the comment body stored in metadata
+  await logActivity(galleryId, viewerId, 'comment', imageId || null, { comment_body: body })
   return data
 }
 
@@ -217,4 +219,27 @@ export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = 
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+/**
+ * Log a client action to the activity log.
+ */
+export async function logActivity(galleryId, viewerId, action, imageId = null, metadata = null) {
+  // Dedupe view events — only log once per session per gallery
+  if (action === 'view') {
+    const key = `fv-viewed-${galleryId}`
+    if (sessionStorage.getItem(key)) return
+    sessionStorage.setItem(key, '1')
+  }
+  try {
+    await supabase.from('gallery_activity_log').insert({
+      gallery_id: galleryId,
+      viewer_id: viewerId,
+      action,
+      image_id: imageId || null,
+      metadata: metadata || null,
+    })
+  } catch (err) {
+    console.warn('Activity log failed:', err)
+  }
 }

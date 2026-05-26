@@ -4,7 +4,7 @@ import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle, Archive }
 import {
   getGalleryByToken, getClientImages, getViewerFromSession,
   getViewerFavorites, toggleFavorite, getComments, addComment,
-  getPreviewUrl, downloadOriginal, downloadZip, verifyDownloadPin
+  getPreviewUrl, downloadOriginal, downloadZip, verifyDownloadPin, logActivity
 } from '../utils/clientApi.js'
 
 // ── Lightbox ─────────────────────────────────────────────────────────────────
@@ -228,7 +228,6 @@ export default function ClientGalleryView() {
   const [pendingDownload, setPendingDownload] = useState(null) // { type: 'single'|'zip', image? }
 
   const [downloadingZip, setDownloadingZip] = useState(false)
-  const [heroUrl, setHeroUrl] = useState(null)
 
   useEffect(() => { load() }, [token])
 
@@ -257,16 +256,7 @@ export default function ClientGalleryView() {
       setImages(imgs)
       setViewer(v)
       setFavorites(favs)
-
-      // Resolve cover image URL
-      if (g.cover_r2_key) {
-        setHeroUrl(`${import.meta.env.VITE_R2_WORKER_URL}/preview/${encodeURIComponent(g.cover_r2_key)}?share_token=${token}`)
-      } else if (g.cover_image_id && imgs.length > 0) {
-        const coverImg = imgs.find(i => i.id === g.cover_image_id) || imgs[0]
-        if (coverImg) setHeroUrl(getPreviewUrl(coverImg.preview_r2_key, token))
-      } else if (imgs.length > 0) {
-        setHeroUrl(getPreviewUrl(imgs[0].preview_r2_key, token))
-      }
+      logActivity(g.id, v.id, 'view')
     } catch (err) {
       setError('Could not load gallery.')
     } finally {
@@ -282,6 +272,7 @@ export default function ClientGalleryView() {
       nowFav ? next.add(imageId) : next.delete(imageId)
       return next
     })
+    logActivity(gallery.id, viewer.id, nowFav ? 'favorite' : 'unfavorite', imageId)
   }
 
   function handleDownloadSingle(image) {
@@ -307,7 +298,8 @@ export default function ClientGalleryView() {
   async function doZipDownload(pin = null) {
     setDownloadingZip(true)
     try {
-      await downloadZip(gallery.id, token, images.map(i => i.original_r2_key), pin)
+      await downloadZip(gallery.id, token, images.map(i => i.original_r2_key), images.map(i => i.file_name), gallery.title, pin)
+      logActivity(gallery.id, viewer?.id, 'download_all')
     } catch (err) {
       console.error(err)
     } finally {
@@ -353,45 +345,21 @@ export default function ClientGalleryView() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      {/* Hero */}
-      {heroUrl && (
-        <div className="relative w-full overflow-hidden" style={{ height: '70vh', minHeight: 400 }}>
-          <img
-            src={heroUrl}
-            alt={gallery.title}
-            className="w-full h-full"
-            style={{
-              objectFit: 'cover',
-              objectPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`,
-            }}
-          />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)' }} />
-          <div className="absolute bottom-0 left-0 right-0 px-8 pb-8">
-            {gallery.client_name && (
-              <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                {gallery.client_name}
-              </p>
-            )}
-            <h1 className="text-3xl font-bold mb-1" style={{ color: '#fff' }}>{gallery.title}</h1>
-            {gallery.event_date && (
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                {new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Sticky nav */}
-      <div className="sticky top-0 z-30 px-6 py-3 flex items-center justify-between"
+      {/* Header */}
+      <div className="sticky top-0 z-30 px-6 py-4 flex items-center justify-between"
         style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
-        <h1 className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+            {gallery.photographers?.display_name || ''}
+          </p>
+          <h1 className="text-base font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
+        </div>
         {gallery.allow_downloads && (
           <button
             onClick={handleDownloadZip}
             disabled={downloadingZip}
             className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-opacity"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: downloadingZip ? 0.5 : 1, cursor: downloadingZip ? 'not-allowed' : 'pointer' }}>
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: downloadingZip ? 0.5 : 1 }}>
             <Download size={14} />
             {downloadingZip ? 'Preparing…' : 'Download All'}
           </button>
@@ -399,10 +367,10 @@ export default function ClientGalleryView() {
       </div>
 
       {/* Image Grid */}
-      <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      <div className="p-4 columns-2 sm:columns-3 lg:columns-4 gap-2">
         {images.map((image, i) => (
           <div key={image.id}
-            className="relative overflow-hidden rounded-lg group cursor-pointer"
+            className="relative mb-2 break-inside-avoid overflow-hidden rounded-lg group cursor-pointer"
             onClick={() => setLightboxIndex(i)}>
             <img
               src={getPreviewUrl(image.preview_r2_key, token)}
