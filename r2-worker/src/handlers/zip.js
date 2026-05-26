@@ -35,7 +35,7 @@ export async function handleZip(request, env, corsHeaders) {
     return jsonResponse({ ok: false, error: 'Invalid JSON body' }, 400, corsHeaders)
   }
 
-  const { galleryId, imageKeys } = body
+  const { galleryId, imageKeys, fileNames = [] } = body
 
   if (!galleryId || !Array.isArray(imageKeys) || imageKeys.length === 0) {
     return jsonResponse({ ok: false, error: 'Missing galleryId or imageKeys' }, 400, corsHeaders)
@@ -61,7 +61,7 @@ export async function handleZip(request, env, corsHeaders) {
           const obj = await env.BUCKET.get(key)
           if (!obj) return null
           const buffer = await obj.arrayBuffer()
-          const fileName = imageKeys[i].split('/').pop() || `image-${i}`
+          const fileName = fileNames[i] || imageKeys[i].split('/').pop() || `image-${i}`
           return { fileName, buffer, contentType: obj.httpMetadata?.contentType || 'application/octet-stream' }
         } catch {
           return null

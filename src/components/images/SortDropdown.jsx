@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { ArrowDownUp, Check } from 'lucide-react'
 
 export const SORT_OPTIONS = [
+  { id: 'custom',        label: 'Custom order' },
   { id: 'uploaded_desc', label: 'Uploaded: New → Old' },
   { id: 'uploaded_asc',  label: 'Uploaded: Old → New' },
   { id: 'name_asc',      label: 'Name: A → Z' },
@@ -16,9 +17,10 @@ export function sortImages(images, sortId) {
     case 'uploaded_desc':
       return sorted.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at))
     case 'name_asc':
-      return sorted.sort((a, b) => (a.file_name || '').localeCompare(b.file_name || ''))
+      return sorted.sort((a, b) => (a.file_name || '').localeCompare(b.file_name || '', undefined, { numeric: true, sensitivity: 'base' }))
     case 'name_desc':
-      return sorted.sort((a, b) => (b.file_name || '').localeCompare(a.file_name || ''))
+      return sorted.sort((a, b) => (b.file_name || '').localeCompare(a.file_name || '', undefined, { numeric: true, sensitivity: 'base' }))
+    case 'custom':
     default:
       return sorted.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
   }

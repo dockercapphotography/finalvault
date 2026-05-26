@@ -188,7 +188,7 @@ export async function downloadOriginal(r2Key, fileName, shareToken = null, pinTo
  * imageKeys — array of R2 original keys to include
  * downloadPin — optional PIN sent as X-Download-Pin header
  */
-export async function downloadZip(galleryId, shareToken, imageKeys, downloadPin = null) {
+export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = [], galleryTitle = 'gallery', downloadPin = null) {
   const headers = {
     'Content-Type': 'application/json',
     'X-Share-Token': shareToken,
@@ -199,7 +199,7 @@ export async function downloadZip(galleryId, shareToken, imageKeys, downloadPin 
     method: 'POST',
     headers,
     credentials: 'omit',
-    body: JSON.stringify({ galleryId, imageKeys }),
+    body: JSON.stringify({ galleryId, imageKeys, fileNames }),
   })
   if (!resp.ok) {
     const err = await resp.json()
@@ -210,7 +210,8 @@ export async function downloadZip(galleryId, shareToken, imageKeys, downloadPin 
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `gallery-${shareToken}.zip`
+  const safeName = galleryTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  a.download = `${safeName}.zip`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

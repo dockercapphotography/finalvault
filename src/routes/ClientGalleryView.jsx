@@ -364,10 +364,10 @@ export default function ClientGalleryView() {
       </div>
 
       {/* Image Grid */}
-      <div className="p-4 columns-2 sm:columns-3 lg:columns-4 gap-2">
+      <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {images.map((image, i) => (
           <div key={image.id}
-            className="relative mb-2 break-inside-avoid overflow-hidden rounded-lg group cursor-pointer"
+            className="relative overflow-hidden rounded-lg group cursor-pointer"
             onClick={() => setLightboxIndex(i)}>
             <img
               src={getPreviewUrl(image.preview_r2_key, token)}

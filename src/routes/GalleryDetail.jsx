@@ -5,7 +5,6 @@ import { getGallery, deleteGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
 import { supabase } from '../supabaseClient.js'
-import { getActiveWatermark, getWatermarkUrl } from '../utils/watermarkApi.js'
 import { useImageUpload } from '../hooks/useImageUpload.js'
 import { usePreviewUrls } from '../hooks/usePreviewUrls.js'
 import { usePageDrop } from '../hooks/usePageDrop.js'
@@ -33,16 +32,14 @@ export default function GalleryDetail() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [sortBy, setSortBy] = useState('uploaded_desc')
   const [savingOrder, setSavingOrder] = useState(false)
-  const [activeWatermark, setActiveWatermark] = useState(null)
 
   const hasImages = images.length > 0
-  const sortedImages = sortImages(images, sortBy)
   const previewUrls = usePreviewUrls(images)
 
   const { uploadFiles, uploadItems, isUploading, reset: resetUpload } = useImageUpload({
     galleryId: id,
     photographerId,
-    watermark: activeWatermark,
+    watermark: null,
     onComplete: async () => {
       const fresh = await getImages(id)
       setImages(fresh)
@@ -55,21 +52,7 @@ export default function GalleryDetail() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id))
     load()
-    loadWatermark()
   }, [id])
-
-  async function loadWatermark() {
-    try {
-      const wm = await getActiveWatermark()
-      if (wm) {
-        const { data: { session } } = await supabase.auth.getSession()
-        const url = `${import.meta.env.VITE_R2_WORKER_URL}/watermark/${encodeURIComponent(wm.r2_key)}?token=${session.access_token}`
-        setActiveWatermark({ url, opacity: wm.opacity, position: wm.position })
-      }
-    } catch (err) {
-      console.warn('Could not load watermark:', err)
-    }
-  }
 
   async function load() {
     try {
@@ -252,7 +235,7 @@ export default function GalleryDetail() {
 
           {hasImages && (
             <ImageGrid
-              images={sortedImages}
+              images={images}
               previewUrls={previewUrls}
               onDelete={handleDeleteImage}
               selectedIds={selectedIds}
