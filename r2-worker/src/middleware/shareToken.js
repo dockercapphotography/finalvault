@@ -10,7 +10,6 @@ export async function verifyShareToken(request, env, requirePin = false) {
   }
 
   try {
-    // Look up gallery by share token using Supabase REST API
     const url = `${env.SUPABASE_URL}/rest/v1/galleries?share_token=eq.${encodeURIComponent(shareToken)}&is_active=eq.true&select=id,photographer_id,require_password,require_download_pin,download_pin_hash,download_watermarked,allow_downloads,expires_at`
 
     const resp = await fetch(url, {
@@ -31,19 +30,17 @@ export async function verifyShareToken(request, env, requirePin = false) {
 
     const gallery = rows[0]
 
-    // Check expiry
     if (gallery.expires_at && new Date(gallery.expires_at) < new Date()) {
       return { valid: false, error: 'Gallery has expired' }
     }
 
-    // Check download PIN if required
     if (requirePin && gallery.require_download_pin) {
       const pin = request.headers.get('X-Download-Pin')
       if (!pin) {
         return { valid: false, error: 'Download PIN required', needsPin: true }
       }
 
-      const pinValid = await verifyPin(pin, gallery.download_pin_hash)
+      const pinValid = await verifyPinViaRpc(pin, gallery.download_pin_hash, env)
       if (!pinValid) {
         return { valid: false, error: 'Incorrect download PIN', needsPin: true }
       }
@@ -63,14 +60,24 @@ export async function verifyShareToken(request, env, requirePin = false) {
 }
 
 /**
- * Simple bcrypt-compatible PIN verification using Web Crypto.
- * PINs are stored as bcrypt hashes in Supabase (same pattern as PoseVault passwords).
+ * Verify a bcrypt PIN hash using Supabase RPC (verify_gallery_password).
  */
-async function verifyPin(pin, hash) {
+async function verifyPinViaRpc(pin, hash, env) {
   if (!hash) return false
-  // Use Supabase RPC to verify bcrypt hash server-side
-  // This avoids needing bcrypt in the Worker environment
-  // For now, compare plain — replace with proper hashing before production
-  // TODO: use supabase.rpc('verify_pin', { pin, hash }) or pass through edge function
-  return pin === hash
+  try {
+    const resp = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/verify_gallery_password`, {
+      method: 'POST',
+      headers: {
+        'apikey': env.SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_hash: hash, p_password: pin }),
+    })
+    if (!resp.ok) return false
+    const result = await resp.json()
+    return result === true
+  } catch {
+    return false
+  }
 }

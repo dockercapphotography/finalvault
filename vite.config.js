@@ -29,10 +29,14 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.hostname.includes('workers.dev'),
+            // Only cache preview images — NOT originals, downloads, watermarks or zip
+            urlPattern: ({ url }) =>
+              url.hostname.includes('workers.dev') &&
+              url.pathname.includes('/preview/'),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'r2-preview-cache',
+              fetchOptions: { credentials: 'omit' },
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
               cacheableResponse: { statuses: [0, 200] },
             }
@@ -57,7 +61,7 @@ export default defineConfig({
           }
         ]
       },
-      devOptions: { enabled: true }
+      devOptions: { enabled: false }
     })
   ],
   server: { host: true }

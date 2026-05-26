@@ -1,5 +1,5 @@
-const PREVIEW_MAX_LONG_EDGE = 400
-const PREVIEW_QUALITY = 0.80
+const PREVIEW_MAX_LONG_EDGE = 2400
+const PREVIEW_QUALITY = 0.88
 
 export async function generatePreview(file, watermark = null) {
   const imageBitmap = await loadImageBitmap(file)
@@ -33,9 +33,9 @@ async function compositeWatermark(ctx, watermark, canvasWidth, canvasHeight) {
   const resp = await fetch(watermark.url)
   const blob = await resp.blob()
   const wmBitmap = await createImageBitmap(blob)
-  const wmWidth = Math.round(canvasWidth * 0.25)
+  const wmWidth = Math.round(canvasWidth * 0.15)
   const wmHeight = Math.round((wmBitmap.height / wmBitmap.width) * wmWidth)
-  const PADDING = 10
+  const PADDING = 8
   const { x, y } = getWatermarkPosition(watermark.position, canvasWidth, canvasHeight, wmWidth, wmHeight, PADDING)
   ctx.save()
   ctx.globalAlpha = watermark.opacity ?? 0.3
