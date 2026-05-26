@@ -256,7 +256,6 @@ export default function ClientGalleryView() {
       setImages(imgs)
       setViewer(v)
       setFavorites(favs)
-      logActivity(g.id, v.id, 'view')
     } catch (err) {
       setError('Could not load gallery.')
     } finally {
@@ -272,7 +271,6 @@ export default function ClientGalleryView() {
       nowFav ? next.add(imageId) : next.delete(imageId)
       return next
     })
-    logActivity(gallery.id, viewer.id, nowFav ? 'favorite' : 'unfavorite', imageId)
   }
 
   function handleDownloadSingle(image) {
@@ -282,6 +280,7 @@ export default function ClientGalleryView() {
       setShowPinGate(true)
     } else {
       downloadOriginal(image.original_r2_key, image.file_name, token)
+      logActivity(gallery.id, viewer?.id, 'download_single', image.id)
     }
   }
 
@@ -298,8 +297,7 @@ export default function ClientGalleryView() {
   async function doZipDownload(pin = null) {
     setDownloadingZip(true)
     try {
-      await downloadZip(gallery.id, token, images.map(i => i.original_r2_key), images.map(i => i.file_name), gallery.title, pin)
-      logActivity(gallery.id, viewer?.id, 'download_all')
+      await downloadZip(gallery.id, token, images.map(i => i.original_r2_key), pin)
     } catch (err) {
       console.error(err)
     } finally {
@@ -319,6 +317,7 @@ export default function ClientGalleryView() {
       setShowPinGate(false)
       if (pendingDownload?.type === 'single') {
         await downloadOriginal(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
+        logActivity(gallery.id, viewer?.id, 'download_single', pendingDownload.image.id)
       } else {
         await doZipDownload(pin)
       }
