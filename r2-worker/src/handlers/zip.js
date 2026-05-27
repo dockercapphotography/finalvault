@@ -35,23 +35,24 @@ export async function handleZip(request, env, corsHeaders) {
     return jsonResponse({ ok: false, error: 'Invalid JSON body' }, 400, corsHeaders)
   }
 
-  const { galleryId, imageKeys, fileNames = [] } = body
+  const { galleryId, imageKeys } = body
 
   if (!galleryId || !Array.isArray(imageKeys) || imageKeys.length === 0) {
     return jsonResponse({ ok: false, error: 'Missing galleryId or imageKeys' }, 400, corsHeaders)
   }
 
-  // Security: all keys must belong to this photographer's gallery
+  // Security: all keys must belong to this photographer's gallery and be preview or original
   const expectedPrefix = `photographers/${shareAuth.photographerId}/galleries/${galleryId}/`
-  const allValid = imageKeys.every(key => key.startsWith(expectedPrefix))
+  const allValid = imageKeys.every(key =>
+    key.startsWith(expectedPrefix) &&
+    (key.includes('/preview/') || key.includes('/original/'))
+  )
   if (!allValid) {
     return jsonResponse({ ok: false, error: 'Access denied: invalid image keys' }, 403, corsHeaders)
   }
 
-  // If watermarked downloads, swap original keys for preview keys
-  const fetchKeys = shareAuth.downloadWatermarked
-    ? imageKeys.map(key => key.replace('/original/', '/preview/').replace(/\.[^.]+$/, '.webp'))
-    : imageKeys
+  // Keys are pre-resolved by the client (either preview or original)
+  const fetchKeys = imageKeys
 
   try {
     // Fetch all images from R2 concurrently
@@ -61,7 +62,7 @@ export async function handleZip(request, env, corsHeaders) {
           const obj = await env.BUCKET.get(key)
           if (!obj) return null
           const buffer = await obj.arrayBuffer()
-          const fileName = fileNames[i] || imageKeys[i].split('/').pop() || `image-${i}`
+          const fileName = imageKeys[i].split('/').pop() || `image-${i}`
           return { fileName, buffer, contentType: obj.httpMetadata?.contentType || 'application/octet-stream' }
         } catch {
           return null

@@ -4,7 +4,7 @@ import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lu
 import {
   getGalleryByToken, getClientImages, getViewerFromSession,
   getViewerFavorites, toggleFavorite, getComments, addComment,
-  getPreviewUrl, downloadOriginal, downloadZip, verifyDownloadPin, logActivity
+  getPreviewUrl, downloadOriginal, downloadPreview, downloadZip, verifyDownloadPin, logActivity
 } from '../utils/clientApi.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
@@ -13,7 +13,7 @@ function noContext(e) { e.preventDefault() }
 
 // ── Lightbox ─────────────────────────────────────────────────────────────────
 
-function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleFavorite, allowDownloads, onDownload, token }) {
+function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleFavorite, allowDownloads, allowWebSize, allowHires, onDownload, token }) {
   const image = images[index]
   if (!image) return null
 
@@ -39,13 +39,28 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
       <div className="absolute top-4 right-4 flex items-center gap-2 z-20"
         onClick={e => e.stopPropagation()}>
         {allowDownloads && (
-          <button onClick={() => onDownload(image)}
-            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-            style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
-            <Download size={16} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {allowWebSize && (
+              <button onClick={() => onDownload(image, false)}
+                title="Web Size"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
+                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
+                <Download size={13} />Web Size
+              </button>
+            )}
+            {allowHires && (
+              <button onClick={() => onDownload(image, true)}
+                title="High Resolution"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
+                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
+                <Download size={13} />High Res
+              </button>
+            )}
+          </div>
         )}
         <button onClick={() => onToggleFavorite(image.id)}
           className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
@@ -288,31 +303,42 @@ export default function ClientGalleryView() {
     logActivity(gallery.id, viewer.id, nowFav ? 'favorite' : 'unfavorite', imageId)
   }
 
-  function handleDownloadSingle(image) {
+  function handleDownloadSingle(image, hires = false) {
     if (!gallery.allow_downloads) return
     if (gallery.require_download_pin) {
-      setPendingDownload({ type: 'single', image })
+      setPendingDownload({ type: 'single', image, hires })
       setShowPinGate(true)
     } else {
-      downloadOriginal(image.original_r2_key, image.file_name, token)
+      if (hires) {
+        downloadOriginal(image.original_r2_key, image.file_name, token)
+      } else {
+        const webName = image.file_name.replace(/\.[^.]+$/, '_web.jpg')
+        downloadPreview(image.preview_r2_key, webName, token)
+      }
       logActivity(gallery.id, viewer?.id, 'download_single', image.id)
     }
   }
 
-  function handleDownloadZip() {
+  function handleDownloadZip(hires = false) {
     if (!gallery.allow_downloads) return
     if (gallery.require_download_pin) {
-      setPendingDownload({ type: 'zip' })
+      setPendingDownload({ type: 'zip', hires })
       setShowPinGate(true)
     } else {
-      doZipDownload()
+      doZipDownload(null, hires)
     }
   }
 
-  async function doZipDownload(pin = null) {
+  async function doZipDownload(pin = null, hires = false) {
     setDownloadingZip(true)
     try {
-      await downloadZip(gallery.id, token, images.map(i => i.original_r2_key), images.map(i => i.file_name), gallery.title, pin)
+      const keys = hires
+        ? images.map(i => i.original_r2_key)
+        : images.map(i => i.preview_r2_key)
+      const names = hires
+        ? images.map(i => i.file_name)
+        : images.map(i => i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
+      await downloadZip(gallery.id, token, keys, names, gallery.title, pin)
       logActivity(gallery.id, viewer?.id, 'download_all')
     } catch (err) {
       console.error(err)
@@ -329,10 +355,15 @@ export default function ClientGalleryView() {
       if (!valid) { setPinError('Incorrect PIN. Please try again.'); return }
       setShowPinGate(false)
       if (pendingDownload?.type === 'single') {
-        await downloadOriginal(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
+        if (pendingDownload.hires) {
+          await downloadOriginal(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
+        } else {
+          const webName = pendingDownload.image.file_name.replace(/\.[^.]+$/, '_web.jpg')
+          await downloadPreview(pendingDownload.image.preview_r2_key, webName, token)
+        }
         logActivity(gallery.id, viewer?.id, 'download_single', pendingDownload.image.id)
       } else {
-        await doZipDownload(pin)
+        await doZipDownload(pin, pendingDownload?.hires || false)
       }
       setPendingDownload(null)
     } catch {
@@ -400,14 +431,28 @@ export default function ClientGalleryView() {
         style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
         <h1 className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
         {gallery.allow_downloads && (
-          <button
-            onClick={handleDownloadZip}
-            disabled={downloadingZip}
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: downloadingZip ? 0.5 : 1, cursor: downloadingZip ? 'not-allowed' : 'pointer' }}>
-            <Download size={14} />
-            {downloadingZip ? 'Preparing…' : 'Download All'}
-          </button>
+          <div className="flex items-center gap-2">
+            {gallery.download_watermarked && (
+              <button
+                onClick={() => handleDownloadZip(false)}
+                disabled={downloadingZip}
+                className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: downloadingZip ? 0.5 : 1, cursor: downloadingZip ? 'not-allowed' : 'pointer' }}>
+                <Download size={14} />
+                {downloadingZip ? 'Preparing…' : 'Web Size'}
+              </button>
+            )}
+            {gallery.allow_hires_download && (
+              <button
+                onClick={() => handleDownloadZip(true)}
+                disabled={downloadingZip}
+                className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+                style={{ background: '#6366f1', border: '1px solid #6366f1', color: '#fff', opacity: downloadingZip ? 0.5 : 1, cursor: downloadingZip ? 'not-allowed' : 'pointer' }}>
+                <Download size={14} />
+                {downloadingZip ? 'Preparing…' : 'High Res'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -451,12 +496,26 @@ export default function ClientGalleryView() {
                 )}
               </div>
               {gallery.allow_downloads && (
-                <button
-                  onClick={e => { e.stopPropagation(); handleDownloadSingle(image) }}
-                  className="w-7 h-7 rounded-full flex items-center justify-center"
-                  style={{ background: 'rgba(0,0,0,0.4)', cursor: 'pointer' }}>
-                  <Download size={13} style={{ color: '#fff' }} />
-                </button>
+                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                  {gallery.download_watermarked && (
+                    <button
+                      onClick={() => handleDownloadSingle(image, false)}
+                      title="Web Size"
+                      className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-xs font-medium"
+                      style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', cursor: 'pointer' }}>
+                      <Download size={11} />WS
+                    </button>
+                  )}
+                  {gallery.allow_hires_download && (
+                    <button
+                      onClick={() => handleDownloadSingle(image, true)}
+                      title="High Resolution"
+                      className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-xs font-medium"
+                      style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', cursor: 'pointer' }}>
+                      <Download size={11} />HR
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -474,6 +533,8 @@ export default function ClientGalleryView() {
           favorites={favorites}
           onToggleFavorite={handleToggleFavorite}
           allowDownloads={gallery.allow_downloads}
+          allowWebSize={gallery.download_watermarked}
+          allowHires={gallery.allow_hires_download}
           onDownload={handleDownloadSingle}
           token={token}
         />

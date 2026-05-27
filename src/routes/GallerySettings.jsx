@@ -122,6 +122,7 @@ export default function GallerySettings() {
   const [downloadPin, setDownloadPin] = useState('')
   const [allowDownloads, setAllowDownloads] = useState(true)
   const [downloadWatermarked, setDownloadWatermarked] = useState(false)
+  const [allowHiresDownload, setAllowHiresDownload] = useState(false)
   const [allowFavorites, setAllowFavorites] = useState(true)
   const [allowComments, setAllowComments] = useState(true)
   const [template, setTemplate] = useState('classic')
@@ -152,6 +153,7 @@ export default function GallerySettings() {
       setRequireDownloadPin(g.require_download_pin ?? false)
       setAllowDownloads(g.allow_downloads ?? true)
       setDownloadWatermarked(g.download_watermarked ?? false)
+      setAllowHiresDownload(g.allow_hires_download ?? false)
       setAllowFavorites(g.allow_favorites ?? true)
       setAllowComments(g.allow_comments ?? true)
       setTemplate(g.template || 'classic')
@@ -174,7 +176,7 @@ export default function GallerySettings() {
       const s = {
         title, clientName, notes, eventDate, isActive, expiresAt,
         requirePassword, password, requireDownloadPin, downloadPin,
-        allowDownloads, downloadWatermarked, allowFavorites, allowComments, template,
+        allowDownloads, downloadWatermarked, allowHiresDownload, allowFavorites, allowComments, template,
         ...overrides
       }
       const updates = {
@@ -186,6 +188,7 @@ export default function GallerySettings() {
         require_download_pin: s.requireDownloadPin,
         allow_downloads: s.allowDownloads,
         download_watermarked: s.downloadWatermarked,
+        allow_hires_download: s.allowHiresDownload,
         allow_favorites: s.allowFavorites,
         allow_comments: s.allowComments,
         template: s.template,
@@ -207,7 +210,7 @@ export default function GallerySettings() {
     }
   }, [gallery, title, clientName, notes, eventDate, isActive, expiresAt,
       requirePassword, password, requireDownloadPin, downloadPin,
-      allowDownloads, downloadWatermarked, allowFavorites, allowComments, template, id])
+      allowDownloads, downloadWatermarked, allowHiresDownload, allowFavorites, allowComments, template, id])
 
   // Toggles save immediately; text fields save on blur
   function handleToggle(setter, key, val) {
@@ -359,9 +362,14 @@ export default function GallerySettings() {
               <Toggle checked={allowDownloads} onChange={v => handleToggle(setAllowDownloads, 'allowDownloads', v)} />
             </SettingsRow>
             {allowDownloads && (
-              <SettingsRow label="Watermark downloads" description="Downloads include your watermark. Off = clean originals.">
-                <Toggle checked={downloadWatermarked} onChange={v => handleToggle(setDownloadWatermarked, 'downloadWatermarked', v)} />
-              </SettingsRow>
+              <>
+                <SettingsRow label="Web Size downloads" description="Clients can download watermarked web-size images (2400px)">
+                  <Toggle checked={downloadWatermarked} onChange={v => handleToggle(setDownloadWatermarked, 'downloadWatermarked', v)} />
+                </SettingsRow>
+                <SettingsRow label="High Resolution downloads" description="Clients can download clean full-resolution originals">
+                  <Toggle checked={allowHiresDownload} onChange={v => handleToggle(setAllowHiresDownload, 'allowHiresDownload', v)} />
+                </SettingsRow>
+              </>
             )}
           </SettingsSection>
           <SettingsSection title="Client Interactions">

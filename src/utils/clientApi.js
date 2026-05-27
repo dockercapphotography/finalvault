@@ -9,7 +9,7 @@ export async function getGalleryByToken(token) {
     .select(`
       id, title, client_name, template, is_active, expires_at,
       require_password, allow_downloads, allow_favorites, allow_comments,
-      require_download_pin, download_watermarked, share_token,
+      require_download_pin, download_watermarked, allow_hires_download, share_token,
       photographer_id, cover_image_id, cover_r2_key, cover_focus_x, cover_focus_y,
       event_date
     `)
@@ -163,10 +163,11 @@ export function getPreviewUrl(r2Key, shareToken) {
  * shareToken — the gallery share token (required for client access)
  * pinToken — download PIN if the gallery requires one
  */
-export async function downloadOriginal(r2Key, fileName, shareToken = null, pinToken = null) {
+export async function downloadOriginal(r2Key, fileName, shareToken = null, pinToken = null, hires = true) {
   const headers = {}
   if (shareToken) headers['X-Share-Token'] = shareToken
   if (pinToken) headers['X-Download-Pin'] = pinToken
+  if (hires) headers['X-Hires'] = 'true'
 
   const resp = await fetch(`${WORKER_URL}/original/${encodeURIComponent(r2Key)}`, {
     headers,
@@ -183,6 +184,24 @@ export async function downloadOriginal(r2Key, fileName, shareToken = null, pinTo
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+/**
+ * Download a single web-size (watermarked preview) image.
+ */
+export async function downloadPreview(r2Key, fileName, shareToken = null) {
+  const url = `${WORKER_URL}/preview/${encodeURIComponent(r2Key)}?share_token=${shareToken || ''}`
+  const resp = await fetch(url, { credentials: 'omit' })
+  if (!resp.ok) throw new Error('Download failed')
+  const blob = await resp.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(objectUrl)
 }
 
 /**

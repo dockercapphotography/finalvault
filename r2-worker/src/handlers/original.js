@@ -59,8 +59,11 @@ export async function handleOriginal(request, env, corsHeaders) {
     return jsonResponse({ ok: false, error: 'Access denied' }, 403, corsHeaders)
   }
 
+  // X-Hires header means client explicitly wants the original — skip watermark swap
+  const hiresRequested = request.headers.get('X-Hires') === 'true'
+
   // If gallery is set to watermarked downloads, serve the preview instead
-  const fetchKey = (isClientDownload && downloadWatermarked)
+  const fetchKey = (isClientDownload && downloadWatermarked && !hiresRequested)
     ? key.replace('/original/', '/preview/').replace(/\.[^.]+$/, '.webp')
     : key
 
