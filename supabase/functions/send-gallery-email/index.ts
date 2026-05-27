@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { galleryId, recipients, subject, message } = await req.json()
+    const { galleryId, recipients, subject, message, includePassword, includePin } = await req.json()
 
     if (!galleryId || !recipients?.length) {
       return new Response(JSON.stringify({ error: 'Missing galleryId or recipients' }), {
@@ -66,14 +66,29 @@ serve(async (req) => {
       const email = typeof recipient === 'string' ? recipient : recipient.email
       const name = typeof recipient === 'object' ? recipient.name : null
 
+      const clientName = name || gallery.client_name || 'there'
+      const vars: Record<string, string> = {
+        gallery_name: gallery.title,
+        client_name: clientName,
+        event_date: gallery.event_date ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '',
+        my_name: photographer?.display_name || senderName,
+        business_name: photographer?.business_name || senderName,
+        gallery_url: galleryUrl,
+        password: (includePassword && gallery.plain_password) ? gallery.plain_password : '',
+        download_pin: (includePin && gallery.plain_download_pin) ? gallery.plain_download_pin : '',
+      }
+
+      const finalSubject = substituteVariables(subject || `Your gallery is ready — ${gallery.title}`, vars)
+      const finalMessage = substituteVariables(message || '', vars)
+
       const html = buildEmailHtml({
         senderName,
         galleryTitle: gallery.title,
-        clientName: name || gallery.client_name || 'there',
+        clientName,
         galleryUrl,
-        password: gallery.require_password ? gallery.plain_password : null,
-        downloadPin: gallery.require_download_pin ? gallery.plain_download_pin : null,
-        customMessage: message || null,
+        password: includePassword && gallery.require_password ? gallery.plain_password : null,
+        downloadPin: includePin && gallery.require_download_pin ? gallery.plain_download_pin : null,
+        customMessage: finalMessage || null,
       })
 
       const res = await fetch('https://api.resend.com/emails', {
@@ -85,7 +100,7 @@ serve(async (req) => {
         body: JSON.stringify({
           from: `${senderName} <noreply@dockercapphotography.com>`,
           to: [email],
-          subject: subject || `Your gallery is ready — ${gallery.title}`,
+          subject: finalSubject,
           html,
         }),
       })
@@ -105,6 +120,10 @@ serve(async (req) => {
     })
   }
 })
+
+function substituteVariables(text: string, vars: Record<string, string>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
+}
 
 function buildEmailHtml({ senderName, galleryTitle, clientName, galleryUrl, password, downloadPin, customMessage }: {
   senderName: string
