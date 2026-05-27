@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon } from 'lucide-react'
+import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
@@ -36,6 +36,12 @@ export default function GalleryDetail() {
   const [coverId, setCoverId] = useState(null)
   const [activeWatermark, setActiveWatermark] = useState(null)
   const [showCoverPicker, setShowCoverPicker] = useState(false)
+  const [showActionSheet, setShowActionSheet] = useState(false)
+  const [sheetVisible, setSheetVisible] = useState(false)
+
+  function openSheet() { setShowActionSheet(true); requestAnimationFrame(() => requestAnimationFrame(() => setSheetVisible(true))) }
+  function closeSheet() { setSheetVisible(false); setTimeout(() => setShowActionSheet(false), 300) }
+  const [shareModal, setShareModal] = useState(null)
 
   const hasImages = images.length > 0
   const previewUrls = usePreviewUrls(images)
@@ -236,44 +242,56 @@ export default function GalleryDetail() {
       )}
 
       <div className="max-w-5xl space-y-6">
-        <Button variant="ghost" onClick={() => navigate('/')} className="-ml-2">
-          <ArrowLeft size={15} />Back to galleries
-        </Button>
-
-        {/* Title + meta */}
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
-            {statusBadge[status]}
-          </div>
-          {gallery.client_name && (
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{gallery.client_name}</p>
-          )}
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            Created {formatDate(gallery.created_at)}
-            {gallery.event_date && ` · Event ${formatDate(gallery.event_date)}`}
-            {gallery.expires_at && ` · Expires ${formatDate(gallery.expires_at)}`}
-          </p>
+        {/* ── Mobile top bar ── */}
+        <div className="flex items-center gap-2 md:hidden -mx-0 mb-2">
+          <button onClick={() => navigate('/')} style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
+            <ArrowLeft size={18} />
+          </button>
+          <h1 className="flex-1 text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
+          {statusBadge[status]}
+          <button onClick={openSheet} style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
+            <MoreVertical size={18} />
+          </button>
         </div>
 
-        {/* Action buttons — Share full width on mobile, rest wrap tightly */}
-        <div className="space-y-2">
-          <div className="w-full sm:w-auto">
-            <ShareButton gallery={gallery} fullWidthMobile />
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Button variant="secondary" onClick={() => setShowCoverPicker(true)}>
-              <ImageIcon size={14} />Cover Image
-            </Button>
-            <Button variant="secondary" onClick={() => window.open(`/g/${gallery.share_token}`, '_blank')}>
-              <ExternalLink size={14} />Preview
-            </Button>
-            <Link to={`/galleries/${id}/activity`}>
-              <Button variant="secondary"><BarChart2 size={14} />Activity</Button>
-            </Link>
-            <Link to={`/galleries/${id}/settings`}>
-              <Button variant="secondary"><Settings size={14} />Settings</Button>
-            </Link>
+        {/* ── Desktop header ── */}
+        <div className="hidden md:block">
+          <Button variant="ghost" onClick={() => navigate('/')} className="-ml-2">
+            <ArrowLeft size={15} />Back to galleries
+          </Button>
+        </div>
+
+        <div className="hidden md:block">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
+                {statusBadge[status]}
+              </div>
+              {gallery.client_name && (
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{gallery.client_name}</p>
+              )}
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                Created {formatDate(gallery.created_at)}
+                {gallery.event_date && ` · Event ${formatDate(gallery.event_date)}`}
+                {gallery.expires_at && ` · Expires ${formatDate(gallery.expires_at)}`}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <ShareButton gallery={gallery} />
+              <Button variant="secondary" onClick={() => setShowCoverPicker(true)}>
+                <ImageIcon size={14} />Cover Image
+              </Button>
+              <Button variant="secondary" onClick={() => window.open(`/g/${gallery.share_token}`, '_blank')}>
+                <ExternalLink size={14} />Preview
+              </Button>
+              <Link to={`/galleries/${id}/activity`}>
+                <Button variant="secondary"><BarChart2 size={14} />Activity</Button>
+              </Link>
+              <Link to={`/galleries/${id}/settings`}>
+                <Button variant="secondary"><Settings size={14} />Settings</Button>
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -343,6 +361,64 @@ export default function GalleryDetail() {
         <div className="fixed bottom-6 right-6 z-50">
           <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />
         </div>
+      )}
+
+      {/* ── Mobile action sheet ── */}
+      {showActionSheet && (
+        <div className="fixed inset-0 z-50 flex items-end md:hidden"
+          style={{ background: sheetVisible ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0)', transition: 'background 0.3s ease' }}
+          onClick={closeSheet}>
+          <div className="w-full rounded-t-2xl p-4 space-y-3"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderBottom: 'none',
+              transform: sheetVisible ? 'translateY(0)' : 'translateY(100%)',
+              transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
+            }}
+            onClick={e => e.stopPropagation()}>
+            <div className="w-8 h-1 rounded-full mx-auto mb-2" style={{ background: 'var(--border-strong)' }} />
+
+            {/* Gallery info strip */}
+            <div className="px-1 pb-2" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</p>
+                {statusBadge[status]}
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {[
+                  gallery.client_name,
+                  gallery.event_date && `Event ${formatDate(gallery.event_date)}`,
+                  `Created ${formatDate(gallery.created_at)}`,
+                ].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { icon: Mail, label: 'Email', action: () => { closeSheet(); setTimeout(() => setShareModal('email'), 300) } },
+                { icon: LinkIcon, label: 'Get Link', action: () => { closeSheet(); setTimeout(() => setShareModal('link'), 300) } },
+                { icon: QrCode, label: 'QR Code', action: () => { closeSheet(); setTimeout(() => setShareModal('qr'), 300) } },
+                { icon: ImageIcon, label: 'Cover', action: () => { closeSheet(); setTimeout(() => setShowCoverPicker(true), 300) } },
+                { icon: ExternalLink, label: 'Preview', action: () => { closeSheet(); window.open(`/g/${gallery.share_token}`, '_blank') } },
+                { icon: BarChart2, label: 'Activity', action: () => { closeSheet(); setTimeout(() => navigate(`/galleries/${id}/activity`), 300) } },
+                { icon: Settings, label: 'Settings', action: () => { closeSheet(); setTimeout(() => navigate(`/galleries/${id}/settings`), 300) } },
+              ].map(({ icon: Icon, label, action }) => (
+                <button key={label} onClick={action}
+                  className="flex flex-col items-center gap-2 py-4 rounded-xl"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <Icon size={22} style={{ color: 'var(--text)' }} />
+                  <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share modals triggered from mobile sheet */}
+      {shareModal && (
+        <ShareButton gallery={gallery} openModal={shareModal} onModalClose={() => setShareModal(null)} mobileOnly />
       )}
     </>
   )

@@ -3,8 +3,6 @@ import { X, Copy, Mail, Link, QrCode, Check, ChevronDown, Plus, Trash2 } from 'l
 import { supabase } from '../../supabaseClient.js'
 import QRCode from 'https://esm.sh/qrcode@1.5.3'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function parseEmails(raw) {
   return [...new Set(
     raw.split(/[\s,;]+/)
@@ -37,8 +35,6 @@ function CopyField({ label, value }) {
   )
 }
 
-// ── Direct Link Modal ─────────────────────────────────────────────────────────
-
 function DirectLinkModal({ gallery, onClose }) {
   const galleryUrl = `${window.location.origin}/g/${gallery.share_token}`
   return (
@@ -52,7 +48,6 @@ function DirectLinkModal({ gallery, onClose }) {
           <h3 className="font-semibold text-sm uppercase tracking-wider" style={{ color: 'var(--text)' }}>Get Direct Link</h3>
           <button onClick={onClose} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
         </div>
-
         <CopyField label="Gallery URL" value={galleryUrl} />
         {gallery.require_password && gallery.plain_password && (
           <div>
@@ -70,8 +65,6 @@ function DirectLinkModal({ gallery, onClose }) {
     </div>
   )
 }
-
-// ── QR Code Modal ─────────────────────────────────────────────────────────────
 
 function QRCodeModal({ gallery, onClose }) {
   const canvasRef = useRef(null)
@@ -128,8 +121,6 @@ function QRCodeModal({ gallery, onClose }) {
   )
 }
 
-// ── Email Composer Modal ──────────────────────────────────────────────────────
-
 function EmailComposerModal({ gallery, onClose }) {
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState(`Your gallery is ready — ${gallery.title}`)
@@ -162,18 +153,8 @@ function EmailComposerModal({ gallery, onClose }) {
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-gallery-email`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            galleryId: gallery.id,
-            recipients: emails.map(e => ({ email: e })),
-            subject,
-            message,
-            includePassword,
-            includePin,
-          }),
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ galleryId: gallery.id, recipients: emails.map(e => ({ email: e })), subject, message, includePassword, includePin }),
         }
       )
       const data = await resp.json()
@@ -190,11 +171,7 @@ function EmailComposerModal({ gallery, onClose }) {
     }
   }
 
-  function applyTemplate(t) {
-    setSubject(t.subject)
-    setMessage(t.body)
-    setShowTemplates(false)
-  }
+  function applyTemplate(t) { setSubject(t.subject); setMessage(t.body); setShowTemplates(false) }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -203,47 +180,33 @@ function EmailComposerModal({ gallery, onClose }) {
       <div className="w-full max-w-2xl rounded-2xl overflow-hidden"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4"
-          style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
           <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Share by Email</h3>
           <button onClick={onClose} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
         </div>
-
         <div className="overflow-y-auto flex-1">
           {showTemplateManager ? (
             <TemplateManager templates={templates} onClose={() => { setShowTemplateManager(false); loadTemplates() }} />
           ) : (
             <div className="p-6 space-y-4">
-              {/* To */}
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>
-                  To <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>— paste or type email addresses (comma, space, or newline separated)</span>
+                  To <span style={{ fontWeight: 400 }}>— paste or type email addresses</span>
                 </label>
-                <textarea
-                  value={to}
-                  onChange={e => setTo(e.target.value)}
-                  placeholder="client@email.com, another@email.com"
-                  rows={3}
+                <textarea value={to} onChange={e => setTo(e.target.value)}
+                  placeholder="client@email.com, another@email.com" rows={3}
                   className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
-                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
-                />
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
                 {emails.length > 0 && (
                   <p className="text-xs mt-1" style={{ color: '#6366f1' }}>{emails.length} recipient{emails.length !== 1 ? 's' : ''} detected</p>
                 )}
               </div>
-
-              {/* Subject */}
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Subject</label>
                 <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
                   className="w-full text-sm rounded-xl px-3 py-2.5"
-                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
-                />
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
               </div>
-
-              {/* Message + template picker */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Message</label>
@@ -280,14 +243,10 @@ function EmailComposerModal({ gallery, onClose }) {
                   </div>
                 </div>
                 <textarea value={message} onChange={e => setMessage(e.target.value)}
-                  placeholder="Add a personal message (optional)"
-                  rows={5}
+                  placeholder="Add a personal message (optional)" rows={5}
                   className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
-                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
-                />
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
               </div>
-
-              {/* Include info checkboxes */}
               <div className="space-y-2">
                 <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Include in email</p>
                 <div className="flex items-center gap-4">
@@ -308,8 +267,6 @@ function EmailComposerModal({ gallery, onClose }) {
                   )}
                 </div>
               </div>
-
-              {/* Result */}
               {result && (
                 <div className="px-4 py-3 rounded-xl text-sm"
                   style={{ background: result.ok ? 'var(--success-subtle)' : 'var(--danger-subtle)', color: result.ok ? 'var(--success)' : 'var(--danger)' }}>
@@ -321,8 +278,6 @@ function EmailComposerModal({ gallery, onClose }) {
             </div>
           )}
         </div>
-
-        {/* Footer */}
         {!showTemplateManager && (
           <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid var(--border)' }}>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -333,8 +288,7 @@ function EmailComposerModal({ gallery, onClose }) {
                 style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>
                 Cancel
               </button>
-              <button onClick={handleSend}
-                disabled={!emails.length || sending}
+              <button onClick={handleSend} disabled={!emails.length || sending}
                 className="px-5 py-2 rounded-xl text-sm font-medium"
                 style={{ background: '#6366f1', color: '#fff', opacity: !emails.length || sending ? 0.5 : 1, cursor: !emails.length || sending ? 'not-allowed' : 'pointer' }}>
                 {sending ? 'Sending…' : 'Send'}
@@ -347,11 +301,9 @@ function EmailComposerModal({ gallery, onClose }) {
   )
 }
 
-// ── Template Manager ──────────────────────────────────────────────────────────
-
 function TemplateManager({ templates: initial, onClose }) {
   const [templates, setTemplates] = useState(initial)
-  const [editing, setEditing] = useState(null) // null | {} | template
+  const [editing, setEditing] = useState(null)
   const [name, setName] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -424,16 +376,13 @@ function TemplateManager({ templates: initial, onClose }) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button onClick={onClose} className="text-sm" style={{ color: '#6366f1', cursor: 'pointer' }}>← Back to email</button>
-        </div>
+        <button onClick={onClose} className="text-sm" style={{ color: '#6366f1', cursor: 'pointer' }}>← Back to email</button>
         <button onClick={startNew}
           className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
           style={{ background: '#6366f1', color: '#fff', cursor: 'pointer' }}>
           <Plus size={14} />New Template
         </button>
       </div>
-
       {templates.length === 0 ? (
         <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No templates yet. Create one to save time.</p>
       ) : (
@@ -465,12 +414,16 @@ function TemplateManager({ templates: initial, onClose }) {
   )
 }
 
-// ── Share Button ──────────────────────────────────────────────────────────────
-
-export default function ShareButton({ gallery }) {
+// ShareButton — accepts optional openModal prop for mobile sheet integration
+export default function ShareButton({ gallery, openModal = null, onModalClose = null }) {
   const [open, setOpen] = useState(false)
-  const [modal, setModal] = useState(null) // 'email' | 'link' | 'qr'
+  const [modal, setModal] = useState(openModal)
   const ref = useRef(null)
+
+  // When openModal prop changes (from mobile sheet), open that modal
+  useEffect(() => {
+    if (openModal) setModal(openModal)
+  }, [openModal])
 
   useEffect(() => {
     if (!open) return
@@ -479,7 +432,23 @@ export default function ShareButton({ gallery }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  function handleModalClose() {
+    setModal(null)
+    onModalClose?.()
+  }
+
   function open_(m) { setOpen(false); setModal(m) }
+
+  // If only being used as a modal launcher (mobile sheet), render nothing visible
+  if (openModal !== null && !open) {
+    return (
+      <>
+        {modal === 'email' && <EmailComposerModal gallery={gallery} onClose={handleModalClose} />}
+        {modal === 'link' && <DirectLinkModal gallery={gallery} onClose={handleModalClose} />}
+        {modal === 'qr' && <QRCodeModal gallery={gallery} onClose={handleModalClose} />}
+      </>
+    )
+  }
 
   return (
     <>
@@ -512,9 +481,9 @@ export default function ShareButton({ gallery }) {
         )}
       </div>
 
-      {modal === 'email' && <EmailComposerModal gallery={gallery} onClose={() => setModal(null)} />}
-      {modal === 'link' && <DirectLinkModal gallery={gallery} onClose={() => setModal(null)} />}
-      {modal === 'qr' && <QRCodeModal gallery={gallery} onClose={() => setModal(null)} />}
+      {modal === 'email' && <EmailComposerModal gallery={gallery} onClose={handleModalClose} />}
+      {modal === 'link' && <DirectLinkModal gallery={gallery} onClose={handleModalClose} />}
+      {modal === 'qr' && <QRCodeModal gallery={gallery} onClose={handleModalClose} />}
     </>
   )
 }
