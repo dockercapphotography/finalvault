@@ -127,6 +127,7 @@ function EmailComposerModal({ gallery, onClose }) {
   const [message, setMessage] = useState('')
   const [includePassword, setIncludePassword] = useState(!!gallery.require_password)
   const [includePin, setIncludePin] = useState(!!gallery.require_download_pin)
+  const [includeExpiry, setIncludeExpiry] = useState(false)
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const [templates, setTemplates] = useState([])
@@ -136,7 +137,28 @@ function EmailComposerModal({ gallery, onClose }) {
   const galleryUrl = `${window.location.origin}/g/${gallery.share_token}`
   const emails = parseEmails(to)
 
-  useEffect(() => { loadTemplates() }, [])
+  useEffect(() => {
+    loadTemplates()
+    seedDefaultTemplates()
+  }, [])
+
+  async function seedDefaultTemplates() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-gallery-email`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ seedTemplates: true }),
+        }
+      )
+      // Reload templates after seeding in case new ones were added
+      loadTemplates()
+    } catch (err) {
+      console.warn('Template seed failed silently:', err)
+    }
+  }
 
   async function loadTemplates() {
     const { data } = await supabase.from('email_templates').select('*').order('name')
@@ -154,7 +176,7 @@ function EmailComposerModal({ gallery, onClose }) {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-          body: JSON.stringify({ galleryId: gallery.id, recipients: emails.map(e => ({ email: e })), subject, message, includePassword, includePin }),
+          body: JSON.stringify({ galleryId: gallery.id, recipients: emails.map(e => ({ email: e })), subject, message, includePassword, includePin, includeExpiry }),
         }
       )
       const data = await resp.json()
@@ -262,8 +284,14 @@ function EmailComposerModal({ gallery, onClose }) {
                       Download PIN
                     </label>
                   )}
-                  {!gallery.require_password && !gallery.require_download_pin && (
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No password or PIN set for this gallery</p>
+                  {gallery.expires_at && (
+                    <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text)' }}>
+                      <input type="checkbox" checked={includeExpiry} onChange={e => setIncludeExpiry(e.target.checked)} />
+                      Expiry Date
+                    </label>
+                  )}
+                  {!gallery.require_password && !gallery.require_download_pin && !gallery.expires_at && (
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No password, PIN, or expiry set for this gallery</p>
                   )}
                 </div>
               </div>

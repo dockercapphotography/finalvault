@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Upload, CheckCircle, Plus, Trash2, Pencil } from 'lucide-react'
+import { Upload, CheckCircle, Plus, Trash2, Pencil, X } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
 import {
   getWatermarks, uploadWatermark, updateWatermark,
@@ -26,6 +26,7 @@ const TEMPLATE_VARIABLES = [
   { tag: '{{gallery_url}}',   desc: 'Gallery link' },
   { tag: '{{password}}',      desc: 'Gallery password' },
   { tag: '{{download_pin}}',  desc: 'Download PIN' },
+  { tag: '{{expiry_date}}',   desc: 'Gallery expiry date' },
 ]
 
 function SaveIndicator({ state }) {
@@ -40,6 +41,27 @@ function SaveIndicator({ state }) {
       style={{ background: bg, color, border: `1px solid ${border}40` }}>
       {icon && <CheckCircle size={14} />}
       {text}
+    </div>
+  )
+}
+
+// ── Inline Delete Confirm ─────────────────────────────────────────────────────
+
+function DeleteConfirmRow({ label, onConfirm, onCancel }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
+      style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
+      <p className="text-xs flex-1 font-medium" style={{ color: 'var(--danger)' }}>Delete {label}?</p>
+      <button onClick={onConfirm}
+        className="text-xs px-2.5 py-1 rounded-lg font-medium"
+        style={{ background: 'var(--danger)', color: '#fff', cursor: 'pointer' }}>
+        Delete
+      </button>
+      <button onClick={onCancel}
+        className="text-xs px-2.5 py-1 rounded-lg font-medium"
+        style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>
+        Cancel
+      </button>
     </div>
   )
 }
@@ -112,6 +134,7 @@ function WatermarksTab({ onSaveState }) {
   const [activeId, setActiveId] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -152,11 +175,11 @@ function WatermarksTab({ onSaveState }) {
   }
 
   async function handleDelete(id) {
-    if (!confirm('Delete this watermark?')) return
     try {
       await deleteWatermark(id)
       setWatermarks(prev => prev.filter(w => w.id !== id))
       if (activeId === id) { await setActiveWatermark(null); setActiveId(null) }
+      setConfirmDeleteId(null)
       onSaveState('saved')
     } catch { onSaveState('error') }
   }
@@ -178,8 +201,18 @@ function WatermarksTab({ onSaveState }) {
       ) : (
         <div className="p-5 grid grid-cols-1 gap-4" style={{ background: 'var(--surface)' }}>
           {watermarks.map(wm => (
-            <WatermarkCard key={wm.id} watermark={wm} isActive={wm.id === activeId}
-              onSetActive={handleSetActive} onUpdate={handleUpdate} onDelete={handleDelete} />
+            <div key={wm.id} className="space-y-2">
+              <WatermarkCard watermark={wm} isActive={wm.id === activeId}
+                onSetActive={handleSetActive} onUpdate={handleUpdate}
+                onDelete={() => setConfirmDeleteId(wm.id)} />
+              {confirmDeleteId === wm.id && (
+                <DeleteConfirmRow
+                  label="this watermark"
+                  onConfirm={() => handleDelete(wm.id)}
+                  onCancel={() => setConfirmDeleteId(null)}
+                />
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -197,6 +230,7 @@ function EmailTemplatesTab({ onSaveState }) {
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const bodyRef = useRef(null)
 
   useEffect(() => {
@@ -241,9 +275,9 @@ function EmailTemplatesTab({ onSaveState }) {
   }
 
   async function handleDelete(id) {
-    if (!confirm('Delete this template?')) return
     await supabase.from('email_templates').delete().eq('id', id)
     setTemplates(prev => prev.filter(t => t.id !== id))
+    setConfirmDeleteId(null)
   }
 
   if (editing !== null) {
@@ -273,7 +307,6 @@ function EmailTemplatesTab({ onSaveState }) {
               />
             </div>
 
-            {/* Variable reference */}
             <div>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
               <div className="flex flex-wrap gap-1.5">
@@ -325,26 +358,37 @@ function EmailTemplatesTab({ onSaveState }) {
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
           {templates.map((t, i) => (
-            <div key={t.id} className="flex items-center justify-between px-5 py-4"
-              style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
-                <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{t.subject}</p>
+            <div key={t.id}>
+              <div className="flex items-center justify-between px-5 py-4"
+                style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                  <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{t.subject}</p>
+                </div>
+                <div className="flex items-center gap-2 ml-4 shrink-0">
+                  <button onClick={() => startEdit(t)}
+                    className="p-1.5 rounded-lg"
+                    style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}>
+                    <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                  <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)}
+                    className="p-1.5 rounded-lg"
+                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}
+                    onMouseEnter={e => { if (confirmDeleteId !== t.id) e.currentTarget.style.background = 'var(--danger-subtle)' }}
+                    onMouseLeave={e => { if (confirmDeleteId !== t.id) e.currentTarget.style.background = 'var(--surface-raised)' }}>
+                    <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 ml-4 shrink-0">
-                <button onClick={() => startEdit(t)}
-                  className="p-1.5 rounded-lg"
-                  style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}>
-                  <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
-                </button>
-                <button onClick={() => handleDelete(t.id)}
-                  className="p-1.5 rounded-lg"
-                  style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'var(--surface-raised)'}>
-                  <Trash2 size={13} style={{ color: 'var(--text-muted)' }} />
-                </button>
-              </div>
+              {confirmDeleteId === t.id && (
+                <div className="px-5 pb-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+                  <DeleteConfirmRow
+                    label={`"${t.name}"`}
+                    onConfirm={() => handleDelete(t.id)}
+                    onCancel={() => setConfirmDeleteId(null)}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
