@@ -27,34 +27,64 @@ export default function Sidebar() {
     : baseNavItems
 
   return (
-    <aside className="w-52 flex flex-col py-5 px-3 shrink-0" style={{
-      background: 'var(--surface)',
-      borderRight: '1px solid var(--border)'
-    }}>
-      <div className="px-3 mb-6">
-        <h1 className="font-semibold text-sm tracking-tight" style={{ color: 'var(--text)' }}>
-          FinalVault
-        </h1>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Gallery Delivery</p>
-      </div>
-      <nav className="flex flex-col gap-0.5">
+    <>
+      {/* ── Desktop sidebar ── */}
+      <aside className="hidden md:flex w-52 flex-col py-5 px-3 shrink-0" style={{
+        background: 'var(--surface)',
+        borderRight: '1px solid var(--border)',
+      }}>
+        <div className="px-3 mb-6">
+          <h1 className="font-semibold text-sm tracking-tight" style={{ color: 'var(--text)' }}>
+            FinalVault
+          </h1>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Gallery Delivery</p>
+        </div>
+        <nav className="flex flex-col gap-0.5">
+          {navItems.map(({ to, label, icon: Icon, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors"
+              style={({ isActive }) => ({
+                background: isActive ? 'var(--surface-raised)' : 'transparent',
+                color: isActive ? 'var(--text)' : 'var(--text-secondary)',
+                fontWeight: isActive ? '500' : '400',
+              })}
+            >
+              <Icon size={15} />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+
+      {/* ── Mobile bottom nav ── */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around"
+        style={{
+          background: 'var(--surface)',
+          borderTop: '1px solid var(--border)',
+          height: 60,
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
         {navItems.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors"
+            className="flex flex-col items-center justify-center gap-1 flex-1 h-full text-xs transition-colors"
             style={({ isActive }) => ({
-              background: isActive ? 'var(--surface-raised)' : 'transparent',
-              color: isActive ? 'var(--text)' : 'var(--text-secondary)',
+              color: isActive ? 'var(--text)' : 'var(--text-muted)',
               fontWeight: isActive ? '500' : '400',
             })}
           >
-            <Icon size={15} />
+            <Icon size={20} />
             {label}
           </NavLink>
         ))}
       </nav>
-    </aside>
+    </>
   )
 }

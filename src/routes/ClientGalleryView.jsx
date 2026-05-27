@@ -197,13 +197,10 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   useEffect(() => {
     if (index === displayIndex) return
     const dir = index > displayIndex ? 1 : -1
-    // Slide current image out (opposite direction)
     setSlideStyle({ opacity: 0, transform: `translateX(${dir * -50}px)`, transition: 'transform 0.22s ease, opacity 0.22s ease' })
     const t = setTimeout(() => {
       setDisplayIndex(index)
-      // New image starts off-screen in the direction we're coming from
       setSlideStyle({ opacity: 0, transform: `translateX(${dir * 50}px)`, transition: 'none' })
-      // Then animate it into center
       requestAnimationFrame(() => requestAnimationFrame(() => {
         setSlideStyle({ opacity: 1, transform: 'translateX(0)', transition: 'transform 0.22s ease, opacity 0.22s ease' })
       }))
@@ -310,23 +307,31 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
   const [pin, setPin] = useState('')
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center px-4"
-      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
       onClick={onCancel}>
+      <style>{`.pin-input::placeholder { color: rgba(240,240,240,0.15); } .comment-input::placeholder { color: rgba(240,240,240,0.3); }`}</style>
       <div className="w-full max-w-xs rounded-2xl p-6 space-y-4"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        style={{ background: '#1e1e1e', border: '1px solid #333' }}
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <p className="font-semibold" style={{ color: 'var(--text)' }}>Download PIN required</p>
-          <button onClick={onCancel} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
+          <p className="font-semibold" style={{ color: '#f0f0f0' }}>Download PIN required</p>
+          <button onClick={onCancel} style={{ color: '#9ca3af', cursor: 'pointer' }}><X size={16} /></button>
         </div>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Enter the 4-digit PIN to download</p>
-        <input type="number" maxLength={4} value={pin}
-          onChange={e => setPin(e.target.value.slice(0, 4))}
-          placeholder="0000" autoFocus
-          className="w-full text-center text-2xl tracking-widest font-mono rounded-xl py-3"
-          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+        <p className="text-sm" style={{ color: '#9ca3af' }}>Enter the 4-digit PIN to download</p>
+        <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={pin}
+          onChange={e => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+          placeholder="••••" autoFocus
+          className="pin-input w-full text-center text-2xl tracking-widest font-mono rounded-xl py-3"
+          style={{
+            background: '#2a2a2a',
+            border: '1px solid #444',
+            color: '#f0f0f0',
+            outline: 'none',
+            WebkitAppearance: 'none',
+            WebkitTextFillColor: '#f0f0f0',
+          }}
         />
-        {error && <p className="text-sm text-center" style={{ color: 'var(--danger)' }}>{error}</p>}
+        {error && <p className="text-sm text-center" style={{ color: '#f87171' }}>{error}</p>}
         <div className="flex gap-2">
           <button onClick={() => onSubmit(pin)} disabled={pin.length !== 4 || loading}
             className="flex-1 py-2.5 rounded-xl font-medium text-sm"
@@ -334,7 +339,7 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
             {loading ? 'Verifying…' : 'Download'}
           </button>
           <button onClick={onCancel} className="px-4 py-2.5 rounded-xl text-sm font-medium"
-            style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>
+            style={{ background: '#2a2a2a', color: '#f0f0f0', cursor: 'pointer', border: '1px solid #444' }}>
             Cancel
           </button>
         </div>
@@ -368,13 +373,14 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
 
   return (
     <div className="space-y-3">
-      {comments.length === 0 && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No comments yet.</p>}
+      <style>{`.comment-input::placeholder { color: rgba(240,240,240,0.3); }`}</style>
+      {comments.length === 0 && <p className="text-sm" style={{ color: '#9ca3af' }}>No comments yet.</p>}
       {comments.map(c => (
         <div key={c.id} className="space-y-0.5">
-          <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>
+          <p className="text-xs font-medium" style={{ color: '#f0f0f0' }}>
             {c.gallery_viewers?.display_name || c.photographers?.display_name || 'Unknown'}
           </p>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{c.body}</p>
+          <p className="text-sm" style={{ color: '#9ca3af' }}>{c.body}</p>
         </div>
       ))}
       {allowComments && viewerId && (
@@ -382,8 +388,15 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
           <input value={body} onChange={e => setBody(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmit()}
             placeholder="Add a comment…"
-            className="flex-1 text-sm rounded-lg px-3 py-2"
-            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+            className="comment-input flex-1 text-sm rounded-lg px-3 py-2"
+            style={{
+              background: '#2a2a2a',
+              border: '1px solid #444',
+              color: '#f0f0f0',
+              outline: 'none',
+              WebkitAppearance: 'none',
+              WebkitTextFillColor: '#f0f0f0',
+            }}
           />
           <button onClick={handleSubmit} disabled={!body.trim() || submitting}
             className="text-sm px-3 py-2 rounded-lg font-medium"
@@ -584,11 +597,11 @@ export default function ClientGalleryView() {
       )}
 
       {activeCommentImageId && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setActiveCommentImageId(null)}>
-          <div className="w-full max-w-lg rounded-t-2xl p-6 space-y-4" style={{ background: theme.surface, maxHeight: '60vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setActiveCommentImageId(null)}>
+          <div className="w-full max-w-lg rounded-t-2xl p-6 space-y-4" style={{ background: '#1e1e1e', border: '1px solid #333', borderBottom: 'none', maxHeight: '60vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="font-medium text-sm" style={{ color: theme.text }}>Comments</p>
-              <button onClick={() => setActiveCommentImageId(null)} style={{ color: theme.muted, cursor: 'pointer' }}><X size={16} /></button>
+              <p className="font-medium text-sm" style={{ color: '#f0f0f0' }}>Comments</p>
+              <button onClick={() => setActiveCommentImageId(null)} style={{ color: '#9ca3af', cursor: 'pointer' }}><X size={16} /></button>
             </div>
             <CommentThread galleryId={gallery.id} imageId={activeCommentImageId} viewerId={viewer?.id} allowComments={gallery.allow_comments} />
           </div>

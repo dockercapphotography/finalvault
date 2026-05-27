@@ -7,7 +7,7 @@ export default function PageWrapper({ session, children }) {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header session={session} />
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
           <div className="max-w-7xl w-full">
             {children}
           </div>

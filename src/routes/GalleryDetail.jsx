@@ -88,7 +88,6 @@ export default function GalleryDetail() {
 
   async function handleSortChange(newSort) {
     setSortBy(newSort)
-    // Apply sort and persist the new order to the database
     const sorted = sortImages(images, newSort)
     setImages(sorted)
     setSavingOrder(true)
@@ -105,12 +104,18 @@ export default function GalleryDetail() {
   async function handleSetCover(image, focusX = 0.5, focusY = 0.5, focusOnly = false) {
     try {
       if (focusOnly) {
-        // Just update the focus point, keep existing cover
         await updateGallery(id, { cover_focus_x: focusX, cover_focus_y: focusY })
       } else {
         await updateGallery(id, { cover_image_id: image.id, cover_r2_key: null, cover_focus_x: focusX, cover_focus_y: focusY })
         setCoverId(image.id)
       }
+      // Keep local gallery state in sync so the modal re-opens with the correct focal point
+      setGallery(prev => ({
+        ...prev,
+        cover_focus_x: focusX,
+        cover_focus_y: focusY,
+        ...(focusOnly ? {} : { cover_image_id: image.id, cover_r2_key: null }),
+      }))
       setToast({ message: 'Cover updated', type: 'success' })
     } catch {
       setToast({ message: 'Failed to set cover', type: 'error' })
@@ -133,6 +138,14 @@ export default function GalleryDetail() {
       if (!resp.ok) throw new Error('Upload failed')
       await updateGallery(id, { cover_r2_key: key, cover_image_id: null, cover_focus_x: focusX, cover_focus_y: focusY })
       setCoverId(null)
+      // Keep local gallery state in sync so the modal re-opens with the correct focal point
+      setGallery(prev => ({
+        ...prev,
+        cover_r2_key: key,
+        cover_image_id: null,
+        cover_focus_x: focusX,
+        cover_focus_y: focusY,
+      }))
       setToast({ message: 'Cover image uploaded', type: 'success' })
     } catch {
       setToast({ message: 'Failed to upload cover', type: 'error' })
