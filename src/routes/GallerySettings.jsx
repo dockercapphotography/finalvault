@@ -138,6 +138,9 @@ export default function GallerySettings() {
   const [allowFavorites, setAllowFavorites] = useState(true)
   const [allowComments, setAllowComments] = useState(true)
   const [template, setTemplate] = useState('classic')
+  const [themeColor, setThemeColor] = useState('light')
+  const [gridSize, setGridSize] = useState('regular')
+  const [gridSpacing, setGridSpacing] = useState('regular')
 
   useEffect(() => { load() }, [id])
 
@@ -170,6 +173,9 @@ export default function GallerySettings() {
       setAllowFavorites(g.allow_favorites ?? true)
       setAllowComments(g.allow_comments ?? true)
       setTemplate(g.template || 'classic')
+      setThemeColor(g.theme_color || 'light')
+      setGridSize(g.grid_size || 'regular')
+      setGridSpacing(g.grid_spacing || 'regular')
     } catch {
       setSaveState('error')
     } finally {
@@ -197,7 +203,7 @@ export default function GallerySettings() {
         title, clientName, notes, eventDate, isActive, expiresAt,
         requirePassword, password, requireDownloadPin, downloadPin,
         allowDownloads, downloadWatermarked, allowHiresDownload,
-        allowFavorites, allowComments, template,
+        allowFavorites, allowComments, template, themeColor, gridSize, gridSpacing,
         ...overrides
       }
       await updateGallery(id, {
@@ -217,6 +223,9 @@ export default function GallerySettings() {
         allow_favorites: s.allowFavorites,
         allow_comments: s.allowComments,
         template: s.template,
+        theme_color: s.themeColor,
+        grid_size: s.gridSize,
+        grid_spacing: s.gridSpacing,
       })
       setSaveState('saved')
     } catch {
@@ -225,7 +234,7 @@ export default function GallerySettings() {
   }, [gallery, title, clientName, notes, eventDate, isActive, expiresAt,
       requirePassword, password, requireDownloadPin, downloadPin,
       allowDownloads, downloadWatermarked, allowHiresDownload,
-      allowFavorites, allowComments, template, id])
+      allowFavorites, allowComments, template, themeColor, gridSize, gridSpacing, id])
 
   function handleToggle(setter, key, val) {
     setter(val)
@@ -387,20 +396,74 @@ export default function GallerySettings() {
 
       {activeTab === 'display' && (
         <div className="space-y-4">
-          <SettingsSection title="Gallery Template" description="Choose how the gallery looks for your client">
-            <div className="p-5 grid grid-cols-2 gap-3" style={{ background: 'var(--surface)' }}>
-              {TEMPLATES.map(t => (
-                <button key={t.id} onClick={() => handleTemplateChange(t.id)}
-                  className="text-left p-4 rounded-xl transition-all"
+          <SettingsSection title="Color Theme" description="Background and accent colors for the client gallery">
+            <div className="p-5 grid grid-cols-3 sm:grid-cols-4 gap-2" style={{ background: 'var(--surface)' }}>
+              {[
+                { id: 'light', label: 'Light', swatches: ['#ffffff', '#f8f8f8', '#6366f1'] },
+                { id: 'gold', label: 'Gold', swatches: ['#faf8f3', '#f0ead6', '#b8963e'] },
+                { id: 'rose', label: 'Rose', swatches: ['#fdf8f8', '#f5e8e8', '#b06080'] },
+                { id: 'terracotta', label: 'Terracotta', swatches: ['#faf6f3', '#f0e4d8', '#c07050'] },
+                { id: 'sand', label: 'Sand', swatches: ['#faf8f5', '#ede8df', '#9a8060'] },
+                { id: 'olive', label: 'Olive', swatches: ['#f8faf5', '#e4ead8', '#6a8040'] },
+                { id: 'agave', label: 'Agave', swatches: ['#f5faf8', '#dceae4', '#408060'] },
+                { id: 'sea', label: 'Sea', swatches: ['#f5f8fa', '#dce4ea', '#406080'] },
+                { id: 'dark', label: 'Dark', swatches: ['#111111', '#1e1e1e', '#6366f1'] },
+              ].map(t => (
+                <button key={t.id} onClick={() => { setThemeColor(t.id); save({ themeColor: t.id }) }}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all"
                   style={{
                     cursor: 'pointer',
-                    border: template === t.id ? '2px solid #6366f1' : '2px solid var(--border)',
-                    background: template === t.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)',
+                    border: themeColor === t.id ? '2px solid #6366f1' : '2px solid var(--border)',
+                    background: themeColor === t.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)',
                   }}>
-                  <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>{t.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.description}</p>
+                  <div className="flex gap-1">
+                    {t.swatches.map((s, i) => (
+                      <div key={i} className="w-4 h-4 rounded-full border"
+                        style={{ background: s, borderColor: 'var(--border)' }} />
+                    ))}
+                  </div>
+                  <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>{t.label}</p>
                 </button>
               ))}
+            </div>
+          </SettingsSection>
+
+          <SettingsSection title="Grid" description="Control how images appear in the gallery">
+            <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
+              <div>
+                <p className="text-sm font-medium mb-2" style={{ color: 'var(--text)' }}>Thumbnail Size</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[{ id: 'regular', label: 'Regular', desc: '5 per row' }, { id: 'large', label: 'Large', desc: '4 per row' }].map(g => (
+                    <button key={g.id} onClick={() => { setGridSize(g.id); save({ gridSize: g.id }) }}
+                      className="p-3 rounded-xl text-left transition-all"
+                      style={{
+                        cursor: 'pointer',
+                        border: gridSize === g.id ? '2px solid #6366f1' : '2px solid var(--border)',
+                        background: gridSize === g.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)',
+                      }}>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{g.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{g.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-2" style={{ color: 'var(--text)' }}>Grid Spacing</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[{ id: 'regular', label: 'Tight', desc: 'Minimal gaps' }, { id: 'large', label: 'Spacious', desc: 'Larger gaps' }].map(g => (
+                    <button key={g.id} onClick={() => { setGridSpacing(g.id); save({ gridSpacing: g.id }) }}
+                      className="p-3 rounded-xl text-left transition-all"
+                      style={{
+                        cursor: 'pointer',
+                        border: gridSpacing === g.id ? '2px solid #6366f1' : '2px solid var(--border)',
+                        background: gridSpacing === g.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)',
+                      }}>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{g.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{g.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </SettingsSection>
         </div>

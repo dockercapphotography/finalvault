@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import {
@@ -11,11 +11,202 @@ const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 function noContext(e) { e.preventDefault() }
 
+// ── Theme colors ──────────────────────────────────────────────────────────────
+const THEME_COLORS = {
+  light:      { bg: '#ffffff', surface: '#f8f8f8', text: '#1a1a1a', muted: '#6b7280', border: '#e5e7eb', accent: '#6366f1' },
+  gold:       { bg: '#faf8f3', surface: '#f0ead6', text: '#1a1a1a', muted: '#8a7d5a', border: '#d4c89a', accent: '#b8963e' },
+  rose:       { bg: '#fdf8f8', surface: '#f5e8e8', text: '#1a1a1a', muted: '#9a7070', border: '#e8c8c8', accent: '#b06080' },
+  terracotta: { bg: '#faf6f3', surface: '#f0e4d8', text: '#1a1a1a', muted: '#8a6a58', border: '#d4b8a0', accent: '#c07050' },
+  sand:       { bg: '#faf8f5', surface: '#ede8df', text: '#1a1a1a', muted: '#8a7d6a', border: '#d4c8b0', accent: '#9a8060' },
+  olive:      { bg: '#f8faf5', surface: '#e4ead8', text: '#1a1a1a', muted: '#6a7a58', border: '#c0caa0', accent: '#6a8040' },
+  agave:      { bg: '#f5faf8', surface: '#dceae4', text: '#1a1a1a', muted: '#507a68', border: '#a0c8b8', accent: '#408060' },
+  sea:        { bg: '#f5f8fa', surface: '#dce4ea', text: '#1a1a1a', muted: '#507080', border: '#a0b8c8', accent: '#406080' },
+  dark:       { bg: '#111111', surface: '#1e1e1e', text: '#f0f0f0', muted: '#9ca3af', border: '#333333', accent: '#6366f1' },
+}
+
+// ── Download Menu ─────────────────────────────────────────────────────────────
+function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const hasBoth = allowWebSize && allowHires
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  if (!allowWebSize && !allowHires) return null
+
+  // Only one option — just show a single button
+  if (!hasBoth) {
+    const hires = !!allowHires
+    return (
+      <button
+        onClick={() => onDownload(hires)}
+        disabled={loading}
+        className="w-9 h-9 rounded-full flex items-center justify-center"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: loading ? 0.5 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+        <Download size={16} />
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        disabled={loading}
+        className="w-9 h-9 rounded-full flex items-center justify-center"
+        style={{ background: open ? 'var(--surface-raised)' : 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: loading ? 0.5 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+        <Download size={16} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-40 w-36"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          {allowWebSize && (
+            <button
+              onClick={() => { onDownload(false); setOpen(false) }}
+              className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+              style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              Web Size
+            </button>
+          )}
+          {allowHires && (
+            <button
+              onClick={() => { onDownload(true); setOpen(false) }}
+              className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+              style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              High Resolution
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Grid Download Button (single icon, dropdown if both options) ──────────────
+
+function GridDownloadButton({ allowWebSize, allowHires, onDownload }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const hasBoth = allowWebSize && allowHires
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  function handleClick(e) {
+    e.stopPropagation()
+    if (hasBoth) { setOpen(!open); return }
+    onDownload(!!allowHires)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={handleClick}
+        className="w-7 h-7 rounded-full flex items-center justify-center"
+        style={{ background: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}>
+        <Download size={13} style={{ color: '#fff' }} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 mb-1 rounded-xl shadow-lg overflow-hidden w-28 z-50"
+          style={{ background: 'rgba(20,20,20,0.95)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {allowWebSize && (
+            <button onClick={e => { e.stopPropagation(); onDownload(false); setOpen(false) }}
+              className="w-full text-left px-3 py-2 text-xs"
+              style={{ color: '#fff', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              Web Size
+            </button>
+          )}
+          {allowHires && (
+            <button onClick={e => { e.stopPropagation(); onDownload(true); setOpen(false) }}
+              className="w-full text-left px-3 py-2 text-xs"
+              style={{ color: '#fff', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              High Res
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Lightbox Download Button ───────────────────────────────────────────────────
+
+function LightboxDownloadButton({ allowWebSize, allowHires, onDownload }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const hasBoth = allowWebSize && allowHires
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  function handleClick(e) {
+    e.stopPropagation()
+    if (hasBoth) { setOpen(!open); return }
+    onDownload(!!allowHires)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={handleClick}
+        className="w-9 h-9 rounded-full flex items-center justify-center"
+        style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
+        <Download size={16} />
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 rounded-xl shadow-lg overflow-hidden w-32 z-50"
+          style={{ background: 'rgba(20,20,20,0.95)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {allowWebSize && (
+            <button onClick={e => { e.stopPropagation(); onDownload(false); setOpen(false) }}
+              className="w-full text-left px-4 py-2.5 text-sm"
+              style={{ color: '#fff', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              Web Size
+            </button>
+          )}
+          {allowHires && (
+            <button onClick={e => { e.stopPropagation(); onDownload(true); setOpen(false) }}
+              className="w-full text-left px-4 py-2.5 text-sm"
+              style={{ color: '#fff', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              High Resolution
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Lightbox ─────────────────────────────────────────────────────────────────
 
 function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleFavorite, allowDownloads, allowWebSize, allowHires, onDownload, token }) {
   const image = images[index]
-  if (!image) return null
+  const touchStartX = useRef(null)
+  const touchStartY = useRef(null)
 
   useEffect(() => {
     function handleKey(e) {
@@ -27,53 +218,52 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose, onPrev, onNext])
 
+  function handleTouchStart(e) {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }
+
+  function handleTouchEnd(e) {
+    if (touchStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current)
+    if (Math.abs(dx) > 50 && dy < 80) {
+      if (dx < 0) onNext()
+      else onPrev()
+    }
+    touchStartX.current = null
+    touchStartY.current = null
+  }
+
+  if (!image) return null
   const isFav = favorites.has(image.id)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.95)' }}
       onContextMenu={noContext}
-      onClick={onClose}>
+      onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}>
 
       {/* Controls */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-20"
         onClick={e => e.stopPropagation()}>
         {allowDownloads && (
-          <div className="flex items-center gap-1.5">
-            {allowWebSize && (
-              <button onClick={() => onDownload(image, false)}
-                title="Web Size"
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
-                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
-                <Download size={13} />Web Size
-              </button>
-            )}
-            {allowHires && (
-              <button onClick={() => onDownload(image, true)}
-                title="High Resolution"
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
-                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
-                <Download size={13} />High Res
-              </button>
-            )}
-          </div>
+          <LightboxDownloadButton
+            allowWebSize={allowWebSize}
+            allowHires={allowHires}
+            onDownload={hires => onDownload(image, hires)}
+          />
         )}
         <button onClick={() => onToggleFavorite(image.id)}
-          className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-          style={{ background: isFav ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)', color: isFav ? '#ef4444' : '#fff', cursor: 'pointer' }}
-          onMouseEnter={e => e.currentTarget.style.background = isFav ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.2)'}
-          onMouseLeave={e => e.currentTarget.style.background = isFav ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)'}>
+          className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ background: isFav ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)', color: isFav ? '#ef4444' : '#fff', cursor: 'pointer' }}>
           <Heart size={16} fill={isFav ? '#ef4444' : 'none'} />
         </button>
         <button onClick={onClose}
           className="w-9 h-9 rounded-full flex items-center justify-center"
-          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
+          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}>
           <X size={16} />
         </button>
       </div>
@@ -82,21 +272,19 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
       {index > 0 && (
         <button onClick={e => { e.stopPropagation(); onPrev() }}
           className="absolute left-4 w-10 h-10 rounded-full flex items-center justify-center z-20"
-          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
+          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}>
           <ChevronLeft size={20} />
         </button>
       )}
 
-      {/* Image + protection overlay */}
+      {/* Image */}
       <div className="relative" onClick={e => e.stopPropagation()}>
         <img
           src={getPreviewUrl(image.preview_r2_key, token)}
           alt=""
           draggable={false}
           onContextMenu={noContext}
-          style={{ maxHeight: '90vh', maxWidth: '90vw', objectFit: 'contain', borderRadius: 4, display: 'block', userSelect: 'none' }}
+          style={{ maxHeight: '90vh', maxWidth: '90vw', objectFit: 'contain', borderRadius: 4, display: 'block', userSelect: 'none', pointerEvents: 'none' }}
         />
         <div className="absolute inset-0 z-10" onContextMenu={noContext} />
       </div>
@@ -105,14 +293,11 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
       {index < images.length - 1 && (
         <button onClick={e => { e.stopPropagation(); onNext() }}
           className="absolute right-4 w-10 h-10 rounded-full flex items-center justify-center z-20"
-          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
+          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}>
           <ChevronRight size={20} />
         </button>
       )}
 
-      {/* Counter */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs"
         style={{ color: 'rgba(255,255,255,0.5)' }}>
         {index + 1} / {images.length}
@@ -121,7 +306,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   )
 }
 
-// ── PIN Gate ─────────────────────────────────────────────────────────────────
+// ── PIN Gate ──────────────────────────────────────────────────────────────────
 
 function PinGate({ onSubmit, onCancel, error, loading }) {
   const [pin, setPin] = useState('')
@@ -134,33 +319,24 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <p className="font-semibold" style={{ color: 'var(--text)' }}>Download PIN required</p>
-          <button onClick={onCancel} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <X size={16} />
-          </button>
+          <button onClick={onCancel} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
         </div>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Enter the 4-digit PIN to download</p>
         <input
-          type="number"
-          maxLength={4}
-          value={pin}
+          type="number" maxLength={4} value={pin}
           onChange={e => setPin(e.target.value.slice(0, 4))}
-          placeholder="0000"
-          autoFocus
+          placeholder="0000" autoFocus
           className="w-full text-center text-2xl tracking-widest font-mono rounded-xl py-3"
           style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
         />
         {error && <p className="text-sm text-center" style={{ color: 'var(--danger)' }}>{error}</p>}
         <div className="flex gap-2">
-          <button
-            onClick={() => onSubmit(pin)}
-            disabled={pin.length !== 4 || loading}
+          <button onClick={() => onSubmit(pin)} disabled={pin.length !== 4 || loading}
             className="flex-1 py-2.5 rounded-xl font-medium text-sm"
             style={{ background: '#6366f1', color: '#fff', opacity: pin.length !== 4 || loading ? 0.5 : 1, cursor: pin.length !== 4 || loading ? 'not-allowed' : 'pointer' }}>
             {loading ? 'Verifying…' : 'Download'}
           </button>
-          <button
-            onClick={onCancel}
-            className="px-4 py-2.5 rounded-xl text-sm font-medium"
+          <button onClick={onCancel} className="px-4 py-2.5 rounded-xl text-sm font-medium"
             style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>
             Cancel
           </button>
@@ -197,9 +373,7 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
 
   return (
     <div className="space-y-3">
-      {comments.length === 0 && (
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No comments yet.</p>
-      )}
+      {comments.length === 0 && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No comments yet.</p>}
       {comments.map(c => (
         <div key={c.id} className="space-y-0.5">
           <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>
@@ -210,17 +384,13 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
       ))}
       {allowComments && viewerId && (
         <div className="flex gap-2 pt-1">
-          <input
-            value={body}
-            onChange={e => setBody(e.target.value)}
+          <input value={body} onChange={e => setBody(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmit()}
             placeholder="Add a comment…"
             className="flex-1 text-sm rounded-lg px-3 py-2"
             style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
           />
-          <button
-            onClick={handleSubmit}
-            disabled={!body.trim() || submitting}
+          <button onClick={handleSubmit} disabled={!body.trim() || submitting}
             className="text-sm px-3 py-2 rounded-lg font-medium"
             style={{ background: '#6366f1', color: '#fff', opacity: !body.trim() || submitting ? 0.5 : 1, cursor: !body.trim() || submitting ? 'not-allowed' : 'pointer' }}>
             Post
@@ -276,7 +446,6 @@ export default function ClientGalleryView() {
       setFavorites(favs)
       logActivity(g.id, v.id, 'view')
 
-      // Resolve hero cover URL
       if (g.cover_r2_key) {
         setHeroUrl(`${WORKER_URL}/preview/${encodeURIComponent(g.cover_r2_key)}?share_token=${token}`)
       } else if (g.cover_image_id && imgs.length > 0) {
@@ -332,12 +501,8 @@ export default function ClientGalleryView() {
   async function doZipDownload(pin = null, hires = false) {
     setDownloadingZip(true)
     try {
-      const keys = hires
-        ? images.map(i => i.original_r2_key)
-        : images.map(i => i.preview_r2_key)
-      const names = hires
-        ? images.map(i => i.file_name)
-        : images.map(i => i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
+      const keys = hires ? images.map(i => i.original_r2_key) : images.map(i => i.preview_r2_key)
+      const names = hires ? images.map(i => i.file_name) : images.map(i => i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
       await downloadZip(gallery.id, token, keys, names, gallery.title, pin)
       logActivity(gallery.id, viewer?.id, 'download_all')
     } catch (err) {
@@ -374,24 +539,47 @@ export default function ClientGalleryView() {
   }
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#fff' }}>
       <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
         style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
     </div>
   )
 
   if (error || !gallery) return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
-      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{error || 'Gallery not found.'}</p>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#fff' }}>
+      <p className="text-sm" style={{ color: '#6b7280' }}>{error || 'Gallery not found.'}</p>
     </div>
   )
 
+  // Apply theme
+  const theme = THEME_COLORS[gallery.theme_color || 'light'] || THEME_COLORS.light
+  const gridCols = gallery.grid_size === 'large'
+    ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+    : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+  const gridGap = gallery.grid_spacing === 'large' ? 'gap-4' : 'gap-1'
+  const gridPad = gallery.grid_spacing === 'large' ? 'p-4' : 'p-1'
+
+  const themeStyle = {
+    '--bg': theme.bg,
+    '--surface': theme.surface,
+    '--surface-raised': theme.surface,
+    '--text': theme.text,
+    '--text-muted': theme.muted,
+    '--text-secondary': theme.muted,
+    '--border': theme.border,
+    '--accent': theme.accent,
+  }
+
+  const eventDateStr = gallery.event_date
+    ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null
+
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }} onContextMenu={noContext}>
+    <div className="min-h-screen" style={{ background: theme.bg, ...themeStyle }} onContextMenu={noContext}>
 
       {/* Hero */}
       {heroUrl && (
-        <div className="relative w-full overflow-hidden" style={{ height: '70vh', minHeight: 400 }}>
+        <div className="relative w-full overflow-hidden" style={{ height: '100vh', minHeight: 500 }}>
           <img
             src={heroUrl}
             alt=""
@@ -404,60 +592,34 @@ export default function ClientGalleryView() {
               userSelect: 'none',
             }}
           />
-          {/* Protection overlay */}
           <div className="absolute inset-0" style={{ zIndex: 1 }} onContextMenu={noContext} />
-          {/* Gradient + title overlay */}
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)', zIndex: 2 }} />
           <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pointer-events-none" style={{ zIndex: 3 }}>
-            {gallery.client_name && (
-              <p className="text-xs font-medium uppercase tracking-widest mb-2"
-                style={{ color: 'rgba(255,255,255,0.7)' }}>
-                {gallery.client_name}
-              </p>
-            )}
             <h1 className="text-3xl font-bold mb-1" style={{ color: '#fff' }}>{gallery.title}</h1>
-            {gallery.event_date && (
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                {new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
-            )}
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
+              {[gallery.client_name, eventDateStr].filter(Boolean).join(' · ')}
+            </p>
           </div>
         </div>
       )}
 
       {/* Sticky nav */}
-      <div className="sticky top-0 z-30 px-6 py-3 flex items-center justify-between"
-        style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
-        <h1 className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
+      <div className="sticky top-0 z-30 px-4 py-3 flex items-center justify-between"
+        style={{ background: theme.bg, borderBottom: `1px solid ${theme.border}` }}>
+        <h1 className="text-sm font-semibold truncate" style={{ color: theme.text }}>{gallery.title}</h1>
         {gallery.allow_downloads && (
-          <div className="flex items-center gap-2">
-            {gallery.download_watermarked && (
-              <button
-                onClick={() => handleDownloadZip(false)}
-                disabled={downloadingZip}
-                className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: downloadingZip ? 0.5 : 1, cursor: downloadingZip ? 'not-allowed' : 'pointer' }}>
-                <Download size={14} />
-                {downloadingZip ? 'Preparing…' : 'Web Size'}
-              </button>
-            )}
-            {gallery.allow_hires_download && (
-              <button
-                onClick={() => handleDownloadZip(true)}
-                disabled={downloadingZip}
-                className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-                style={{ background: '#6366f1', border: '1px solid #6366f1', color: '#fff', opacity: downloadingZip ? 0.5 : 1, cursor: downloadingZip ? 'not-allowed' : 'pointer' }}>
-                <Download size={14} />
-                {downloadingZip ? 'Preparing…' : 'High Res'}
-              </button>
-            )}
-          </div>
+          <DownloadMenu
+            allowWebSize={gallery.download_watermarked}
+            allowHires={gallery.allow_hires_download}
+            onDownload={handleDownloadZip}
+            loading={downloadingZip}
+          />
         )}
       </div>
 
       {/* Image Grid */}
-      <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      <div className={`${gridPad} grid ${gridCols} ${gridGap}`}>
         {images.map((image, i) => (
           <div key={image.id}
             className="relative overflow-hidden rounded-lg group"
@@ -470,9 +632,9 @@ export default function ClientGalleryView() {
               draggable={false}
               onContextMenu={noContext}
               className="w-full block aspect-square"
-              style={{ objectFit: 'cover', borderRadius: 8, userSelect: 'none' }}
+              style={{ objectFit: 'cover', userSelect: 'none', pointerEvents: 'none' }}
             />
-            {/* Protection + hover overlay */}
+            {/* Hover overlay */}
             <div className="absolute inset-0 flex items-end justify-between p-2 opacity-0 group-hover:opacity-100 transition-opacity"
               style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)', zIndex: 2 }}
               onContextMenu={noContext}>
@@ -496,25 +658,12 @@ export default function ClientGalleryView() {
                 )}
               </div>
               {gallery.allow_downloads && (
-                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                  {gallery.download_watermarked && (
-                    <button
-                      onClick={() => handleDownloadSingle(image, false)}
-                      title="Web Size"
-                      className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-xs font-medium"
-                      style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', cursor: 'pointer' }}>
-                      <Download size={11} />WS
-                    </button>
-                  )}
-                  {gallery.allow_hires_download && (
-                    <button
-                      onClick={() => handleDownloadSingle(image, true)}
-                      title="High Resolution"
-                      className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-xs font-medium"
-                      style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', cursor: 'pointer' }}>
-                      <Download size={11} />HR
-                    </button>
-                  )}
+                <div onClick={e => e.stopPropagation()}>
+                  <GridDownloadButton
+                    allowWebSize={gallery.download_watermarked}
+                    allowHires={gallery.allow_hires_download}
+                    onDownload={hires => handleDownloadSingle(image, hires)}
+                  />
                 </div>
               )}
             </div>
@@ -545,14 +694,13 @@ export default function ClientGalleryView() {
         <div className="fixed inset-0 z-40 flex items-end justify-center"
           style={{ background: 'rgba(0,0,0,0.4)' }}
           onClick={() => setActiveCommentImageId(null)}>
-          <div
-            className="w-full max-w-lg rounded-t-2xl p-6 space-y-4"
-            style={{ background: 'var(--surface)', maxHeight: '60vh', overflowY: 'auto' }}
+          <div className="w-full max-w-lg rounded-t-2xl p-6 space-y-4"
+            style={{ background: theme.surface, maxHeight: '60vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>Comments</p>
+              <p className="font-medium text-sm" style={{ color: theme.text }}>Comments</p>
               <button onClick={() => setActiveCommentImageId(null)}
-                style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
+                style={{ color: theme.muted, cursor: 'pointer' }}>
                 <X size={16} />
               </button>
             </div>
