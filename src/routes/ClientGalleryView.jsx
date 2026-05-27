@@ -196,12 +196,12 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
 
   useEffect(() => {
     if (index === displayIndex) return
-    const dir = index > displayIndex ? -1 : 1
-    // Slide current image out
+    const dir = index > displayIndex ? 1 : -1
+    // Slide current image out (opposite direction)
     setSlideStyle({ opacity: 0, transform: `translateX(${dir * -50}px)`, transition: 'transform 0.22s ease, opacity 0.22s ease' })
     const t = setTimeout(() => {
       setDisplayIndex(index)
-      // Instantly reposition new image off-screen on opposite side
+      // New image starts off-screen in the direction we're coming from
       setSlideStyle({ opacity: 0, transform: `translateX(${dir * 50}px)`, transition: 'none' })
       // Then animate it into center
       requestAnimationFrame(() => requestAnimationFrame(() => {
