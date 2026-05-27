@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Eye, EyeOff, RefreshCw, CheckCircle, Copy } from 'lucide-react'
-import { getGallery, updateGallery } from '../utils/galleryApi.js'
+import { ArrowLeft, Eye, EyeOff, RefreshCw, CheckCircle, Copy, Trash2 } from 'lucide-react'
+import { getGallery, updateGallery, deleteGallery } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
 import Tabs from '../components/ui/Tabs.jsx'
 import SettingsSection from '../components/ui/SettingsSection.jsx'
@@ -15,6 +15,7 @@ const TABS = [
   { id: 'access',   label: 'Access' },
   { id: 'sharing',  label: 'Sharing' },
   { id: 'display',  label: 'Display' },
+  { id: 'danger',   label: 'Danger Zone' },
 ]
 
 const TEMPLATES = [
@@ -115,6 +116,8 @@ export default function GallerySettings() {
   const [loading, setLoading] = useState(true)
   const [saveState, setSaveState] = useState('idle')
   const [activeTab, setActiveTab] = useState('general')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const isFirstLoad = useRef(true)
   const dismissTimer = useRef(null)
@@ -172,6 +175,18 @@ export default function GallerySettings() {
     } finally {
       setLoading(false)
       setTimeout(() => { isFirstLoad.current = false }, 100)
+    }
+  }
+
+  async function handleDeleteGallery() {
+    setDeleting(true)
+    try {
+      await deleteGallery(id)
+      navigate('/')
+    } catch (err) {
+      setSaveState('error')
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
@@ -387,6 +402,40 @@ export default function GallerySettings() {
                 </button>
               ))}
             </div>
+          </SettingsSection>
+        </div>
+      )}
+
+      {activeTab === 'danger' && (
+        <div className="space-y-4">
+          <SettingsSection title="Delete Gallery">
+            {!confirmDelete ? (
+              <div className="flex items-center justify-between p-4 rounded-xl"
+                style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Delete this gallery</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Permanently deletes the gallery and all its images. Cannot be undone.
+                  </p>
+                </div>
+                <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 size={14} />Delete
+                </Button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl space-y-3"
+                style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--danger)' }}>
+                  Are you sure? This will permanently delete &ldquo;{gallery.title}&rdquo; and all its images.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="danger" onClick={handleDeleteGallery} disabled={deleting}>
+                    <Trash2 size={14} />{deleting ? 'Deleting...' : 'Yes, delete permanently'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
           </SettingsSection>
         </div>
       )}

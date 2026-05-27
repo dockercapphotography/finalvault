@@ -42,6 +42,7 @@ function getImageBrightness(imgEl) {
 export default function WatermarkCard({ watermark, isActive, onSetActive, onUpdate, onDelete }) {
   const [label, setLabel]       = useState(watermark.label)
   const [opacity, setOpacity]   = useState(watermark.opacity)
+  const [scale, setScale]       = useState(watermark.scale ?? 0.15)
   const [position, setPosition] = useState(watermark.position)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [darkBg, setDarkBg]     = useState(false)
@@ -54,6 +55,14 @@ export default function WatermarkCard({ watermark, isActive, onSetActive, onUpda
   function handleImageLoad(e) {
     const brightness = getImageBrightness(e.target)
     setDarkBg(brightness > 180) // light watermark → dark background
+  }
+
+  function handleScaleChange(val) {
+    setScale(val)
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      onUpdate(watermark.id, { scale: val })
+    }, 400)
   }
 
   function handleOpacityChange(val) {
@@ -112,7 +121,7 @@ export default function WatermarkCard({ watermark, isActive, onSetActive, onUpda
       <div className="px-5 py-4 flex items-center justify-center transition-colors duration-300"
         style={{
           background: darkBg ? '#1a1a1a' : 'var(--bg-subtle)',
-          minHeight: 100,
+          minHeight: 140,
           borderBottom: '1px solid var(--border)',
         }}>
         {previewUrl
@@ -121,7 +130,13 @@ export default function WatermarkCard({ watermark, isActive, onSetActive, onUpda
               alt="Watermark preview"
               crossOrigin="anonymous"
               onLoad={handleImageLoad}
-              style={{ maxHeight: 80, maxWidth: '100%', objectFit: 'contain', opacity }}
+              style={{
+                width: `${Math.round(scale * 100)}%`,
+                maxWidth: '100%',
+                objectFit: 'contain',
+                opacity,
+                transition: 'width 0.1s',
+              }}
             />
           : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Loading preview…</span>
         }
@@ -141,6 +156,22 @@ export default function WatermarkCard({ watermark, isActive, onSetActive, onUpda
             value={opacity}
             onChange={e => handleOpacityChange(parseFloat(e.target.value))}
             aria-label="Watermark opacity"
+            className="w-full accent-indigo-500"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Scale</label>
+            <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+              {Math.round(scale * 100)}%
+            </span>
+          </div>
+          <input
+            type="range" min={0.05} max={1} step={0.01}
+            value={scale}
+            onChange={e => handleScaleChange(parseFloat(e.target.value))}
+            aria-label="Watermark scale"
             className="w-full accent-indigo-500"
           />
         </div>

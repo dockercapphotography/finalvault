@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Trash2, Upload, ImageIcon } from 'lucide-react'
-import { getGallery, deleteGallery, updateGallery } from '../utils/galleryApi.js'
+import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon } from 'lucide-react'
+import { getGallery, updateGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
 import { supabase } from '../supabaseClient.js'
@@ -28,8 +28,6 @@ export default function GalleryDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [photographerId, setPhotographerId] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [sortBy, setSortBy] = useState('custom')
@@ -66,7 +64,7 @@ export default function GalleryDetail() {
       if (wm) {
         const { data: { session } } = await supabase.auth.getSession()
         const url = `${import.meta.env.VITE_R2_WORKER_URL}/watermark/${encodeURIComponent(wm.r2_key)}?token=${session.access_token}`
-        setActiveWatermark({ url, opacity: wm.opacity, position: wm.position })
+        setActiveWatermark({ url, opacity: wm.opacity, position: wm.position, scale: wm.scale ?? 0.15 })
       }
     } catch (err) {
       console.warn('Could not load watermark:', err)
@@ -103,11 +101,16 @@ export default function GalleryDetail() {
     }
   }
 
-  async function handleSetCover(image, focusX = 0.5, focusY = 0.5) {
+  async function handleSetCover(image, focusX = 0.5, focusY = 0.5, focusOnly = false) {
     try {
-      await updateGallery(id, { cover_image_id: image.id, cover_r2_key: null, cover_focus_x: focusX, cover_focus_y: focusY })
-      setCoverId(image.id)
-      setToast({ message: 'Cover image set', type: 'success' })
+      if (focusOnly) {
+        // Just update the focus point, keep existing cover
+        await updateGallery(id, { cover_focus_x: focusX, cover_focus_y: focusY })
+      } else {
+        await updateGallery(id, { cover_image_id: image.id, cover_r2_key: null, cover_focus_x: focusX, cover_focus_y: focusY })
+        setCoverId(image.id)
+      }
+      setToast({ message: 'Cover updated', type: 'success' })
     } catch {
       setToast({ message: 'Failed to set cover', type: 'error' })
     }
@@ -182,18 +185,6 @@ export default function GalleryDetail() {
       setToast({ message: 'Image deleted', type: 'success' })
     } catch (err) {
       setToast({ message: err.message, type: 'error' })
-    }
-  }
-
-  async function handleDeleteGallery() {
-    setDeleting(true)
-    try {
-      await deleteGallery(id)
-      navigate('/')
-    } catch (err) {
-      setToast({ message: err.message, type: 'error' })
-      setDeleting(false)
-      setConfirmDelete(false)
     }
   }
 
@@ -293,7 +284,6 @@ export default function GalleryDetail() {
               images={images}
               previewUrls={previewUrls}
               onDelete={handleDeleteImage}
-              onSetCover={handleSetCover}
               coverId={coverId}
               selectedIds={selectedIds}
               onSelect={handleSelect}
@@ -304,38 +294,6 @@ export default function GalleryDetail() {
           {!hasImages && !isUploading && <ImageUploader onUpload={uploadFiles} />}
         </div>
 
-        <div style={{ borderTop: '1px solid var(--border)' }} />
-
-        <div className="space-y-3">
-          <h2 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Danger Zone</h2>
-          {!confirmDelete ? (
-            <div className="flex items-center justify-between p-4 rounded-xl"
-              style={{ border: '1px solid var(--border)' }}>
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Delete this gallery</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  Permanently deletes the gallery and all its images. Cannot be undone.
-                </p>
-              </div>
-              <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-                <Trash2 size={14} />Delete
-              </Button>
-            </div>
-          ) : (
-            <div className="p-4 rounded-xl space-y-3"
-              style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
-              <p className="text-sm font-medium" style={{ color: 'var(--danger)' }}>
-                Are you sure? This will permanently delete &ldquo;{gallery.title}&rdquo; and all its images.
-              </p>
-              <div className="flex gap-2">
-                <Button variant="danger" onClick={handleDeleteGallery} disabled={deleting}>
-                  <Trash2 size={14} />{deleting ? 'Deleting...' : 'Yes, delete permanently'}
-                </Button>
-                <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {selectedIds.size > 0 && (
@@ -355,6 +313,15 @@ export default function GalleryDetail() {
           onSelect={handleSetCover}
           onUpload={handleCoverUpload}
           onClose={() => setShowCoverPicker(false)}
+          existingCoverUrl={
+            gallery.cover_r2_key
+              ? `${import.meta.env.VITE_R2_WORKER_URL}/preview/${encodeURIComponent(gallery.cover_r2_key)}`
+              : coverId && previewUrls[coverId]
+                ? previewUrls[coverId]
+                : null
+          }
+          existingFocusX={gallery.cover_focus_x ?? 0.5}
+          existingFocusY={gallery.cover_focus_y ?? 0.5}
         />
       )}
 

@@ -8,7 +8,9 @@ export default function PageWrapper({ session, children }) {
       <div className="flex-1 flex flex-col min-w-0">
         <Header session={session} />
         <main className="flex-1 p-6 overflow-auto">
-          {children}
+          <div className="max-w-7xl w-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>

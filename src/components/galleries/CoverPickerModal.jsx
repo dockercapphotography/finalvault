@@ -1,11 +1,11 @@
 import { useState, useRef } from 'react'
 import { X, Upload } from 'lucide-react'
 
-export default function CoverPickerModal({ images, previewUrls, onSelect, onUpload, onClose }) {
-  const [stage, setStage] = useState('pick')
-  const [chosen, setChosen] = useState(null)
-  const [focusX, setFocusX] = useState(0.5)
-  const [focusY, setFocusY] = useState(0.5)
+export default function CoverPickerModal({ images, previewUrls, onSelect, onUpload, onClose, existingCoverUrl, existingFocusX = 0.5, existingFocusY = 0.5 }) {
+  const [stage, setStage] = useState(existingCoverUrl ? 'focal' : 'pick')
+  const [chosen, setChosen] = useState(existingCoverUrl ? { type: 'existing', url: existingCoverUrl } : null)
+  const [focusX, setFocusX] = useState(existingFocusX)
+  const [focusY, setFocusY] = useState(existingFocusY)
   const [saving, setSaving] = useState(false)
   const fileInputRef = useRef(null)
   const focalRef = useRef(null)
@@ -60,7 +60,9 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
   async function handleSave() {
     setSaving(true)
     try {
-      if (chosen.type === 'gallery') {
+      if (chosen.type === 'existing') {
+        await onSelect(null, focusX, focusY, true) // true = update focus only
+      } else if (chosen.type === 'gallery') {
         await onSelect(chosen.image, focusX, focusY)
       } else {
         await onUpload(chosen.file, focusX, focusY)
@@ -175,10 +177,10 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
             </div>
             <div className="flex items-center justify-between">
               <button
-                onClick={() => setStage('pick')}
+                onClick={() => { setStage('pick'); setChosen(null) }}
                 className="text-sm font-medium"
                 style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
-                ← Back
+                ← Change image
               </button>
               <button
                 onClick={handleSave}
