@@ -11,7 +11,7 @@ export async function getGalleryByToken(token) {
       require_password, allow_downloads, allow_favorites, allow_comments,
       require_download_pin, download_watermarked, allow_hires_download, share_token,
       photographer_id, cover_image_id, cover_r2_key, cover_focus_x, cover_focus_y,
-      event_date
+      event_date, plain_password, plain_download_pin
     `)
     .eq('share_token', token)
     .single()
@@ -20,31 +20,23 @@ export async function getGalleryByToken(token) {
 }
 
 export async function verifyGalleryPassword(galleryId, password) {
-  const { data: hash, error: hashError } = await supabase.rpc('get_gallery_password_hash', {
-    p_gallery_id: galleryId,
-  })
-  if (hashError) throw hashError
-  if (!hash) return false
-  const { data, error } = await supabase.rpc('verify_gallery_password', {
-    p_hash: hash,
-    p_password: password,
-  })
+  const { data, error } = await supabase
+    .from('galleries')
+    .select('plain_password')
+    .eq('id', galleryId)
+    .single()
   if (error) throw error
-  return data === true
+  return data?.plain_password === password
 }
 
 export async function verifyDownloadPin(galleryId, pin) {
-  const { data: hash, error: hashError } = await supabase.rpc('get_gallery_pin_hash', {
-    p_gallery_id: galleryId,
-  })
-  if (hashError) throw hashError
-  if (!hash) return false
-  const { data, error } = await supabase.rpc('verify_gallery_password', {
-    p_hash: hash,
-    p_password: pin,
-  })
+  const { data, error } = await supabase
+    .from('galleries')
+    .select('plain_download_pin')
+    .eq('id', galleryId)
+    .single()
   if (error) throw error
-  return data === true
+  return data?.plain_download_pin === pin
 }
 
 export async function getClientImages(galleryId) {

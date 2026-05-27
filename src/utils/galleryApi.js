@@ -11,7 +11,7 @@ export async function getGalleries() {
       id, title, client_name, event_date, template,
       is_active, share_token, require_password,
       created_at, updated_at, expires_at,
-      cover_image_id, cover_r2_key,
+      cover_image_id,
       gallery_images!cover_image_id (preview_r2_key)
     `)
     .order('created_at', { ascending: false })
@@ -23,7 +23,7 @@ export async function getGalleries() {
 export async function getGallery(id) {
   const { data, error } = await supabase
     .from('galleries')
-    .select('*')
+    .select('*, plain_password, plain_download_pin')
     .eq('id', id)
     .single()
 

@@ -182,22 +182,20 @@ export default function Admin() {
   }
 
   async function handleSetTier(photographerId, tierId) {
+    const tierIdValue = tierId || null
     try {
-      const existing = storage[photographerId]
-      if (existing) {
-        await supabase.from('photographer_storage')
-          .update({ tier_id: tierId, updated_at: new Date().toISOString() })
-          .eq('photographer_id', photographerId)
-      } else {
-        await supabase.from('photographer_storage')
-          .insert({ photographer_id: photographerId, tier_id: tierId, bytes_used: 0 })
-      }
+      const { error } = await supabase.rpc('admin_set_photographer_tier', {
+        p_photographer_id: photographerId,
+        p_tier_id: tierIdValue,
+      })
+      if (error) throw error
       setStorage(prev => ({
         ...prev,
-        [photographerId]: { ...prev[photographerId], tier_id: tierId }
+        [photographerId]: { ...(prev[photographerId] || {}), photographer_id: photographerId, tier_id: tierIdValue }
       }))
       setToast({ message: 'Tier updated', type: 'success' })
-    } catch {
+    } catch (err) {
+      console.error('Tier save error:', err)
       setToast({ message: 'Failed to update tier', type: 'error' })
     }
   }
