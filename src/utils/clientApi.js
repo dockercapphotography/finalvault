@@ -39,6 +39,15 @@ export async function verifyDownloadPin(galleryId, pin) {
   return data?.plain_download_pin === pin
 }
 
+export async function getPhotographerName(photographerId) {
+  const { data } = await supabase
+    .from('photographers')
+    .select('display_name')
+    .eq('id', photographerId)
+    .single()
+  return data?.display_name || null
+}
+
 export async function getClientImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')

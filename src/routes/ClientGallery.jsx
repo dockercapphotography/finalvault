@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Lock, ArrowRight } from 'lucide-react'
 import {
-  getGalleryByToken, verifyGalleryPassword,
+  getGalleryByToken, verifyGalleryPassword, getPhotographerName,
   getOrCreateViewer, getViewerFromSession
 } from '../utils/clientApi.js'
 
@@ -70,6 +70,7 @@ export default function ClientGallery() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [stage, setStage] = useState('loading') // loading | name | password | done
+  const [photographerName, setPhotographerName] = useState('')
 
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
@@ -90,6 +91,13 @@ export default function ClientGallery() {
       }
 
       setGallery(g)
+
+      // Fetch photographer name
+      if (g.photographer_id) {
+        getPhotographerName(g.photographer_id).then(name => {
+          if (name) setPhotographerName(name)
+        })
+      }
 
       // Check if viewer already has a session for this gallery
       const existingViewer = getViewerFromSession(g.id)
@@ -177,7 +185,7 @@ export default function ClientGallery() {
     <GateWrapper>
       <div className="text-center space-y-1">
         <p className="text-xs uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted)' }}>
-          {gallery.photographers?.display_name || 'Your photographer'}
+          {photographerName || 'Your photographer'}
         </p>
         <h1 className="text-2xl font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
         {gallery.client_name && (
