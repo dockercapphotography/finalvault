@@ -276,17 +276,60 @@ export default function GallerySettings() {
   if (!gallery) return null
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-5">
       <Button variant="ghost" onClick={() => navigate(`/galleries/${id}`)} className="-ml-2">
         <ArrowLeft size={15} />Back to gallery
       </Button>
 
       <div>
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Settings</h1>
+        <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Settings</h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{gallery.title}</p>
       </div>
 
-      <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
+      {/* Mobile: native dropdown. Desktop: tab bar */}
+      <div className="md:hidden">
+        <select
+          value={activeTab}
+          onChange={e => setActiveTab(e.target.value)}
+          style={{
+            width: '100%',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            fontSize: '14px',
+            fontWeight: '500',
+            outline: 'none',
+            cursor: 'pointer',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 14px center',
+            paddingRight: '36px',
+          }}>
+          {TABS.map(t => (
+            <option key={t.id} value={t.id}>{t.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="hidden md:flex gap-1">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors"
+            style={{
+              background: activeTab === t.id ? 'var(--surface-raised)' : 'transparent',
+              color: activeTab === t.id ? 'var(--text)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              border: 'none',
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       {activeTab === 'general' && (
         <div className="space-y-4">
@@ -294,7 +337,8 @@ export default function GallerySettings() {
             <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
               <Input label="Gallery title" value={title} onChange={setTitle} onBlur={() => save()}
                 placeholder="e.g. Smith Wedding — June 2026" required />
-              <div className="grid grid-cols-2 gap-4">
+              {/* Stack on mobile, side by side on sm+ */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Client name" value={clientName} onChange={setClientName} onBlur={() => save()}
                   placeholder="e.g. Sarah & James" />
                 <Input label="Event date" value={eventDate} onChange={setEventDate} onBlur={() => save()} type="date" />
@@ -397,7 +441,7 @@ export default function GallerySettings() {
       {activeTab === 'display' && (
         <div className="space-y-4">
           <SettingsSection title="Color Theme" description="Background and accent colors for the client gallery">
-            <div className="p-5 grid grid-cols-3 sm:grid-cols-4 gap-2" style={{ background: 'var(--surface)' }}>
+            <div className="p-4 grid grid-cols-3 sm:grid-cols-4 gap-2" style={{ background: 'var(--surface)' }}>
               {[
                 { id: 'light', label: 'Light', swatches: ['#ffffff', '#f8f8f8', '#6366f1'] },
                 { id: 'gold', label: 'Gold', swatches: ['#faf8f3', '#f0ead6', '#b8963e'] },
@@ -410,7 +454,7 @@ export default function GallerySettings() {
                 { id: 'dark', label: 'Dark', swatches: ['#111111', '#1e1e1e', '#6366f1'] },
               ].map(t => (
                 <button key={t.id} onClick={() => { setThemeColor(t.id); save({ themeColor: t.id }) }}
-                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all"
+                  className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all"
                   style={{
                     cursor: 'pointer',
                     border: themeColor === t.id ? '2px solid #6366f1' : '2px solid var(--border)',
@@ -418,7 +462,7 @@ export default function GallerySettings() {
                   }}>
                   <div className="flex gap-1">
                     {t.swatches.map((s, i) => (
-                      <div key={i} className="w-4 h-4 rounded-full border"
+                      <div key={i} className="w-3.5 h-3.5 rounded-full border"
                         style={{ background: s, borderColor: 'var(--border)' }} />
                     ))}
                   </div>
@@ -429,7 +473,7 @@ export default function GallerySettings() {
           </SettingsSection>
 
           <SettingsSection title="Grid" description="Control how images appear in the gallery">
-            <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
+            <div className="px-4 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
               <div>
                 <p className="text-sm font-medium mb-2" style={{ color: 'var(--text)' }}>Thumbnail Size</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -473,7 +517,7 @@ export default function GallerySettings() {
         <div className="space-y-4">
           <SettingsSection title="Delete Gallery">
             {!confirmDelete ? (
-              <div className="flex items-center justify-between p-4 rounded-xl"
+              <div className="flex items-center justify-between gap-4 p-4 rounded-xl"
                 style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
                 <div>
                   <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Delete this gallery</p>

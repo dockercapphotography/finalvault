@@ -30,7 +30,7 @@ export default function ImageUploader({ onUpload, disabled = false, compact = fa
   const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }
   const handleDragLeave = (e) => { e.stopPropagation(); setIsDragging(false) }
 
-  // Compact mode — just a button in the header
+  // Compact mode — icon only on mobile, full label on desktop
   if (compact) {
     return (
       <>
@@ -45,7 +45,7 @@ export default function ImageUploader({ onUpload, disabled = false, compact = fa
         />
         <Button variant="secondary" onClick={() => inputRef.current?.click()} disabled={disabled}>
           <Upload size={14} />
-          Upload Images
+          <span className="hidden sm:inline">Upload Images</span>
         </Button>
       </>
     )

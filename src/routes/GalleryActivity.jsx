@@ -67,19 +67,17 @@ export default function GalleryActivity() {
     ? activity
     : activity.filter(a => a.action === filter || (filter === 'download' && a.action.startsWith('download')))
 
-  // Stats
   const stats = {
     views: activity.filter(a => a.action === 'view').length,
     favorites: activity.filter(a => a.action === 'favorite').length,
     downloads: activity.filter(a => a.action.startsWith('download')).length,
-    comments: activity.filter(a => a.action === 'comment').length,
     uniqueViewers: new Set(activity.map(a => a.gallery_viewers?.display_name).filter(Boolean)).size,
   }
 
   const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-5">
       <button onClick={() => navigate(`/galleries/${id}`)}
         className="flex items-center gap-1.5 text-sm -ml-1"
         style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -87,34 +85,67 @@ export default function GalleryActivity() {
       </button>
 
       <div>
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Activity</h1>
+        <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Activity</h1>
         {gallery && <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{gallery.title}</p>}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Stats — compact 2x2 on mobile */}
+      <div className="grid grid-cols-2 gap-2">
         {[
-          { label: 'Total Views', value: stats.views },
-          { label: 'Unique Visitors', value: stats.uniqueViewers },
-          { label: 'Favorites', value: stats.favorites },
-          { label: 'Downloads', value: stats.downloads },
+          { label: 'Total Views',      value: stats.views },
+          { label: 'Unique Visitors',  value: stats.uniqueViewers },
+          { label: 'Favorites',        value: stats.favorites },
+          { label: 'Downloads',        value: stats.downloads },
         ].map(s => (
-          <div key={s.label} className="rounded-xl p-4 text-center"
+          <div key={s.label} className="rounded-xl px-4 py-3 flex items-center gap-3"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{s.value}</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
+            <p className="text-xl font-bold" style={{ color: 'var(--text)' }}>{s.value}</p>
+            <p className="text-xs leading-tight" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* Mobile: dropdown. Desktop: filter pills */}
+      <div className="md:hidden">
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          style={{
+            width: '100%',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            fontSize: '14px',
+            fontWeight: '500',
+            outline: 'none',
+            cursor: 'pointer',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 14px center',
+            paddingRight: '36px',
+          }}>
+          {[
+            { id: 'all',      label: 'All Activity' },
+            { id: 'view',     label: 'Views' },
+            { id: 'favorite', label: 'Favorites' },
+            { id: 'download', label: 'Downloads' },
+            { id: 'comment',  label: 'Comments' },
+          ].map(f => (
+            <option key={f.id} value={f.id}>{f.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="hidden md:flex items-center gap-2 flex-wrap">
         {[
-          { id: 'all', label: 'All' },
-          { id: 'view', label: 'Views' },
+          { id: 'all',      label: 'All' },
+          { id: 'view',     label: 'Views' },
           { id: 'favorite', label: 'Favorites' },
           { id: 'download', label: 'Downloads' },
-          { id: 'comment', label: 'Comments' },
+          { id: 'comment',  label: 'Comments' },
         ].map(f => (
           <button
             key={f.id}
@@ -152,41 +183,37 @@ export default function GalleryActivity() {
 
             return (
               <div key={log.id}
-                className="flex items-center gap-4 px-4 py-3 rounded-xl"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
                 style={{ background: 'var(--surface)' }}>
-                {/* Icon */}
-                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
                   style={{ background: `${cfg.color}18` }}>
-                  <Icon size={14} style={{ color: cfg.color }} />
+                  <Icon size={13} style={{ color: cfg.color }} />
                 </div>
 
-                {/* Thumbnail */}
                 {previewKey && (
                   <img
                     src={`${WORKER_URL}/preview/${encodeURIComponent(previewKey)}`}
                     alt={fileName}
-                    className="w-8 h-8 rounded object-cover flex-shrink-0"
+                    className="w-7 h-7 rounded object-cover flex-shrink-0"
                     style={{ objectFit: 'cover' }}
                   />
                 )}
 
-                {/* Text */}
                 <div className="flex-1 min-w-0">
-                  <div>
-                    <p className="text-sm" style={{ color: 'var(--text)' }}>
-                      <span className="font-medium">{name}</span>
-                      {' '}{cfg.label.toLowerCase()}
-                      {fileName && <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>— {fileName}</span>}
+                  <p className="text-sm truncate" style={{ color: 'var(--text)' }}>
+                    <span className="font-medium">{name}</span>
+                    {' '}{cfg.label.toLowerCase()}
+                  </p>
+                  {fileName && (
+                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{fileName}</p>
+                  )}
+                  {log.comment_body && (
+                    <p className="text-xs italic truncate" style={{ color: 'var(--text-muted)' }}>
+                      "{log.comment_body}"
                     </p>
-                    {log.comment_body && (
-                      <p className="text-xs mt-0.5 italic" style={{ color: 'var(--text-muted)' }}>
-                        "{log.comment_body}"
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
 
-                {/* Time */}
                 <p className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
                   {timeAgo(log.occurred_at)}
                 </p>

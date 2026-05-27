@@ -240,23 +240,28 @@ export default function GalleryDetail() {
           <ArrowLeft size={15} />Back to galleries
         </Button>
 
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
-              {statusBadge[status]}
-            </div>
-            {gallery.client_name && (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{gallery.client_name}</p>
-            )}
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              Created {formatDate(gallery.created_at)}
-              {gallery.event_date && ` · Event ${formatDate(gallery.event_date)}`}
-              {gallery.expires_at && ` · Expires ${formatDate(gallery.expires_at)}`}
-            </p>
+        {/* Title + meta */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
+            {statusBadge[status]}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <ShareButton gallery={gallery} />
+          {gallery.client_name && (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{gallery.client_name}</p>
+          )}
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Created {formatDate(gallery.created_at)}
+            {gallery.event_date && ` · Event ${formatDate(gallery.event_date)}`}
+            {gallery.expires_at && ` · Expires ${formatDate(gallery.expires_at)}`}
+          </p>
+        </div>
+
+        {/* Action buttons — Share full width on mobile, rest wrap tightly */}
+        <div className="space-y-2">
+          <div className="w-full sm:w-auto">
+            <ShareButton gallery={gallery} fullWidthMobile />
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Button variant="secondary" onClick={() => setShowCoverPicker(true)}>
               <ImageIcon size={14} />Cover Image
             </Button>

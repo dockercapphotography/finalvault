@@ -53,7 +53,8 @@ export default function SortDropdown({ value, onChange }) {
         onMouseLeave={e => e.currentTarget.style.borderColor = open ? 'var(--border-strong)' : 'var(--border)'}
       >
         <ArrowDownUp size={13} />
-        <span>{current.label}</span>
+        {/* Label hidden on mobile, visible on desktop */}
+        <span className="hidden sm:inline">{current.label}</span>
       </button>
 
       {open && (
