@@ -62,7 +62,7 @@ export async function getClientImages(galleryId) {
 
 export async function getOrCreateViewer(galleryId, displayName) {
   const storageKey = `fv-viewer-${galleryId}`
-  const existing = sessionStorage.getItem(storageKey)
+  const existing = localStorage.getItem(storageKey)
   if (existing) {
     const { id: viewerId } = JSON.parse(existing)
     await supabase
@@ -78,12 +78,12 @@ export async function getOrCreateViewer(galleryId, displayName) {
     .select()
     .single()
   if (error) throw error
-  sessionStorage.setItem(storageKey, JSON.stringify(data))
+  localStorage.setItem(storageKey, JSON.stringify(data))
   return data
 }
 
 export function getViewerFromSession(galleryId) {
-  const stored = sessionStorage.getItem(`fv-viewer-${galleryId}`)
+  const stored = localStorage.getItem(`fv-viewer-${galleryId}`)
   return stored ? JSON.parse(stored) : null
 }
 

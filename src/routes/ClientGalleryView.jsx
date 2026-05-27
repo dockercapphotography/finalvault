@@ -11,7 +11,6 @@ const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 function noContext(e) { e.preventDefault() }
 
-// ── Theme colors ──────────────────────────────────────────────────────────────
 const THEME_COLORS = {
   light:      { bg: '#ffffff', surface: '#f8f8f8', text: '#1a1a1a', muted: '#6b7280', border: '#e5e7eb', accent: '#6366f1' },
   gold:       { bg: '#faf8f3', surface: '#f0ead6', text: '#1a1a1a', muted: '#8a7d5a', border: '#d4c89a', accent: '#b8963e' },
@@ -24,7 +23,6 @@ const THEME_COLORS = {
   dark:       { bg: '#111111', surface: '#1e1e1e', text: '#f0f0f0', muted: '#9ca3af', border: '#333333', accent: '#6366f1' },
 }
 
-// ── Download Menu ─────────────────────────────────────────────────────────────
 function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -39,13 +37,9 @@ function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
 
   if (!allowWebSize && !allowHires) return null
 
-  // Only one option — just show a single button
   if (!hasBoth) {
-    const hires = !!allowHires
     return (
-      <button
-        onClick={() => onDownload(hires)}
-        disabled={loading}
+      <button onClick={() => onDownload(!!allowHires)} disabled={loading}
         className="w-9 h-9 rounded-full flex items-center justify-center"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: loading ? 0.5 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
         <Download size={16} />
@@ -55,9 +49,7 @@ function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
 
   return (
     <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        disabled={loading}
+      <button onClick={() => setOpen(!open)} disabled={loading}
         className="w-9 h-9 rounded-full flex items-center justify-center"
         style={{ background: open ? 'var(--surface-raised)' : 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', opacity: loading ? 0.5 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
         <Download size={16} />
@@ -66,9 +58,8 @@ function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
         <div className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-40 w-36"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           {allowWebSize && (
-            <button
-              onClick={() => { onDownload(false); setOpen(false) }}
-              className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+            <button onClick={() => { onDownload(false); setOpen(false) }}
+              className="w-full text-left px-4 py-2.5 text-sm"
               style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -76,9 +67,8 @@ function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
             </button>
           )}
           {allowHires && (
-            <button
-              onClick={() => { onDownload(true); setOpen(false) }}
-              className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+            <button onClick={() => { onDownload(true); setOpen(false) }}
+              className="w-full text-left px-4 py-2.5 text-sm"
               style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -90,8 +80,6 @@ function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
     </div>
   )
 }
-
-// ── Grid Download Button (single icon, dropdown if both options) ──────────────
 
 function GridDownloadButton({ allowWebSize, allowHires, onDownload }) {
   const [open, setOpen] = useState(false)
@@ -144,8 +132,6 @@ function GridDownloadButton({ allowWebSize, allowHires, onDownload }) {
     </div>
   )
 }
-
-// ── Lightbox Download Button ───────────────────────────────────────────────────
 
 function LightboxDownloadButton({ allowWebSize, allowHires, onDownload }) {
   const [open, setOpen] = useState(false)
@@ -201,12 +187,29 @@ function LightboxDownloadButton({ allowWebSize, allowHires, onDownload }) {
   )
 }
 
-// ── Lightbox ─────────────────────────────────────────────────────────────────
-
 function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleFavorite, allowDownloads, allowWebSize, allowHires, onDownload, token }) {
   const image = images[index]
   const touchStartX = useRef(null)
   const touchStartY = useRef(null)
+  const [displayIndex, setDisplayIndex] = useState(index)
+  const [slideStyle, setSlideStyle] = useState({ opacity: 1, transform: 'translateX(0)', transition: 'none' })
+
+  useEffect(() => {
+    if (index === displayIndex) return
+    const dir = index > displayIndex ? -1 : 1
+    // Slide current image out
+    setSlideStyle({ opacity: 0, transform: `translateX(${dir * -50}px)`, transition: 'transform 0.22s ease, opacity 0.22s ease' })
+    const t = setTimeout(() => {
+      setDisplayIndex(index)
+      // Instantly reposition new image off-screen on opposite side
+      setSlideStyle({ opacity: 0, transform: `translateX(${dir * 50}px)`, transition: 'none' })
+      // Then animate it into center
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        setSlideStyle({ opacity: 1, transform: 'translateX(0)', transition: 'transform 0.22s ease, opacity 0.22s ease' })
+      }))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [index])
 
   useEffect(() => {
     function handleKey(e) {
@@ -236,6 +239,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   }
 
   if (!image) return null
+  const displayImage = images[displayIndex] || image
   const isFav = favorites.has(image.id)
 
   return (
@@ -246,7 +250,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}>
 
-      {/* Controls */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-20"
         onClick={e => e.stopPropagation()}>
         {allowDownloads && (
@@ -268,7 +271,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
         </button>
       </div>
 
-      {/* Prev */}
       {index > 0 && (
         <button onClick={e => { e.stopPropagation(); onPrev() }}
           className="absolute left-4 w-10 h-10 rounded-full flex items-center justify-center z-20"
@@ -277,10 +279,9 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
         </button>
       )}
 
-      {/* Image */}
-      <div className="relative" onClick={e => e.stopPropagation()}>
+      <div className="relative" onClick={e => e.stopPropagation()} style={slideStyle}>
         <img
-          src={getPreviewUrl(image.preview_r2_key, token)}
+          src={getPreviewUrl(displayImage.preview_r2_key, token)}
           alt=""
           draggable={false}
           onContextMenu={noContext}
@@ -289,7 +290,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
         <div className="absolute inset-0 z-10" onContextMenu={noContext} />
       </div>
 
-      {/* Next */}
       {index < images.length - 1 && (
         <button onClick={e => { e.stopPropagation(); onNext() }}
           className="absolute right-4 w-10 h-10 rounded-full flex items-center justify-center z-20"
@@ -306,8 +306,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   )
 }
 
-// ── PIN Gate ──────────────────────────────────────────────────────────────────
-
 function PinGate({ onSubmit, onCancel, error, loading }) {
   const [pin, setPin] = useState('')
   return (
@@ -322,8 +320,7 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
           <button onClick={onCancel} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
         </div>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Enter the 4-digit PIN to download</p>
-        <input
-          type="number" maxLength={4} value={pin}
+        <input type="number" maxLength={4} value={pin}
           onChange={e => setPin(e.target.value.slice(0, 4))}
           placeholder="0000" autoFocus
           className="w-full text-center text-2xl tracking-widest font-mono rounded-xl py-3"
@@ -345,8 +342,6 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
     </div>
   )
 }
-
-// ── Comment Thread ────────────────────────────────────────────────────────────
 
 function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
   const [comments, setComments] = useState([])
@@ -401,8 +396,6 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
   )
 }
 
-// ── Main View ─────────────────────────────────────────────────────────────────
-
 export default function ClientGalleryView() {
   const { token } = useParams()
   const navigate = useNavigate()
@@ -414,10 +407,8 @@ export default function ClientGalleryView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [heroUrl, setHeroUrl] = useState(null)
-
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [activeCommentImageId, setActiveCommentImageId] = useState(null)
-
   const [showPinGate, setShowPinGate] = useState(false)
   const [pinError, setPinError] = useState('')
   const [pinLoading, setPinLoading] = useState(false)
@@ -431,21 +422,11 @@ export default function ClientGalleryView() {
       setLoading(true)
       const g = await getGalleryByToken(token)
       if (!g || !g.is_active) { navigate(`/g/${token}`, { replace: true }); return }
-
       const v = getViewerFromSession(g.id)
       if (!v) { navigate(`/g/${token}`, { replace: true }); return }
-
-      const [imgs, favs] = await Promise.all([
-        getClientImages(g.id),
-        getViewerFavorites(g.id, v.id),
-      ])
-
-      setGallery(g)
-      setImages(imgs)
-      setViewer(v)
-      setFavorites(favs)
+      const [imgs, favs] = await Promise.all([getClientImages(g.id), getViewerFavorites(g.id, v.id)])
+      setGallery(g); setImages(imgs); setViewer(v); setFavorites(favs)
       logActivity(g.id, v.id, 'view')
-
       if (g.cover_r2_key) {
         setHeroUrl(`${WORKER_URL}/preview/${encodeURIComponent(g.cover_r2_key)}?share_token=${token}`)
       } else if (g.cover_image_id && imgs.length > 0) {
@@ -454,48 +435,32 @@ export default function ClientGalleryView() {
       } else if (imgs.length > 0) {
         setHeroUrl(getPreviewUrl(imgs[0].preview_r2_key, token))
       }
-    } catch (err) {
-      setError('Could not load gallery.')
-    } finally {
-      setLoading(false)
-    }
+    } catch { setError('Could not load gallery.') }
+    finally { setLoading(false) }
   }
 
   async function handleToggleFavorite(imageId) {
     if (!gallery.allow_favorites || !viewer) return
     const nowFav = await toggleFavorite(gallery.id, imageId, viewer.id)
-    setFavorites(prev => {
-      const next = new Set(prev)
-      nowFav ? next.add(imageId) : next.delete(imageId)
-      return next
-    })
+    setFavorites(prev => { const next = new Set(prev); nowFav ? next.add(imageId) : next.delete(imageId); return next })
     logActivity(gallery.id, viewer.id, nowFav ? 'favorite' : 'unfavorite', imageId)
   }
 
   function handleDownloadSingle(image, hires = false) {
     if (!gallery.allow_downloads) return
     if (gallery.require_download_pin) {
-      setPendingDownload({ type: 'single', image, hires })
-      setShowPinGate(true)
+      setPendingDownload({ type: 'single', image, hires }); setShowPinGate(true)
     } else {
-      if (hires) {
-        downloadOriginal(image.original_r2_key, image.file_name, token)
-      } else {
-        const webName = image.file_name.replace(/\.[^.]+$/, '_web.jpg')
-        downloadPreview(image.preview_r2_key, webName, token)
-      }
+      if (hires) downloadOriginal(image.original_r2_key, image.file_name, token)
+      else downloadPreview(image.preview_r2_key, image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token)
       logActivity(gallery.id, viewer?.id, 'download_single', image.id)
     }
   }
 
   function handleDownloadZip(hires = false) {
     if (!gallery.allow_downloads) return
-    if (gallery.require_download_pin) {
-      setPendingDownload({ type: 'zip', hires })
-      setShowPinGate(true)
-    } else {
-      doZipDownload(null, hires)
-    }
+    if (gallery.require_download_pin) { setPendingDownload({ type: 'zip', hires }); setShowPinGate(true) }
+    else doZipDownload(null, hires)
   }
 
   async function doZipDownload(pin = null, hires = false) {
@@ -505,43 +470,31 @@ export default function ClientGalleryView() {
       const names = hires ? images.map(i => i.file_name) : images.map(i => i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
       await downloadZip(gallery.id, token, keys, names, gallery.title, pin)
       logActivity(gallery.id, viewer?.id, 'download_all')
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setDownloadingZip(false)
-    }
+    } catch (err) { console.error(err) }
+    finally { setDownloadingZip(false) }
   }
 
   async function handlePinSubmit(pin) {
-    setPinLoading(true)
-    setPinError('')
+    setPinLoading(true); setPinError('')
     try {
       const valid = await verifyDownloadPin(gallery.id, pin)
       if (!valid) { setPinError('Incorrect PIN. Please try again.'); return }
       setShowPinGate(false)
       if (pendingDownload?.type === 'single') {
-        if (pendingDownload.hires) {
-          await downloadOriginal(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
-        } else {
-          const webName = pendingDownload.image.file_name.replace(/\.[^.]+$/, '_web.jpg')
-          await downloadPreview(pendingDownload.image.preview_r2_key, webName, token)
-        }
+        if (pendingDownload.hires) await downloadOriginal(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
+        else await downloadPreview(pendingDownload.image.preview_r2_key, pendingDownload.image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token)
         logActivity(gallery.id, viewer?.id, 'download_single', pendingDownload.image.id)
       } else {
         await doZipDownload(pin, pendingDownload?.hires || false)
       }
       setPendingDownload(null)
-    } catch {
-      setPinError('Something went wrong.')
-    } finally {
-      setPinLoading(false)
-    }
+    } catch { setPinError('Something went wrong.') }
+    finally { setPinLoading(false) }
   }
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#fff' }}>
-      <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+      <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
     </div>
   )
 
@@ -551,46 +504,20 @@ export default function ClientGalleryView() {
     </div>
   )
 
-  // Apply theme
   const theme = THEME_COLORS[gallery.theme_color || 'light'] || THEME_COLORS.light
-  const gridCols = gallery.grid_size === 'large'
-    ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
-    : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+  const gridCols = gallery.grid_size === 'large' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
   const gridGap = gallery.grid_spacing === 'large' ? 'gap-4' : 'gap-1'
   const gridPad = gallery.grid_spacing === 'large' ? 'p-4' : 'p-1'
-
-  const themeStyle = {
-    '--bg': theme.bg,
-    '--surface': theme.surface,
-    '--surface-raised': theme.surface,
-    '--text': theme.text,
-    '--text-muted': theme.muted,
-    '--text-secondary': theme.muted,
-    '--border': theme.border,
-    '--accent': theme.accent,
-  }
-
-  const eventDateStr = gallery.event_date
-    ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-    : null
+  const themeStyle = { '--bg': theme.bg, '--surface': theme.surface, '--surface-raised': theme.surface, '--text': theme.text, '--text-muted': theme.muted, '--text-secondary': theme.muted, '--border': theme.border, '--accent': theme.accent }
+  const eventDateStr = gallery.event_date ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null
 
   return (
     <div className="min-h-screen" style={{ background: theme.bg, ...themeStyle }} onContextMenu={noContext}>
 
-      {/* Hero */}
       {heroUrl && (
         <div className="relative w-full overflow-hidden" style={{ height: '100vh', minHeight: 500 }}>
-          <img
-            src={heroUrl}
-            alt=""
-            draggable={false}
-            onContextMenu={noContext}
-            className="w-full h-full"
-            style={{
-              objectFit: 'cover',
-              objectPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`,
-              userSelect: 'none',
-            }}
+          <img src={heroUrl} alt="" draggable={false} onContextMenu={noContext} className="w-full h-full"
+            style={{ objectFit: 'cover', objectPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`, userSelect: 'none' }}
           />
           <div className="absolute inset-0" style={{ zIndex: 1 }} onContextMenu={noContext} />
           <div className="absolute inset-0 pointer-events-none"
@@ -604,53 +531,31 @@ export default function ClientGalleryView() {
         </div>
       )}
 
-      {/* Sticky nav */}
       <div className="sticky top-0 z-30 px-4 py-3 flex items-center justify-between"
         style={{ background: theme.bg, borderBottom: `1px solid ${theme.border}` }}>
         <h1 className="text-sm font-semibold truncate" style={{ color: theme.text }}>{gallery.title}</h1>
         {gallery.allow_downloads && (
-          <DownloadMenu
-            allowWebSize={gallery.download_watermarked}
-            allowHires={gallery.allow_hires_download}
-            onDownload={handleDownloadZip}
-            loading={downloadingZip}
-          />
+          <DownloadMenu allowWebSize={gallery.download_watermarked} allowHires={gallery.allow_hires_download} onDownload={handleDownloadZip} loading={downloadingZip} />
         )}
       </div>
 
-      {/* Image Grid */}
       <div className={`${gridPad} grid ${gridCols} ${gridGap}`}>
         {images.map((image, i) => (
-          <div key={image.id}
-            className="relative overflow-hidden rounded-lg group"
-            style={{ cursor: 'pointer' }}
-            onClick={() => setLightboxIndex(i)}>
-            <img
-              src={getPreviewUrl(image.preview_r2_key, token)}
-              alt=""
-              loading="lazy"
-              draggable={false}
-              onContextMenu={noContext}
-              className="w-full block aspect-square"
-              style={{ objectFit: 'cover', userSelect: 'none', pointerEvents: 'none' }}
-            />
-            {/* Hover overlay */}
+          <div key={image.id} className="relative overflow-hidden rounded-lg group" style={{ cursor: 'pointer' }} onClick={() => setLightboxIndex(i)}>
+            <img src={getPreviewUrl(image.preview_r2_key, token)} alt="" loading="lazy" draggable={false} onContextMenu={noContext}
+              className="w-full block aspect-square" style={{ objectFit: 'cover', userSelect: 'none', pointerEvents: 'none' }} />
             <div className="absolute inset-0 flex items-end justify-between p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)', zIndex: 2 }}
-              onContextMenu={noContext}>
+              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)', zIndex: 2 }} onContextMenu={noContext}>
               <div className="flex items-center gap-1.5">
                 {gallery.allow_favorites && (
-                  <button
-                    onClick={e => { e.stopPropagation(); handleToggleFavorite(image.id) }}
+                  <button onClick={e => { e.stopPropagation(); handleToggleFavorite(image.id) }}
                     className="w-7 h-7 rounded-full flex items-center justify-center"
                     style={{ background: 'rgba(0,0,0,0.4)', cursor: 'pointer' }}>
-                    <Heart size={13} fill={favorites.has(image.id) ? '#ef4444' : 'none'}
-                      style={{ color: favorites.has(image.id) ? '#ef4444' : '#fff' }} />
+                    <Heart size={13} fill={favorites.has(image.id) ? '#ef4444' : 'none'} style={{ color: favorites.has(image.id) ? '#ef4444' : '#fff' }} />
                   </button>
                 )}
                 {gallery.allow_comments && (
-                  <button
-                    onClick={e => { e.stopPropagation(); setActiveCommentImageId(image.id) }}
+                  <button onClick={e => { e.stopPropagation(); setActiveCommentImageId(image.id) }}
                     className="w-7 h-7 rounded-full flex items-center justify-center"
                     style={{ background: 'rgba(0,0,0,0.4)', cursor: 'pointer' }}>
                     <MessageCircle size={13} style={{ color: '#fff' }} />
@@ -659,11 +564,7 @@ export default function ClientGalleryView() {
               </div>
               {gallery.allow_downloads && (
                 <div onClick={e => e.stopPropagation()}>
-                  <GridDownloadButton
-                    allowWebSize={gallery.download_watermarked}
-                    allowHires={gallery.allow_hires_download}
-                    onDownload={hires => handleDownloadSingle(image, hires)}
-                  />
+                  <GridDownloadButton allowWebSize={gallery.download_watermarked} allowHires={gallery.allow_hires_download} onDownload={hires => handleDownloadSingle(image, hires)} />
                 </div>
               )}
             </div>
@@ -671,57 +572,31 @@ export default function ClientGalleryView() {
         ))}
       </div>
 
-      {/* Lightbox */}
       {lightboxIndex !== null && (
-        <Lightbox
-          images={images}
-          index={lightboxIndex}
+        <Lightbox images={images} index={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onPrev={() => setLightboxIndex(i => Math.max(0, i - 1))}
           onNext={() => setLightboxIndex(i => Math.min(images.length - 1, i + 1))}
-          favorites={favorites}
-          onToggleFavorite={handleToggleFavorite}
-          allowDownloads={gallery.allow_downloads}
-          allowWebSize={gallery.download_watermarked}
-          allowHires={gallery.allow_hires_download}
-          onDownload={handleDownloadSingle}
-          token={token}
+          favorites={favorites} onToggleFavorite={handleToggleFavorite}
+          allowDownloads={gallery.allow_downloads} allowWebSize={gallery.download_watermarked} allowHires={gallery.allow_hires_download}
+          onDownload={handleDownloadSingle} token={token}
         />
       )}
 
-      {/* Comment drawer */}
       {activeCommentImageId && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center"
-          style={{ background: 'rgba(0,0,0,0.4)' }}
-          onClick={() => setActiveCommentImageId(null)}>
-          <div className="w-full max-w-lg rounded-t-2xl p-6 space-y-4"
-            style={{ background: theme.surface, maxHeight: '60vh', overflowY: 'auto' }}
-            onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setActiveCommentImageId(null)}>
+          <div className="w-full max-w-lg rounded-t-2xl p-6 space-y-4" style={{ background: theme.surface, maxHeight: '60vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="font-medium text-sm" style={{ color: theme.text }}>Comments</p>
-              <button onClick={() => setActiveCommentImageId(null)}
-                style={{ color: theme.muted, cursor: 'pointer' }}>
-                <X size={16} />
-              </button>
+              <button onClick={() => setActiveCommentImageId(null)} style={{ color: theme.muted, cursor: 'pointer' }}><X size={16} /></button>
             </div>
-            <CommentThread
-              galleryId={gallery.id}
-              imageId={activeCommentImageId}
-              viewerId={viewer?.id}
-              allowComments={gallery.allow_comments}
-            />
+            <CommentThread galleryId={gallery.id} imageId={activeCommentImageId} viewerId={viewer?.id} allowComments={gallery.allow_comments} />
           </div>
         </div>
       )}
 
-      {/* PIN gate */}
       {showPinGate && (
-        <PinGate
-          onSubmit={handlePinSubmit}
-          onCancel={() => { setShowPinGate(false); setPinError(''); setPendingDownload(null) }}
-          error={pinError}
-          loading={pinLoading}
-        />
+        <PinGate onSubmit={handlePinSubmit} onCancel={() => { setShowPinGate(false); setPinError(''); setPendingDownload(null) }} error={pinError} loading={pinLoading} />
       )}
     </div>
   )
