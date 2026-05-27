@@ -29,6 +29,7 @@ function SaveIndicator({ state }) {
 export default function Account() {
   const [user, setUser]               = useState(null)
   const [displayName, setDisplayName] = useState('')
+  const [businessName, setBusinessName] = useState('')
   const [watermarks, setWatermarks]   = useState([])
   const [activeId, setActiveId]       = useState(null)
   const [uploading, setUploading]     = useState(false)
@@ -55,11 +56,12 @@ export default function Account() {
 
       const { data: profile } = await supabase
         .from('photographers')
-        .select('display_name, active_watermark_id')
+        .select('display_name, business_name, active_watermark_id')
         .eq('id', user.id)
         .single()
 
       setDisplayName(profile?.display_name || '')
+      setBusinessName(profile?.business_name || '')
       setActiveId(profile?.active_watermark_id || null)
 
       const wms = await getWatermarks()
@@ -75,7 +77,7 @@ export default function Account() {
     try {
       const { error } = await supabase
         .from('photographers')
-        .update({ display_name: displayName, updated_at: new Date().toISOString() })
+        .update({ display_name: displayName, business_name: businessName, updated_at: new Date().toISOString() })
         .eq('id', user.id)
       if (error) throw error
       setSaveState('saved')
@@ -163,6 +165,14 @@ export default function Account() {
             onChange={setDisplayName}
             onBlur={saveProfile}
             placeholder="Your name or studio name"
+          />
+          <Input
+            label="Business / Studio name"
+            value={businessName}
+            onChange={setBusinessName}
+            onBlur={saveProfile}
+            placeholder="e.g. Docker Cap Photography"
+            hint="Used in gallery emails and client communications"
           />
           <div>
             <label className="text-sm font-medium block" style={{ color: 'var(--text)' }}>Email</label>

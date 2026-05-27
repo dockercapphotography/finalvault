@@ -18,6 +18,7 @@ import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { formatDate } from '../utils/formatters.js'
 import CoverPickerModal from '../components/galleries/CoverPickerModal.jsx'
+import ShareButton from '../components/galleries/ShareButton.jsx'
 import { getActiveWatermark, getWatermarkUrl } from '../utils/watermarkApi.js'
 
 export default function GalleryDetail() {
@@ -138,11 +139,6 @@ export default function GalleryDetail() {
     }
   }
 
-  function handleCopyLink() {
-    navigator.clipboard.writeText(`${window.location.origin}/g/${gallery.share_token}`)
-    setToast({ message: 'Gallery link copied!', type: 'success' })
-  }
-
   function handleSelect(imageId) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -247,7 +243,7 @@ export default function GalleryDetail() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="secondary" onClick={handleCopyLink}><Copy size={14} />Copy Link</Button>
+            <ShareButton gallery={gallery} />
             <Button variant="secondary" onClick={() => setShowCoverPicker(true)}>
               <ImageIcon size={14} />Cover Image
             </Button>
