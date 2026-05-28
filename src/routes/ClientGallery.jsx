@@ -1,61 +1,128 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Lock, ArrowRight } from 'lucide-react'
 import {
   getGalleryByToken, verifyGalleryPassword, getPhotographerName,
   getOrCreateViewer, getViewerFromSession
 } from '../utils/clientApi.js'
+import { supabaseAnon } from '../supabaseClientAnon.js'
 
-function GateWrapper({ children }) {
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+
+function GateWrapper({ gallery, photographerName, children }) {
+  const [coverBlobUrl, setCoverBlobUrl] = useState(null)
+
+  useEffect(() => {
+    if (!gallery) return
+    async function loadCover() {
+      let r2Key = gallery.cover_r2_key
+      // If cover_r2_key is null but cover_image_id exists, fetch the key from the image
+      if (!r2Key && gallery.cover_image_id) {
+        try {
+          const { createClient } = await import('@supabase/supabase-js')
+          const anonClient = createClient(
+            import.meta.env.VITE_SUPABASE_URL,
+            import.meta.env.VITE_SUPABASE_ANON_KEY
+          )
+          const { data } = await anonClient
+            .from('gallery_images')
+            .select('preview_r2_key')
+            .eq('id', gallery.cover_image_id)
+            .single()
+          r2Key = data?.preview_r2_key
+        } catch { return }
+      }
+      if (!r2Key) return
+      const url = gallery.share_token
+        ? `${WORKER_URL}/preview/${encodeURIComponent(r2Key)}?share_token=${gallery.share_token}`
+        : `${WORKER_URL}/preview/${encodeURIComponent(r2Key)}`
+      try {
+        const resp = await fetch(url)
+        if (resp.ok) {
+          const blob = await resp.blob()
+          setCoverBlobUrl(URL.createObjectURL(blob))
+        }
+      } catch {}
+    }
+    loadCover()
+  }, [gallery?.cover_image_id, gallery?.cover_r2_key])
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: 'var(--bg)' }}>
-      <div className="w-full max-w-sm space-y-6">
+    <div className="min-h-screen relative flex flex-col items-center justify-center px-4"
+      style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a0f2e 50%, #0f1a1a 100%)' }}>
+
+      {/* Cover image background */}
+      {coverBlobUrl && (
+        <>
+          <div className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${coverBlobUrl})` }} />
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.65) 100%)' }} />
+        </>
+      )}
+
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-sm space-y-6 pb-12">
+        {/* Gallery identity */}
+        {gallery && (
+          <div className="text-center space-y-1">
+            <p className="text-xs uppercase tracking-widest font-medium text-white/60">
+              {photographerName || 'Your photographer'}
+            </p>
+            <h1 className="text-3xl font-bold text-white tracking-tight">{gallery.title}</h1>
+            {gallery.client_name && (
+              <p className="text-sm text-white/60">For {gallery.client_name}</p>
+            )}
+          </div>
+        )}
+
         {children}
+      </div>
+
+      {/* Footer */}
+      <div className="relative z-10 mt-8 text-center">
+        <p className="text-xs text-white/30">Powered by FinalVault</p>
       </div>
     </div>
   )
 }
 
-function InputField({ label, value, onChange, type = 'text', placeholder, autoFocus }) {
+function InputField({ value, onChange, type = 'text', placeholder, autoFocus }) {
   return (
-    <div className="space-y-1.5">
-      {label && (
-        <label className="text-sm font-medium block" style={{ color: 'var(--text)' }}>{label}</label>
-      )}
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        style={{
-          width: '100%',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          color: 'var(--text)',
-          borderRadius: '10px',
-          padding: '10px 14px',
-          fontSize: '15px',
-          outline: 'none',
-        }}
-        onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-        onBlur={e => e.target.style.borderColor = 'var(--border)'}
-      />
-    </div>
+    <input
+      type={type}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      style={{
+        width: '100%',
+        background: 'rgba(255,255,255,0.12)',
+        backdropFilter: 'blur(8px)',
+        border: '1px solid rgba(255,255,255,0.25)',
+        color: '#fff',
+        borderRadius: '10px',
+        padding: '12px 16px',
+        fontSize: '15px',
+        outline: 'none',
+      }}
+      onFocus={e => e.target.style.borderColor = 'rgba(255,255,255,0.6)'}
+      onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.25)'}
+    />
   )
 }
 
 function GateButton({ onClick, loading, children }) {
   return (
     <button onClick={onClick} disabled={loading}
-      className="w-full flex items-center justify-center gap-2 font-medium rounded-xl py-3 transition-opacity"
+      className="w-full flex items-center justify-center gap-2 font-semibold rounded-xl py-3 transition-opacity"
       style={{
-        background: '#6366f1',
-        color: '#fff',
-        opacity: loading ? 0.6 : 1,
+        background: '#fff',
+        color: '#111',
+        opacity: loading ? 0.5 : 1,
         cursor: loading ? 'not-allowed' : 'pointer',
         fontSize: '15px',
+        letterSpacing: '0.02em',
       }}>
       {children}
     </button>
@@ -69,7 +136,7 @@ export default function ClientGallery() {
   const [gallery, setGallery] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [stage, setStage] = useState('loading') // loading | name | password | done
+  const [stage, setStage] = useState('loading')
   const [photographerName, setPhotographerName] = useState('')
 
   const [name, setName] = useState('')
@@ -92,23 +159,15 @@ export default function ClientGallery() {
 
       setGallery(g)
 
-      // Fetch photographer name
       if (g.photographer_id) {
-        getPhotographerName(g.photographer_id).then(name => {
-          if (name) setPhotographerName(name)
-        })
+        getPhotographerName(g.photographer_id).then(n => { if (n) setPhotographerName(n) })
       }
 
-      // Check if viewer already has a session for this gallery
       const existingViewer = getViewerFromSession(g.id)
       if (existingViewer) {
-        // Already named — check if password still needed
         if (g.require_password) {
           const pwVerified = sessionStorage.getItem(`fv-pw-${g.id}`)
-          if (pwVerified) {
-            navigate(`/g/${token}/view`, { replace: true })
-            return
-          }
+          if (pwVerified) { navigate(`/g/${token}/view`, { replace: true }); return }
           setStage('password')
         } else {
           navigate(`/g/${token}/view`, { replace: true })
@@ -117,7 +176,7 @@ export default function ClientGallery() {
       }
 
       setStage('name')
-    } catch (err) {
+    } catch {
       setError('Could not load gallery.')
     } finally {
       setLoading(false)
@@ -129,11 +188,8 @@ export default function ClientGallery() {
     setSubmitting(true)
     try {
       await getOrCreateViewer(gallery.id, name.trim())
-      if (gallery.require_password) {
-        setStage('password')
-      } else {
-        navigate(`/g/${token}/view`, { replace: true })
-      }
+      if (gallery.require_password) setStage('password')
+      else navigate(`/g/${token}/view`, { replace: true })
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -160,41 +216,32 @@ export default function ClientGallery() {
     }
   }
 
-  function handleKeyDown(e, fn) {
-    if (e.key === 'Enter') fn()
-  }
+  function handleKeyDown(e, fn) { if (e.key === 'Enter') fn() }
 
+  // Loading spinner
   if (loading || stage === 'loading') return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#111' }}>
       <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+        style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />
     </div>
   )
 
+  // Error
   if (error) return (
-    <GateWrapper>
-      <div className="text-center space-y-2">
-        <p className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Gallery unavailable</p>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{error}</p>
+    <GateWrapper gallery={gallery} photographerName={photographerName}>
+      <div className="text-center space-y-2 rounded-2xl p-6"
+        style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <p className="text-lg font-semibold text-white">Gallery unavailable</p>
+        <p className="text-sm text-white/60">{error}</p>
       </div>
     </GateWrapper>
   )
 
   // Name gate
   if (stage === 'name') return (
-    <GateWrapper>
-      <div className="text-center space-y-1">
-        <p className="text-xs uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted)' }}>
-          {photographerName || 'Your photographer'}
-        </p>
-        <h1 className="text-2xl font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
-        {gallery.client_name && (
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>For {gallery.client_name}</p>
-        )}
-      </div>
+    <GateWrapper gallery={gallery} photographerName={photographerName}>
       <div className="space-y-3">
         <InputField
-          label="Your name"
           value={name}
           onChange={setName}
           placeholder="Enter your name to continue"
@@ -209,22 +256,13 @@ export default function ClientGallery() {
 
   // Password gate
   if (stage === 'password') return (
-    <GateWrapper>
-      <div className="text-center space-y-1">
-        <div className="flex justify-center mb-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <Lock size={18} style={{ color: 'var(--text-muted)' }} />
-          </div>
+    <GateWrapper gallery={gallery} photographerName={photographerName}>
+      <form className="space-y-3" onSubmit={e => { e.preventDefault(); handlePasswordSubmit() }}>
+        <div className="flex items-center gap-2 justify-center text-white/70 text-sm">
+          <Lock size={14} />
+          This gallery is password protected
         </div>
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Password required</h1>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          This gallery is password protected.
-        </p>
-      </div>
-      <div className="space-y-3">
         <InputField
-          label="Password"
           value={password}
           onChange={v => { setPassword(v); setPasswordError('') }}
           type="password"
@@ -232,12 +270,12 @@ export default function ClientGallery() {
           autoFocus
         />
         {passwordError && (
-          <p className="text-sm" style={{ color: 'var(--danger)' }}>{passwordError}</p>
+          <p className="text-sm text-center" style={{ color: '#f87171' }}>{passwordError}</p>
         )}
         <GateButton onClick={handlePasswordSubmit} loading={submitting || !password.trim()}>
           Unlock Gallery <ArrowRight size={16} />
         </GateButton>
-      </div>
+      </form>
     </GateWrapper>
   )
 

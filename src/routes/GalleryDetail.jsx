@@ -378,7 +378,7 @@ export default function GalleryDetail() {
       if (focusOnly) {
         await updateGallery(id, { cover_focus_x: focusX, cover_focus_y: focusY })
       } else {
-        await updateGallery(id, { cover_image_id: image.id, cover_r2_key: null, cover_focus_x: focusX, cover_focus_y: focusY })
+        await updateGallery(id, { cover_image_id: image.id, cover_r2_key: image.preview_r2_key, cover_focus_x: focusX, cover_focus_y: focusY })
         setCoverId(image.id)
       }
       // Keep local gallery state in sync so the modal re-opens with the correct focal point
@@ -386,7 +386,7 @@ export default function GalleryDetail() {
         ...prev,
         cover_focus_x: focusX,
         cover_focus_y: focusY,
-        ...(focusOnly ? {} : { cover_image_id: image.id, cover_r2_key: null }),
+        ...(focusOnly ? {} : { cover_image_id: image.id, cover_r2_key: image.preview_r2_key }),
       }))
       setToast({ message: 'Cover updated', type: 'success' })
     } catch {
