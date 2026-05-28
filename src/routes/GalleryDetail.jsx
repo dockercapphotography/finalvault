@@ -373,6 +373,23 @@ export default function GalleryDetail() {
     }
   }
 
+  // Drag-to-reorder handler called by ImageGrid with the full reordered array
+  async function handleImageReorder(reorderedSetImages) {
+    // Merge reordered set images back into the full images array,
+    // preserving images from other sets in their original positions
+    const otherImages = images.filter(i => i.set_id !== activeSetId)
+    const merged = [...otherImages, ...reorderedSetImages]
+    setImages(merged)
+    setSavingOrder(true)
+    try {
+      await saveImageOrder(reorderedSetImages.map(i => i.id))
+    } catch {
+      setToast({ message: 'Failed to save order', type: 'error' })
+    } finally {
+      setSavingOrder(false)
+    }
+  }
+
   async function handleSetCover(image, focusX = 0.5, focusY = 0.5, focusOnly = false) {
     try {
       if (focusOnly) {
@@ -669,8 +686,6 @@ export default function GalleryDetail() {
                             )}
                           </div>
                         )}
-
-
                       </div>
                     </div>
                   )}
@@ -735,6 +750,7 @@ export default function GalleryDetail() {
               onMoveToSet={handleMoveImage}
               onWatermark={handleOpenWatermark}
               onDownload={handleDownloadImage}
+              onReorder={handleImageReorder}
             />
           )}
 

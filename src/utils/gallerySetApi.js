@@ -46,12 +46,16 @@ export async function deleteSet(setId) {
   if (error) throw error
 }
 
+// Save set order using individual updates to avoid upsert nulling out other columns
 export async function saveSetOrder(setIds) {
-  const updates = setIds.map((id, index) => ({ id, sort_order: index }))
-  const { error } = await supabase
-    .from('gallery_sets')
-    .upsert(updates, { onConflict: 'id' })
-  if (error) throw error
+  await Promise.all(
+    setIds.map((id, index) =>
+      supabase
+        .from('gallery_sets')
+        .update({ sort_order: index })
+        .eq('id', id)
+    )
+  )
 }
 
 export async function moveImageToSet(imageId, setId) {

@@ -55,7 +55,9 @@ export default function ImageCard({
             src={previewUrl}
             alt={image.file_name || 'Gallery image'}
             className="w-full h-full"
-            style={{ objectFit: 'contain' }}
+            style={{ objectFit: 'contain', userSelect: 'none', pointerEvents: 'none' }}
+            draggable={false}
+            onDragStart={e => e.preventDefault()}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
