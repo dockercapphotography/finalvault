@@ -168,6 +168,10 @@ serve(async (req) => {
         senderName,
         galleryTitle: gallery.title,
         clientName,
+        eventName: gallery.event_name || '',
+        eventDate: gallery.event_date
+          ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : '',
         galleryUrl,
         coverImageUrl,
         password: includePassword && gallery.require_password ? gallery.plain_password : null,
@@ -225,10 +229,12 @@ const SOCIAL_META: Record<string, { label: string; color: string; icon: string }
   cashapp:   { label: 'Cash App',  color: '#00D632', icon: '<path d="M23.59 3.474A11.967 11.967 0 0 0 20.526.41C18.59-.125 12 0 12 0S5.41-.125 3.474.41A11.967 11.967 0 0 0 .41 3.474C-.125 5.41 0 12 0 12s-.125 6.59.41 8.526a11.967 11.967 0 0 0 3.064 3.064C5.41 24.125 12 24 12 24s6.59.125 8.526-.41a11.967 11.967 0 0 0 3.064-3.064C24.125 18.59 24 12 24 12s.125-5.41-.41-7.526zm-6.55 10.03c-.206 1.37-1.24 2.424-2.605 2.64-.448.07-.883.103-1.306.103-.609 0-1.196-.066-1.744-.195l-.55 2.138a.43.43 0 0 1-.416.32h-1.69a.214.214 0 0 1-.207-.267l.562-2.183a4.654 4.654 0 0 1-2.3-1.88.214.214 0 0 1 .06-.286l1.394-.985a.43.43 0 0 1 .574.083c.45.558 1.045.899 1.743.996l.804-3.124c-1.427-.44-2.986-1.125-2.668-3.077.197-1.222 1.128-2.198 2.46-2.46.386-.074.78-.111 1.172-.111.553 0 1.093.072 1.604.21l.49-1.9a.43.43 0 0 1 .416-.321h1.69c.139 0 .232.136.196.27l-.5 1.94a4.787 4.787 0 0 1 2.017 1.666.214.214 0 0 1-.053.29l-1.38 1.003a.43.43 0 0 1-.578-.074 2.404 2.404 0 0 0-1.514-.872l-.78 3.032c1.485.462 3.09 1.2 2.757 3.063z"/>' },
 }
 
-function buildEmailHtml({ senderName, galleryTitle, clientName, galleryUrl, coverImageUrl, password, downloadPin, expiryDate, customMessage, socialLinks, paymentLinks }: {
+function buildEmailHtml({ senderName, galleryTitle, clientName, eventName, eventDate, galleryUrl, coverImageUrl, password, downloadPin, expiryDate, customMessage, socialLinks, paymentLinks }: {
   senderName: string
   galleryTitle: string
   clientName: string
+  eventName: string
+  eventDate: string
   galleryUrl: string
   coverImageUrl: string | null
   password: string | null
@@ -279,7 +285,8 @@ function buildEmailHtml({ senderName, galleryTitle, clientName, galleryUrl, cove
         <!-- Gallery title -->
         <tr>
           <td style="padding:36px 40px 0;text-align:center;">
-            <p style="margin:0;color:#111111;font-size:22px;font-weight:700;letter-spacing:-0.3px;line-height:1.3;">${galleryTitle}</p>
+            <p style="margin:0 0 6px;color:#111111;font-size:22px;font-weight:700;letter-spacing:-0.3px;line-height:1.3;">${galleryTitle}</p>
+            ${[eventName, eventDate].filter(Boolean).length > 0 ? `<p style="margin:0;color:#6b7280;font-size:13px;">${[eventName, eventDate].filter(Boolean).join(' &middot; ')}</p>` : ''}
           </td>
         </tr>
 
@@ -291,47 +298,51 @@ function buildEmailHtml({ senderName, galleryTitle, clientName, galleryUrl, cove
 
             ${customMessage ? `<p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.7;">${customMessage}</p>` : ''}
 
-            <!-- CTA Button -->
-            <table cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
+            <!-- CTA Button — full width -->
+            <table cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 32px;">
               <tr>
-                <td style="background:#111111;border-radius:8px;">
-                  <a href="${galleryUrl}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;letter-spacing:0.05em;text-transform:uppercase;">View Gallery</a>
+                <td style="background:#111111;border-radius:8px;text-align:center;">
+                  <a href="${galleryUrl}" style="display:block;padding:16px 36px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;letter-spacing:0.05em;text-transform:uppercase;">View Gallery</a>
                 </td>
               </tr>
             </table>
 
-            <!-- Access details -->
+            <!-- Access details — individual boxes -->
             ${password || downloadPin || expiryDate ? `
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:10px;margin-bottom:24px;border:1px solid #e5e7eb;">
-              <tr><td style="padding:20px 24px;">
-                <p style="margin:0 0 14px;color:#111111;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">Access Details</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+              <tr><td>
+                <p style="margin:0 0 10px;color:#111111;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">Access Details</p>
                 ${password ? `
-                <table cellpadding="0" cellspacing="0" style="margin-bottom:10px;width:100%;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
                   <tr>
-                    <td style="color:#6b7280;font-size:13px;width:130px;vertical-align:top;padding-top:1px;">Gallery Password</td>
-                    <td style="color:#111111;font-size:14px;font-weight:700;font-family:'Courier New',monospace;letter-spacing:0.1em;">${password}</td>
+                    <td style="padding:12px 16px;">
+                      <p style="margin:0 0 4px;color:#6b7280;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Gallery Password</p>
+                      <p style="margin:0;color:#111111;font-size:20px;font-weight:700;font-family:'Courier New',monospace;letter-spacing:0.15em;">${password}</p>
+                    </td>
                   </tr>
                 </table>` : ''}
                 ${downloadPin ? `
-                <table cellpadding="0" cellspacing="0" style="margin-bottom:10px;width:100%;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
                   <tr>
-                    <td style="color:#6b7280;font-size:13px;width:130px;vertical-align:top;padding-top:1px;">Download PIN</td>
-                    <td style="color:#111111;font-size:14px;font-weight:700;font-family:'Courier New',monospace;letter-spacing:0.2em;">${downloadPin}</td>
+                    <td style="padding:12px 16px;">
+                      <p style="margin:0 0 4px;color:#6b7280;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Download PIN</p>
+                      <p style="margin:0;color:#111111;font-size:28px;font-weight:700;font-family:'Courier New',monospace;letter-spacing:0.3em;">${downloadPin}</p>
+                    </td>
                   </tr>
                 </table>` : ''}
                 ${expiryDate ? `
-                <table cellpadding="0" cellspacing="0" style="width:100%;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;background:#fff8f0;border-radius:8px;border:1px solid #fed7aa;">
                   <tr>
-                    <td style="color:#6b7280;font-size:13px;width:130px;vertical-align:top;padding-top:1px;">Gallery Expires</td>
-                    <td style="color:#111111;font-size:13px;">${expiryDate}</td>
+                    <td style="padding:12px 16px;">
+                      <p style="margin:0 0 4px;color:#9a6b3a;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Gallery Expires</p>
+                      <p style="margin:0;color:#7c4b1a;font-size:14px;font-weight:600;">${expiryDate}</p>
+                    </td>
                   </tr>
                 </table>` : ''}
               </td></tr>
             </table>` : ''}
 
-            <!-- Gallery URL -->
-            <p style="margin:0 0 4px;color:#9ca3af;font-size:12px;">Or copy this link:</p>
-            <p style="margin:0;font-size:12px;word-break:break-all;"><a href="${galleryUrl}" style="color:#6366f1;text-decoration:none;">${galleryUrl}</a></p>
+
           </td>
         </tr>
 
