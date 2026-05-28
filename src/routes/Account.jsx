@@ -641,7 +641,36 @@ export default function Account() {
         <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
       </div>
 
-      <Tabs tabs={ACCOUNT_TABS} active={activeTab} onChange={setActiveTab} />
+      {/* Mobile dropdown */}
+      <div className="md:hidden">
+        <select
+          value={activeTab}
+          onChange={e => setActiveTab(e.target.value)}
+          style={{
+            width: '100%',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            borderRadius: '8px',
+            padding: '9px 12px',
+            fontSize: '14px',
+            outline: 'none',
+            cursor: 'pointer',
+            appearance: 'none',
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 12px center',
+            paddingRight: '36px',
+          }}>
+          {ACCOUNT_TABS.map(tab => (
+            <option key={tab.id} value={tab.id}>{tab.label}</option>
+          ))}
+        </select>
+      </div>
+      {/* Desktop tabs */}
+      <div className="hidden md:block">
+        <Tabs tabs={ACCOUNT_TABS} active={activeTab} onChange={setActiveTab} />
+      </div>
 
       {activeTab === 'profile' && <ProfileTab user={user} onSaveState={setSaveState} />}
       {activeTab === 'watermarks' && <WatermarksTab onSaveState={setSaveState} />}

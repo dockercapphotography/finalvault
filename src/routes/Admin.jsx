@@ -15,6 +15,23 @@ function formatBytes(bytes) {
   return `${(bytes / 1024).toFixed(0)} KB`
 }
 
+const selectStyle = {
+  width: '100%',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  color: 'var(--text)',
+  borderRadius: '8px',
+  padding: '9px 12px',
+  fontSize: '14px',
+  outline: 'none',
+  cursor: 'pointer',
+  appearance: 'none',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 12px center',
+  paddingRight: '36px',
+}
+
 // ── Tier Modal ────────────────────────────────────────────────────────────────
 
 function TierModal({ tier, onSave, onClose }) {
@@ -93,17 +110,22 @@ function TierModal({ tier, onSave, onClose }) {
 
 // ── Main Admin ────────────────────────────────────────────────────────────────
 
+const TABS = [
+  { id: 'users', label: 'Users', icon: Users },
+  { id: 'tiers', label: 'Storage Tiers', icon: Database },
+]
+
 export default function Admin() {
   const navigate = useNavigate()
   const [tab, setTab] = useState('users')
   const [photographers, setPhotographers] = useState([])
   const [tiers, setTiers] = useState([])
-  const [storage, setStorage] = useState({}) // photographerId -> storage row
-  const [galleryCounts, setGalleryCounts] = useState({}) // photographerId -> count
+  const [storage, setStorage] = useState({})
+  const [galleryCounts, setGalleryCounts] = useState({})
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [toast, setToast] = useState(null)
-  const [tierModal, setTierModal] = useState(null) // null | {} | tier object
+  const [tierModal, setTierModal] = useState(null)
   const [search, setSearch] = useState('')
 
   useEffect(() => { load() }, [])
@@ -134,7 +156,6 @@ export default function Admin() {
       setPhotographers(photogs || [])
       setTiers(tierRows || [])
 
-      // Map gallery_id -> photographer_id
       const galleryToPhotog = {}
       const countMap = {}
       for (const g of galleryRows || []) {
@@ -143,19 +164,16 @@ export default function Admin() {
       }
       setGalleryCounts(countMap)
 
-      // Calculate bytes used per photographer from actual image file sizes
       const bytesMap = {}
       for (const img of imageRows || []) {
         const pid = galleryToPhotog[img.gallery_id]
         if (pid) bytesMap[pid] = (bytesMap[pid] || 0) + (img.file_size || 0)
       }
 
-      // Merge with tier info from photographer_storage
       const storageMap = {}
       for (const s of storageRows || []) {
         storageMap[s.photographer_id] = { ...s, bytes_used: bytesMap[s.photographer_id] || s.bytes_used || 0 }
       }
-      // Add photographers not in storage table yet
       for (const pid of Object.keys(bytesMap)) {
         if (!storageMap[pid]) storageMap[pid] = { photographer_id: pid, bytes_used: bytesMap[pid], tier_id: null }
       }
@@ -182,20 +200,18 @@ export default function Admin() {
   }
 
   async function handleSetTier(photographerId, tierId) {
-    const tierIdValue = tierId || null
     try {
       const { error } = await supabase.rpc('admin_set_photographer_tier', {
         p_photographer_id: photographerId,
-        p_tier_id: tierIdValue,
+        p_tier_id: tierId || null,
       })
       if (error) throw error
       setStorage(prev => ({
         ...prev,
-        [photographerId]: { ...(prev[photographerId] || {}), photographer_id: photographerId, tier_id: tierIdValue }
+        [photographerId]: { ...(prev[photographerId] || {}), photographer_id: photographerId, tier_id: tierId || null }
       }))
       setToast({ message: 'Tier updated', type: 'success' })
     } catch (err) {
-      console.error('Tier save error:', err)
       setToast({ message: 'Failed to update tier', type: 'error' })
     }
   }
@@ -219,7 +235,6 @@ export default function Admin() {
     !search || (p.display_name || p.id).toLowerCase().includes(search.toLowerCase())
   )
 
-  // Stats
   const totalStorage = Object.values(storage).reduce((sum, s) => sum + (s.bytes_used || 0), 0)
 
   if (loading) return (
@@ -246,9 +261,9 @@ export default function Admin() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Photographers', value: photographers.length, icon: Users },
-          { label: 'Total Storage Used', value: formatBytes(totalStorage), icon: Database },
-          { label: 'Storage Tiers', value: tiers.length, icon: Database },
+          { label: 'Photographers', value: photographers.length },
+          { label: 'Total Storage Used', value: formatBytes(totalStorage) },
+          { label: 'Storage Tiers', value: tiers.length },
         ].map(s => (
           <div key={s.label} className="rounded-xl p-4"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
@@ -258,12 +273,14 @@ export default function Admin() {
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2">
-        {[
-          { id: 'users', label: 'Users', icon: Users },
-          { id: 'tiers', label: 'Storage Tiers', icon: Database },
-        ].map(t => (
+      {/* Tabs — dropdown on mobile, buttons on desktop */}
+      <div className="md:hidden">
+        <select value={tab} onChange={e => setTab(e.target.value)} style={selectStyle}>
+          {TABS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </div>
+      <div className="hidden md:flex gap-2">
+        {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium"
             style={{
@@ -281,33 +298,21 @@ export default function Admin() {
       {/* Users tab */}
       {tab === 'users' && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search users…"
-              className="text-sm px-3 py-2 rounded-lg w-64"
+              className="text-sm px-3 py-2 rounded-lg flex-1 max-w-xs"
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
             />
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{filtered.length} users</p>
+            <p className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{filtered.length} users</p>
           </div>
 
           <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-            {/* Header */}
-            <div className="grid gap-4 px-4 py-2 text-xs font-medium"
-              style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr' }}>
-              <span>User</span>
-              <span>Galleries</span>
-              <span>Storage Used</span>
-              <span>Tier</span>
-              <span>Admin</span>
-            </div>
-
             {filtered.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-                No users found
-              </div>
+              <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No users found</div>
             ) : filtered.map((p, i) => {
               const storageRow = storage[p.id]
               const tier = tiers.find(t => t.id === storageRow?.tier_id)
@@ -316,61 +321,55 @@ export default function Admin() {
               const usagePct = limitBytes ? Math.min(100, (bytesUsed / limitBytes) * 100) : 0
 
               return (
-                <div key={p.id}
-                  className="grid gap-4 px-4 py-3 items-center text-sm"
-                  style={{
-                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
-                    borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                    background: 'var(--surface)',
-                  }}>
-                  {/* User */}
-                  <div>
-                    <p className="font-medium truncate" style={{ color: 'var(--text)' }}>
-                      {p.display_name || <span style={{ color: 'var(--text-muted)' }}>No name</span>}
-                    </p>
-                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                      Joined {formatDate(p.created_at)}
-                    </p>
+                <div key={p.id} className="p-4 space-y-3 text-sm"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+
+                  {/* Row 1: name + admin toggle */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate" style={{ color: 'var(--text)' }}>
+                        {p.display_name || <span style={{ color: 'var(--text-muted)' }}>No name</span>}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Joined {formatDate(p.created_at)} · {galleryCounts[p.id] || 0} galleries
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleToggleAdmin(p)}
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium"
+                      style={{
+                        background: p.is_admin ? 'rgba(99,102,241,0.12)' : 'var(--surface-raised)',
+                        color: p.is_admin ? '#6366f1' : 'var(--text-muted)',
+                        cursor: 'pointer', border: 'none',
+                      }}>
+                      {p.is_admin ? <><Check size={11} /> Admin</> : 'Not admin'}
+                    </button>
                   </div>
 
-                  {/* Gallery count */}
-                  <p style={{ color: 'var(--text-muted)' }}>{galleryCounts[p.id] || 0}</p>
-
-                  {/* Storage */}
-                  <div>
-                    <p style={{ color: 'var(--text)' }}>{formatBytes(bytesUsed)}</p>
-                    {limitBytes && (
-                      <div className="mt-1 h-1 rounded-full overflow-hidden" style={{ background: 'var(--surface-raised)', width: 80 }}>
-                        <div className="h-full rounded-full"
-                          style={{ width: `${usagePct}%`, background: usagePct > 90 ? '#ef4444' : '#6366f1' }} />
-                      </div>
-                    )}
+                  {/* Row 2: storage + tier */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+                        {formatBytes(bytesUsed)}{limitBytes ? ` / ${tier.storage_gb}GB` : ''}
+                      </p>
+                      {limitBytes && (
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
+                          <div className="h-full rounded-full"
+                            style={{ width: `${usagePct}%`, background: usagePct > 90 ? '#ef4444' : '#6366f1' }} />
+                        </div>
+                      )}
+                    </div>
+                    <select
+                      value={storageRow?.tier_id || ''}
+                      onChange={e => handleSetTier(p.id, e.target.value)}
+                      className="text-xs rounded-lg px-2 py-1.5 shrink-0"
+                      style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+                      <option value="">No tier</option>
+                      {tiers.map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.storage_gb}GB)</option>
+                      ))}
+                    </select>
                   </div>
-
-                  {/* Tier selector */}
-                  <select
-                    value={storageRow?.tier_id || ''}
-                    onChange={e => handleSetTier(p.id, e.target.value)}
-                    className="text-xs rounded-lg px-2 py-1"
-                    style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-                    <option value="">No tier</option>
-                    {tiers.map(t => (
-                      <option key={t.id} value={t.id}>{t.name} ({t.storage_gb}GB)</option>
-                    ))}
-                  </select>
-
-                  {/* Admin toggle */}
-                  <button
-                    onClick={() => handleToggleAdmin(p)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-                    style={{
-                      background: p.is_admin ? 'rgba(99,102,241,0.15)' : 'var(--surface-raised)',
-                      cursor: 'pointer',
-                    }}>
-                    {p.is_admin
-                      ? <Check size={14} style={{ color: '#6366f1' }} />
-                      : <X size={14} style={{ color: 'var(--text-muted)' }} />}
-                  </button>
                 </div>
               )
             })}
@@ -391,34 +390,20 @@ export default function Admin() {
           </div>
 
           <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-            <div className="grid gap-4 px-4 py-2 text-xs font-medium"
-              style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', gridTemplateColumns: '2fr 1fr 1fr 1fr auto' }}>
-              <span>Tier Name</span>
-              <span>Storage</span>
-              <span>Price / mo</span>
-              <span>Users</span>
-              <span></span>
-            </div>
-
             {tiers.map((tier, i) => {
               const userCount = Object.values(storage).filter(s => s.tier_id === tier.id).length
               return (
-                <div key={tier.id}
-                  className="grid gap-4 px-4 py-3 items-center text-sm"
-                  style={{
-                    gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
-                    borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                    background: 'var(--surface)',
-                  }}>
-                  <p className="font-medium" style={{ color: 'var(--text)' }}>{tier.name}</p>
-                  <p style={{ color: 'var(--text-muted)' }}>{tier.storage_gb} GB</p>
-                  <p style={{ color: 'var(--text-muted)' }}>
-                    {tier.price_monthly === 0 ? 'Free' : `$${Number(tier.price_monthly).toFixed(2)}`}
-                  </p>
-                  <p style={{ color: 'var(--text-muted)' }}>{userCount}</p>
+                <div key={tier.id} className="flex items-center gap-4 px-4 py-3 text-sm"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium" style={{ color: 'var(--text)' }}>{tier.name}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {tier.storage_gb}GB · {tier.price_monthly === 0 ? 'Free' : `$${Number(tier.price_monthly).toFixed(2)}/mo`} · {userCount} users
+                    </p>
+                  </div>
                   <button
                     onClick={() => setTierModal(tier)}
-                    className="p-1.5 rounded-lg"
+                    className="p-1.5 rounded-lg shrink-0"
                     style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}>
                     <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
                   </button>
@@ -430,11 +415,7 @@ export default function Admin() {
       )}
 
       {tierModal !== null && (
-        <TierModal
-          tier={tierModal}
-          onSave={handleSaveTier}
-          onClose={() => setTierModal(null)}
-        />
+        <TierModal tier={tierModal} onSave={handleSaveTier} onClose={() => setTierModal(null)} />
       )}
 
       {toast && (
