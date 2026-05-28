@@ -46,11 +46,14 @@ export default function GalleryDetail() {
   const [confirmDeleteSetId, setConfirmDeleteSetId] = useState(null)
   const [dragSetId, setDragSetId] = useState(null)
   const [dragOverSetId, setDragOverSetId] = useState(null)
-  const [showReWatermark, setShowReWatermark] = useState(false)
-  const [reWatermarkTarget, setReWatermarkTarget] = useState(null) // null = all in set, image = single
+  const [setMenuOpenId, setSetMenuOpenId] = useState(null)
+  const [setMenuPos, setSetMenuPos] = useState({ top: 0, left: 0 })
+  const [showWatermark, setShowWatermark] = useState(false)
+  const [watermarkTarget, setWatermarkTarget] = useState(null)
   const [watermarks, setWatermarks] = useState([])
   const [selectedWatermarkId, setSelectedWatermarkId] = useState(null)
-  const [reWatermarking, setReWatermarking] = useState(false)
+  const [watermarking, setWatermarking] = useState(false)
+  const [watermarkProgress, setWatermarkProgress] = useState({ current: 0, total: 0 })
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [sheetVisible, setSheetVisible] = useState(false)
 
@@ -173,6 +176,23 @@ export default function GalleryDetail() {
 
   async function handleDeleteSet(setId) {
     try {
+      // Delete all images in this set first
+      const setImages = images.filter(i => i.set_id === setId)
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const workerUrl = import.meta.env.VITE_R2_WORKER_URL
+      await Promise.all(setImages.map(async img => {
+        try {
+          await deleteImage(img.id)
+          if (img.original_r2_key) await fetch(`${workerUrl}/delete/${encodeURIComponent(img.original_r2_key)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+          if (img.preview_r2_key) await fetch(`${workerUrl}/delete/${encodeURIComponent(img.preview_r2_key)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+        } catch (err) {
+          console.warn('Failed to delete image', img.id, err)
+        }
+      }))
+      // Remove images from state
+      setImages(prev => prev.filter(i => i.set_id !== setId))
+      // Delete the set
       await deleteSet(setId)
       setSets(prev => {
         const next = prev.filter(s => s.id !== setId)
@@ -180,8 +200,10 @@ export default function GalleryDetail() {
         return next
       })
       setConfirmDeleteSetId(null)
+      setToast({ message: `Set and ${setImages.length} image${setImages.length !== 1 ? 's' : ''} deleted`, type: 'success' })
     } catch (err) {
       console.error(err)
+      setToast({ message: 'Failed to delete set', type: 'error' })
     }
   }
 
@@ -234,16 +256,16 @@ export default function GalleryDetail() {
     }
   }
 
-  function handleOpenReWatermark(image = null) {
-    setReWatermarkTarget(image)
+  function handleOpenWatermark(image = null) {
+    setWatermarkTarget(image)
     setSelectedWatermarkId(watermarks[0]?.id || null)
-    setShowReWatermark(true)
+    setShowWatermark(true)
   }
 
-  async function handleReWatermark() {
+  async function handleWatermark() {
     const wm = watermarks.find(w => w.id === selectedWatermarkId)
     if (!wm) return
-    setReWatermarking(true)
+    setWatermarking(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const workerUrl = import.meta.env.VITE_R2_WORKER_URL
@@ -252,13 +274,16 @@ export default function GalleryDetail() {
       const wmResp = await fetch(`${workerUrl}/watermark/${encodeURIComponent(wm.r2_key)}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      if (!wmResp.ok) { setToast({ message: 'Failed to load watermark', type: 'error' }); setReWatermarking(false); return }
+      if (!wmResp.ok) { setToast({ message: 'Failed to load watermark', type: 'error' }); setWatermarking(false); return }
       const wmBlobUrl = URL.createObjectURL(await wmResp.blob())
       const wmObj = { url: wmBlobUrl, opacity: wm.opacity, position: wm.position, scale: wm.scale ?? 0.15 }
 
-      const targets = reWatermarkTarget
-        ? [reWatermarkTarget]
+      const targets = watermarkTarget === 'bulk'
+        ? images.filter(i => selectedIds.has(i.id))
+        : watermarkTarget
+        ? [watermarkTarget]
         : images.filter(i => i.set_id === activeSetId)
+      setWatermarkProgress({ current: 0, total: targets.length })
 
       for (const img of targets) {
         // Fetch original
@@ -314,6 +339,7 @@ export default function GalleryDetail() {
 
         // Directly inject the new preview from the canvas blob — no need to re-fetch
         if (uploadResp.status === 200) {
+          setWatermarkProgress(prev => ({ ...prev, current: prev.current + 1 }))
           const newBlobUrl = URL.createObjectURL(previewBlob)
           setPreviewUrls(prev => {
             if (prev[img.id]?.startsWith('blob:')) URL.revokeObjectURL(prev[img.id])
@@ -323,12 +349,12 @@ export default function GalleryDetail() {
       }
 
       URL.revokeObjectURL(wmBlobUrl)
-      setShowReWatermark(false)
+      setShowWatermark(false)
       setToast({ message: `Watermark applied to ${targets.length} image${targets.length !== 1 ? 's' : ''}`, type: 'success' })
     } catch (err) {
-      setToast({ message: 'Re-watermark failed: ' + err.message, type: 'error' })
+      setToast({ message: 'Watermark failed: ' + err.message, type: 'error' })
     } finally {
-      setReWatermarking(false)
+      setWatermarking(false)
     }
   }
 
@@ -541,15 +567,16 @@ export default function GalleryDetail() {
 
         <div style={{ borderTop: '1px solid var(--border)' }} />
 
-        {/* ── Set tabs ── */}
+        {/* ── Set tabs — horizontally scrollable strip ── */}
         {sets.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-1 flex-wrap">
+          <div className="overflow-x-auto -mx-1 px-1 pb-1" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex items-center gap-1 min-w-max">
               {sets.map(set => (
-                <div key={set.id} className="relative group/settab"
+                <div key={set.id} className="relative shrink-0"
                   onDragOver={e => handleSetDragOver(e, set.id)}
                   onDrop={e => handleSetDrop(e, set.id)}
-                  style={{ opacity: dragSetId === set.id ? 0.4 : 1, outline: dragOverSetId === set.id && dragSetId !== set.id ? '2px solid #6366f1' : 'none', borderRadius: 8 }}>
+                  style={{ opacity: dragSetId === set.id ? 0.4 : 1 }}>
+
                   {editingSet === set.id ? (
                     <div className="flex items-center gap-1">
                       <input
@@ -558,63 +585,92 @@ export default function GalleryDetail() {
                         onChange={e => setEditSetName(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') handleUpdateSet(set.id); if (e.key === 'Escape') setEditingSet(null) }}
                         onBlur={() => handleUpdateSet(set.id)}
-                        className="text-sm px-2 py-1 rounded-lg"
+                        className="text-sm px-2 py-1.5 rounded-lg"
                         style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-strong)', color: 'var(--text)', outline: 'none', minWidth: 80 }}
                       />
                     </div>
                   ) : (
-                    <button
-                      onClick={() => setActiveSetId(set.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-                      style={{
-                        background: activeSetId === set.id ? '#6366f1' : 'var(--surface)',
-                        color: activeSetId === set.id ? '#fff' : 'var(--text-muted)',
-                        border: `1px solid ${activeSetId === set.id ? '#6366f1' : 'var(--border)'}`,
-                        cursor: 'pointer',
-                      }}>
-                      {set.name}
-                      <span className="text-xs opacity-70">({images.filter(i => i.set_id === set.id).length})</span>
-                    </button>
-                  )}
-                  {/* Set action buttons on hover */}
-                  {editingSet !== set.id && (
-                    <div className="absolute -top-1 -right-1 hidden group-hover/settab:flex items-center gap-0.5 z-10">
-                      <div
+                    <div className="flex items-center">
+                      {/* Tab button */}
+                      <button
+                        onClick={() => setActiveSetId(set.id)}
                         draggable
                         onDragStart={e => handleSetDragStart(e, set.id)}
-                        onDragOver={e => handleSetDragOver(e, set.id)}
-                        onDrop={e => handleSetDrop(e, set.id)}
                         onDragEnd={() => { setDragSetId(null); setDragOverSetId(null) }}
-                        className="w-4 h-4 rounded-full flex items-center justify-center cursor-grab"
-                        style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 8, color: 'var(--text-muted)', lineHeight: 1 }}>⠿</span>
-                      </div>
-                      <button onClick={() => { setEditingSet(set.id); setEditSetName(set.name) }}
-                        className="w-4 h-4 rounded-full flex items-center justify-center"
-                        style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}>
-                        <Pencil size={8} style={{ color: 'var(--text-muted)' }} />
+                        className="flex items-center gap-1.5 pl-3 pr-2 text-sm font-medium transition-colors"
+                        style={{
+                          height: 32,
+                          background: activeSetId === set.id ? '#6366f1' : 'var(--surface)',
+                          color: activeSetId === set.id ? '#fff' : 'var(--text-muted)',
+                          borderTop: `1px solid ${activeSetId === set.id ? '#6366f1' : 'var(--border)'}`,
+                          borderBottom: `1px solid ${activeSetId === set.id ? '#6366f1' : 'var(--border)'}`,
+                          borderLeft: `1px solid ${activeSetId === set.id ? '#6366f1' : 'var(--border)'}`,
+                          borderRight: 'none',
+                          cursor: 'pointer',
+                          outline: dragOverSetId === set.id && dragSetId !== set.id ? '2px solid #6366f1' : 'none',
+                          borderRadius: '8px 0 0 8px',
+                        }}>
+                        {set.name}
+                        <span className="text-xs opacity-70">({images.filter(i => i.set_id === set.id).length})</span>
                       </button>
-                      {sets.length > 1 && (
-                        <button onClick={() => setConfirmDeleteSetId(set.id)}
-                          className="w-4 h-4 rounded-full flex items-center justify-center"
-                          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}>
-                          <Trash2 size={8} style={{ color: 'var(--danger)' }} />
+
+                      {/* ••• set menu button */}
+                      <div className="relative">
+                        <button
+                          data-set-menu-btn="true"
+                          onClick={e => {
+                            e.stopPropagation()
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setSetMenuPos({ top: rect.bottom + 6, left: rect.left })
+                            setSetMenuOpenId(prev => prev === set.id ? null : set.id)
+                          }}
+                          className="flex items-center justify-center px-1.5 transition-colors"
+                          style={{
+                            height: 32,
+                            background: activeSetId === set.id ? '#5558e3' : 'var(--surface-raised)',
+                            color: activeSetId === set.id ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)',
+                            border: `1px solid ${activeSetId === set.id ? '#6366f1' : 'var(--border)'}`,
+                            cursor: 'pointer',
+                            borderRadius: '0 8px 8px 0',
+                          }}>
+                          <MoreVertical size={12} />
                         </button>
-                      )}
-                    </div>
-                  )}
-                  {/* Delete confirm */}
-                  {confirmDeleteSetId === set.id && (
-                    <div className="absolute top-full left-0 mt-1 z-20 rounded-xl p-3 shadow-lg space-y-2"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--danger)', minWidth: 200 }}>
-                      <p className="text-xs font-medium" style={{ color: 'var(--danger)' }}>Delete "{set.name}"? Images won't be deleted.</p>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleDeleteSet(set.id)}
-                          className="text-xs px-2.5 py-1 rounded-lg font-medium"
-                          style={{ background: 'var(--danger)', color: '#fff', cursor: 'pointer' }}>Delete</button>
-                        <button onClick={() => setConfirmDeleteSetId(null)}
-                          className="text-xs px-2.5 py-1 rounded-lg font-medium"
-                          style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
+
+                        {setMenuOpenId === set.id && (
+                          <div className="fixed rounded-xl shadow-xl overflow-hidden"
+                            style={{ top: setMenuPos.top, left: setMenuPos.left, background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 160, zIndex: 1000 }}>
+                            <button onClick={() => { setEditingSet(set.id); setEditSetName(set.name); setSetMenuOpenId(null) }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
+                              style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                              <Pencil size={13} style={{ color: 'var(--text-muted)' }} /> Rename
+                            </button>
+                            {activeSetImages.length > 0 && (
+                              <button onClick={() => { handleOpenWatermark(null); setSetMenuOpenId(null) }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
+                                style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <Droplets size={13} style={{ color: 'var(--text-muted)' }} /> Watermark set
+                              </button>
+                            )}
+                            {sets.length > 1 && (
+                              <>
+                                <div style={{ borderTop: '1px solid var(--border)' }} />
+                                <button onClick={() => { setConfirmDeleteSetId(set.id); setSetMenuOpenId(null) }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
+                                  style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                  <Trash2 size={13} /> Delete set
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+
                       </div>
                     </div>
                   )}
@@ -623,37 +679,28 @@ export default function GalleryDetail() {
 
               {/* Add set */}
               {showAddSet ? (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <input
                     autoFocus
                     value={newSetName}
                     onChange={e => setNewSetName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleAddSet(); if (e.key === 'Escape') { setShowAddSet(false); setNewSetName('') } }}
                     placeholder="Set name"
-                    className="text-sm px-2 py-1 rounded-lg"
+                    className="text-sm px-2 py-1.5 rounded-lg"
                     style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-strong)', color: 'var(--text)', outline: 'none', minWidth: 100 }}
                   />
                   <button onClick={handleAddSet}
-                    className="text-xs px-2 py-1 rounded-lg font-medium"
+                    className="text-xs px-2.5 py-1.5 rounded-lg font-medium"
                     style={{ background: '#6366f1', color: '#fff', cursor: 'pointer' }}>Add</button>
                   <button onClick={() => { setShowAddSet(false); setNewSetName('') }}
-                    className="text-xs px-2 py-1 rounded-lg"
+                    className="text-xs px-2.5 py-1.5 rounded-lg"
                     style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>Cancel</button>
                 </div>
               ) : (
                 <button onClick={() => setShowAddSet(true)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs shrink-0"
                   style={{ color: 'var(--text-muted)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
                   <Plus size={11} />New Set
-                </button>
-              )}
-
-              {/* Re-watermark set button */}
-              {activeSetImages.length > 0 && (
-                <button onClick={() => handleOpenReWatermark(null)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs ml-auto"
-                  style={{ color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                  <Droplets size={11} />Re-watermark set
                 </button>
               )}
             </div>
@@ -686,7 +733,7 @@ export default function GalleryDetail() {
               selectionMode={selectedIds.size > 0}
               sets={sets}
               onMoveToSet={handleMoveImage}
-              onReWatermark={handleOpenReWatermark}
+              onWatermark={handleOpenWatermark}
               onDownload={handleDownloadImage}
             />
           )}
@@ -707,6 +754,7 @@ export default function GalleryDetail() {
           onDeleteSelected={handleDeleteSelected}
           sets={sets.filter(s => s.id !== activeSetId)}
           onMoveToSet={handleMoveSelected}
+          onWatermarkSelected={() => { setWatermarkTarget('bulk'); handleOpenWatermark('bulk') }}
           onDownloadSelected={async (hires) => {
             const selected = images.filter(i => selectedIds.has(i.id))
             const { data: { session } } = await supabase.auth.getSession()
@@ -750,21 +798,52 @@ export default function GalleryDetail() {
         />
       )}
 
-      {/* ── Re-watermark modal ── */}
-      {showReWatermark && (
+      {/* ── Delete set confirm ── */}
+      {confirmDeleteSetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.4)' }}
+          onClick={() => setConfirmDeleteSetId(null)}>
+          <div className="rounded-2xl p-5 space-y-3 max-w-xs w-full"
+            style={{ background: 'var(--surface)', border: '1px solid var(--danger)' }}
+            onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+              Delete "{sets.find(s => s.id === confirmDeleteSetId)?.name}"?
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>All images in this set will also be permanently deleted. This cannot be undone.</p>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => handleDeleteSet(confirmDeleteSetId)}
+                className="text-sm px-4 py-2 rounded-xl font-medium"
+                style={{ background: 'var(--danger)', color: '#fff', cursor: 'pointer' }}>Delete</button>
+              <button onClick={() => setConfirmDeleteSetId(null)}
+                className="text-sm px-4 py-2 rounded-xl"
+                style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Watermark modal ── */}
+      {showWatermark && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-          onClick={() => !reWatermarking && setShowReWatermark(false)}>
+          onClick={() => !watermarking && setShowWatermark(false)}>
           <div className="w-full max-w-sm rounded-2xl p-6 space-y-4"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Re-watermark</h3>
-              <button onClick={() => setShowReWatermark(false)} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
+              <h3 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Watermark</h3>
+              {!watermarking && (
+                <button onClick={() => setShowWatermark(false)} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
+              )}
             </div>
             <div className="px-3 py-2.5 rounded-xl text-sm"
               style={{ background: 'var(--warning-subtle)', color: 'var(--warning)' }}>
-              This will replace the current preview{reWatermarkTarget ? ' for this image' : ` for all ${activeSetImages.length} images in this set`}. It may take a moment.
+              {watermarkTarget === 'bulk'
+                ? `This will replace the preview for ${selectedIds.size} selected image${selectedIds.size !== 1 ? 's' : ''}.`
+                : watermarkTarget
+                ? 'This will replace the current preview for this image.'
+                : `This will replace the preview for all ${activeSetImages.length} images in this set.`}
+              {' '}It may take a moment.
             </div>
             <div>
               <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>Select watermark</label>
@@ -781,18 +860,34 @@ export default function GalleryDetail() {
                 ))}
               </select>
             </div>
-            <div className="flex gap-2">
-              <button onClick={handleReWatermark} disabled={!selectedWatermarkId || reWatermarking}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium"
-                style={{ background: '#6366f1', color: '#fff', opacity: reWatermarking ? 0.6 : 1, cursor: reWatermarking ? 'not-allowed' : 'pointer' }}>
-                {reWatermarking ? 'Processing...' : 'Apply Watermark'}
-              </button>
-              <button onClick={() => setShowReWatermark(false)} disabled={reWatermarking}
-                className="px-4 py-2.5 rounded-xl text-sm"
-                style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>
-                Cancel
-              </button>
-            </div>
+            {watermarking ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <span>Processing {watermarkProgress.current} of {watermarkProgress.total}...</span>
+                  <span>{watermarkProgress.total > 0 ? Math.round((watermarkProgress.current / watermarkProgress.total) * 100) : 0}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
+                  <div className="h-full rounded-full transition-all duration-300"
+                    style={{ width: `${watermarkProgress.total > 0 ? (watermarkProgress.current / watermarkProgress.total) * 100 : 0}%`, background: '#6366f1' }} />
+                </div>
+                <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
+                  Please keep this window open until complete.
+                </p>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={handleWatermark} disabled={!selectedWatermarkId}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                  style={{ background: '#6366f1', color: '#fff', cursor: 'pointer' }}>
+                  Apply Watermark
+                </button>
+                <button onClick={() => setShowWatermark(false)}
+                  className="px-4 py-2.5 rounded-xl text-sm"
+                  style={{ background: 'var(--surface-raised)', color: 'var(--text)', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -164,7 +164,7 @@ export default function ImageCard({
                 </div>
               )}
 
-              {/* Re-watermark */}
+              {/* Watermark */}
               {onReWatermark && (
                 <button
                   onClick={e => { e.stopPropagation(); onReWatermark?.(image); setMenuOpen(false) }}
@@ -173,7 +173,7 @@ export default function ImageCard({
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <Droplets size={13} style={{ color: 'var(--text-muted)' }} />
-                  Re-watermark
+                  Watermark
                 </button>
               )}
 

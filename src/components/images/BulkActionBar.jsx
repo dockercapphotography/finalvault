@@ -1,20 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Trash2, Download, FolderInput } from 'lucide-react'
+import { X, Trash2, Download, FolderInput, Droplets, CheckSquare } from 'lucide-react'
 
-const btnBase = {
-  cursor: 'pointer',
-  background: 'transparent',
-  border: 'none',
-  borderRadius: '12px',
-  padding: '6px 12px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '6px',
-  fontSize: '14px',
-  transition: 'background 0.15s',
-}
-
-export default function BulkActionBar({ count, onClearSelection, onDeleteSelected, onSelectAll, totalCount, sets, onMoveToSet, onDownloadSelected }) {
+export default function BulkActionBar({ count, onClearSelection, onDeleteSelected, onSelectAll, totalCount, sets, onMoveToSet, onDownloadSelected, onWatermarkSelected }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const [showDownloadMenu, setShowDownloadMenu] = useState(false)
   const moveRef = useRef(null)
@@ -29,64 +16,68 @@ export default function BulkActionBar({ count, onClearSelection, onDeleteSelecte
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const btn = (color = 'rgba(255,255,255,0.6)') => ({
+    cursor: 'pointer',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: '10px',
+    padding: '6px 10px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    fontSize: '13px',
+    color,
+    whiteSpace: 'nowrap',
+  })
+
+  const hoverIn = e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+  const hoverOut = e => e.currentTarget.style.background = 'transparent'
+
   return (
     <div
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-2 py-2 rounded-2xl shadow-xl"
-      style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.1)', minWidth: '320px' }}
+      className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 px-1.5 py-1.5 rounded-2xl shadow-xl"
+      style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.1)', maxWidth: 'calc(100vw - 32px)' }}
     >
-      {/* Clear selection */}
-      <button
-        onClick={onClearSelection}
-        style={{ ...btnBase, color: 'rgba(255,255,255,0.6)' }}
-        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-        <X size={14} />
-        <span className="font-medium">{count} selected</span>
+      {/* Clear / count */}
+      <button onClick={onClearSelection} style={btn()} onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+        title="Clear selection">
+        <X size={13} />
+        <span className="font-medium">{count}</span>
       </button>
 
-      <div className="w-px h-5 mx-1" style={{ background: 'rgba(255,255,255,0.1)' }} />
+      <div className="w-px h-4 shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }} />
 
-      {/* Select all */}
+      {/* Select all — icon only */}
       {count < totalCount && (
-        <button
-          onClick={onSelectAll}
-          style={{ ...btnBase, color: 'rgba(255,255,255,0.6)' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-          Select all {totalCount}
-        </button>
+        <>
+          <button onClick={onSelectAll} style={btn('rgba(255,255,255,0.5)')}
+            onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+            title={`Select all ${totalCount}`}>
+            <CheckSquare size={13} />
+          </button>
+          <div className="w-px h-4 shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }} />
+        </>
       )}
-
-      <div style={{ flex: 1 }} />
 
       {/* Download */}
       {onDownloadSelected && (
         <div ref={downloadRef} className="relative">
-          <button
-            onClick={() => setShowDownloadMenu(p => !p)}
-            style={{ ...btnBase, color: 'rgba(255,255,255,0.6)' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <Download size={14} />
-            Download
+          <button onClick={() => setShowDownloadMenu(p => !p)} style={btn()} onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+            title="Download">
+            <Download size={13} />
+            <span className="hidden sm:inline">Download</span>
           </button>
           {showDownloadMenu && (
-            <div className="absolute bottom-full mb-2 left-0 rounded-xl overflow-hidden shadow-xl"
+            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 rounded-xl overflow-hidden shadow-xl"
               style={{ background: '#1f2937', border: '1px solid rgba(255,255,255,0.1)', minWidth: 140 }}>
               <button onClick={() => { onDownloadSelected(false); setShowDownloadMenu(false) }}
                 className="w-full text-left px-4 py-2.5 text-sm"
                 style={{ color: '#fff', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                Web Size (ZIP)
-              </button>
+                onMouseEnter={hoverIn} onMouseLeave={hoverOut}>Web Size (ZIP)</button>
               <button onClick={() => { onDownloadSelected(true); setShowDownloadMenu(false) }}
                 className="w-full text-left px-4 py-2.5 text-sm"
                 style={{ color: '#fff', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                Originals (ZIP)
-              </button>
+                onMouseEnter={hoverIn} onMouseLeave={hoverOut}>Originals (ZIP)</button>
             </div>
           )}
         </div>
@@ -95,41 +86,42 @@ export default function BulkActionBar({ count, onClearSelection, onDeleteSelecte
       {/* Move to Set */}
       {sets?.length > 0 && onMoveToSet && (
         <div ref={moveRef} className="relative">
-          <button
-            onClick={() => setShowMoveMenu(p => !p)}
-            style={{ ...btnBase, color: 'rgba(255,255,255,0.6)' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <FolderInput size={14} />
-            Move
+          <button onClick={() => setShowMoveMenu(p => !p)} style={btn()} onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+            title="Move to set">
+            <FolderInput size={13} />
+            <span className="hidden sm:inline">Move</span>
           </button>
           {showMoveMenu && (
-            <div className="absolute bottom-full mb-2 left-0 rounded-xl overflow-hidden shadow-xl"
+            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 rounded-xl overflow-hidden shadow-xl"
               style={{ background: '#1f2937', border: '1px solid rgba(255,255,255,0.1)', minWidth: 140 }}>
               {sets.map(s => (
                 <button key={s.id} onClick={() => { onMoveToSet(s.id); setShowMoveMenu(false) }}
                   className="w-full text-left px-4 py-2.5 text-sm truncate"
                   style={{ color: '#fff', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  {s.name}
-                </button>
+                  onMouseEnter={hoverIn} onMouseLeave={hoverOut}>{s.name}</button>
               ))}
             </div>
           )}
         </div>
       )}
 
-      <div className="w-px h-5 mx-1" style={{ background: 'rgba(255,255,255,0.1)' }} />
+      {/* Watermark */}
+      {onWatermarkSelected && (
+        <button onClick={onWatermarkSelected} style={btn()} onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+          title="Watermark selected">
+          <Droplets size={13} />
+          <span className="hidden sm:inline">Watermark</span>
+        </button>
+      )}
+
+      <div className="w-px h-4 shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }} />
 
       {/* Delete */}
-      <button
-        onClick={onDeleteSelected}
-        style={{ ...btnBase, color: '#f87171' }}
+      <button onClick={onDeleteSelected} style={btn('#f87171')}
         onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.12)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-        <Trash2 size={14} />
-        Delete
+        onMouseLeave={hoverOut} title="Delete selected">
+        <Trash2 size={13} />
+        <span className="hidden sm:inline">Delete</span>
       </button>
     </div>
   )
