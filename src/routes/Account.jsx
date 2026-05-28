@@ -15,6 +15,8 @@ const ACCOUNT_TABS = [
   { id: 'profile',    label: 'Profile' },
   { id: 'watermarks', label: 'Watermarks' },
   { id: 'templates',  label: 'Email Templates' },
+  { id: 'social',     label: 'Social' },
+  { id: 'payment',    label: 'Payment' },
 ]
 
 const TEMPLATE_VARIABLES = [
@@ -495,6 +497,121 @@ function EmailTemplatesTab({ onSaveState }) {
   )
 }
 
+
+// ── Brand SVG Icons ───────────────────────────────────────────────────────────
+
+const BASE_ICON_URL = 'https://finalvault.dockercapphotography.com/brand-icons'
+
+const BRAND_ICONS = {
+  instagram: <img src={`${BASE_ICON_URL}/instagram.png`} alt="Instagram" width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  facebook:  <img src={`${BASE_ICON_URL}/facebook.png`}  alt="Facebook"  width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  tiktok:    <img src={`${BASE_ICON_URL}/tiktok.png`}    alt="TikTok"    width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  x:         <img src={`${BASE_ICON_URL}/x.png`}         alt="X"         width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  youtube:   <img src={`${BASE_ICON_URL}/youtube.png`}   alt="YouTube"   width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  pinterest: <img src={`${BASE_ICON_URL}/pinterest.png`} alt="Pinterest" width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  venmo:     <img src={`${BASE_ICON_URL}/venmo.png`}     alt="Venmo"     width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  paypal:    <img src={`${BASE_ICON_URL}/paypal.png`}    alt="PayPal"    width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  kofi:      <img src={`${BASE_ICON_URL}/kofi.png`}      alt="Ko-Fi"     width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  cashapp:   <img src={`${BASE_ICON_URL}/cashapp.png`}   alt="Cash App"  width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+}
+
+
+const SOCIAL_PLATFORMS = [
+  { id: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourhandle', color: '#E1306C' },
+  { id: 'facebook',  label: 'Facebook',  placeholder: 'https://facebook.com/yourpage',   color: '#1877F2' },
+  { id: 'tiktok',    label: 'TikTok',    placeholder: 'https://tiktok.com/@yourhandle',  color: '#000000' },
+  { id: 'x',         label: 'X',         placeholder: 'https://x.com/yourhandle',        color: '#000000' },
+  { id: 'youtube',   label: 'YouTube',   placeholder: 'https://youtube.com/@yourchannel',color: '#FF0000' },
+  { id: 'pinterest', label: 'Pinterest', placeholder: 'https://pinterest.com/yourhandle',color: '#E60023' },
+]
+
+const PAYMENT_PLATFORMS = [
+  { id: 'venmo',   label: 'Venmo',   placeholder: 'https://venmo.com/yourhandle',       color: '#008CFF' },
+  { id: 'paypal',  label: 'PayPal',  placeholder: 'https://paypal.me/yourhandle',       color: '#003087' },
+  { id: 'kofi',    label: 'Ko-Fi',   placeholder: 'https://ko-fi.com/yourhandle',       color: '#FF5E5B' },
+  { id: 'cashapp', label: 'Cash App',placeholder: 'https://cash.app/$yourhandle',       color: '#00D632' },
+]
+
+// ── Links Tab (shared by Social + Payment) ────────────────────────────────────
+
+function LinksTab({ platforms, dbColumn, onSaveState }) {
+  const [links, setLinks] = useState({})
+  const [loaded, setLoaded] = useState(false)
+  const [userId, setUserId] = useState(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      setUserId(user.id)
+      supabase.from('photographers')
+        .select(dbColumn)
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          setLinks(data?.[dbColumn] || {})
+          setLoaded(true)
+        })
+    })
+  }, [dbColumn])
+
+  async function handleSave(platformId, value) {
+    const updated = { ...links, [platformId]: value }
+    // Remove empty entries
+    if (!value.trim()) delete updated[platformId]
+    setLinks(updated)
+    try {
+      await supabase.from('photographers')
+        .update({ [dbColumn]: updated })
+        .eq('id', userId)
+      onSaveState('saved')
+    } catch {
+      onSaveState('error')
+    }
+  }
+
+  if (!loaded) return null
+
+  return (
+    <div className="space-y-3">
+      {platforms.map(platform => (
+        <div key={platform.id}
+          className="flex items-center gap-4 px-4 py-3 rounded-xl"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          {/* Logo */}
+          <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 36, height: 36 }}>
+            {BRAND_ICONS[platform.id]}
+          </div>
+          {/* Label + input */}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>{platform.label}</p>
+            <input
+              type="url"
+              defaultValue={links[platform.id] || ''}
+              placeholder={platform.placeholder}
+              onBlur={e => handleSave(platform.id, e.target.value.trim())}
+              className="w-full text-sm rounded-lg px-3 py-2"
+              style={{
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                outline: 'none',
+              }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+            />
+          </div>
+          {/* Active indicator */}
+          {links[platform.id] && (
+            <div className="shrink-0 w-2 h-2 rounded-full" style={{ background: 'var(--success)' }} />
+          )}
+        </div>
+      ))}
+      <p className="text-xs px-1" style={{ color: 'var(--text-muted)' }}>
+        Links are shown in the footer of gallery emails. Enter the full URL including https://.
+      </p>
+    </div>
+  )
+}
+
 // ── Main Account ──────────────────────────────────────────────────────────────
 
 export default function Account() {
@@ -529,6 +646,8 @@ export default function Account() {
       {activeTab === 'profile' && <ProfileTab user={user} onSaveState={setSaveState} />}
       {activeTab === 'watermarks' && <WatermarksTab onSaveState={setSaveState} />}
       {activeTab === 'templates' && <EmailTemplatesTab onSaveState={setSaveState} />}
+      {activeTab === 'social' && <LinksTab platforms={SOCIAL_PLATFORMS} dbColumn="social_links" onSaveState={setSaveState} />}
+      {activeTab === 'payment' && <LinksTab platforms={PAYMENT_PLATFORMS} dbColumn="payment_links" onSaveState={setSaveState} />}
 
       <SaveIndicator state={saveState} />
     </div>
