@@ -31,12 +31,11 @@ export function usePreviewUrls(images) {
 
     return () => {
       cancelled = true
-      // Revoke object URLs to free memory
       Object.values(previewUrls).forEach(url => {
         if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
       })
     }
   }, [images])
 
-  return previewUrls
+  return { previewUrls, setPreviewUrls }
 }

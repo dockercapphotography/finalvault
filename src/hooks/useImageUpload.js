@@ -4,7 +4,7 @@ import { generatePreview } from '../utils/imageProcessor.js'
 import { uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
 import { addImage } from '../utils/imageApi.js'
 
-export function useImageUpload({ galleryId, photographerId, watermark, onComplete }) {
+export function useImageUpload({ galleryId, photographerId, watermark, setId, onComplete }) {
   const [uploadItems, setUploadItems] = useState([])
   const [isUploading, setIsUploading] = useState(false)
 
@@ -27,17 +27,14 @@ export function useImageUpload({ galleryId, photographerId, watermark, onComplet
     setUploadItems(items)
     setIsUploading(true)
 
-    // Upload all files concurrently
     await Promise.all(files.map(async (file, index) => {
       try {
         const imageId = crypto.randomUUID()
         const ext = file.name.split('.').pop().toLowerCase()
 
-        // Step 1: Generate preview
         updateItem(index, { status: 'processing' })
         const previewBlob = await generatePreview(file, watermark)
 
-        // Step 2: Upload both original and preview concurrently
         updateItem(index, { status: 'uploading' })
         const originalKey = buildOriginalKey(photographerId, galleryId, imageId, ext)
         const previewKey = buildPreviewKey(photographerId, galleryId, imageId)
@@ -51,10 +48,8 @@ export function useImageUpload({ galleryId, photographerId, watermark, onComplet
           })
         ])
 
-        // Step 3: Get image dimensions
         const { width, height } = await getImageDimensions(file)
 
-        // Step 4: Save metadata to Supabase
         await addImage({
           id: imageId,
           gallery_id: galleryId,
@@ -67,6 +62,7 @@ export function useImageUpload({ galleryId, photographerId, watermark, onComplet
           width,
           height,
           sort_order: index,
+          set_id: setId || null,
         })
 
         updateItem(index, { status: 'done' })
@@ -78,7 +74,7 @@ export function useImageUpload({ galleryId, photographerId, watermark, onComplet
 
     setIsUploading(false)
     onComplete?.()
-  }, [galleryId, photographerId, watermark, onComplete])
+  }, [galleryId, photographerId, watermark, setId, onComplete])
 
   function reset() {
     setUploadItems([])

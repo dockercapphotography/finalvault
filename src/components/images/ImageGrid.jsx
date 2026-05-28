@@ -1,6 +1,6 @@
 import ImageCard from './ImageCard.jsx'
 
-export default function ImageGrid({ images, previewUrls, onDelete, coverId, selectedIds, onSelect, selectionMode }) {
+export default function ImageGrid({ images, previewUrls, onDelete, coverId, selectedIds, onSelect, selectionMode, sets, onMoveToSet, onReWatermark, onDownload }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
       {images.map(image => (
@@ -13,6 +13,10 @@ export default function ImageGrid({ images, previewUrls, onDelete, coverId, sele
           selected={selectedIds.has(image.id)}
           onSelect={onSelect}
           selectionMode={selectionMode}
+          sets={sets}
+          onMoveToSet={onMoveToSet}
+          onReWatermark={onReWatermark}
+          onDownload={onDownload}
         />
       ))}
     </div>

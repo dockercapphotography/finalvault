@@ -4,7 +4,8 @@ import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lu
 import {
   getGalleryByToken, getClientImages, getViewerFromSession,
   getViewerFavorites, toggleFavorite, getComments, addComment,
-  getPreviewUrl, downloadOriginal, downloadPreview, downloadZip, verifyDownloadPin, logActivity
+  getPreviewUrl, downloadOriginal, downloadPreview, downloadZip, verifyDownloadPin, logActivity,
+  getClientSets
 } from '../utils/clientApi.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
@@ -427,6 +428,8 @@ export default function ClientGalleryView() {
   const [pinLoading, setPinLoading] = useState(false)
   const [pendingDownload, setPendingDownload] = useState(null)
   const [downloadingZip, setDownloadingZip] = useState(false)
+  const [sets, setSets] = useState([])
+  const [activeSetId, setActiveSetId] = useState(null)
 
   useEffect(() => { load() }, [token])
 
@@ -437,8 +440,10 @@ export default function ClientGalleryView() {
       if (!g || !g.is_active) { navigate(`/g/${token}`, { replace: true }); return }
       const v = getViewerFromSession(g.id)
       if (!v) { navigate(`/g/${token}`, { replace: true }); return }
-      const [imgs, favs] = await Promise.all([getClientImages(g.id), getViewerFavorites(g.id, v.id)])
+      const [imgs, favs, setsData] = await Promise.all([getClientImages(g.id), getViewerFavorites(g.id, v.id), getClientSets(g.id)])
       setGallery(g); setImages(imgs); setViewer(v); setFavorites(favs)
+      setSets(setsData)
+      if (setsData.length > 0) setActiveSetId(setsData[0].id)
       logActivity(g.id, v.id, 'view')
       if (g.cover_r2_key) {
         setHeroUrl(`${WORKER_URL}/preview/${encodeURIComponent(g.cover_r2_key)}?share_token=${token}`)
@@ -517,6 +522,7 @@ export default function ClientGalleryView() {
     </div>
   )
 
+  const activeImages = activeSetId ? images.filter(i => i.set_id === activeSetId) : images
   const theme = THEME_COLORS[gallery.theme_color || 'light'] || THEME_COLORS.light
   const gridCols = gallery.grid_size === 'large' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
   const gridGap = gallery.grid_spacing === 'large' ? 'gap-4' : 'gap-1'
@@ -552,8 +558,35 @@ export default function ClientGalleryView() {
         )}
       </div>
 
+      {/* Set tabs */}
+      {sets.length > 1 && (
+        <div className="overflow-x-auto"
+          style={{ borderBottom: `1px solid ${theme.border}`, background: theme.bg }}>
+          <div className="flex items-center min-w-max px-4">
+            {sets.map(set => (
+              <button
+                key={set.id}
+                onClick={() => setActiveSetId(set.id)}
+                className="px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative"
+                style={{
+                  color: activeSetId === set.id ? theme.text : theme.muted,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}>
+                {set.name}
+                {activeSetId === set.id && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                    style={{ background: theme.accent }} />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={`${gridPad} grid ${gridCols} ${gridGap}`}>
-        {images.map((image, i) => (
+        {activeImages.map((image, i) => (
           <div key={image.id} className="relative overflow-hidden rounded-lg group" style={{ cursor: 'pointer' }} onClick={() => setLightboxIndex(i)}>
             <img src={getPreviewUrl(image.preview_r2_key, token)} alt="" loading="lazy" draggable={false} onContextMenu={noContext}
               className="w-full block aspect-square" style={{ objectFit: 'cover', userSelect: 'none', pointerEvents: 'none' }} />
@@ -586,10 +619,10 @@ export default function ClientGalleryView() {
       </div>
 
       {lightboxIndex !== null && (
-        <Lightbox images={images} index={lightboxIndex}
+        <Lightbox images={activeImages} index={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onPrev={() => setLightboxIndex(i => Math.max(0, i - 1))}
-          onNext={() => setLightboxIndex(i => Math.min(images.length - 1, i + 1))}
+          onNext={() => setLightboxIndex(i => Math.min(activeImages.length - 1, i + 1))}
           favorites={favorites} onToggleFavorite={handleToggleFavorite}
           allowDownloads={gallery.allow_downloads} allowWebSize={gallery.download_watermarked} allowHires={gallery.allow_hires_download}
           onDownload={handleDownloadSingle} token={token}

@@ -52,7 +52,7 @@ export async function getPhotographerName(photographerId) {
 export async function getClientImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')
-    .select('id, preview_r2_key, original_r2_key, file_name, width, height, sort_order')
+    .select('id, preview_r2_key, original_r2_key, file_name, width, height, sort_order, set_id')
     .eq('gallery_id', galleryId)
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })
@@ -244,4 +244,14 @@ export async function logActivity(galleryId, viewerId, action, imageId = null, m
   } catch (err) {
     console.warn('Activity log failed:', err)
   }
+}
+
+export async function getClientSets(galleryId) {
+  const { data, error } = await supabase
+    .from('gallery_sets')
+    .select('id, name, sort_order')
+    .eq('gallery_id', galleryId)
+    .order('sort_order', { ascending: true })
+  if (error) throw error
+  return data || []
 }
