@@ -14,6 +14,11 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink }) {
     expired:  <Badge variant="danger">Expired</Badge>,
   }
 
+  const metaLine = [
+    gallery.event_name,
+    gallery.event_date && formatDate(gallery.event_date),
+  ].filter(Boolean).join(' · ')
+
   return (
     <div
       className="rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-md"
@@ -44,21 +49,26 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink }) {
           {gallery.title}
         </h3>
         {gallery.client_name && (
-          <p className="text-xs mb-3 truncate" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
             {gallery.client_name}
           </p>
         )}
-        <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        {metaLine && (
+          <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {metaLine}
+          </p>
+        )}
+        {!metaLine && (
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {formatDate(gallery.created_at)}
+          </p>
+        )}
+        {gallery.expires_at && !isExpired && (
+          <span className="flex items-center gap-1 text-xs mt-2" style={{ color: 'var(--warning)' }}>
+            <Clock size={11} />
+            Expires {formatDate(gallery.expires_at)}
           </span>
-          {gallery.expires_at && !isExpired && (
-            <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--warning)' }}>
-              <Clock size={11} />
-              {formatDate(gallery.expires_at)}
-            </span>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )

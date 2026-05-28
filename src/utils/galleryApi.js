@@ -8,7 +8,7 @@ export async function getGalleries() {
   const { data, error } = await supabase
     .from('galleries')
     .select(`
-      id, title, client_name, event_date, template,
+      id, title, client_name, event_name, event_date, template,
       is_active, share_token, require_password,
       created_at, updated_at, expires_at,
       cover_image_id,

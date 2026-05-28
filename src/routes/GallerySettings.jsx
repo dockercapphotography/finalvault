@@ -123,6 +123,7 @@ export default function GallerySettings() {
   const dismissTimer = useRef(null)
 
   const [title, setTitle] = useState('')
+  const [eventName, setEventName] = useState('')
   const [clientName, setClientName] = useState('')
   const [notes, setNotes] = useState('')
   const [eventDate, setEventDate] = useState('')
@@ -158,6 +159,7 @@ export default function GallerySettings() {
       const g = await getGallery(id)
       setGallery(g)
       setTitle(g.title || '')
+      setEventName(g.event_name || '')
       setClientName(g.client_name || '')
       setNotes(g.notes || '')
       setEventDate(g.event_date || '')
@@ -200,7 +202,7 @@ export default function GallerySettings() {
     if (isFirstLoad.current || !gallery || !title) return
     try {
       const s = {
-        title, clientName, notes, eventDate, isActive, expiresAt,
+        title, clientName, eventName, notes, eventDate, isActive, expiresAt,
         requirePassword, password, requireDownloadPin, downloadPin,
         allowDownloads, downloadWatermarked, allowHiresDownload,
         allowFavorites, allowComments, template, themeColor, gridSize, gridSpacing,
@@ -209,6 +211,7 @@ export default function GallerySettings() {
       await updateGallery(id, {
         title: s.title,
         client_name: s.clientName,
+        event_name: s.eventName,
         notes: s.notes,
         event_date: s.eventDate || null,
         is_active: s.isActive,
@@ -231,7 +234,7 @@ export default function GallerySettings() {
     } catch {
       setSaveState('error')
     }
-  }, [gallery, title, clientName, notes, eventDate, isActive, expiresAt,
+  }, [gallery, title, clientName, eventName, notes, eventDate, isActive, expiresAt,
       requirePassword, password, requireDownloadPin, downloadPin,
       allowDownloads, downloadWatermarked, allowHiresDownload,
       allowFavorites, allowComments, template, themeColor, gridSize, gridSpacing, id])
@@ -343,6 +346,9 @@ export default function GallerySettings() {
                   placeholder="e.g. Sarah & James" />
                 <Input label="Event date" value={eventDate} onChange={setEventDate} onBlur={() => save()} type="date" />
               </div>
+              <Input label="Event name" value={eventName} onChange={setEventName} onBlur={() => save()}
+                placeholder="e.g. PopCon Indy 2026"
+                hint="Shown in the client gallery header alongside the client name and date" />
               <Input label="Internal notes" value={notes} onChange={setNotes} onBlur={() => save()}
                 placeholder="Not visible to clients" type="textarea" />
             </div>

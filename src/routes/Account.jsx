@@ -26,6 +26,7 @@ const TEMPLATE_VARIABLES = [
   { tag: '{{gallery_url}}',   desc: 'Gallery link' },
   { tag: '{{password}}',      desc: 'Gallery password' },
   { tag: '{{download_pin}}',  desc: 'Download PIN' },
+  { tag: '{{event_name}}',    desc: 'Event name' },
   { tag: '{{expiry_date}}',   desc: 'Gallery expiry date' },
 ]
 
@@ -72,6 +73,11 @@ function ProfileTab({ user, onSaveState }) {
   const [displayName, setDisplayName] = useState('')
   const [businessName, setBusinessName] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [securityMsg, setSecurityMsg] = useState(null)
+  const [savingSecurity, setSavingSecurity] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -98,32 +104,124 @@ function ProfileTab({ user, onSaveState }) {
     }
   }
 
+  async function handleEmailChange() {
+    if (!newEmail.trim()) return
+    setSavingSecurity(true)
+    setSecurityMsg(null)
+    try {
+      const { error } = await supabase.auth.updateUser({ email: newEmail.trim() })
+      if (error) throw error
+      setSecurityMsg({ ok: true, text: 'Confirmation email sent. Check your inbox to confirm the new address.' })
+      setNewEmail('')
+    } catch (err) {
+      setSecurityMsg({ ok: false, text: err.message })
+    } finally {
+      setSavingSecurity(false)
+    }
+  }
+
+  async function handlePasswordChange() {
+    if (!newPassword || newPassword !== confirmPassword) {
+      setSecurityMsg({ ok: false, text: 'Passwords do not match.' })
+      return
+    }
+    if (newPassword.length < 8) {
+      setSecurityMsg({ ok: false, text: 'Password must be at least 8 characters.' })
+      return
+    }
+    setSavingSecurity(true)
+    setSecurityMsg(null)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) throw error
+      setSecurityMsg({ ok: true, text: 'Password updated successfully.' })
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      setSecurityMsg({ ok: false, text: err.message })
+    } finally {
+      setSavingSecurity(false)
+    }
+  }
+
   if (!loaded) return null
 
   return (
-    <SettingsSection title="Personal Information">
-      <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
-        <Input
-          label="Display name"
-          value={displayName}
-          onChange={setDisplayName}
-          onBlur={save}
-          placeholder="Your name"
-        />
-        <Input
-          label="Business / Studio name"
-          value={businessName}
-          onChange={setBusinessName}
-          onBlur={save}
-          placeholder="e.g. Docker Cap Photography"
-          hint="Used in gallery emails and client-facing communications"
-        />
-        <div>
-          <label className="text-sm font-medium block" style={{ color: 'var(--text)' }}>Email</label>
-          <p className="text-sm mt-1.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+    <div className="space-y-4">
+      <SettingsSection title="Personal Information">
+        <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
+          <Input
+            label="Display name"
+            value={displayName}
+            onChange={setDisplayName}
+            onBlur={save}
+            placeholder="Your name"
+          />
+          <Input
+            label="Business / Studio name"
+            value={businessName}
+            onChange={setBusinessName}
+            onBlur={save}
+            placeholder="e.g. Docker Cap Photography"
+            hint="Used in gallery emails and client-facing communications"
+          />
+          <div>
+            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Email</label>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+          </div>
         </div>
-      </div>
-    </SettingsSection>
+      </SettingsSection>
+
+      <SettingsSection title="Security">
+        <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
+          {/* Email change */}
+          <div className="space-y-2">
+            <Input
+              label="New email address"
+              value={newEmail}
+              onChange={setNewEmail}
+              placeholder={user?.email}
+              hint="A confirmation link will be sent to the new address."
+            />
+            <Button variant="secondary" onClick={handleEmailChange}
+              disabled={!newEmail.trim() || savingSecurity}>
+              Update Email
+            </Button>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border)' }} />
+
+          {/* Password change */}
+          <div className="space-y-2">
+            <Input
+              label="New password"
+              value={newPassword}
+              onChange={setNewPassword}
+              type="password"
+              placeholder="Min. 8 characters"
+            />
+            <Input
+              label="Confirm new password"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              type="password"
+              placeholder="Re-enter new password"
+            />
+            <Button variant="secondary" onClick={handlePasswordChange}
+              disabled={!newPassword || !confirmPassword || savingSecurity}>
+              Update Password
+            </Button>
+          </div>
+
+          {securityMsg && (
+            <p className="text-sm"
+              style={{ color: securityMsg.ok ? 'var(--success)' : 'var(--danger)' }}>
+              {securityMsg.text}
+            </p>
+          )}
+        </div>
+      </SettingsSection>
+    </div>
   )
 }
 

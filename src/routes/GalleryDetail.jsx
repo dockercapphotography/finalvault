@@ -268,13 +268,17 @@ export default function GalleryDetail() {
                 <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
                 {statusBadge[status]}
               </div>
-              {gallery.client_name && (
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{gallery.client_name}</p>
-              )}
-              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                Created {formatDate(gallery.created_at)}
-                {gallery.event_date && ` · Event ${formatDate(gallery.event_date)}`}
-                {gallery.expires_at && ` · Expires ${formatDate(gallery.expires_at)}`}
+              {/* Line 1: client name · event name */}
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                {[gallery.client_name, gallery.event_name].filter(Boolean).join(' · ')}
+              </p>
+              {/* Line 2: dates */}
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {[
+                  gallery.event_date && `Event ${formatDate(gallery.event_date)}`,
+                  `Created ${formatDate(gallery.created_at)}`,
+                  gallery.expires_at && `Expires ${formatDate(gallery.expires_at)}`,
+                ].filter(Boolean).join(' · ')}
               </p>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -385,9 +389,13 @@ export default function GalleryDetail() {
                 <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</p>
                 {statusBadge[status]}
               </div>
+              {/* Line 1: client name · event name */}
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {[gallery.client_name, gallery.event_name].filter(Boolean).join(' · ')}
+              </p>
+              {/* Line 2: dates */}
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 {[
-                  gallery.client_name,
                   gallery.event_date && `Event ${formatDate(gallery.event_date)}`,
                   `Created ${formatDate(gallery.created_at)}`,
                 ].filter(Boolean).join(' · ')}

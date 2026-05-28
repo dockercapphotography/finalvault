@@ -538,7 +538,7 @@ export default function ClientGalleryView() {
           <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pointer-events-none" style={{ zIndex: 3 }}>
             <h1 className="text-3xl font-bold mb-1" style={{ color: '#fff' }}>{gallery.title}</h1>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
-              {[gallery.client_name, eventDateStr].filter(Boolean).join(' · ')}
+              {[gallery.client_name, gallery.event_name, eventDateStr].filter(Boolean).join(' · ')}
             </p>
           </div>
         </div>

@@ -39,41 +39,44 @@ export default function Dashboard() {
   )
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
+    <div className="space-y-5 max-w-7xl">
+      {/* Header — title + count + search + new gallery all in one row */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="mr-1">
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Galleries</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {galleries.length} {galleries.length === 1 ? 'gallery' : 'galleries'}
           </p>
         </div>
-        <Button onClick={() => navigate('/galleries/new')}>
+
+        {/* Search — grows to fill available space */}
+        {galleries.length > 0 && (
+          <div className="relative flex-1 min-w-[160px] max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search galleries..."
+              className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none transition-colors"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+              }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
+        )}
+
+        {/* New Gallery — right-aligned, close to content */}
+        <Button onClick={() => navigate('/galleries/new')} className="ml-auto shrink-0">
           <Plus size={15} />
-          New Gallery
+          <span className="hidden sm:inline">New Gallery</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
-
-      {/* Search */}
-      {galleries.length > 0 && (
-        <div className="relative max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search galleries..."
-            className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none transition-colors"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              color: 'var(--text)',
-            }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'}
-          />
-        </div>
-      )}
 
       {/* Loading */}
       {loading && (

@@ -7,7 +7,7 @@ export async function getGalleryByToken(token) {
   const { data, error } = await supabase
     .from('galleries')
     .select(`
-      id, title, client_name, template, is_active, expires_at,
+      id, title, client_name, event_name, template, is_active, expires_at,
       require_password, allow_downloads, allow_favorites, allow_comments,
       require_download_pin, download_watermarked, allow_hires_download, share_token,
       photographer_id, cover_image_id, cover_r2_key, cover_focus_x, cover_focus_y,
@@ -150,7 +150,6 @@ export async function addComment(galleryId, imageId, viewerId, body) {
     `)
     .single()
   if (error) throw error
-  // Log comment activity with the comment body stored in metadata
   await logActivity(galleryId, viewerId, 'comment', imageId || null, { comment_body: body })
   return data
 }
@@ -160,11 +159,6 @@ export function getPreviewUrl(r2Key, shareToken) {
   return shareToken ? `${base}?share_token=${shareToken}` : base
 }
 
-/**
- * Download a single original image.
- * shareToken — the gallery share token (required for client access)
- * pinToken — download PIN if the gallery requires one
- */
 export async function downloadOriginal(r2Key, fileName, shareToken = null, pinToken = null, hires = true) {
   const headers = {}
   if (shareToken) headers['X-Share-Token'] = shareToken
@@ -188,9 +182,6 @@ export async function downloadOriginal(r2Key, fileName, shareToken = null, pinTo
   URL.revokeObjectURL(url)
 }
 
-/**
- * Download a single web-size (watermarked preview) image.
- */
 export async function downloadPreview(r2Key, fileName, shareToken = null) {
   const url = `${WORKER_URL}/preview/${encodeURIComponent(r2Key)}?share_token=${shareToken || ''}`
   const resp = await fetch(url, { credentials: 'omit' })
@@ -206,12 +197,6 @@ export async function downloadPreview(r2Key, fileName, shareToken = null) {
   URL.revokeObjectURL(objectUrl)
 }
 
-/**
- * Download all images as a ZIP.
- * shareToken — the gallery share token (sent as X-Share-Token header)
- * imageKeys — array of R2 original keys to include
- * downloadPin — optional PIN sent as X-Download-Pin header
- */
 export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = [], galleryTitle = 'gallery', downloadPin = null) {
   const headers = {
     'Content-Type': 'application/json',
@@ -242,11 +227,7 @@ export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = 
   URL.revokeObjectURL(url)
 }
 
-/**
- * Log a client action to the activity log.
- */
 export async function logActivity(galleryId, viewerId, action, imageId = null, metadata = null) {
-  // Dedupe view events — only log once per session per gallery
   if (action === 'view') {
     const key = `fv-viewed-${galleryId}`
     if (sessionStorage.getItem(key)) return
