@@ -85,19 +85,62 @@ function ProfileTab({ user, onSaveState }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [securityMsg, setSecurityMsg] = useState(null)
   const [savingSecurity, setSavingSecurity] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const avatarInputRef = useRef(null)
+  const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
   useEffect(() => {
     if (!user) return
     supabase.from('photographers')
-      .select('display_name, business_name')
+      .select('display_name, business_name, avatar_r2_key')
       .eq('id', user.id)
       .single()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         setDisplayName(data?.display_name || '')
         setBusinessName(data?.business_name || '')
+        if (data?.avatar_r2_key) {
+          const { data: { session } } = await supabase.auth.getSession()
+          const resp = await fetch(
+            `${WORKER_URL}/watermark/${encodeURIComponent(data.avatar_r2_key)}`,
+            { headers: { Authorization: `Bearer ${session.access_token}` } }
+          )
+          if (resp.ok) {
+            const blob = await resp.blob()
+            setAvatarUrl(URL.createObjectURL(blob))
+          }
+        }
         setLoaded(true)
       })
   }, [user])
+
+  async function handleAvatarUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingAvatar(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const ext = file.name.split('.').pop() || 'jpg'
+      const r2Key = `photographers/${user.id}/watermarks/avatar-${crypto.randomUUID()}.${ext}`
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('key', r2Key)
+      const resp = await fetch(`${WORKER_URL}/watermark-upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: formData,
+      })
+      const result = await resp.json()
+      if (!result.ok) throw new Error(result.error || 'Upload failed')
+      await supabase.from('photographers')
+        .update({ avatar_r2_key: r2Key, updated_at: new Date().toISOString() })
+        .eq('id', user.id)
+      const blobUrl = URL.createObjectURL(file)
+      setAvatarUrl(blobUrl)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+    finally { setUploadingAvatar(false) }
+  }
 
   async function save() {
     try {
@@ -138,10 +181,44 @@ function ProfileTab({ user, onSaveState }) {
 
   if (!loaded) return null
 
+  const initials = (displayName || user?.email || '?')[0].toUpperCase()
+
   return (
     <div className="space-y-4">
       <SettingsSection title="Personal Information">
         <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
+
+          {/* Avatar */}
+          <div className="flex items-center gap-4">
+            <button onClick={() => avatarInputRef.current?.click()}
+              style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, position: 'relative' }}
+              title="Change profile photo">
+              <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-lg font-medium"
+                style={{ background: 'var(--surface-raised)', color: 'var(--text)', flexShrink: 0 }}>
+                {avatarUrl
+                  ? <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : initials}
+              </div>
+              {uploadingAvatar && (
+                <div className="absolute inset-0 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(0,0,0,0.4)' }}>
+                  <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+                    style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />
+                </div>
+              )}
+            </button>
+            <div>
+              <button onClick={() => avatarInputRef.current?.click()}
+                className="text-sm font-medium"
+                style={{ color: 'var(--accent)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
+                {avatarUrl ? 'Change photo' : 'Upload photo'}
+              </button>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>JPG or PNG, shown in the app header</p>
+            </div>
+            <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }} onChange={handleAvatarUpload} />
+          </div>
+
           <Input label="Display name" value={displayName} onChange={setDisplayName} onBlur={save} placeholder="Your name" />
           <Input label="Business / Studio name" value={businessName} onChange={setBusinessName} onBlur={save} placeholder="e.g. Docker Cap Photography" hint="Used in gallery emails and client-facing communications" />
           <div>
