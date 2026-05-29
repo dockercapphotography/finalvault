@@ -43,10 +43,10 @@ export async function verifyDownloadPin(galleryId, pin) {
 export async function getPhotographerName(photographerId) {
   const { data } = await supabase
     .from('photographers')
-    .select('display_name')
+    .select('display_name, business_name')
     .eq('id', photographerId)
     .single()
-  return data?.display_name || null
+  return data?.business_name || data?.display_name || null
 }
 
 export async function getClientImages(galleryId) {
