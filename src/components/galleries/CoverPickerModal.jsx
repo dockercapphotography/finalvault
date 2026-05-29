@@ -1,32 +1,76 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Upload } from 'lucide-react'
+import { supabase } from '../../supabaseClient.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
+async function fetchAuthedBlob(r2Key) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const resp = await fetch(`${WORKER_URL}/preview/${encodeURIComponent(r2Key)}`, {
+    headers: { Authorization: `Bearer ${session.access_token}` }
+  })
+  if (!resp.ok) throw new Error('Failed to fetch preview')
+  return URL.createObjectURL(await resp.blob())
+}
+
+// Extract the R2 key from a worker preview URL
+function extractR2Key(workerUrl) {
+  const match = workerUrl.match(/\/preview\/(.+)/)
+  return match ? decodeURIComponent(match[1].split('?')[0]) : null
+}
+
 export default function CoverPickerModal({ images, previewUrls, onSelect, onUpload, onClose, existingCoverUrl, existingFocusX = 0.5, existingFocusY = 0.5 }) {
   const [stage, setStage] = useState(existingCoverUrl ? 'focal' : 'pick')
-  const [chosen, setChosen] = useState(existingCoverUrl ? { type: 'existing', url: existingCoverUrl } : null)
+  const [chosen, setChosen] = useState(null)
   const [focusX, setFocusX] = useState(existingFocusX)
   const [focusY, setFocusY] = useState(existingFocusY)
   const [saving, setSaving] = useState(false)
+  const [loadingPreview, setLoadingPreview] = useState(false)
   const fileInputRef = useRef(null)
   const focalRef = useRef(null)
   const isDragging = useRef(false)
+  const ownedBlobsRef = useRef([])
 
-  function handlePickGallery(image) {
-    // Use the blob URL if available (already loaded), otherwise fall back to R2 URL
-    // Important: don't rely on blob URLs alone — they get revoked by usePreviewUrls cleanup
-    const url = previewUrls[image.id] || `${WORKER_URL}/preview/${encodeURIComponent(image.preview_r2_key)}`
-    setChosen({ type: 'gallery', image, url })
+  // On mount: if existing cover is a bare worker URL, fetch it with auth
+  useEffect(() => {
+    if (!existingCoverUrl) return
+    if (existingCoverUrl.startsWith('blob:')) {
+      setChosen({ type: 'existing', url: existingCoverUrl })
+      return
+    }
+    const r2Key = extractR2Key(existingCoverUrl)
+    if (!r2Key) { setChosen({ type: 'existing', url: existingCoverUrl }); return }
+    setLoadingPreview(true)
+    fetchAuthedBlob(r2Key)
+      .then(url => {
+        ownedBlobsRef.current.push(url)
+        setChosen({ type: 'existing', url })
+      })
+      .catch(() => setChosen({ type: 'existing', url: existingCoverUrl }))
+      .finally(() => setLoadingPreview(false))
+  }, [])
+
+  async function handlePickGallery(image) {
+    setLoadingPreview(true)
     setFocusX(0.5)
     setFocusY(0.5)
-    setStage('focal')
+    try {
+      const url = await fetchAuthedBlob(image.preview_r2_key)
+      ownedBlobsRef.current.push(url)
+      setChosen({ type: 'gallery', image, url })
+      setStage('focal')
+    } catch (err) {
+      console.error('Failed to load cover preview:', err)
+    } finally {
+      setLoadingPreview(false)
+    }
   }
 
   function handleBrowse(e) {
     const file = e.target.files?.[0]
     if (!file) return
     const url = URL.createObjectURL(file)
+    ownedBlobsRef.current.push(url)
     setChosen({ type: 'upload', file, url })
     setFocusX(0.5)
     setFocusY(0.5)
@@ -66,12 +110,13 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
     setSaving(true)
     try {
       if (chosen.type === 'existing') {
-        await onSelect(null, focusX, focusY, true) // true = update focus only
+        await onSelect(null, focusX, focusY, true)
       } else if (chosen.type === 'gallery') {
         await onSelect(chosen.image, focusX, focusY)
       } else {
         await onUpload(chosen.file, focusX, focusY)
       }
+      ownedBlobsRef.current.forEach(u => URL.revokeObjectURL(u))
       onClose()
     } catch (err) {
       console.error(err)
@@ -99,6 +144,14 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
           </button>
         </div>
 
+        {/* Loading state while fetching existing cover */}
+        {stage === 'focal' && !chosen && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+              style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+          </div>
+        )}
+
         {/* Pick stage */}
         {stage === 'pick' && (
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -124,22 +177,29 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
                 <p className="text-xs font-medium mb-3 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
                   Select from Gallery
                 </p>
-                <div className="grid grid-cols-4 gap-2">
-                  {images.map(image => (
-                    <div
-                      key={image.id}
-                      className="aspect-square rounded-lg overflow-hidden cursor-pointer"
-                      style={{ outline: '2px solid transparent', outlineOffset: 2, transition: 'outline 0.1s' }}
-                      onClick={() => handlePickGallery(image)}
-                      onMouseEnter={e => e.currentTarget.style.outline = '2px solid #6366f1'}
-                      onMouseLeave={e => e.currentTarget.style.outline = '2px solid transparent'}>
-                      {previewUrls[image.id] && (
-                        <img src={previewUrls[image.id]} alt={image.file_name}
-                          className="w-full h-full" style={{ objectFit: 'cover' }} draggable={false} />
-                      )}
-                    </div>
-                  ))}
-                </div>
+                {loadingPreview ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+                      style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {images.map(image => (
+                      <div
+                        key={image.id}
+                        className="aspect-square rounded-lg overflow-hidden cursor-pointer"
+                        style={{ outline: '2px solid transparent', outlineOffset: 2, transition: 'outline 0.1s' }}
+                        onClick={() => handlePickGallery(image)}
+                        onMouseEnter={e => e.currentTarget.style.outline = '2px solid #6366f1'}
+                        onMouseLeave={e => e.currentTarget.style.outline = '2px solid transparent'}>
+                        {previewUrls[image.id] && (
+                          <img src={previewUrls[image.id]} alt={image.file_name}
+                            className="w-full h-full" style={{ objectFit: 'cover' }} draggable={false} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -165,7 +225,6 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
                 style={{ display: 'block', width: '100%', height: 'auto', maxHeight: '55vh', objectFit: 'contain', pointerEvents: 'none', userSelect: 'none' }}
                 draggable={false}
               />
-              {/* Focal point dot */}
               <div
                 className="absolute pointer-events-none"
                 style={{
