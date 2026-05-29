@@ -54,8 +54,14 @@ export async function handlePreview(request, env, corsHeaders) {
 
     const headers = new Headers(corsHeaders)
     headers.set('Content-Type', object.httpMetadata?.contentType || 'image/webp')
-    headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+    headers.set('Cache-Control', 'public, no-cache, must-revalidate')
     headers.set('ETag', object.httpEtag || '')
+
+    // Derive a download filename from the R2 key, forcing .jpg extension
+    // so mobile browsers (especially iOS Safari) don't save as .webp
+    const rawName = key.split('/').pop() || 'image'
+    const friendlyName = rawName.replace(/\.[^.]+$/, '_web.jpg')
+    headers.set('Content-Disposition', `inline; filename="${friendlyName}"`)
 
     const ifNoneMatch = request.headers.get('If-None-Match')
     if (ifNoneMatch && ifNoneMatch === object.httpEtag) {

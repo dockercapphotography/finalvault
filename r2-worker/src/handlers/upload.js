@@ -50,8 +50,10 @@ export async function handleUpload(request, env, corsHeaders) {
     await env.BUCKET.put(key, file.stream(), {
       httpMetadata: {
         contentType: fileType,
+        // Previews use no-cache so re-watermarked images are always revalidated.
+        // ETag-based caching still keeps repeat loads fast when content hasn't changed.
         cacheControl: isPreview
-          ? 'public, max-age=31536000, immutable'
+          ? 'public, no-cache, must-revalidate'
           : 'private, no-cache',
       },
       customMetadata: {
