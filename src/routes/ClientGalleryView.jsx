@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import {
   getGalleryByToken, getClientImages, getViewerFromSession,
   getViewerFavorites, toggleFavorite, getComments, addComment,
@@ -192,22 +193,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   const image = images[index]
   const touchStartX = useRef(null)
   const touchStartY = useRef(null)
-  const [displayIndex, setDisplayIndex] = useState(index)
-  const [slideStyle, setSlideStyle] = useState({ opacity: 1, transform: 'translateX(0)', transition: 'none' })
-
-  useEffect(() => {
-    if (index === displayIndex) return
-    const dir = index > displayIndex ? 1 : -1
-    setSlideStyle({ opacity: 0, transform: `translateX(${dir * -50}px)`, transition: 'transform 0.22s ease, opacity 0.22s ease' })
-    const t = setTimeout(() => {
-      setDisplayIndex(index)
-      setSlideStyle({ opacity: 0, transform: `translateX(${dir * 50}px)`, transition: 'none' })
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        setSlideStyle({ opacity: 1, transform: 'translateX(0)', transition: 'transform 0.22s ease, opacity 0.22s ease' })
-      }))
-    }, 200)
-    return () => clearTimeout(t)
-  }, [index])
+  const scaleRef = useRef(1)
 
   useEffect(() => {
     function handleKey(e) {
@@ -220,12 +206,13 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   }, [onClose, onPrev, onNext])
 
   function handleTouchStart(e) {
+    if (scaleRef.current > 1) return
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
   }
 
   function handleTouchEnd(e) {
-    if (touchStartX.current === null) return
+    if (touchStartX.current === null || scaleRef.current > 1) return
     const dx = e.changedTouches[0].clientX - touchStartX.current
     const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current)
     if (Math.abs(dx) > 50 && dy < 80) {
@@ -237,7 +224,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   }
 
   if (!image) return null
-  const displayImage = images[displayIndex] || image
   const isFav = favorites.has(image.id)
 
   return (
@@ -277,15 +263,38 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
         </button>
       )}
 
-      <div className="relative" onClick={e => e.stopPropagation()} style={slideStyle}>
-        <img
-          src={getPreviewUrl(displayImage.preview_r2_key, token)}
-          alt=""
-          draggable={false}
-          onContextMenu={noContext}
-          style={{ maxHeight: '90vh', maxWidth: '90vw', objectFit: 'contain', borderRadius: 4, display: 'block', userSelect: 'none', pointerEvents: 'none' }}
-        />
-        <div className="absolute inset-0 z-10" onContextMenu={noContext} />
+      {/* key={index} remounts TransformWrapper on navigation, resetting zoom cleanly */}
+      <div className="relative" onClick={e => e.stopPropagation()}>
+        <TransformWrapper
+          key={index}
+          initialScale={1}
+          minScale={1}
+          maxScale={4}
+          doubleClick={{ mode: 'toggle' }}
+          onTransformed={(_, state) => { scaleRef.current = state.scale }}
+          wheel={{ step: 0.1 }}
+        >
+          <TransformComponent
+            wrapperStyle={{ maxHeight: '90vh', maxWidth: '90vw' }}
+            contentStyle={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <img
+              src={getPreviewUrl(image.preview_r2_key, token)}
+              alt=""
+              draggable={false}
+              onContextMenu={noContext}
+              style={{
+                maxHeight: '90vh',
+                maxWidth: '90vw',
+                objectFit: 'contain',
+                borderRadius: 4,
+                display: 'block',
+                userSelect: 'none',
+                animation: 'lbFadeIn 0.18s ease',
+              }}
+            />
+          </TransformComponent>
+        </TransformWrapper>
       </div>
 
       {index < images.length - 1 && (
@@ -300,6 +309,8 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
         style={{ color: 'rgba(255,255,255,0.5)' }}>
         {index + 1} / {images.length}
       </div>
+
+      <style>{`@keyframes lbFadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
     </div>
   )
 }
