@@ -196,6 +196,12 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   const scaleRef = useRef(1)
 
   useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  useEffect(() => {
     function handleKey(e) {
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowLeft') onPrev()
