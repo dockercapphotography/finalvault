@@ -194,6 +194,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   const touchStartX = useRef(null)
   const touchStartY = useRef(null)
   const scaleRef = useRef(1)
+  const [isZoomed, setIsZoomed] = useState(false)
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -277,8 +278,12 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
           minScale={1}
           maxScale={4}
           doubleClick={{ mode: 'toggle' }}
-          onTransformed={(_, state) => { scaleRef.current = state.scale }}
+          onTransformed={(_, state) => {
+            scaleRef.current = state.scale
+            setIsZoomed(state.scale > 1)
+          }}
           wheel={{ step: 0.1 }}
+          panning={{ disabled: !isZoomed }}
         >
           <TransformComponent
             wrapperStyle={{ maxHeight: '90vh', maxWidth: '90vw' }}
