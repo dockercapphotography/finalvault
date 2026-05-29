@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Upload, CheckCircle, Plus, Trash2, Pencil, X, Copy } from 'lucide-react'
+import Cropper from 'react-easy-crop'
 import { supabase } from '../supabaseClient.js'
 import {
   getWatermarks, uploadWatermark, updateWatermark,
@@ -16,6 +17,81 @@ import SettingsSection from '../components/ui/SettingsSection.jsx'
 import Tabs from '../components/ui/Tabs.jsx'
 import Input from '../components/ui/Input.jsx'
 import Button from '../components/ui/Button.jsx'
+
+async function getCroppedImg(imageSrc, croppedAreaPixels) {
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = imageSrc
+  })
+  const canvas = document.createElement('canvas')
+  const size = 400
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(
+    image,
+    croppedAreaPixels.x, croppedAreaPixels.y,
+    croppedAreaPixels.width, croppedAreaPixels.height,
+    0, 0, size, size
+  )
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92))
+}
+
+function AvatarCropModal({ imageSrc, onSave, onCancel, saving }) {
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
+
+  const onCropComplete = useCallback((_, cap) => setCroppedAreaPixels(cap), [])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-sm rounded-2xl overflow-hidden"
+        style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Crop profile photo</h2>
+          <button onClick={onCancel} style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none' }}>
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ position: 'relative', width: '100%', height: 300, background: '#000' }}>
+          <Cropper
+            image={imageSrc}
+            crop={crop}
+            zoom={zoom}
+            aspect={1}
+            cropShape="round"
+            showGrid={false}
+            onCropChange={setCrop}
+            onZoomChange={setZoom}
+            onCropComplete={onCropComplete}
+          />
+          <p style={{ position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.6)', pointerEvents: 'none' }}>
+            Drag to reposition
+          </p>
+        </div>
+        <div className="px-5 py-3 space-y-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Zoom</p>
+          </div>
+          <input type="range" min={1} max={3} step={0.01} value={zoom}
+            onChange={e => setZoom(Number(e.target.value))}
+            style={{ width: '100%', cursor: 'pointer' }} />
+        </div>
+        <div className="flex gap-2 px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+          <Button variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSave(croppedAreaPixels)} disabled={saving || !croppedAreaPixels}>
+            {saving ? 'Saving...' : 'Save photo'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const ACCOUNT_TABS = [
   { id: 'profile',           label: 'Profile' },
@@ -87,6 +163,7 @@ function ProfileTab({ user, onSaveState }) {
   const [savingSecurity, setSavingSecurity] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [cropSrc, setCropSrc] = useState(null)
   const avatarInputRef = useRef(null)
   const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
@@ -114,16 +191,23 @@ function ProfileTab({ user, onSaveState }) {
       })
   }, [user])
 
-  async function handleAvatarUpload(e) {
+  function handleFileSelect(e) {
     const file = e.target.files?.[0]
     if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setCropSrc(reader.result)
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  async function handleCropSave(croppedAreaPixels) {
     setUploadingAvatar(true)
     try {
+      const croppedBlob = await getCroppedImg(cropSrc, croppedAreaPixels)
       const { data: { session } } = await supabase.auth.getSession()
-      const ext = file.name.split('.').pop() || 'jpg'
-      const r2Key = `photographers/${user.id}/watermarks/avatar-${crypto.randomUUID()}.${ext}`
+      const r2Key = `photographers/${user.id}/watermarks/avatar-${crypto.randomUUID()}.jpg`
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', new File([croppedBlob], 'avatar.jpg', { type: 'image/jpeg' }))
       formData.append('key', r2Key)
       const resp = await fetch(`${WORKER_URL}/watermark-upload`, {
         method: 'POST',
@@ -135,8 +219,9 @@ function ProfileTab({ user, onSaveState }) {
       await supabase.from('photographers')
         .update({ avatar_r2_key: r2Key, updated_at: new Date().toISOString() })
         .eq('id', user.id)
-      const blobUrl = URL.createObjectURL(file)
-      setAvatarUrl(blobUrl)
+      setAvatarUrl(URL.createObjectURL(croppedBlob))
+      setCropSrc(null)
+      window.dispatchEvent(new CustomEvent('fv-avatar-updated'))
       onSaveState('saved')
     } catch { onSaveState('error') }
     finally { setUploadingAvatar(false) }
@@ -216,8 +301,17 @@ function ProfileTab({ user, onSaveState }) {
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>JPG or PNG, shown in the app header</p>
             </div>
             <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp"
-              style={{ display: 'none' }} onChange={handleAvatarUpload} />
+              style={{ display: 'none' }} onChange={handleFileSelect} />
           </div>
+
+          {cropSrc && (
+            <AvatarCropModal
+              imageSrc={cropSrc}
+              onSave={handleCropSave}
+              onCancel={() => setCropSrc(null)}
+              saving={uploadingAvatar}
+            />
+          )}
 
           <Input label="Display name" value={displayName} onChange={setDisplayName} onBlur={save} placeholder="Your name" />
           <Input label="Business / Studio name" value={businessName} onChange={setBusinessName} onBlur={save} placeholder="e.g. Docker Cap Photography" hint="Used in gallery emails and client-facing communications" />

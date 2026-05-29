@@ -1,4 +1,7 @@
+import { useState, useEffect } from 'react'
 import { supabase } from '../../supabaseClient.js'
+
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 const LogoMark = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 532.02 542.02" width="24" height="24" style={{ flexShrink: 0 }}>
@@ -15,19 +18,47 @@ const LogoMark = () => (
 )
 
 export default function Header({ session }) {
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-  }
+  const [avatarUrl, setAvatarUrl] = useState(null)
 
   const email = session?.user?.email
   const initials = email ? email[0].toUpperCase() : '?'
+
+  useEffect(() => {
+    if (!session?.user?.id) return
+    async function loadAvatar() {
+      try {
+        const { data } = await supabase
+          .from('photographers')
+          .select('avatar_r2_key')
+          .eq('id', session.user.id)
+          .single()
+        if (!data?.avatar_r2_key) return
+        const { data: { session: s } } = await supabase.auth.getSession()
+        const resp = await fetch(
+          `${WORKER_URL}/watermark/${encodeURIComponent(data.avatar_r2_key)}`,
+          { headers: { Authorization: `Bearer ${s.access_token}` } }
+        )
+        if (resp.ok) {
+          const blob = await resp.blob()
+          setAvatarUrl(URL.createObjectURL(blob))
+        }
+      } catch {}
+    }
+    loadAvatar()
+    window.addEventListener('fv-avatar-updated', loadAvatar)
+    return () => window.removeEventListener('fv-avatar-updated', loadAvatar)
+  }, [session?.user?.id])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+  }
 
   return (
     <header className="h-12 flex items-center justify-between px-4 shrink-0" style={{
       background: 'var(--surface)',
       borderBottom: '1px solid var(--border)'
     }}>
-      {/* Logo — mobile only, hidden on desktop where sidebar shows it */}
+      {/* Logo — mobile only */}
       <div className="flex items-center gap-2 md:hidden">
         <LogoMark />
         <span style={{
@@ -45,11 +76,11 @@ export default function Header({ session }) {
 
       <div className="flex items-center gap-3">
         <span className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>{email}</span>
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
-          style={{ background: 'var(--surface-raised)', color: 'var(--text)' }}
-        >
-          {initials}
+        <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-xs font-medium"
+          style={{ background: 'var(--surface-raised)', color: 'var(--text)', flexShrink: 0 }}>
+          {avatarUrl
+            ? <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : initials}
         </div>
         <button
           onClick={handleSignOut}
