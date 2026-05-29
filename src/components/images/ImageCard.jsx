@@ -1,36 +1,54 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { Trash2, MoreVertical, Download, FolderInput, Droplets } from 'lucide-react'
+import PortalMenu from '../ui/PortalMenu.jsx'
 
 export default function ImageCard({
-  image, previewUrl, onDelete, isCover, selected, onSelect, selectionMode,
+  image, previewUrl, onDelete, isCover, selected, onSelect,
   sets, onMoveToSet, onReWatermark, onDownload,
 }) {
   const [hovered, setHovered] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [showMoveMenu, setShowMoveMenu] = useState(false)
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false)
-  const menuRef = useRef(null)
 
-  useEffect(() => {
-    if (!menuOpen) { setShowMoveMenu(false); setShowDownloadMenu(false); return }
-    const handler = (e) => {
-      if (!menuRef.current?.contains(e.target)) {
-        setMenuOpen(false)
-        setShowMoveMenu(false)
-        setShowDownloadMenu(false)
-      }
-    }
-    document.addEventListener('click', handler, true)
-    return () => document.removeEventListener('click', handler, true)
-  }, [menuOpen])
-
-  async function handleDelete(e) {
-    e.stopPropagation()
+  async function handleDelete() {
     setDeleting(true)
     try { await onDelete(image.id) }
     catch { setDeleting(false) }
   }
+
+  // Sets this image can actually move to (excludes its current set)
+  const movableSets = sets?.filter(s => s.id !== image.set_id) ?? []
+
+  const menuItems = [
+    {
+      label: 'Download',
+      icon: <Download size={13} />,
+      children: [
+        { label: 'Web Size', onClick: () => onDownload?.(image, false) },
+        { label: 'Original', onClick: () => onDownload?.(image, true) },
+      ],
+    },
+    // Only show Move to Set if there are other sets to move to
+    ...(movableSets.length > 0 ? [{
+      label: 'Move to Set',
+      icon: <FolderInput size={13} />,
+      children: movableSets.map(s => ({
+        label: s.name,
+        onClick: () => onMoveToSet?.(image.id, s.id),
+      })),
+    }] : []),
+    ...(onReWatermark ? [{
+      label: 'Watermark',
+      icon: <Droplets size={13} />,
+      onClick: () => onReWatermark(image),
+    }] : []),
+    { type: 'divider' },
+    {
+      label: 'Delete',
+      icon: <Trash2 size={13} />,
+      danger: true,
+      onClick: handleDelete,
+    },
+  ]
 
   const outline = selected
     ? '3px solid #6366f1'
@@ -48,7 +66,7 @@ export default function ImageCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Image container — clipped separately so menu can overflow */}
+      {/* Image — clipped separately so menu can escape */}
       <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
         {previewUrl ? (
           <img
@@ -65,7 +83,6 @@ export default function ImageCard({
               style={{ borderColor: 'var(--border-strong)', borderTopColor: 'transparent' }} />
           </div>
         )}
-
         {deleting && (
           <div className="absolute inset-0 flex items-center justify-center"
             style={{ background: 'rgba(0,0,0,0.5)' }}>
@@ -82,117 +99,28 @@ export default function ImageCard({
         </div>
       )}
 
-      {/* Context menu */}
-      {(hovered || menuOpen) && !deleting && (
+      {/* ••• context menu */}
+      {!deleting && (
         <div
-          ref={menuRef}
           className="absolute top-2 right-2"
-          style={{ zIndex: 50 }}
+          style={{
+            zIndex: 50,
+            opacity: hovered ? 1 : 0,
+            transition: 'opacity 0.15s',
+            pointerEvents: hovered ? 'auto' : 'none',
+          }}
           onClick={e => e.stopPropagation()}
         >
-          <button
-            onClick={() => setMenuOpen(prev => !prev)}
-            className="p-1.5 rounded-lg"
-            style={{ background: 'rgba(0,0,0,0.65)', cursor: 'pointer' }}>
-            <MoreVertical size={12} className="text-white" />
-          </button>
-
-          {menuOpen && (
-            <div
-              className="absolute top-full mt-1 rounded-xl shadow-xl"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 160, zIndex: 100, left: '50%', transform: 'translateX(-50%)' }}
-            >
-              {/* Download */}
-              <div className="relative">
-                <button
-                  onClick={e => { e.stopPropagation(); setShowDownloadMenu(p => !p); setShowMoveMenu(false) }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <Download size={13} style={{ color: 'var(--text-muted)' }} />
-                  Download
-                </button>
-                {showDownloadMenu && (
-                  <div className="absolute right-full top-0 mr-1 rounded-xl shadow-xl overflow-hidden"
-                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 130, zIndex: 110 }}>
-                    <button
-                      onClick={e => { e.stopPropagation(); onDownload?.(image, false); setMenuOpen(false) }}
-                      className="w-full flex items-center px-3 py-2.5 text-sm text-left"
-                      style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      Web Size
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); onDownload?.(image, true); setMenuOpen(false) }}
-                      className="w-full flex items-center px-3 py-2.5 text-sm text-left"
-                      style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      Original
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Move to Set */}
-              {sets?.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={e => { e.stopPropagation(); setShowMoveMenu(p => !p); setShowDownloadMenu(false) }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
-                    style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <FolderInput size={13} style={{ color: 'var(--text-muted)' }} />
-                    Move to Set
-                  </button>
-                  {showMoveMenu && (
-                    <div className="absolute right-full top-0 mr-1 rounded-xl shadow-xl overflow-hidden"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 130, zIndex: 110 }}>
-                      {sets.filter(s => s.id !== image.set_id).map(s => (
-                        <button key={s.id}
-                          onClick={e => { e.stopPropagation(); onMoveToSet?.(image.id, s.id); setMenuOpen(false) }}
-                          className="w-full flex items-center px-3 py-2.5 text-sm text-left truncate"
-                          style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          {s.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Watermark */}
-              {onReWatermark && (
-                <button
-                  onClick={e => { e.stopPropagation(); onReWatermark?.(image); setMenuOpen(false) }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <Droplets size={13} style={{ color: 'var(--text-muted)' }} />
-                  Watermark
-                </button>
-              )}
-
-              <div style={{ borderTop: '1px solid var(--border)' }} />
-
-              {/* Delete */}
+          <PortalMenu
+            items={menuItems}
+            trigger={
               <button
-                onClick={handleDelete}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
-                style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <Trash2 size={13} />
-                Delete
+                className="p-1.5 rounded-lg"
+                style={{ background: 'rgba(0,0,0,0.65)', cursor: 'pointer', border: 'none' }}>
+                <MoreVertical size={12} className="text-white" />
               </button>
-            </div>
-          )}
+            }
+          />
         </div>
       )}
     </div>

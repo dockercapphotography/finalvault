@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import { X, Upload } from 'lucide-react'
 
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+
 export default function CoverPickerModal({ images, previewUrls, onSelect, onUpload, onClose, existingCoverUrl, existingFocusX = 0.5, existingFocusY = 0.5 }) {
   const [stage, setStage] = useState(existingCoverUrl ? 'focal' : 'pick')
   const [chosen, setChosen] = useState(existingCoverUrl ? { type: 'existing', url: existingCoverUrl } : null)
@@ -12,7 +14,10 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
   const isDragging = useRef(false)
 
   function handlePickGallery(image) {
-    setChosen({ type: 'gallery', image, url: previewUrls[image.id] })
+    // Use the blob URL if available (already loaded), otherwise fall back to R2 URL
+    // Important: don't rely on blob URLs alone — they get revoked by usePreviewUrls cleanup
+    const url = previewUrls[image.id] || `${WORKER_URL}/preview/${encodeURIComponent(image.preview_r2_key)}`
+    setChosen({ type: 'gallery', image, url })
     setFocusX(0.5)
     setFocusY(0.5)
     setStage('focal')

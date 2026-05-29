@@ -178,11 +178,11 @@ export default function GalleryDetail() {
   async function handleDeleteSet(setId) {
     try {
       // Delete all images in this set first
-      const setImages = images.filter(i => i.set_id === setId)
+      const imagesToDelete = images.filter(i => i.set_id === setId)
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
       const workerUrl = import.meta.env.VITE_R2_WORKER_URL
-      await Promise.all(setImages.map(async img => {
+      await Promise.all(imagesToDelete.map(async img => {
         try {
           await deleteImage(img.id)
           if (img.original_r2_key) await fetch(`${workerUrl}/delete/${encodeURIComponent(img.original_r2_key)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
@@ -201,7 +201,7 @@ export default function GalleryDetail() {
         return next
       })
       setConfirmDeleteSetId(null)
-      setToast({ message: `Set and ${setImages.length} image${setImages.length !== 1 ? 's' : ''} deleted`, type: 'success' })
+      setToast({ message: `Set and ${imagesToDelete.length} image${setImages.length !== 1 ? 's' : ''} deleted`, type: 'success' })
     } catch (err) {
       console.error(err)
       setToast({ message: 'Failed to delete set', type: 'error' })
