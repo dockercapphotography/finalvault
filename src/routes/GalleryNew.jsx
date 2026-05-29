@@ -216,7 +216,7 @@ export default function GalleryNew() {
               type="text"
               value={values.title}
               onChange={e => setValues(v => ({ ...v, title: e.target.value }))}
-              placeholder="e.g. Smith Wedding — June 2026"
+              placeholder="e.g. The Smith Wedding"
               autoFocus
               className="w-full text-sm rounded-lg px-3 py-2.5"
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
@@ -259,7 +259,7 @@ export default function GalleryNew() {
               type="text"
               value={values.eventName}
               onChange={e => setValues(v => ({ ...v, eventName: e.target.value }))}
-              placeholder="e.g. FanExpo Cleveland"
+              placeholder="e.g. Sarah &amp; James Smith Wedding"
               className="w-full text-sm rounded-lg px-3 py-2.5"
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
               onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}

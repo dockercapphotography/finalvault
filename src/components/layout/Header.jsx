@@ -25,7 +25,7 @@ export default function Header({ session }) {
         <button
           onClick={handleSignOut}
           className="text-xs transition-colors"
-          style={{ color: 'var(--text-muted)' }}
+          style={{ color: 'var(--text-muted)', cursor: 'pointer' }}
           onMouseEnter={e => e.target.style.color = 'var(--text)'}
           onMouseLeave={e => e.target.style.color = 'var(--text-muted)'}
         >
