@@ -54,6 +54,7 @@ export default function GalleryDetail() {
   const [selectedWatermarkId, setSelectedWatermarkId] = useState(null)
   const [watermarking, setWatermarking] = useState(false)
   const [watermarkProgress, setWatermarkProgress] = useState({ current: 0, total: 0 })
+  const [cacheBusts, setCacheBusts] = useState({})
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [sheetVisible, setSheetVisible] = useState(false)
 
@@ -64,7 +65,7 @@ export default function GalleryDetail() {
   const activeSetImages = activeSetId ? images.filter(i => i.set_id === activeSetId) : images
   const hasImages = images.length > 0
   const hasSetImages = activeSetImages.length > 0
-  const { previewUrls, setPreviewUrls } = usePreviewUrls(images)
+  const { previewUrls, setPreviewUrls } = usePreviewUrls(images, cacheBusts)
 
   const { uploadFiles, uploadItems, isUploading, reset: resetUpload } = useImageUpload({
     galleryId: id,
@@ -339,6 +340,7 @@ export default function GalleryDetail() {
 
         // Directly inject the new preview from the canvas blob — no need to re-fetch
         if (uploadResp.status === 200) {
+          setCacheBusts(prev => ({ ...prev, [img.id]: Date.now() }))
           setWatermarkProgress(prev => ({ ...prev, current: prev.current + 1 }))
           const newBlobUrl = URL.createObjectURL(previewBlob)
           setPreviewUrls(prev => {
@@ -748,7 +750,7 @@ export default function GalleryDetail() {
               selectionMode={selectedIds.size > 0}
               sets={sets}
               onMoveToSet={handleMoveImage}
-              onWatermark={handleOpenWatermark}
+              onReWatermark={handleOpenWatermark}
               onDownload={handleDownloadImage}
               onReorder={handleImageReorder}
             />

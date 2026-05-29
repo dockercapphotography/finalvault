@@ -61,14 +61,11 @@ export default function NotificationBell({ mobile = false }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      loadLastRead(user.id)
+      // Load last read first, then pass it directly into loadActivity
+      // to avoid the async state race where lastRead is still null
+      loadLastRead(user.id).then(ts => loadActivity(user.id, ts))
     })
   }, [])
-
-  useEffect(() => {
-    if (!userId) return
-    loadActivity()
-  }, [userId])
 
   useEffect(() => {
     if (!open) return
@@ -79,31 +76,32 @@ export default function NotificationBell({ mobile = false }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  // Returns the timestamp so callers can pass it directly without waiting on state
   async function loadLastRead(uid) {
     const { data } = await supabase
       .from('photographers')
       .select('notifications_last_read_at')
       .eq('id', uid)
       .single()
-    setLastRead(data?.notifications_last_read_at || null)
+    const ts = data?.notifications_last_read_at || null
+    setLastRead(ts)
+    return ts
   }
 
-  async function loadActivity() {
+  async function loadActivity(uid, knownLastRead) {
     setLoading(true)
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-    // Get galleries for this photographer
     const { data: galleries } = await supabase
       .from('galleries')
       .select('id, title')
-      .eq('photographer_id', userId)
+      .eq('photographer_id', uid)
 
     if (!galleries?.length) { setLoading(false); return }
 
     const galleryIds = galleries.map(g => g.id)
     const galleryMap = Object.fromEntries(galleries.map(g => [g.id, g.title]))
 
-    // Get activity logs
     const { data: logs } = await supabase
       .from('gallery_activity_log')
       .select(`
@@ -117,7 +115,6 @@ export default function NotificationBell({ mobile = false }) {
 
     if (!logs) { setLoading(false); return }
 
-    // Fetch filenames for download_single events
     const imageIds = [...new Set(logs.filter(l => l.image_id).map(l => l.image_id))]
     let fileNameMap = {}
     if (imageIds.length) {
@@ -137,9 +134,10 @@ export default function NotificationBell({ mobile = false }) {
 
     setItems(enriched)
 
-    // Count unread
-    if (lastRead) {
-      setUnreadCount(enriched.filter(i => new Date(i.occurred_at) > new Date(lastRead)).length)
+    // Use knownLastRead (passed directly) rather than lastRead state
+    // to avoid the race condition where state hasn't updated yet
+    if (knownLastRead) {
+      setUnreadCount(enriched.filter(i => new Date(i.occurred_at) > new Date(knownLastRead)).length)
     } else {
       setUnreadCount(enriched.length)
     }
@@ -150,7 +148,6 @@ export default function NotificationBell({ mobile = false }) {
   async function handleOpen() {
     setOpen(prev => !prev)
     if (!open && userId) {
-      // Mark as read
       const now = new Date().toISOString()
       await supabase
         .from('photographers')
@@ -181,12 +178,10 @@ export default function NotificationBell({ mobile = false }) {
           Alerts
         </button>
 
-        {/* Backdrop */}
         {open && (
           <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.3)' }}
             onClick={() => setOpen(false)} />
         )}
-        {/* Sheet */}
         <div
           className="fixed left-0 right-0 bottom-0 z-50 rounded-t-2xl shadow-2xl overflow-hidden transition-transform duration-300"
           style={{
@@ -194,7 +189,6 @@ export default function NotificationBell({ mobile = false }) {
             transform: open ? 'translateY(0)' : 'translateY(100%)',
             maxHeight: '75vh',
           }}>
-          {/* Drag handle */}
           <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-strong)' }} />
           </div>
