@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, RefreshCw, CheckCircle, Copy, Trash2 } from 'lucide-react'
 import { getGallery, updateGallery, deleteGallery } from '../utils/galleryApi.js'
+import { THEMES } from '../utils/themes.js'
 import { supabase } from '../supabaseClient.js'
 import Tabs from '../components/ui/Tabs.jsx'
 import SettingsSection from '../components/ui/SettingsSection.jsx'
@@ -16,13 +17,6 @@ const TABS = [
   { id: 'sharing',  label: 'Sharing' },
   { id: 'display',  label: 'Display' },
   { id: 'danger',   label: 'Danger Zone' },
-]
-
-const TEMPLATES = [
-  { id: 'classic',   name: 'Classic',   description: 'Clean grid layout' },
-  { id: 'minimal',   name: 'Minimal',   description: 'Full bleed, minimal UI' },
-  { id: 'editorial', name: 'Editorial', description: 'Magazine-style' },
-  { id: 'bold',      name: 'Bold',      description: 'Large hero image' },
 ]
 
 function generatePin() {
@@ -49,14 +43,9 @@ function PlainField({ label, value, onChange, onRefresh, onCopy, placeholder, hi
           }}
           placeholder={placeholder}
           style={{
-            width: '100%',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            color: 'var(--text)',
-            borderRadius: '8px',
-            padding: '9px 80px 9px 12px',
-            fontSize: '14px',
-            outline: 'none',
+            width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
+            color: 'var(--text)', borderRadius: '8px', padding: '9px 80px 9px 12px',
+            fontSize: '14px', outline: 'none',
             fontFamily: type === 'pin' ? 'monospace' : 'inherit',
             letterSpacing: type === 'pin' ? '0.2em' : 'normal',
           }}
@@ -73,7 +62,7 @@ function PlainField({ label, value, onChange, onRefresh, onCopy, placeholder, hi
             </button>
           )}
           {onCopy && value && (
-            <button type="button" onClick={() => { navigator.clipboard.writeText(value) }} title="Copy"
+            <button type="button" onClick={() => navigator.clipboard.writeText(value)} title="Copy"
               style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
@@ -96,8 +85,8 @@ function PlainField({ label, value, onChange, onRefresh, onCopy, placeholder, hi
 function SaveIndicator({ state }) {
   if (state === 'idle') return null
   const config = {
-    saved:  { text: 'Changes saved', color: 'var(--success)', bg: 'var(--success-subtle)', border: 'var(--success)', icon: true },
-    error:  { text: 'Failed to save', color: 'var(--danger)', bg: 'var(--danger-subtle)', border: 'var(--danger)' },
+    saved: { text: 'Changes saved', color: 'var(--success)', bg: 'var(--success-subtle)', border: 'var(--success)', icon: true },
+    error: { text: 'Failed to save', color: 'var(--danger)', bg: 'var(--danger-subtle)', border: 'var(--danger)' },
   }
   const { text, color, bg, border, icon } = config[state]
   return (
@@ -138,10 +127,9 @@ export default function GallerySettings() {
   const [allowHiresDownload, setAllowHiresDownload] = useState(false)
   const [allowFavorites, setAllowFavorites] = useState(true)
   const [allowComments, setAllowComments] = useState(true)
-  const [template, setTemplate] = useState('classic')
   const [themeColor, setThemeColor] = useState('light')
-  const [gridSize, setGridSize] = useState('regular')
-  const [gridSpacing, setGridSpacing] = useState('regular')
+  const [gridSize, setGridSize] = useState('medium')
+  const [gridSpacing, setGridSpacing] = useState('tight')
 
   useEffect(() => { load() }, [id])
 
@@ -174,10 +162,10 @@ export default function GallerySettings() {
       setAllowHiresDownload(g.allow_hires_download ?? false)
       setAllowFavorites(g.allow_favorites ?? true)
       setAllowComments(g.allow_comments ?? true)
-      setTemplate(g.template || 'classic')
       setThemeColor(g.theme_color || 'light')
-      setGridSize(g.grid_size || 'regular')
-      setGridSpacing(g.grid_spacing || 'regular')
+      // Normalise legacy 'regular' value to 'medium'
+      setGridSize(g.grid_size === 'regular' ? 'medium' : (g.grid_size || 'medium'))
+      setGridSpacing(g.grid_spacing === 'regular' ? 'tight' : (g.grid_spacing || 'tight'))
     } catch {
       setSaveState('error')
     } finally {
@@ -188,14 +176,8 @@ export default function GallerySettings() {
 
   async function handleDeleteGallery() {
     setDeleting(true)
-    try {
-      await deleteGallery(id)
-      navigate('/')
-    } catch (err) {
-      setSaveState('error')
-      setDeleting(false)
-      setConfirmDelete(false)
-    }
+    try { await deleteGallery(id); navigate('/') }
+    catch { setSaveState('error'); setDeleting(false); setConfirmDelete(false) }
   }
 
   const save = useCallback(async (overrides = {}) => {
@@ -205,7 +187,7 @@ export default function GallerySettings() {
         title, clientName, eventName, notes, eventDate, isActive, expiresAt,
         requirePassword, password, requireDownloadPin, downloadPin,
         allowDownloads, downloadWatermarked, allowHiresDownload,
-        allowFavorites, allowComments, template, themeColor, gridSize, gridSpacing,
+        allowFavorites, allowComments, themeColor, gridSize, gridSpacing,
         ...overrides
       }
       await updateGallery(id, {
@@ -225,47 +207,30 @@ export default function GallerySettings() {
         allow_hires_download: s.allowHiresDownload,
         allow_favorites: s.allowFavorites,
         allow_comments: s.allowComments,
-        template: s.template,
         theme_color: s.themeColor,
         grid_size: s.gridSize,
         grid_spacing: s.gridSpacing,
       })
       setSaveState('saved')
-    } catch {
-      setSaveState('error')
-    }
+    } catch { setSaveState('error') }
   }, [gallery, title, clientName, eventName, notes, eventDate, isActive, expiresAt,
       requirePassword, password, requireDownloadPin, downloadPin,
       allowDownloads, downloadWatermarked, allowHiresDownload,
-      allowFavorites, allowComments, template, themeColor, gridSize, gridSpacing, id])
+      allowFavorites, allowComments, themeColor, gridSize, gridSpacing, id])
 
-  function handleToggle(setter, key, val) {
-    setter(val)
-    save({ [key]: val })
-  }
-
-  function handleTemplateChange(val) {
-    setTemplate(val)
-    save({ template: val })
-  }
+  function handleToggle(setter, key, val) { setter(val); save({ [key]: val }) }
 
   function handleTogglePassword(val) {
     setRequirePassword(val)
     let pw = password
-    if (val && !password) {
-      pw = generatePassword()
-      setPassword(pw)
-    }
+    if (val && !password) { pw = generatePassword(); setPassword(pw) }
     save({ requirePassword: val, password: pw })
   }
 
   function handleToggleDownloadPin(val) {
     setRequireDownloadPin(val)
     let pin = downloadPin
-    if (val && !downloadPin) {
-      pin = generatePin()
-      setDownloadPin(pin)
-    }
+    if (val && !downloadPin) { pin = generatePin(); setDownloadPin(pin) }
     save({ requireDownloadPin: val, downloadPin: pin })
   }
 
@@ -289,46 +254,17 @@ export default function GallerySettings() {
         <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{gallery.title}</p>
       </div>
 
-      {/* Mobile: native dropdown. Desktop: tab bar */}
       <div className="md:hidden">
-        <select
-          value={activeTab}
-          onChange={e => setActiveTab(e.target.value)}
-          style={{
-            width: '100%',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            color: 'var(--text)',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            fontSize: '14px',
-            fontWeight: '500',
-            outline: 'none',
-            cursor: 'pointer',
-            appearance: 'none',
-            WebkitAppearance: 'none',
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'right 14px center',
-            paddingRight: '36px',
-          }}>
-          {TABS.map(t => (
-            <option key={t.id} value={t.id}>{t.label}</option>
-          ))}
+        <select value={activeTab} onChange={e => setActiveTab(e.target.value)}
+          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', fontWeight: '500', outline: 'none', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', paddingRight: '36px' }}>
+          {TABS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
       </div>
       <div className="hidden md:flex gap-1">
         {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
             className="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors"
-            style={{
-              background: activeTab === t.id ? 'var(--surface-raised)' : 'transparent',
-              color: activeTab === t.id ? 'var(--text)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              border: 'none',
-            }}>
+            style={{ background: activeTab === t.id ? 'var(--surface-raised)' : 'transparent', color: activeTab === t.id ? 'var(--text)' : 'var(--text-muted)', cursor: 'pointer', border: 'none' }}>
             {t.label}
           </button>
         ))}
@@ -338,19 +274,13 @@ export default function GallerySettings() {
         <div className="space-y-4">
           <SettingsSection title="Gallery Info">
             <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
-              <Input label="Gallery title" value={title} onChange={setTitle} onBlur={() => save()}
-                placeholder="e.g. Smith Wedding — June 2026" required />
-              {/* Stack on mobile, side by side on sm+ */}
+              <Input label="Gallery title" value={title} onChange={setTitle} onBlur={() => save()} placeholder="e.g. Smith Wedding — June 2026" required />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Client name" value={clientName} onChange={setClientName} onBlur={() => save()}
-                  placeholder="e.g. Sarah & James" />
+                <Input label="Client name" value={clientName} onChange={setClientName} onBlur={() => save()} placeholder="e.g. Sarah & James" />
                 <Input label="Event date" value={eventDate} onChange={setEventDate} onBlur={() => save()} type="date" />
               </div>
-              <Input label="Event name" value={eventName} onChange={setEventName} onBlur={() => save()}
-                placeholder="e.g. PopCon Indy 2026"
-                hint="Shown in the client gallery header alongside the client name and date" />
-              <Input label="Internal notes" value={notes} onChange={setNotes} onBlur={() => save()}
-                placeholder="Not visible to clients" type="textarea" />
+              <Input label="Event name" value={eventName} onChange={setEventName} onBlur={() => save()} placeholder="e.g. PopCon Indy 2026" hint="Shown in the client gallery header" />
+              <Input label="Internal notes" value={notes} onChange={setNotes} onBlur={() => save()} placeholder="Not visible to clients" type="textarea" />
             </div>
           </SettingsSection>
           <SettingsSection title="Status">
@@ -358,8 +288,7 @@ export default function GallerySettings() {
               <Toggle checked={isActive} onChange={v => handleToggle(setIsActive, 'isActive', v)} />
             </SettingsRow>
             <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
-              <Input label="Expiry date" value={expiresAt} onChange={setExpiresAt} onBlur={() => save()} type="date"
-                hint="Gallery automatically deactivates after this date. Leave blank for no expiry." />
+              <Input label="Expiry date" value={expiresAt} onChange={setExpiresAt} onBlur={() => save()} type="date" hint="Gallery automatically deactivates after this date. Leave blank for no expiry." />
             </div>
           </SettingsSection>
         </div>
@@ -367,49 +296,29 @@ export default function GallerySettings() {
 
       {activeTab === 'access' && (
         <div className="space-y-4">
-          <SettingsSection title="Password Protection"
-            description="Require clients to enter a password before viewing the gallery">
+          <SettingsSection title="Password Protection" description="Require clients to enter a password before viewing the gallery">
             <SettingsRow label="Require password" description="Clients must enter a password to access">
               <Toggle checked={requirePassword} onChange={handleTogglePassword} />
             </SettingsRow>
             {requirePassword && (
               <div className="px-5 py-4 space-y-1.5" style={{ background: 'var(--surface)' }}>
-                <PlainField
-                  label="Gallery password"
-                  value={password}
-                  onChange={v => setPassword(v)}
+                <PlainField label="Gallery password" value={password} onChange={v => setPassword(v)}
                   onRefresh={() => { const pw = generatePassword(); setPassword(pw); save({ password: pw }) }}
-                  onCopy
-                  placeholder="Enter password"
-                  hint="Share this with your client so they can access the gallery."
-                />
-                {password && (
-                  <Button variant="secondary" onClick={() => save()}>Save Password</Button>
-                )}
+                  onCopy placeholder="Enter password" hint="Share this with your client so they can access the gallery." />
+                {password && <Button variant="secondary" onClick={() => save()}>Save Password</Button>}
               </div>
             )}
           </SettingsSection>
-
           <SettingsSection title="Download PIN" description="A separate 4-digit PIN required to download images">
             <SettingsRow label="Require download PIN" description="Clients need a PIN to download">
               <Toggle checked={requireDownloadPin} onChange={handleToggleDownloadPin} />
             </SettingsRow>
             {requireDownloadPin && (
               <div className="px-5 py-4 space-y-3" style={{ background: 'var(--surface)' }}>
-                <PlainField
-                  type="pin"
-                  label="Download PIN"
-                  value={downloadPin}
-                  onChange={v => setDownloadPin(v)}
+                <PlainField type="pin" label="Download PIN" value={downloadPin} onChange={v => setDownloadPin(v)}
                   onRefresh={() => { const pin = generatePin(); setDownloadPin(pin); save({ downloadPin: pin }) }}
-                  onCopy
-                  placeholder="4-digit PIN"
-                  maxLength={4}
-                  hint="4-digit numeric PIN · Click ↺ to generate a new one"
-                />
-                {downloadPin.length === 4 && (
-                  <Button variant="secondary" onClick={() => save()}>Save PIN</Button>
-                )}
+                  onCopy placeholder="4-digit PIN" maxLength={4} hint="4-digit numeric PIN · Click ↺ to generate a new one" />
+                {downloadPin.length === 4 && <Button variant="secondary" onClick={() => save()}>Save PIN</Button>}
               </div>
             )}
           </SettingsSection>
@@ -447,30 +356,19 @@ export default function GallerySettings() {
       {activeTab === 'display' && (
         <div className="space-y-4">
           <SettingsSection title="Color Theme" description="Background and accent colors for the client gallery">
-            <div className="p-4 grid grid-cols-3 sm:grid-cols-4 gap-2" style={{ background: 'var(--surface)' }}>
-              {[
-                { id: 'light', label: 'Light', swatches: ['#ffffff', '#f8f8f8', '#6366f1'] },
-                { id: 'gold', label: 'Gold', swatches: ['#faf8f3', '#f0ead6', '#b8963e'] },
-                { id: 'rose', label: 'Rose', swatches: ['#fdf8f8', '#f5e8e8', '#b06080'] },
-                { id: 'terracotta', label: 'Terracotta', swatches: ['#faf6f3', '#f0e4d8', '#c07050'] },
-                { id: 'sand', label: 'Sand', swatches: ['#faf8f5', '#ede8df', '#9a8060'] },
-                { id: 'olive', label: 'Olive', swatches: ['#f8faf5', '#e4ead8', '#6a8040'] },
-                { id: 'agave', label: 'Agave', swatches: ['#f5faf8', '#dceae4', '#408060'] },
-                { id: 'sea', label: 'Sea', swatches: ['#f5f8fa', '#dce4ea', '#406080'] },
-                { id: 'dark', label: 'Dark', swatches: ['#111111', '#1e1e1e', '#6366f1'] },
-              ].map(t => (
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3" style={{ background: 'var(--surface)' }}>
+              {THEMES.map(t => (
                 <button key={t.id} onClick={() => { setThemeColor(t.id); save({ themeColor: t.id }) }}
-                  className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all"
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all"
                   style={{
                     cursor: 'pointer',
                     border: themeColor === t.id ? '2px solid #6366f1' : '2px solid var(--border)',
                     background: themeColor === t.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)',
                   }}>
-                  <div className="flex gap-1">
-                    {t.swatches.map((s, i) => (
-                      <div key={i} className="w-3.5 h-3.5 rounded-full border"
-                        style={{ background: s, borderColor: 'var(--border)' }} />
-                    ))}
+                  <div className="flex gap-1.5">
+                    <div className="w-4 h-4 rounded-full border" style={{ background: t.bg, borderColor: 'var(--border)' }} />
+                    <div className="w-4 h-4 rounded-full border" style={{ background: t.surface, borderColor: 'var(--border)' }} />
+                    <div className="w-4 h-4 rounded-full border" style={{ background: t.accent, borderColor: 'var(--border)' }} />
                   </div>
                   <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>{t.label}</p>
                 </button>
@@ -483,14 +381,10 @@ export default function GallerySettings() {
               <div>
                 <p className="text-sm font-medium mb-2" style={{ color: 'var(--text)' }}>Thumbnail Size</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {[{ id: 'regular', label: 'Regular', desc: '5 per row' }, { id: 'large', label: 'Large', desc: '4 per row' }].map(g => (
+                  {[{ id: 'medium', label: 'Regular', desc: '5 per row' }, { id: 'large', label: 'Large', desc: '4 per row' }].map(g => (
                     <button key={g.id} onClick={() => { setGridSize(g.id); save({ gridSize: g.id }) }}
                       className="p-3 rounded-xl text-left transition-all"
-                      style={{
-                        cursor: 'pointer',
-                        border: gridSize === g.id ? '2px solid #6366f1' : '2px solid var(--border)',
-                        background: gridSize === g.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)',
-                      }}>
+                      style={{ cursor: 'pointer', border: gridSize === g.id ? '2px solid #6366f1' : '2px solid var(--border)', background: gridSize === g.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)' }}>
                       <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{g.label}</p>
                       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{g.desc}</p>
                     </button>
@@ -500,14 +394,10 @@ export default function GallerySettings() {
               <div>
                 <p className="text-sm font-medium mb-2" style={{ color: 'var(--text)' }}>Grid Spacing</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {[{ id: 'regular', label: 'Tight', desc: 'Minimal gaps' }, { id: 'large', label: 'Spacious', desc: 'Larger gaps' }].map(g => (
+                  {[{ id: 'tight', label: 'Tight', desc: 'Minimal gaps' }, { id: 'large', label: 'Spacious', desc: 'Larger gaps' }].map(g => (
                     <button key={g.id} onClick={() => { setGridSpacing(g.id); save({ gridSpacing: g.id }) }}
                       className="p-3 rounded-xl text-left transition-all"
-                      style={{
-                        cursor: 'pointer',
-                        border: gridSpacing === g.id ? '2px solid #6366f1' : '2px solid var(--border)',
-                        background: gridSpacing === g.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)',
-                      }}>
+                      style={{ cursor: 'pointer', border: gridSpacing === g.id ? '2px solid #6366f1' : '2px solid var(--border)', background: gridSpacing === g.id ? 'rgba(99,102,241,0.05)' : 'var(--bg-subtle)' }}>
                       <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{g.label}</p>
                       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{g.desc}</p>
                     </button>
@@ -527,13 +417,9 @@ export default function GallerySettings() {
                 style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
                 <div>
                   <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Delete this gallery</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    Permanently deletes the gallery and all its images. Cannot be undone.
-                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Permanently deletes the gallery and all its images. Cannot be undone.</p>
                 </div>
-                <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-                  <Trash2 size={14} />Delete
-                </Button>
+                <Button variant="danger" onClick={() => setConfirmDelete(true)}><Trash2 size={14} />Delete</Button>
               </div>
             ) : (
               <div className="p-4 rounded-xl space-y-3"

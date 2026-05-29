@@ -31,16 +31,33 @@ export async function getGallery(id) {
   return data
 }
 
-export async function createGallery({ title, clientName, notes, eventDate, template }) {
+export async function createGallery({
+  title, clientName, eventName, notes, eventDate,
+  themeColor, gridSize, gridSpacing,
+  allowDownloads, downloadWatermarked, allowHiresDownload,
+  allowFavorites, allowComments, requirePassword, requireDownloadPin,
+  watermarkId,
+}) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
     .from('galleries')
     .insert({
       title,
       client_name: clientName,
+      event_name: eventName || null,
       notes,
       event_date: eventDate || null,
-      template: template || 'classic',
+      theme_color: themeColor || 'light',
+      grid_size: gridSize || 'medium',
+      grid_spacing: gridSpacing || 'tight',
+      allow_downloads: allowDownloads ?? true,
+      download_watermarked: downloadWatermarked ?? false,
+      allow_hires_download: allowHiresDownload ?? false,
+      allow_favorites: allowFavorites ?? true,
+      allow_comments: allowComments ?? true,
+      require_password: requirePassword ?? false,
+      require_download_pin: requireDownloadPin ?? false,
+      watermark_id: watermarkId || null,
       photographer_id: user.id,
       share_token: generateShareToken(),
     })

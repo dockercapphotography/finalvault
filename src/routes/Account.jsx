@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { Upload, CheckCircle, Plus, Trash2, Pencil, X } from 'lucide-react'
+import { Upload, CheckCircle, Plus, Trash2, Pencil, X, Copy } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
 import {
   getWatermarks, uploadWatermark, updateWatermark,
   deleteWatermark, setActiveWatermark
 } from '../utils/watermarkApi.js'
+import {
+  getGalleryTemplates, createGalleryTemplate, updateGalleryTemplate,
+  deleteGalleryTemplate, duplicateGalleryTemplate
+} from '../utils/galleryTemplateApi.js'
+import { THEMES, getTheme } from '../utils/themes.js'
+import Toggle from '../components/ui/Toggle.jsx'
 import WatermarkCard from '../components/watermarks/WatermarkCard.jsx'
 import SettingsSection from '../components/ui/SettingsSection.jsx'
 import Tabs from '../components/ui/Tabs.jsx'
@@ -12,11 +18,12 @@ import Input from '../components/ui/Input.jsx'
 import Button from '../components/ui/Button.jsx'
 
 const ACCOUNT_TABS = [
-  { id: 'profile',    label: 'Profile' },
-  { id: 'watermarks', label: 'Watermarks' },
-  { id: 'templates',  label: 'Email Templates' },
-  { id: 'social',     label: 'Social' },
-  { id: 'payment',    label: 'Payment' },
+  { id: 'profile',           label: 'Profile' },
+  { id: 'watermarks',        label: 'Watermarks' },
+  { id: 'gallery-templates', label: 'Gallery Templates' },
+  { id: 'templates',         label: 'Email Templates' },
+  { id: 'social',            label: 'Social' },
+  { id: 'payment',           label: 'Payment' },
 ]
 
 const TEMPLATE_VARIABLES = [
@@ -47,8 +54,6 @@ function SaveIndicator({ state }) {
     </div>
   )
 }
-
-// ── Inline Delete Confirm ─────────────────────────────────────────────────────
 
 function DeleteConfirmRow({ label, onConfirm, onCancel }) {
   return (
@@ -108,42 +113,27 @@ function ProfileTab({ user, onSaveState }) {
 
   async function handleEmailChange() {
     if (!newEmail.trim()) return
-    setSavingSecurity(true)
-    setSecurityMsg(null)
+    setSavingSecurity(true); setSecurityMsg(null)
     try {
       const { error } = await supabase.auth.updateUser({ email: newEmail.trim() })
       if (error) throw error
       setSecurityMsg({ ok: true, text: 'Confirmation email sent. Check your inbox to confirm the new address.' })
       setNewEmail('')
-    } catch (err) {
-      setSecurityMsg({ ok: false, text: err.message })
-    } finally {
-      setSavingSecurity(false)
-    }
+    } catch (err) { setSecurityMsg({ ok: false, text: err.message }) }
+    finally { setSavingSecurity(false) }
   }
 
   async function handlePasswordChange() {
-    if (!newPassword || newPassword !== confirmPassword) {
-      setSecurityMsg({ ok: false, text: 'Passwords do not match.' })
-      return
-    }
-    if (newPassword.length < 8) {
-      setSecurityMsg({ ok: false, text: 'Password must be at least 8 characters.' })
-      return
-    }
-    setSavingSecurity(true)
-    setSecurityMsg(null)
+    if (!newPassword || newPassword !== confirmPassword) { setSecurityMsg({ ok: false, text: 'Passwords do not match.' }); return }
+    if (newPassword.length < 8) { setSecurityMsg({ ok: false, text: 'Password must be at least 8 characters.' }); return }
+    setSavingSecurity(true); setSecurityMsg(null)
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) throw error
       setSecurityMsg({ ok: true, text: 'Password updated successfully.' })
-      setNewPassword('')
-      setConfirmPassword('')
-    } catch (err) {
-      setSecurityMsg({ ok: false, text: err.message })
-    } finally {
-      setSavingSecurity(false)
-    }
+      setNewPassword(''); setConfirmPassword('')
+    } catch (err) { setSecurityMsg({ ok: false, text: err.message }) }
+    finally { setSavingSecurity(false) }
   }
 
   if (!loaded) return null
@@ -152,21 +142,8 @@ function ProfileTab({ user, onSaveState }) {
     <div className="space-y-4">
       <SettingsSection title="Personal Information">
         <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
-          <Input
-            label="Display name"
-            value={displayName}
-            onChange={setDisplayName}
-            onBlur={save}
-            placeholder="Your name"
-          />
-          <Input
-            label="Business / Studio name"
-            value={businessName}
-            onChange={setBusinessName}
-            onBlur={save}
-            placeholder="e.g. Docker Cap Photography"
-            hint="Used in gallery emails and client-facing communications"
-          />
+          <Input label="Display name" value={displayName} onChange={setDisplayName} onBlur={save} placeholder="Your name" />
+          <Input label="Business / Studio name" value={businessName} onChange={setBusinessName} onBlur={save} placeholder="e.g. Docker Cap Photography" hint="Used in gallery emails and client-facing communications" />
           <div>
             <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Email</label>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
@@ -176,51 +153,17 @@ function ProfileTab({ user, onSaveState }) {
 
       <SettingsSection title="Security">
         <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
-          {/* Email change */}
           <div className="space-y-2">
-            <Input
-              label="New email address"
-              value={newEmail}
-              onChange={setNewEmail}
-              placeholder={user?.email}
-              hint="A confirmation link will be sent to the new address."
-            />
-            <Button variant="secondary" onClick={handleEmailChange}
-              disabled={!newEmail.trim() || savingSecurity}>
-              Update Email
-            </Button>
+            <Input label="New email address" value={newEmail} onChange={setNewEmail} placeholder={user?.email} hint="A confirmation link will be sent to the new address." />
+            <Button variant="secondary" onClick={handleEmailChange} disabled={!newEmail.trim() || savingSecurity}>Update Email</Button>
           </div>
-
           <div style={{ borderTop: '1px solid var(--border)' }} />
-
-          {/* Password change */}
           <div className="space-y-2">
-            <Input
-              label="New password"
-              value={newPassword}
-              onChange={setNewPassword}
-              type="password"
-              placeholder="Min. 8 characters"
-            />
-            <Input
-              label="Confirm new password"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              type="password"
-              placeholder="Re-enter new password"
-            />
-            <Button variant="secondary" onClick={handlePasswordChange}
-              disabled={!newPassword || !confirmPassword || savingSecurity}>
-              Update Password
-            </Button>
+            <Input label="New password" value={newPassword} onChange={setNewPassword} type="password" placeholder="Min. 8 characters" />
+            <Input label="Confirm new password" value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Re-enter new password" />
+            <Button variant="secondary" onClick={handlePasswordChange} disabled={!newPassword || !confirmPassword || savingSecurity}>Update Password</Button>
           </div>
-
-          {securityMsg && (
-            <p className="text-sm"
-              style={{ color: securityMsg.ok ? 'var(--success)' : 'var(--danger)' }}>
-              {securityMsg.text}
-            </p>
-          )}
+          {securityMsg && <p className="text-sm" style={{ color: securityMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{securityMsg.text}</p>}
         </div>
       </SettingsSection>
     </div>
@@ -238,10 +181,7 @@ function WatermarksTab({ onSaveState }) {
   const fileInputRef = useRef(null)
 
   useEffect(() => {
-    getWatermarks().then(wms => {
-      setWatermarks(wms)
-      setLoaded(true)
-    })
+    getWatermarks().then(wms => { setWatermarks(wms); setLoaded(true) })
     supabase.auth.getUser().then(({ data: { user } }) => {
       supabase.from('photographers').select('active_watermark_id').eq('id', user.id).single()
         .then(({ data }) => setActiveId(data?.active_watermark_id || null))
@@ -289,8 +229,7 @@ function WatermarksTab({ onSaveState }) {
       <div className="px-5 py-4" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="sr-only" />
         <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-          <Upload size={14} />
-          {uploading ? 'Uploading…' : 'Upload watermark image'}
+          <Upload size={14} />{uploading ? 'Uploading…' : 'Upload watermark image'}
         </Button>
         <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>PNG with transparency recommended. Max 5 MB.</p>
       </div>
@@ -306,17 +245,357 @@ function WatermarksTab({ onSaveState }) {
                 onSetActive={handleSetActive} onUpdate={handleUpdate}
                 onDelete={() => setConfirmDeleteId(wm.id)} />
               {confirmDeleteId === wm.id && (
-                <DeleteConfirmRow
-                  label="this watermark"
-                  onConfirm={() => handleDelete(wm.id)}
-                  onCancel={() => setConfirmDeleteId(null)}
-                />
+                <DeleteConfirmRow label="this watermark" onConfirm={() => handleDelete(wm.id)} onCancel={() => setConfirmDeleteId(null)} />
               )}
             </div>
           ))}
         </div>
       )}
     </SettingsSection>
+  )
+}
+
+// ── Gallery Templates Tab ─────────────────────────────────────────────────────
+
+function GalleryTemplatesTab({ onSaveState }) {
+  const [templates, setTemplates] = useState([])
+  const [loaded, setLoaded] = useState(false)
+  const [editing, setEditing] = useState(null) // null | template object
+  const [editName, setEditName] = useState('')
+  const [editTheme, setEditTheme] = useState('light')
+  const [editGridSize, setEditGridSize] = useState('medium')
+  const [editGridSpacing, setEditGridSpacing] = useState('tight')
+  const [editSets, setEditSets] = useState([''])
+  const [editAllowDownloads, setEditAllowDownloads] = useState(true)
+  const [editDownloadWatermarked, setEditDownloadWatermarked] = useState(false)
+  const [editAllowHiresDownload, setEditAllowHiresDownload] = useState(false)
+  const [editAllowFavorites, setEditAllowFavorites] = useState(true)
+  const [editAllowComments, setEditAllowComments] = useState(true)
+  const [editRequirePassword, setEditRequirePassword] = useState(false)
+  const [editRequireDownloadPin, setEditRequireDownloadPin] = useState(false)
+  const [editWatermarkId, setEditWatermarkId] = useState(null)
+  const [availableWatermarks, setAvailableWatermarks] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+
+  useEffect(() => {
+    getGalleryTemplates().then(data => { setTemplates(data); setLoaded(true) })
+    getWatermarks().then(setAvailableWatermarks).catch(() => {})
+  }, [])
+
+  function startNew() {
+    setEditing({})
+    setEditName('')
+    setEditTheme('light')
+    setEditGridSize('medium')
+    setEditGridSpacing('tight')
+    setEditSets([''])
+    setEditAllowDownloads(true)
+    setEditDownloadWatermarked(false)
+    setEditAllowHiresDownload(false)
+    setEditAllowFavorites(true)
+    setEditAllowComments(true)
+    setEditRequirePassword(false)
+    setEditRequireDownloadPin(false)
+    setEditWatermarkId(null)
+  }
+
+  function startEdit(t) {
+    setEditing(t)
+    setEditName(t.name)
+    setEditTheme(t.theme_color)
+    setEditGridSize(t.grid_size)
+    setEditGridSpacing(t.grid_spacing)
+    setEditSets([...t.sets])
+    setEditAllowDownloads(t.allow_downloads ?? true)
+    setEditDownloadWatermarked(t.download_watermarked ?? false)
+    setEditAllowHiresDownload(t.allow_hires_download ?? false)
+    setEditAllowFavorites(t.allow_favorites ?? true)
+    setEditAllowComments(t.allow_comments ?? true)
+    setEditRequirePassword(t.require_password ?? false)
+    setEditRequireDownloadPin(t.require_download_pin ?? false)
+    setEditWatermarkId(t.watermark_id || null)
+  }
+
+  async function handleDuplicate(t) {
+    try {
+      const duped = await duplicateGalleryTemplate(t)
+      setTemplates(prev => [...prev, duped])
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  async function handleSave() {
+    const validSets = editSets.filter(s => s.trim())
+    if (!editName.trim() || !validSets.length) return
+    setSaving(true)
+    try {
+      const payload = {
+        name: editName,
+        themeColor: editTheme,
+        gridSize: editGridSize,
+        gridSpacing: editGridSpacing,
+        sets: validSets,
+        allowDownloads: editAllowDownloads,
+        downloadWatermarked: editDownloadWatermarked,
+        allowHiresDownload: editAllowHiresDownload,
+        allowFavorites: editAllowFavorites,
+        allowComments: editAllowComments,
+        requirePassword: editRequirePassword,
+        requireDownloadPin: editRequireDownloadPin,
+        watermarkId: editWatermarkId,
+      }
+      if (editing?.id) {
+        const updated = await updateGalleryTemplate(editing.id, payload)
+        setTemplates(prev => prev.map(t => t.id === editing.id ? updated : t))
+      } else {
+        const created = await createGalleryTemplate(payload)
+        setTemplates(prev => [...prev, created])
+      }
+      setEditing(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+    finally { setSaving(false) }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await deleteGalleryTemplate(id)
+      setTemplates(prev => prev.filter(t => t.id !== id))
+      setConfirmDeleteId(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  if (editing !== null) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>
+            {editing?.id ? 'Edit Template' : 'New Template'}
+          </h3>
+          <button onClick={() => setEditing(null)} className="text-sm" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>Cancel</button>
+        </div>
+
+        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
+            <Input label="Template name" value={editName} onChange={setEditName} placeholder="e.g. Wedding Delivery" />
+
+            {/* Theme */}
+            <div>
+              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Theme</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {THEMES.map(t => (
+                  <button key={t.id} onClick={() => setEditTheme(t.id)}
+                    className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl"
+                    style={{
+                      background: editTheme === t.id ? 'rgba(99,102,241,0.05)' : 'var(--surface-raised)',
+                      border: editTheme === t.id ? '2px solid #6366f1' : '2px solid var(--border)',
+                      cursor: 'pointer',
+                    }}>
+                    <div className="flex gap-1">
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.bg, borderColor: 'var(--border)' }} />
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.surface, borderColor: 'var(--border)' }} />
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.accent, borderColor: 'var(--border)' }} />
+                    </div>
+                    <span className="text-xs font-medium" style={{ color: editTheme === t.id ? '#6366f1' : 'var(--text)' }}>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid size */}
+            <div>
+              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Grid size</label>
+              <div className="flex gap-2">
+                {['medium', 'large'].map(v => (
+                  <button key={v} onClick={() => setEditGridSize(v)}
+                    className="px-3 py-1.5 rounded-lg text-sm capitalize"
+                    style={{
+                      background: editGridSize === v ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)',
+                      border: editGridSize === v ? '1px solid #6366f1' : '1px solid var(--border)',
+                      color: editGridSize === v ? '#6366f1' : 'var(--text)',
+                      cursor: 'pointer',
+                    }}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid spacing */}
+            <div>
+              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Grid spacing</label>
+              <div className="flex gap-2">
+                {['tight', 'large'].map(v => (
+                  <button key={v} onClick={() => setEditGridSpacing(v)}
+                    className="px-3 py-1.5 rounded-lg text-sm capitalize"
+                    style={{
+                      background: editGridSpacing === v ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)',
+                      border: editGridSpacing === v ? '1px solid #6366f1' : '1px solid var(--border)',
+                      color: editGridSpacing === v ? '#6366f1' : 'var(--text)',
+                      cursor: 'pointer',
+                    }}>
+                    {v === 'tight' ? 'Tight' : 'Spacious'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sets */}
+            <div>
+              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Default sets</label>
+              <div className="space-y-2">
+                {editSets.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={s}
+                      onChange={e => setEditSets(prev => prev.map((v, idx) => idx === i ? e.target.value : v))}
+                      placeholder="Set name"
+                      className="flex-1 text-sm rounded-lg px-3 py-2"
+                      style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                    />
+                    <button onClick={() => { if (editSets.length > 1) setEditSets(prev => prev.filter((_, idx) => idx !== i)) }}
+                      disabled={editSets.length === 1}
+                      style={{ color: editSets.length === 1 ? 'var(--border)' : 'var(--text-muted)', cursor: editSets.length === 1 ? 'not-allowed' : 'pointer' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setEditSets(prev => [...prev, ''])}
+                className="flex items-center gap-1.5 text-sm font-medium mt-2"
+                style={{ color: '#6366f1', cursor: 'pointer' }}>
+                <Plus size={13} />Add set
+              </button>
+            </div>
+
+            {/* Watermark */}
+            <div>
+              <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Default watermark</label>
+              <select
+                value={editWatermarkId || ''}
+                onChange={e => setEditWatermarkId(e.target.value || null)}
+                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '14px', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
+                <option value="">No watermark</option>
+                {availableWatermarks.map(wm => (
+                  <option key={wm.id} value={wm.id}>{wm.label}</option>
+                ))}
+              </select>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Applied to new image uploads in galleries created from this template.</p>
+            </div>
+
+            {/* Access settings */}
+            <div>
+              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Default access settings</label>
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                {[
+                  { label: 'Require password',     desc: 'Gallery requires a password to view',    value: editRequirePassword,     setter: setEditRequirePassword },
+                  { label: 'Require download PIN',  desc: 'Downloads require a PIN',                value: editRequireDownloadPin,  setter: setEditRequireDownloadPin },
+                  { label: 'Allow downloads',       desc: 'Clients can download images',            value: editAllowDownloads,      setter: setEditAllowDownloads },
+                  { label: 'Web size downloads',    desc: 'Allow watermarked web-size downloads',   value: editDownloadWatermarked, setter: setEditDownloadWatermarked },
+                  { label: 'High-res downloads',    desc: 'Allow full-resolution downloads',        value: editAllowHiresDownload,  setter: setEditAllowHiresDownload },
+                  { label: 'Allow favorites',       desc: 'Clients can heart images',               value: editAllowFavorites,      setter: setEditAllowFavorites },
+                  { label: 'Allow comments',        desc: 'Clients can leave comments',             value: editAllowComments,       setter: setEditAllowComments },
+                ].map((row, i) => (
+                  <div key={row.label} className="flex items-center justify-between px-4 py-3"
+                    style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
+                    </div>
+                    <Toggle checked={row.value} onChange={row.setter} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={handleSave}
+              disabled={!editName.trim() || !editSets.some(s => s.trim()) || saving}
+              className="w-full py-2.5 rounded-xl text-sm font-medium"
+              style={{ background: '#6366f1', color: '#fff', opacity: !editName.trim() || saving ? 0.5 : 1, cursor: !editName.trim() || saving ? 'not-allowed' : 'pointer' }}>
+              {saving ? 'Saving…' : 'Save Template'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Templates pre-fill display settings and sets when creating a new gallery.
+        </p>
+        <button onClick={startNew}
+          className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg shrink-0 ml-4"
+          style={{ background: '#6366f1', color: '#fff', cursor: 'pointer' }}>
+          <Plus size={14} />New
+        </button>
+      </div>
+
+      {!loaded ? null : templates.length === 0 ? (
+        <div className="py-12 text-center rounded-xl" style={{ border: '2px dashed var(--border)' }}>
+          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No templates yet</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Create your first template to speed up gallery creation</p>
+        </div>
+      ) : (
+        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          {templates.map((t, i) => {
+            const theme = getTheme(t.theme_color)
+            return (
+              <div key={t.id}>
+                <div className="flex items-center gap-4 px-5 py-4"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                  {/* 3-dot swatch */}
+                  <div className="shrink-0 flex gap-1 items-center">
+                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.bg, borderColor: 'var(--border)' }} />
+                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.surface, borderColor: 'var(--border)' }} />
+                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.accent, borderColor: 'var(--border)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                      {t.is_builtin && (
+                        <span className="text-xs px-1.5 py-0.5 rounded shrink-0"
+                          style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>Built-in</span>
+                      )}
+                    </div>
+                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
+                      {theme.label} · {t.sets.join(', ')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={() => handleDuplicate(t)} title="Duplicate"
+                      className="p-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}>
+                      <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+                    </button>
+                    <button onClick={() => startEdit(t)} title="Edit"
+                      className="p-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}>
+                      <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete"
+                      className="p-1.5 rounded-lg"
+                      style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}>
+                      <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                    </button>
+                  </div>
+                </div>
+                {confirmDeleteId === t.id && (
+                  <div className="px-5 pb-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+                    <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -384,46 +663,33 @@ function EmailTemplatesTab({ onSaveState }) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>
-            {editing?.id ? 'Edit Template' : 'New Template'}
-          </h3>
+          <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>{editing?.id ? 'Edit Template' : 'New Template'}</h3>
           <button onClick={cancelEdit} className="text-sm" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>Cancel</button>
         </div>
-
         <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
           <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
             <Input label="Template Name" value={name} onChange={setName} placeholder="e.g. Wedding Delivery" />
             <Input label="Subject" value={subject} onChange={setSubject} placeholder="Your photos are ready!" />
             <div>
               <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Message Body</label>
-              <textarea
-                ref={bodyRef}
-                value={body}
-                onChange={e => setBody(e.target.value)}
-                rows={8}
+              <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)} rows={8}
                 placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}
                 className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
-                style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
-              />
+                style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
             </div>
-
             <div>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
               <div className="flex flex-wrap gap-1.5">
                 {TEMPLATE_VARIABLES.map(v => (
-                  <button key={v.tag} onClick={() => insertVariable(v.tag)}
-                    title={v.desc}
+                  <button key={v.tag} onClick={() => insertVariable(v.tag)} title={v.desc}
                     className="text-xs px-2.5 py-1 rounded-lg font-mono"
                     style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
                     {v.tag}
                   </button>
                 ))}
               </div>
-              <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                Click a variable to insert it at your cursor position. These are replaced with real values when the email is sent.
-              </p>
+              <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Click a variable to insert it at your cursor position.</p>
             </div>
-
             <button onClick={handleSave} disabled={!name.trim() || !subject.trim() || saving}
               className="w-full py-2.5 rounded-xl text-sm font-medium"
               style={{ background: '#6366f1', color: '#fff', opacity: !name.trim() || saving ? 0.5 : 1, cursor: !name.trim() || saving ? 'not-allowed' : 'pointer' }}>
@@ -438,18 +704,15 @@ function EmailTemplatesTab({ onSaveState }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Save message templates to reuse when sharing galleries. Use variables like <code className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1' }}>{'{{client_name}}'}</code> to personalize automatically.
-          </p>
-        </div>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Save message templates to reuse when sharing galleries. Use variables like <code className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1' }}>{'{{client_name}}'}</code> to personalize automatically.
+        </p>
         <button onClick={startNew}
           className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg shrink-0 ml-4"
           style={{ background: '#6366f1', color: '#fff', cursor: 'pointer' }}>
           <Plus size={14} />New Template
         </button>
       </div>
-
       {!loaded ? null : templates.length === 0 ? (
         <div className="py-12 text-center rounded-xl" style={{ border: '2px dashed var(--border)' }}>
           <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No templates yet</p>
@@ -466,27 +729,19 @@ function EmailTemplatesTab({ onSaveState }) {
                   <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{t.subject}</p>
                 </div>
                 <div className="flex items-center gap-2 ml-4 shrink-0">
-                  <button onClick={() => startEdit(t)}
-                    className="p-1.5 rounded-lg"
-                    style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}>
+                  <button onClick={() => startEdit(t)} className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}>
                     <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
                   </button>
                   <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)}
                     className="p-1.5 rounded-lg"
-                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}
-                    onMouseEnter={e => { if (confirmDeleteId !== t.id) e.currentTarget.style.background = 'var(--danger-subtle)' }}
-                    onMouseLeave={e => { if (confirmDeleteId !== t.id) e.currentTarget.style.background = 'var(--surface-raised)' }}>
+                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}>
                     <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
                   </button>
                 </div>
               </div>
               {confirmDeleteId === t.id && (
                 <div className="px-5 pb-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-                  <DeleteConfirmRow
-                    label={`"${t.name}"`}
-                    onConfirm={() => handleDelete(t.id)}
-                    onCancel={() => setConfirmDeleteId(null)}
-                  />
+                  <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
                 </div>
               )}
             </div>
@@ -497,11 +752,9 @@ function EmailTemplatesTab({ onSaveState }) {
   )
 }
 
-
-// ── Brand SVG Icons ───────────────────────────────────────────────────────────
+// ── Brand Icons ───────────────────────────────────────────────────────────────
 
 const BASE_ICON_URL = 'https://finalvault.dockercapphotography.com/brand-icons'
-
 const BRAND_ICONS = {
   instagram: <img src={`${BASE_ICON_URL}/instagram.png`} alt="Instagram" width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
   facebook:  <img src={`${BASE_ICON_URL}/facebook.png`}  alt="Facebook"  width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
@@ -515,24 +768,21 @@ const BRAND_ICONS = {
   cashapp:   <img src={`${BASE_ICON_URL}/cashapp.png`}   alt="Cash App"  width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
 }
 
-
 const SOCIAL_PLATFORMS = [
-  { id: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourhandle', color: '#E1306C' },
-  { id: 'facebook',  label: 'Facebook',  placeholder: 'https://facebook.com/yourpage',   color: '#1877F2' },
-  { id: 'tiktok',    label: 'TikTok',    placeholder: 'https://tiktok.com/@yourhandle',  color: '#000000' },
-  { id: 'x',         label: 'X',         placeholder: 'https://x.com/yourhandle',        color: '#000000' },
-  { id: 'youtube',   label: 'YouTube',   placeholder: 'https://youtube.com/@yourchannel',color: '#FF0000' },
-  { id: 'pinterest', label: 'Pinterest', placeholder: 'https://pinterest.com/yourhandle',color: '#E60023' },
+  { id: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourhandle' },
+  { id: 'facebook',  label: 'Facebook',  placeholder: 'https://facebook.com/yourpage' },
+  { id: 'tiktok',    label: 'TikTok',    placeholder: 'https://tiktok.com/@yourhandle' },
+  { id: 'x',         label: 'X',         placeholder: 'https://x.com/yourhandle' },
+  { id: 'youtube',   label: 'YouTube',   placeholder: 'https://youtube.com/@yourchannel' },
+  { id: 'pinterest', label: 'Pinterest', placeholder: 'https://pinterest.com/yourhandle' },
 ]
 
 const PAYMENT_PLATFORMS = [
-  { id: 'venmo',   label: 'Venmo',   placeholder: 'https://venmo.com/yourhandle',       color: '#008CFF' },
-  { id: 'paypal',  label: 'PayPal',  placeholder: 'https://paypal.me/yourhandle',       color: '#003087' },
-  { id: 'kofi',    label: 'Ko-Fi',   placeholder: 'https://ko-fi.com/yourhandle',       color: '#FF5E5B' },
-  { id: 'cashapp', label: 'Cash App',placeholder: 'https://cash.app/$yourhandle',       color: '#00D632' },
+  { id: 'venmo',   label: 'Venmo',    placeholder: 'https://venmo.com/yourhandle' },
+  { id: 'paypal',  label: 'PayPal',   placeholder: 'https://paypal.me/yourhandle' },
+  { id: 'kofi',    label: 'Ko-Fi',    placeholder: 'https://ko-fi.com/yourhandle' },
+  { id: 'cashapp', label: 'Cash App', placeholder: 'https://cash.app/$yourhandle' },
 ]
-
-// ── Links Tab (shared by Social + Payment) ────────────────────────────────────
 
 function LinksTab({ platforms, dbColumn, onSaveState }) {
   const [links, setLinks] = useState({})
@@ -543,30 +793,19 @@ function LinksTab({ platforms, dbColumn, onSaveState }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      supabase.from('photographers')
-        .select(dbColumn)
-        .eq('id', user.id)
-        .single()
-        .then(({ data }) => {
-          setLinks(data?.[dbColumn] || {})
-          setLoaded(true)
-        })
+      supabase.from('photographers').select(dbColumn).eq('id', user.id).single()
+        .then(({ data }) => { setLinks(data?.[dbColumn] || {}); setLoaded(true) })
     })
   }, [dbColumn])
 
   async function handleSave(platformId, value) {
     const updated = { ...links, [platformId]: value }
-    // Remove empty entries
     if (!value.trim()) delete updated[platformId]
     setLinks(updated)
     try {
-      await supabase.from('photographers')
-        .update({ [dbColumn]: updated })
-        .eq('id', userId)
+      await supabase.from('photographers').update({ [dbColumn]: updated }).eq('id', userId)
       onSaveState('saved')
-    } catch {
-      onSaveState('error')
-    }
+    } catch { onSaveState('error') }
   }
 
   if (!loaded) return null
@@ -574,40 +813,23 @@ function LinksTab({ platforms, dbColumn, onSaveState }) {
   return (
     <div className="space-y-3">
       {platforms.map(platform => (
-        <div key={platform.id}
-          className="flex items-center gap-4 px-4 py-3 rounded-xl"
+        <div key={platform.id} className="flex items-center gap-4 px-4 py-3 rounded-xl"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          {/* Logo */}
           <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 36, height: 36 }}>
             {BRAND_ICONS[platform.id]}
           </div>
-          {/* Label + input */}
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>{platform.label}</p>
-            <input
-              type="url"
-              defaultValue={links[platform.id] || ''}
-              placeholder={platform.placeholder}
+            <input type="url" defaultValue={links[platform.id] || ''} placeholder={platform.placeholder}
               onBlur={e => handleSave(platform.id, e.target.value.trim())}
               className="w-full text-sm rounded-lg px-3 py-2"
-              style={{
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border)',
-                color: 'var(--text)',
-                outline: 'none',
-              }}
-              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-            />
+              style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} />
           </div>
-          {/* Active indicator */}
-          {links[platform.id] && (
-            <div className="shrink-0 w-2 h-2 rounded-full" style={{ background: 'var(--success)' }} />
-          )}
+          {links[platform.id] && <div className="shrink-0 w-2 h-2 rounded-full" style={{ background: 'var(--success)' }} />}
         </div>
       ))}
-      <p className="text-xs px-1" style={{ color: 'var(--text-muted)' }}>
-        Links are shown in the footer of gallery emails. Enter the full URL including https://.
-      </p>
+      <p className="text-xs px-1" style={{ color: 'var(--text-muted)' }}>Links are shown in the footer of gallery emails. Enter the full URL including https://.</p>
     </div>
   )
 }
@@ -643,40 +865,23 @@ export default function Account() {
 
       {/* Mobile dropdown */}
       <div className="md:hidden">
-        <select
-          value={activeTab}
-          onChange={e => setActiveTab(e.target.value)}
-          style={{
-            width: '100%',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            color: 'var(--text)',
-            borderRadius: '8px',
-            padding: '9px 12px',
-            fontSize: '14px',
-            outline: 'none',
-            cursor: 'pointer',
-            appearance: 'none',
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'right 12px center',
-            paddingRight: '36px',
-          }}>
-          {ACCOUNT_TABS.map(tab => (
-            <option key={tab.id} value={tab.id}>{tab.label}</option>
-          ))}
+        <select value={activeTab} onChange={e => setActiveTab(e.target.value)}
+          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '14px', outline: 'none', cursor: 'pointer', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: '36px' }}>
+          {ACCOUNT_TABS.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
         </select>
       </div>
+
       {/* Desktop tabs */}
       <div className="hidden md:block">
         <Tabs tabs={ACCOUNT_TABS} active={activeTab} onChange={setActiveTab} />
       </div>
 
-      {activeTab === 'profile' && <ProfileTab user={user} onSaveState={setSaveState} />}
-      {activeTab === 'watermarks' && <WatermarksTab onSaveState={setSaveState} />}
-      {activeTab === 'templates' && <EmailTemplatesTab onSaveState={setSaveState} />}
-      {activeTab === 'social' && <LinksTab platforms={SOCIAL_PLATFORMS} dbColumn="social_links" onSaveState={setSaveState} />}
-      {activeTab === 'payment' && <LinksTab platforms={PAYMENT_PLATFORMS} dbColumn="payment_links" onSaveState={setSaveState} />}
+      {activeTab === 'profile'           && <ProfileTab user={user} onSaveState={setSaveState} />}
+      {activeTab === 'watermarks'        && <WatermarksTab onSaveState={setSaveState} />}
+      {activeTab === 'gallery-templates' && <GalleryTemplatesTab onSaveState={setSaveState} />}
+      {activeTab === 'templates'         && <EmailTemplatesTab onSaveState={setSaveState} />}
+      {activeTab === 'social'            && <LinksTab platforms={SOCIAL_PLATFORMS} dbColumn="social_links" onSaveState={setSaveState} />}
+      {activeTab === 'payment'           && <LinksTab platforms={PAYMENT_PLATFORMS} dbColumn="payment_links" onSaveState={setSaveState} />}
 
       <SaveIndicator state={saveState} />
     </div>

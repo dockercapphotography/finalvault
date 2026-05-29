@@ -8,22 +8,11 @@ import {
   getPreviewUrl, downloadOriginal, downloadPreview, downloadZip, verifyDownloadPin, logActivity,
   getClientSets
 } from '../utils/clientApi.js'
+import { getTheme } from '../utils/themes.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 function noContext(e) { e.preventDefault() }
-
-const THEME_COLORS = {
-  light:      { bg: '#ffffff', surface: '#f8f8f8', text: '#1a1a1a', muted: '#6b7280', border: '#e5e7eb', accent: '#6366f1' },
-  gold:       { bg: '#faf8f3', surface: '#f0ead6', text: '#1a1a1a', muted: '#8a7d5a', border: '#d4c89a', accent: '#b8963e' },
-  rose:       { bg: '#fdf8f8', surface: '#f5e8e8', text: '#1a1a1a', muted: '#9a7070', border: '#e8c8c8', accent: '#b06080' },
-  terracotta: { bg: '#faf6f3', surface: '#f0e4d8', text: '#1a1a1a', muted: '#8a6a58', border: '#d4b8a0', accent: '#c07050' },
-  sand:       { bg: '#faf8f5', surface: '#ede8df', text: '#1a1a1a', muted: '#8a7d6a', border: '#d4c8b0', accent: '#9a8060' },
-  olive:      { bg: '#f8faf5', surface: '#e4ead8', text: '#1a1a1a', muted: '#6a7a58', border: '#c0caa0', accent: '#6a8040' },
-  agave:      { bg: '#f5faf8', surface: '#dceae4', text: '#1a1a1a', muted: '#507a68', border: '#a0c8b8', accent: '#408060' },
-  sea:        { bg: '#f5f8fa', surface: '#dce4ea', text: '#1a1a1a', muted: '#507080', border: '#a0b8c8', accent: '#406080' },
-  dark:       { bg: '#111111', surface: '#1e1e1e', text: '#f0f0f0', muted: '#9ca3af', border: '#333333', accent: '#6366f1' },
-}
 
 function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
   const [open, setOpen] = useState(false)
@@ -545,7 +534,7 @@ export default function ClientGalleryView() {
   )
 
   const activeImages = activeSetId ? images.filter(i => i.set_id === activeSetId) : images
-  const theme = THEME_COLORS[gallery.theme_color || 'light'] || THEME_COLORS.light
+  const theme = getTheme(gallery.theme_color || 'light')
   const gridCols = gallery.grid_size === 'large' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
   const gridGap = gallery.grid_spacing === 'large' ? 'gap-4' : 'gap-1'
   const gridPad = gallery.grid_spacing === 'large' ? 'p-4' : 'p-1'

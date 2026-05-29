@@ -84,7 +84,6 @@ export default function GalleryDetail() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id))
     load()
-    loadWatermark()
     loadWatermarks()
   }, [id])
 
@@ -97,12 +96,26 @@ export default function GalleryDetail() {
     }
   }
 
-  async function loadWatermark() {
+  async function loadWatermarkForGallery(gallery) {
     try {
-      const wm = await getActiveWatermark()
+      const { data: { session } } = await supabase.auth.getSession()
+      const workerUrl = import.meta.env.VITE_R2_WORKER_URL
+
+      // Use gallery-specific watermark if set, otherwise fall back to active watermark
+      let wm = null
+      if (gallery.watermark_id) {
+        const { data } = await supabase
+          .from('watermarks')
+          .select('*')
+          .eq('id', gallery.watermark_id)
+          .single()
+        wm = data
+      } else {
+        wm = await getActiveWatermark()
+      }
+
       if (wm) {
-        const { data: { session } } = await supabase.auth.getSession()
-        const url = `${import.meta.env.VITE_R2_WORKER_URL}/watermark/${encodeURIComponent(wm.r2_key)}?token=${session.access_token}`
+        const url = `${workerUrl}/watermark/${encodeURIComponent(wm.r2_key)}?token=${session.access_token}`
         setActiveWatermark({ url, opacity: wm.opacity, position: wm.position, scale: wm.scale ?? 0.15 })
       }
     } catch (err) {
@@ -119,6 +132,7 @@ export default function GalleryDetail() {
       setCoverId(g.cover_image_id || null)
       setSets(setsData)
       if (setsData.length > 0 && !activeSetId) setActiveSetId(setsData[0].id)
+      loadWatermarkForGallery(g)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -178,11 +192,11 @@ export default function GalleryDetail() {
   async function handleDeleteSet(setId) {
     try {
       // Delete all images in this set first
-      const imagesToDelete = images.filter(i => i.set_id === setId)
+      const setImages = images.filter(i => i.set_id === setId)
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
       const workerUrl = import.meta.env.VITE_R2_WORKER_URL
-      await Promise.all(imagesToDelete.map(async img => {
+      await Promise.all(setImages.map(async img => {
         try {
           await deleteImage(img.id)
           if (img.original_r2_key) await fetch(`${workerUrl}/delete/${encodeURIComponent(img.original_r2_key)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
@@ -201,7 +215,7 @@ export default function GalleryDetail() {
         return next
       })
       setConfirmDeleteSetId(null)
-      setToast({ message: `Set and ${imagesToDelete.length} image${setImages.length !== 1 ? 's' : ''} deleted`, type: 'success' })
+      setToast({ message: `Set and ${setImages.length} image${setImages.length !== 1 ? 's' : ''} deleted`, type: 'success' })
     } catch (err) {
       console.error(err)
       setToast({ message: 'Failed to delete set', type: 'error' })
