@@ -16,7 +16,6 @@ function GateWrapper({ gallery, photographerName, children }) {
     if (!gallery) return
     async function loadCover() {
       let r2Key = gallery.cover_r2_key
-      // If cover_r2_key is null but cover_image_id exists, fetch the key from the image
       if (!r2Key && gallery.cover_image_id) {
         try {
           const { createClient } = await import('@supabase/supabase-js')
@@ -51,11 +50,14 @@ function GateWrapper({ gallery, photographerName, children }) {
     <div className="min-h-screen relative flex flex-col items-center justify-center px-4"
       style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a0f2e 50%, #0f1a1a 100%)' }}>
 
-      {/* Cover image background */}
+      {/* Cover image background with focal point */}
       {coverBlobUrl && (
         <>
-          <div className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${coverBlobUrl})` }} />
+          <div className="absolute inset-0 bg-cover"
+            style={{
+              backgroundImage: `url(${coverBlobUrl})`,
+              backgroundPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`,
+            }} />
           <div className="absolute inset-0"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.65) 100%)' }} />
         </>
@@ -63,7 +65,6 @@ function GateWrapper({ gallery, photographerName, children }) {
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-sm space-y-6 pb-12">
-        {/* Gallery identity */}
         {gallery && (
           <div className="text-center space-y-1">
             <p className="text-xs uppercase tracking-widest font-medium text-white/60">
@@ -75,7 +76,6 @@ function GateWrapper({ gallery, photographerName, children }) {
             )}
           </div>
         )}
-
         {children}
       </div>
 
@@ -218,7 +218,6 @@ export default function ClientGallery() {
 
   function handleKeyDown(e, fn) { if (e.key === 'Enter') fn() }
 
-  // Loading spinner
   if (loading || stage === 'loading') return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#111' }}>
       <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
@@ -226,7 +225,6 @@ export default function ClientGallery() {
     </div>
   )
 
-  // Error
   if (error) return (
     <GateWrapper gallery={gallery} photographerName={photographerName}>
       <div className="text-center space-y-2 rounded-2xl p-6"
@@ -237,7 +235,6 @@ export default function ClientGallery() {
     </GateWrapper>
   )
 
-  // Name gate
   if (stage === 'name') return (
     <GateWrapper gallery={gallery} photographerName={photographerName}>
       <div className="space-y-3">
@@ -254,7 +251,6 @@ export default function ClientGallery() {
     </GateWrapper>
   )
 
-  // Password gate
   if (stage === 'password') return (
     <GateWrapper gallery={gallery} photographerName={photographerName}>
       <form className="space-y-3" onSubmit={e => { e.preventDefault(); handlePasswordSubmit() }}>
