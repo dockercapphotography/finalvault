@@ -8,6 +8,8 @@ export default function ImageCard({
   sets, onMoveToSet, onReWatermark, onDownload,
   onSetAsCover, onRename, onReplace, onOpen,
   isBookmarked: initialBookmarked = false,
+  simplified = false,
+  onUnbookmark,
 }) {
   const [hovered, setHovered] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -45,8 +47,14 @@ export default function ImageCard({
 
   async function handleToggleBookmark() {
     try {
-      if (bookmarked) { await unbookmarkImage(image.id); setBookmarked(false) }
-      else { await bookmarkImage(image.id); setBookmarked(true) }
+      if (bookmarked) {
+        await unbookmarkImage(image.id)
+        setBookmarked(false)
+        onUnbookmark?.()
+      } else {
+        await bookmarkImage(image.id)
+        setBookmarked(true)
+      }
     } catch (err) { console.error(err) }
   }
 
@@ -59,6 +67,28 @@ export default function ImageCard({
 
   // Sets this image can actually move to (excludes its current set)
   const movableSets = sets?.filter(s => s.id !== image.set_id) ?? []
+
+  const simplifiedMenuItems = [
+    {
+      label: 'Open',
+      icon: <Maximize2 size={13} />,
+      onClick: handleOpen,
+    },
+    { type: 'divider' },
+    {
+      label: 'Download',
+      icon: <Download size={13} />,
+      children: [
+        { label: 'Web Size', onClick: () => onDownload?.(image, false) },
+        { label: 'Original', onClick: () => onDownload?.(image, true) },
+      ],
+    },
+    {
+      label: bookmarked ? 'Remove Bookmark' : 'Bookmark',
+      icon: <Bookmark size={13} fill={bookmarked ? 'currentColor' : 'none'} />,
+      onClick: handleToggleBookmark,
+    },
+  ]
 
   const menuItems = [
     {
@@ -201,7 +231,7 @@ export default function ImageCard({
           onClick={e => e.stopPropagation()}
         >
           <PortalMenu
-            items={menuItems}
+            items={simplified ? simplifiedMenuItems : menuItems}
             trigger={
               <button
                 className="p-1.5 rounded-lg"

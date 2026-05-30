@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bookmark } from 'lucide-react'
+import { Bookmark, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getBookmarkedGalleries, getBookmarkedImages } from '../utils/bookmarkApi.js'
 import { supabase } from '../supabaseClient.js'
 import { fetchPreviewObjectUrl } from '../utils/r2.js'
@@ -14,6 +14,7 @@ export default function Bookmarked() {
   const [images, setImages] = useState([])
   const [previewUrls, setPreviewUrls] = useState({})
   const [loading, setLoading] = useState(true)
+  const [lightboxIndex, setLightboxIndex] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -40,11 +41,6 @@ export default function Bookmarked() {
     }
     load()
   }, [])
-
-  // When a bookmark is removed from this page, remove it from the list
-  function handleUnbookmarkImage(imageId) {
-    setImages(prev => prev.filter(i => i.id !== imageId))
-  }
 
   return (
     <div className="space-y-5 max-w-7xl">
@@ -98,30 +94,114 @@ export default function Bookmarked() {
         images.length === 0
           ? <EmptyState message="No bookmarked photos yet" sub="Click the bookmark icon on any image to save it here" />
           : (
-            <div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-                {images.map(img => (
-                  <div key={img.id} className="space-y-1">
-                    <ImageCard
-                      image={img}
-                      previewUrl={previewUrls[img.id]}
-                      onDelete={() => {}}
-                      isCover={false}
-                      selected={false}
-                      onSelect={() => navigate(`/galleries/${img.galleryId}`)}
-                      selectionMode={false}
-                      sets={[]}
-                      isBookmarked={true}
-                      onOpen={() => navigate(`/galleries/${img.galleryId}`)}
-                    />
-                    <p className="text-xs truncate px-0.5" style={{ color: 'var(--text-muted)', fontSize: 10 }}>
-                      {img.galleryTitle}
-                    </p>
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+              {images.map((img, idx) => (
+                <div key={img.id} className="space-y-1">
+                  <ImageCard
+                    image={img}
+                    previewUrl={previewUrls[img.id]}
+                    onDelete={() => {}}
+                    isCover={false}
+                    selected={false}
+                    onSelect={() => setLightboxIndex(idx)}
+                    selectionMode={false}
+                    sets={[]}
+                    isBookmarked={true}
+                      simplified={true}
+                      onUnbookmark={() => setImages(prev => prev.filter(i => i.id !== img.id))}
+                    onOpen={() => setLightboxIndex(idx)}
+                  />
+                  <p className="text-xs truncate px-0.5" style={{ color: 'var(--text-muted)', fontSize: 10 }}>
+                    {img.galleryTitle}
+                  </p>
+                </div>
+              ))}
             </div>
           )
+      )}
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && (
+        <BookmarkedLightbox
+          images={images}
+          index={lightboxIndex}
+          previewUrls={previewUrls}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+          onViewGallery={galleryId => navigate(`/galleries/${galleryId}`)}
+        />
+      )}
+    </div>
+  )
+}
+
+function BookmarkedLightbox({ images, index, previewUrls, onClose, onNavigate, onViewGallery }) {
+  const img = images[index]
+  if (!img) return null
+  const total = images.length
+  const goPrev = () => onNavigate((index - 1 + total) % total)
+  const goNext = () => onNavigate((index + 1) % total)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.95)' }}
+      onClick={onClose}
+      onKeyDown={e => { if (e.key === 'ArrowLeft') goPrev(); if (e.key === 'ArrowRight') goNext(); if (e.key === 'Escape') onClose() }}
+      tabIndex={0}
+      ref={el => el?.focus()}>
+
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 z-10"
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)' }}
+        onClick={e => e.stopPropagation()}>
+        <p className="text-sm font-medium truncate" style={{ color: 'rgba(255,255,255,0.85)' }}>{img.file_name}</p>
+        <div className="flex items-center gap-2">
+          <button onClick={() => onViewGallery(img.galleryId)}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium"
+            style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            View Gallery
+          </button>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            <X size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* Prev */}
+      {total > 1 && (
+        <button onClick={e => { e.stopPropagation(); goPrev() }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center z-10"
+          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+          <ChevronLeft size={20} />
+        </button>
+      )}
+
+      {/* Next */}
+      {total > 1 && (
+        <button onClick={e => { e.stopPropagation(); goNext() }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center z-10"
+          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+          <ChevronRight size={20} />
+        </button>
+      )}
+
+      {/* Image */}
+      <img
+        src={previewUrls[img.id]}
+        alt={img.file_name}
+        draggable={false}
+        onClick={e => e.stopPropagation()}
+        style={{ maxHeight: '90vh', maxWidth: '80vw', objectFit: 'contain', borderRadius: 4, userSelect: 'none' }}
+      />
+
+      {/* Counter */}
+      {total > 1 && (
+        <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs"
+          style={{ color: 'rgba(255,255,255,0.4)' }}>
+          {index + 1} of {total}
+        </p>
       )}
     </div>
   )

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, Droplets, LayoutGrid, Check } from 'lucide-react'
+import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, ChevronLeft, Droplets, LayoutGrid, Check } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
 import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
@@ -41,6 +41,7 @@ export default function GalleryDetail() {
   const [showCoverPicker, setShowCoverPicker] = useState(false)
   const [coverPickerImage, setCoverPickerImage] = useState(null)
   const [lightboxImage, setLightboxImage] = useState(null)
+  const [lightboxIndex, setLightboxIndex] = useState(null)
   const [sets, setSets] = useState([])
   const [activeSetId, setActiveSetId] = useState(null)
   const [showAddSet, setShowAddSet] = useState(false)
@@ -72,7 +73,7 @@ export default function GalleryDetail() {
   function closeSheet() { setSheetVisible(false); setTimeout(() => setShowActionSheet(false), 300) }
   const [shareModal, setShareModal] = useState(null)
 
-  const anyModalOpen = showWatermark || showCoverPicker || showActionSheet || !!confirmDeleteSetId || !!lightboxImage
+  const anyModalOpen = showWatermark || showCoverPicker || showActionSheet || !!confirmDeleteSetId || lightboxIndex !== null
   useScrollLock(anyModalOpen)
 
   const activeSetImages = activeSetId ? images.filter(i => i.set_id === activeSetId) : images
@@ -1026,7 +1027,7 @@ export default function GalleryDetail() {
               onSetAsCover={handleSetAsCover}
               onRename={handleRename}
               onReplace={handleReplace}
-              onOpen={img => setLightboxImage(img)}
+              onOpen={img => { const idx = activeSetImages.findIndex(i => i.id === img.id); setLightboxIndex(idx >= 0 ? idx : 0) }}
               bookmarkedImageIds={bookmarkedImageIds}
             />
           )}
@@ -1284,33 +1285,68 @@ export default function GalleryDetail() {
       )}
 
       {/* Photographer lightbox */}
-      {lightboxImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.95)' }}
-          onClick={() => setLightboxImage(null)}>
-          <button onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center z-10"
-            style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            <X size={16} />
-          </button>
-          <img
-            src={previewUrls[lightboxImage.id]}
-            alt={lightboxImage.file_name}
-            draggable={false}
-            onClick={e => e.stopPropagation()}
-            style={{
-              maxHeight: '90vh', maxWidth: '90vw',
-              objectFit: 'contain', borderRadius: 4,
-              userSelect: 'none', animation: 'lbFadeIn 0.18s ease',
-            }}
-          />
-          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full"
-            style={{ color: 'rgba(255,255,255,0.6)', background: 'rgba(0,0,0,0.4)' }}>
-            {lightboxImage.file_name}
-          </p>
-          <style>{`@keyframes lbFadeIn { from { opacity:0 } to { opacity:1 } }`}</style>
-        </div>
-      )}
+      {lightboxIndex !== null && (() => {
+        const lbImg = activeSetImages[lightboxIndex]
+        if (!lbImg) return null
+        const total = activeSetImages.length
+        const goPrev = () => setLightboxIndex(i => (i - 1 + total) % total)
+        const goNext = () => setLightboxIndex(i => (i + 1) % total)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.95)' }}
+            onClick={() => setLightboxIndex(null)}
+            onKeyDown={e => { if (e.key === 'ArrowLeft') goPrev(); if (e.key === 'ArrowRight') goNext(); if (e.key === 'Escape') setLightboxIndex(null) }}
+            tabIndex={0}
+            ref={el => el?.focus()}>
+            {/* Close */}
+            <button onClick={() => setLightboxIndex(null)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center z-10"
+              style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+              <X size={16} />
+            </button>
+            {/* Prev */}
+            {total > 1 && (
+              <button onClick={e => { e.stopPropagation(); goPrev() }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center z-10"
+                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                <ChevronLeft size={20} />
+              </button>
+            )}
+            {/* Next */}
+            {total > 1 && (
+              <button onClick={e => { e.stopPropagation(); goNext() }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center z-10"
+                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                <ChevronRight size={20} />
+              </button>
+            )}
+            <img
+              src={previewUrls[lbImg.id]}
+              alt={lbImg.file_name}
+              draggable={false}
+              onClick={e => e.stopPropagation()}
+              style={{
+                maxHeight: '90vh', maxWidth: '80vw',
+                objectFit: 'contain', borderRadius: 4,
+                userSelect: 'none', animation: 'lbFadeIn 0.18s ease',
+              }}
+            />
+            {/* Footer */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+              <p className="text-xs px-3 py-1 rounded-full"
+                style={{ color: 'rgba(255,255,255,0.6)', background: 'rgba(0,0,0,0.4)' }}>
+                {lbImg.file_name}
+              </p>
+              {total > 1 && (
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  {lightboxIndex + 1} of {total}
+                </p>
+              )}
+            </div>
+            <style>{`@keyframes lbFadeIn { from { opacity:0 } to { opacity:1 } }`}</style>
+          </div>
+        )
+      })()}
 
       {/* Share modals triggered from mobile sheet */}
       {shareModal && (
