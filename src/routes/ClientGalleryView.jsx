@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import {
@@ -488,6 +488,8 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
 export default function ClientGalleryView() {
   const { token } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const isPreview = searchParams.get('preview') === '1'
 
   const [gallery, setGallery] = useState(null)
   const [images, setImages] = useState([])
@@ -515,12 +517,12 @@ export default function ClientGalleryView() {
       const g = await getGalleryByToken(token)
       if (!g || !g.is_active) { navigate(`/g/${token}`, { replace: true }); return }
       const v = getViewerFromSession(g.id)
-      if (!v) { navigate(`/g/${token}`, { replace: true }); return }
-      const [imgs, favs, setsData] = await Promise.all([getClientImages(g.id), getViewerFavorites(g.id, v.id), getClientSets(g.id)])
+      if (!v && !isPreview) { navigate(`/g/${token}`, { replace: true }); return }
+      const [imgs, favs, setsData] = await Promise.all([getClientImages(g.id), v ? getViewerFavorites(g.id, v.id) : Promise.resolve(new Set()), getClientSets(g.id)])
       setGallery(g); setImages(imgs); setViewer(v); setFavorites(favs)
       setSets(setsData)
       if (setsData.length > 0) setActiveSetId(setsData[0].id)
-      logActivity(g.id, v.id, 'view')
+      if (!isPreview && v) logActivity(g.id, v.id, 'view')
       if (g.cover_r2_key) {
         setHeroUrl(`${WORKER_URL}/preview/${encodeURIComponent(g.cover_r2_key)}?share_token=${token}`)
       } else if (g.cover_image_id && imgs.length > 0) {
@@ -537,7 +539,7 @@ export default function ClientGalleryView() {
     if (!gallery.allow_favorites || !viewer) return
     const nowFav = await toggleFavorite(gallery.id, imageId, viewer.id)
     setFavorites(prev => { const next = new Set(prev); nowFav ? next.add(imageId) : next.delete(imageId); return next })
-    logActivity(gallery.id, viewer.id, nowFav ? 'favorite' : 'unfavorite', imageId)
+    if (!isPreview) logActivity(gallery.id, viewer.id, nowFav ? 'favorite' : 'unfavorite', imageId)
   }
 
   function handleDownloadSingle(image, hires = false) {
@@ -547,7 +549,7 @@ export default function ClientGalleryView() {
     } else {
       if (hires) downloadHiRes(image.original_r2_key, image.file_name, token, null)
       else downloadWebSize(image.original_r2_key, image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token, null, image.watermark_id)
-      logActivity(gallery.id, viewer?.id, 'download_single', image.id)
+      if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_single', image.id)
     }
   }
 
@@ -573,7 +575,7 @@ export default function ClientGalleryView() {
         watermarkConfigs,
         hires ? null : (current, t) => setZipProgress(prev => ({ ...prev, current }))
       )
-      logActivity(gallery.id, viewer?.id, 'download_all')
+      if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_all')
       // Show completion state briefly before closing
       setZipProgress(prev => ({ ...prev, current: total }))
       await new Promise(r => setTimeout(r, 1200))
@@ -590,7 +592,7 @@ export default function ClientGalleryView() {
       if (pendingDownload?.type === 'single') {
         if (pendingDownload.hires) await downloadHiRes(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
         else await downloadWebSize(pendingDownload.image.original_r2_key, pendingDownload.image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token, pin, pendingDownload.image.watermark_id)
-        logActivity(gallery.id, viewer?.id, 'download_single', pendingDownload.image.id)
+        if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_single', pendingDownload.image.id)
       } else {
         await doZipDownload(pin, pendingDownload?.hires || false)
       }
@@ -621,6 +623,12 @@ export default function ClientGalleryView() {
 
   return (
     <div className="min-h-screen" style={{ background: theme.bg, ...themeStyle }} onContextMenu={noContext}>
+
+      {isPreview && (
+        <div style={{ background: '#6366f1', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>
+          Preview Mode — This is how your client sees the gallery
+        </div>
+      )}
 
       {heroUrl && (
         <div className="relative w-full overflow-hidden" style={{ height: '100vh', minHeight: 500 }}>

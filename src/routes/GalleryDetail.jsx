@@ -785,7 +785,7 @@ export default function GalleryDetail() {
               <Button variant="secondary" onClick={() => setShowCoverPicker(true)}>
                 <ImageIcon size={14} />Cover Image
               </Button>
-              <Button variant="secondary" onClick={() => window.open(`/g/${gallery.share_token}`, '_blank')}>
+              <Button variant="secondary" onClick={() => window.open(`/g/${gallery.share_token}?preview=1`, '_blank')}>
                 <ExternalLink size={14} />Preview
               </Button>
               <Link to={`/galleries/${id}/activity`}>
@@ -1269,7 +1269,7 @@ export default function GalleryDetail() {
                 { icon: LinkIcon, label: 'Get Link', action: () => { closeSheet(); setTimeout(() => setShareModal('link'), 300) } },
                 { icon: QrCode, label: 'QR Code', action: () => { closeSheet(); setTimeout(() => setShareModal('qr'), 300) } },
                 { icon: ImageIcon, label: 'Cover', action: () => { closeSheet(); setTimeout(() => setShowCoverPicker(true), 300) } },
-                { icon: ExternalLink, label: 'Preview', action: () => { closeSheet(); window.open(`/g/${gallery.share_token}`, '_blank') } },
+                { icon: ExternalLink, label: 'Preview', action: () => { closeSheet(); window.open(`/g/${gallery.share_token}?preview=1`, '_blank') } },
                 { icon: BarChart2, label: 'Activity', action: () => { closeSheet(); setTimeout(() => navigate(`/galleries/${id}/activity`), 300) } },
                 { icon: Settings, label: 'Settings', action: () => { closeSheet(); setTimeout(() => navigate(`/galleries/${id}/settings`), 300) } },
               ].map(({ icon: Icon, label, action }) => (

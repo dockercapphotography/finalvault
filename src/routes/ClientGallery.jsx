@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Lock, ArrowRight } from 'lucide-react'
 import {
   getGalleryByToken, verifyGalleryPassword, getPhotographerName,
@@ -150,6 +150,7 @@ function GateButton({ onClick, loading, children }) {
 export default function ClientGallery() {
   const { token } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [gallery, setGallery] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -167,6 +168,10 @@ export default function ClientGallery() {
   async function load() {
     try {
       setLoading(true)
+      if (searchParams.get('preview') === '1') {
+        navigate(`/g/${token}/view?preview=1`, { replace: true })
+        return
+      }
       const g = await getGalleryByToken(token)
 
       if (!g) { setError('Gallery not found.'); return }
@@ -185,10 +190,10 @@ export default function ClientGallery() {
       if (existingViewer) {
         if (g.require_password) {
           const pwVerified = sessionStorage.getItem(`fv-pw-${g.id}`)
-          if (pwVerified) { navigate(`/g/${token}/view`, { replace: true }); return }
+          if (pwVerified) { navigate(`/g/${token}/view${window.location.search}`, { replace: true }); return }
           setStage('password')
         } else {
-          navigate(`/g/${token}/view`, { replace: true })
+          navigate(`/g/${token}/view${window.location.search}`, { replace: true })
         }
         return
       }
@@ -207,7 +212,7 @@ export default function ClientGallery() {
     try {
       await getOrCreateViewer(gallery.id, name.trim())
       if (gallery.require_password) setStage('password')
-      else navigate(`/g/${token}/view`, { replace: true })
+      else navigate(`/g/${token}/view${window.location.search}`, { replace: true })
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -223,7 +228,7 @@ export default function ClientGallery() {
       const correct = await verifyGalleryPassword(gallery.id, password)
       if (correct) {
         sessionStorage.setItem(`fv-pw-${gallery.id}`, '1')
-        navigate(`/g/${token}/view`, { replace: true })
+        navigate(`/g/${token}/view${window.location.search}`, { replace: true })
       } else {
         setPasswordError('Incorrect password. Please try again.')
       }
