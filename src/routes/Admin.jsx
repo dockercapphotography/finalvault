@@ -150,7 +150,7 @@ export default function Admin() {
         supabase.from('storage_tiers').select('*').order('storage_gb'),
         supabase.from('photographer_storage').select('*'),
         supabase.from('galleries').select('id, photographer_id'),
-        supabase.from('gallery_images').select('gallery_id, file_size').is('deleted_at', null),
+        supabase.from('gallery_images').select('gallery_id, file_size, preview_size').is('deleted_at', null),
       ])
 
       setPhotographers(photogs || [])
@@ -167,7 +167,7 @@ export default function Admin() {
       const bytesMap = {}
       for (const img of imageRows || []) {
         const pid = galleryToPhotog[img.gallery_id]
-        if (pid) bytesMap[pid] = (bytesMap[pid] || 0) + (img.file_size || 0)
+        if (pid) bytesMap[pid] = (bytesMap[pid] || 0) + (img.file_size || 0) + (img.preview_size || 0)
       }
 
       const storageMap = {}

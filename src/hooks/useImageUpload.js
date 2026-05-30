@@ -58,12 +58,13 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
           preview_r2_key: previewKey,
           file_name: file.name,
           file_size: file.size,
+          preview_size: previewBlob.size,
           file_type: file.type || 'application/octet-stream',
           width,
           height,
           sort_order: index,
           set_id: setId || null,
-          watermark_id: watermark?.id || null,  // record which watermark was baked in
+          watermark_id: watermark?.id || null,
         })
 
         updateItem(index, { status: 'done' })

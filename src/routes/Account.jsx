@@ -180,6 +180,13 @@ function ProfileTab({ user, onSaveState }) {
     try {
       const croppedBlob = await getCroppedImg(cropSrc, croppedAreaPixels)
       const { data: { session } } = await supabase.auth.getSession()
+      // Delete old avatar from R2 if one exists
+      const { data: existing } = await supabase.from('photographers').select('avatar_r2_key').eq('id', user.id).single()
+      if (existing?.avatar_r2_key) {
+        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(existing.avatar_r2_key)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
+        }).catch(() => {})
+      }
       const r2Key = `photographers/${user.id}/watermarks/avatar-${crypto.randomUUID()}.jpg`
       const formData = new FormData()
       formData.append('file', new File([croppedBlob], 'avatar.jpg', { type: 'image/jpeg' }))

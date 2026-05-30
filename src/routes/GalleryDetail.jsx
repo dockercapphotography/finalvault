@@ -403,7 +403,7 @@ export default function GalleryDetail() {
         ctx.restore(); wmBitmap.close()
       } catch { /* continue without watermark */ }
     }
-    return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.88 })
+    return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.80 })
   }
 
   async function handleSetAsCover(image) {
@@ -506,7 +506,8 @@ export default function GalleryDetail() {
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')
         const original = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = origUrl })
-        const scale = 2400 / Math.max(original.width, original.height)
+        const longEdge = Math.max(original.width, original.height)
+        const scale = longEdge > 1600 ? 1600 / longEdge : 1
         canvas.width = Math.round(original.width * scale)
         canvas.height = Math.round(original.height * scale)
         ctx.drawImage(original, 0, 0, canvas.width, canvas.height)
@@ -535,7 +536,7 @@ export default function GalleryDetail() {
         URL.revokeObjectURL(origUrl)
 
         // Upload new preview
-        const previewBlob = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.88))
+        const previewBlob = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.80))
         const formData = new FormData()
         formData.append('file', previewBlob, 'preview.webp')
         formData.append('key', img.preview_r2_key)
@@ -550,7 +551,7 @@ export default function GalleryDetail() {
           await updateImageWatermark(img.id, wm.id)
 
           // Update local images state so future downloads use the new watermark_id
-          setImages(prev => prev.map(i => i.id === img.id ? { ...i, watermark_id: wm.id } : i))
+          setImages(prev => prev.map(i => i.id === img.id ? { ...i, watermark_id: wm.id, updated_at: new Date().toISOString() } : i))
 
           // Directly inject the new preview from the canvas blob — no need to re-fetch
           setCacheBusts(prev => ({ ...prev, [img.id]: Date.now() }))
@@ -676,7 +677,10 @@ export default function GalleryDetail() {
       const image = images.find(i => i.id === imageId)
       if (!image) return
       try {
-        await deleteFromR2({ key: image.original_r2_key, token: session.access_token })
+        await Promise.all([
+          deleteFromR2({ key: image.original_r2_key, token: session.access_token }),
+          image.preview_r2_key ? deleteFromR2({ key: image.preview_r2_key, token: session.access_token }) : Promise.resolve()
+        ])
         await deleteImage(imageId)
       } catch { errors++ }
     }))
@@ -693,7 +697,10 @@ export default function GalleryDetail() {
     if (!image) return
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      await deleteFromR2({ key: image.original_r2_key, token: session.access_token })
+      await Promise.all([
+        deleteFromR2({ key: image.original_r2_key, token: session.access_token }),
+        image.preview_r2_key ? deleteFromR2({ key: image.preview_r2_key, token: session.access_token }) : Promise.resolve()
+      ])
       await deleteImage(imageId)
       setImages(prev => prev.filter(i => i.id !== imageId))
       setToast({ message: 'Image deleted', type: 'success' })

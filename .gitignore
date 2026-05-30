@@ -33,3 +33,4 @@ Thumbs.db
 .wrangler/
 dev-dist/
 dev-dist/
+cleanup-r2-orphans.mjs

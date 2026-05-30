@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, RefreshCw, CheckCircle, Copy, Trash2 } from 'lucide-react'
 import { getGallery, updateGallery, deleteGallery } from '../utils/galleryApi.js'
+import { getImages } from '../utils/imageApi.js'
+import { deleteFromR2 } from '../utils/r2.js'
 import { THEMES } from '../utils/themes.js'
 import { supabase } from '../supabaseClient.js'
 import Tabs from '../components/ui/Tabs.jsx'
@@ -176,8 +178,21 @@ export default function GallerySettings() {
 
   async function handleDeleteGallery() {
     setDeleting(true)
-    try { await deleteGallery(id); navigate('/') }
-    catch { setSaveState('error'); setDeleting(false); setConfirmDelete(false) }
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const images = await getImages(id)
+      await Promise.all(images.map(img => Promise.all([
+        img.original_r2_key ? deleteFromR2({ key: img.original_r2_key, token }) : Promise.resolve(),
+        img.preview_r2_key ? deleteFromR2({ key: img.preview_r2_key, token }) : Promise.resolve(),
+      ])))
+      await deleteGallery(id)
+      navigate('/')
+    } catch {
+      setSaveState('error')
+      setDeleting(false)
+      setConfirmDelete(false)
+    }
   }
 
   const save = useCallback(async (overrides = {}) => {

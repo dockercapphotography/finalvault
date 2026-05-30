@@ -1,5 +1,5 @@
-const PREVIEW_MAX_LONG_EDGE = 2400
-const PREVIEW_QUALITY = 0.88
+const PREVIEW_MAX_LONG_EDGE = 1600
+const PREVIEW_QUALITY = 0.80
 
 export async function generatePreview(file, watermark = null) {
   const imageBitmap = await loadImageBitmap(file)

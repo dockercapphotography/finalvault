@@ -101,11 +101,22 @@ export async function setActiveWatermark(watermarkId) {
  * Note: does not delete the R2 object (can be a cleanup job later).
  */
 export async function deleteWatermark(id) {
-  const { error } = await supabase
-    .from('watermarks')
-    .delete()
-    .eq('id', id)
+  // Fetch the r2_key before deleting so we can clean up R2
+  const { data: wm } = await supabase.from('watermarks').select('r2_key').eq('id', id).single()
+  const { error } = await supabase.from('watermarks').delete().eq('id', id)
   if (error) throw error
+  // Clean up R2 after DB delete succeeds
+  if (wm?.r2_key) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (token) {
+      const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+      await fetch(`${WORKER_URL}/delete/${encodeURIComponent(wm.r2_key)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(() => {})
+    }
+  }
 }
 
 /**
