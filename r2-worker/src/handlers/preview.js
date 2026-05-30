@@ -59,7 +59,7 @@ export async function handlePreview(request, env, corsHeaders) {
 
     const headers = new Headers(corsHeaders)
     headers.set('Content-Type', object.httpMetadata?.contentType || 'image/webp')
-    headers.set('Cache-Control', 'public, no-cache, must-revalidate')
+    headers.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=86400')
     headers.set('ETag', object.httpEtag || '')
 
     // Derive a download filename from the R2 key, forcing .jpg extension

@@ -8,7 +8,7 @@ import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
 import { deleteFromR2, uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
 import { supabase } from '../supabaseClient.js'
 import { useImageUpload } from '../hooks/useImageUpload.js'
-import { usePreviewUrls } from '../hooks/usePreviewUrls.js'
+import { usePreviewUrls, updatePreviewCache } from '../hooks/usePreviewUrls.js'
 import { usePageDrop } from '../hooks/usePageDrop.js'
 import ImageUploader from '../components/images/ImageUploader.jsx'
 import ImageGrid from '../components/images/ImageGrid.jsx'
@@ -79,7 +79,7 @@ export default function GalleryDetail() {
   const activeSetImages = activeSetId ? images.filter(i => i.set_id === activeSetId) : images
   const hasImages = images.length > 0
   const hasSetImages = activeSetImages.length > 0
-  const { previewUrls, setPreviewUrls } = usePreviewUrls(images, cacheBusts)
+  const { previewUrls, setPreviewUrls } = usePreviewUrls(images)
 
   const { uploadFiles, uploadItems, isUploading, reset: resetUpload } = useImageUpload({
     galleryId: id,
@@ -556,6 +556,7 @@ export default function GalleryDetail() {
           setCacheBusts(prev => ({ ...prev, [img.id]: Date.now() }))
           setWatermarkProgress(prev => ({ ...prev, current: prev.current + 1 }))
           const newBlobUrl = URL.createObjectURL(previewBlob)
+          updatePreviewCache(img.preview_r2_key, newBlobUrl)
           setPreviewUrls(prev => {
             if (prev[img.id]?.startsWith('blob:')) URL.revokeObjectURL(prev[img.id])
             return { ...prev, [img.id]: newBlobUrl }

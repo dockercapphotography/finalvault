@@ -52,7 +52,7 @@ export async function getPhotographerName(photographerId) {
 export async function getClientImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')
-    .select('id, preview_r2_key, original_r2_key, file_name, width, height, sort_order, set_id, watermark_id, watermarks(r2_key, opacity, position, scale)')
+    .select('id, preview_r2_key, original_r2_key, file_name, width, height, sort_order, set_id, watermark_id, updated_at, watermarks(r2_key, opacity, position, scale)')
     .eq('gallery_id', galleryId)
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })
@@ -154,9 +154,14 @@ export async function addComment(galleryId, imageId, viewerId, body) {
   return data
 }
 
-export function getPreviewUrl(r2Key, shareToken) {
+export function getPreviewUrl(r2Key, shareToken, cacheBust) {
   const base = `${WORKER_URL}/preview/${encodeURIComponent(r2Key)}`
-  return shareToken ? `${base}?share_token=${shareToken}` : base
+  const bust = cacheBust ? `&t=${encodeURIComponent(cacheBust)}` : ''
+  return shareToken
+    ? `${base}?share_token=${shareToken}${bust}`
+    : bust
+      ? `${base}?${bust.slice(1)}`
+      : base
 }
 
 /**

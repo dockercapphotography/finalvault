@@ -20,8 +20,6 @@ function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
   const ref = useRef(null)
   const hasBoth = allowWebSize && allowHires
 
-  useScrollLock(lightboxIndex !== null)
-
   useEffect(() => {
     if (!open) return
     const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
@@ -281,7 +279,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
             contentStyle={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <img
-              src={getPreviewUrl(image.preview_r2_key, token)}
+              src={getPreviewUrl(image.preview_r2_key, token, image.updated_at)}
               alt=""
               draggable={false}
               onContextMenu={noContext}
@@ -527,9 +525,9 @@ export default function ClientGalleryView() {
         setHeroUrl(`${WORKER_URL}/preview/${encodeURIComponent(g.cover_r2_key)}?share_token=${token}`)
       } else if (g.cover_image_id && imgs.length > 0) {
         const coverImg = imgs.find(i => i.id === g.cover_image_id) || imgs[0]
-        if (coverImg) setHeroUrl(getPreviewUrl(coverImg.preview_r2_key, token))
+        if (coverImg) setHeroUrl(getPreviewUrl(coverImg.preview_r2_key, token, coverImg.updated_at))
       } else if (imgs.length > 0) {
-        setHeroUrl(getPreviewUrl(imgs[0].preview_r2_key, token))
+        setHeroUrl(getPreviewUrl(imgs[0].preview_r2_key, token, imgs[0].updated_at))
       }
     } catch { setError('Could not load gallery.') }
     finally { setLoading(false) }
@@ -679,7 +677,7 @@ export default function ClientGalleryView() {
       <div className={`${gridPad} grid ${gridCols} ${gridGap}`}>
         {activeImages.map((image, i) => (
           <div key={image.id} className="relative overflow-hidden rounded-lg group" style={{ cursor: 'pointer' }} onClick={() => setLightboxIndex(i)}>
-            <img src={getPreviewUrl(image.preview_r2_key, token)} alt="" loading="lazy" draggable={false} onContextMenu={noContext}
+            <img src={getPreviewUrl(image.preview_r2_key, token, image.updated_at)} alt="" loading="lazy" draggable={false} onContextMenu={noContext}
               className="w-full block aspect-square" style={{ objectFit: 'cover', userSelect: 'none', pointerEvents: 'none' }} />
             <div className="absolute inset-0 flex items-end justify-between p-2 opacity-0 group-hover:opacity-100 transition-opacity"
               style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)', zIndex: 2 }} onContextMenu={noContext}>

@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient.js'
 export async function getImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')
-    .select('id, original_r2_key, preview_r2_key, file_name, file_size, width, height, sort_order, uploaded_at, set_id, watermark_id')
+    .select('id, original_r2_key, preview_r2_key, file_name, file_size, width, height, sort_order, uploaded_at, updated_at, set_id, watermark_id')
     .eq('gallery_id', galleryId)
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })

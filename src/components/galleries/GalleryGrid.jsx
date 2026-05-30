@@ -1,35 +1,27 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabaseClient.js'
-import { fetchPreviewObjectUrl } from '../../utils/r2.js'
 import GalleryCard from './GalleryCard.jsx'
 
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+
+// Use direct ?token= URLs instead of blob URLs so the browser HTTP cache works
+// across page refreshes — blob URLs bypass browser caching entirely
 function useCoverUrls(galleries) {
-  const [coverUrls, setCoverUrls] = useState({})
+  const [token, setToken] = useState(null)
 
   useEffect(() => {
-    if (!galleries?.length) return
-    let cancelled = false
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setToken(session?.access_token || null)
+    })
+  }, [])
 
-    async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
+  if (!token) return {}
 
-      await Promise.all(galleries.map(async (g) => {
-        const key = g.cover_r2_key || g.gallery_images?.preview_r2_key
-        if (!key) return
-        try {
-          const url = await fetchPreviewObjectUrl({ key, token })
-          if (!cancelled) setCoverUrls(prev => ({ ...prev, [g.id]: url }))
-        } catch {
-          // no cover available
-        }
-      }))
-    }
-
-    load()
-    return () => { cancelled = true }
-  }, [galleries])
-
+  const coverUrls = {}
+  for (const g of galleries) {
+    const key = g.cover_r2_key || g.gallery_images?.preview_r2_key
+    if (key) coverUrls[g.id] = `${WORKER_URL}/preview/${encodeURIComponent(key)}?token=${token}`
+  }
   return coverUrls
 }
 
