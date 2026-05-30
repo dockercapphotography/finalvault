@@ -57,6 +57,8 @@ export default function GalleryDetail() {
   const [cacheBusts, setCacheBusts] = useState({})
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [sheetVisible, setSheetVisible] = useState(false)
+  const [downloadingZip, setDownloadingZip] = useState(false)
+  const [zipProgress, setZipProgress] = useState(null)  // { current, total, hires }
 
   function openSheet() { setShowActionSheet(true); requestAnimationFrame(() => requestAnimationFrame(() => setSheetVisible(true))) }
   function closeSheet() { setSheetVisible(false); setTimeout(() => setShowActionSheet(false), 300) }
@@ -250,15 +252,12 @@ export default function GalleryDetail() {
     const token = session?.access_token
     const workerUrl = import.meta.env.VITE_R2_WORKER_URL
     try {
-      const url = hires
-        ? `${workerUrl}/original/${encodeURIComponent(image.original_r2_key)}`
-        : `${workerUrl}/preview/${encodeURIComponent(image.preview_r2_key)}`
-      const resp = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(hires ? { 'X-Hires': 'true' } : {}),
-        }
-      })
+      const params = new URLSearchParams({ size: hires ? 'hires' : 'web' })
+      if (!hires && image.watermark_id) params.set('watermark_id', image.watermark_id)
+      const resp = await fetch(
+        `${workerUrl}/download/${encodeURIComponent(image.original_r2_key)}?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
       if (!resp.ok) throw new Error('Download failed')
       const blob = await resp.blob()
       const objectUrl = URL.createObjectURL(blob)
@@ -270,6 +269,128 @@ export default function GalleryDetail() {
     } catch (err) {
       setToast({ message: 'Download failed: ' + err.message, type: 'error' })
     }
+  }
+
+  async function doPhotographerZipDownload(selected, hires) {
+    const total = selected.length
+    setDownloadingZip(true)
+    setZipProgress({ current: 0, total, hires })
+    try {
+      const keys = selected.map(i => i.original_r2_key)
+      const names = selected.map(i => hires ? i.file_name : i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
+
+      if (hires) {
+        // Hires: worker handles it — raw originals, no processing
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session.access_token
+        const workerUrl = import.meta.env.VITE_R2_WORKER_URL
+        const resp = await fetch(`${workerUrl}/download-zip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ galleryId: id, imageKeys: keys, fileNames: names, size: 'hires' }),
+        })
+        if (!resp.ok) throw new Error('ZIP failed')
+        const blob = await resp.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a'); a.href = url
+        a.download = `${gallery.title.replace(/[^a-z0-9]/gi, '_')}.zip`
+        document.body.appendChild(a); a.click()
+        document.body.removeChild(a); URL.revokeObjectURL(url)
+      } else {
+        // Web size: client-side processing — resize + watermark via canvas + JSZip
+        const { default: JSZip } = await import('jszip')
+        const zip = new JSZip()
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session.access_token
+        const workerUrl = import.meta.env.VITE_R2_WORKER_URL
+
+        // Pre-fetch unique watermark images
+        const wmBlobCache = {}
+        for (const img of selected) {
+          const wm = img.watermarks
+          if (wm?.r2_key && !wmBlobCache[wm.r2_key]) {
+            try {
+              const resp = await fetch(`${workerUrl}/watermark/${encodeURIComponent(wm.r2_key)}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              })
+              if (resp.ok) wmBlobCache[wm.r2_key] = URL.createObjectURL(await resp.blob())
+            } catch { /* skip */ }
+          }
+        }
+
+        for (let i = 0; i < selected.length; i++) {
+          const img = selected[i]
+          const fileName = names[i]
+          const wmConfig = img.watermarks || null
+          const wmBlobUrl = wmConfig?.r2_key ? wmBlobCache[wmConfig.r2_key] : null
+          try {
+            const resp = await fetch(
+              `${workerUrl}/download/${encodeURIComponent(img.original_r2_key)}?size=hires`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            )
+            if (!resp.ok) continue
+            const blob = await resp.blob()
+            const jpegBlob = await processImageForZip(blob, wmConfig, wmBlobUrl)
+            zip.file(fileName, jpegBlob)
+          } catch (err) { console.error('Failed to process', fileName, err) }
+          setZipProgress(prev => ({ ...prev, current: i + 1 }))
+        }
+
+        for (const url of Object.values(wmBlobCache)) URL.revokeObjectURL(url)
+
+        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' })
+        const url = URL.createObjectURL(zipBlob)
+        const a = document.createElement('a'); a.href = url
+        a.download = `${gallery.title.replace(/[^a-z0-9]/gi, '_')}.zip`
+        document.body.appendChild(a); a.click()
+        document.body.removeChild(a); URL.revokeObjectURL(url)
+      }
+
+      setZipProgress(prev => ({ ...prev, current: total }))
+      await new Promise(r => setTimeout(r, 1200))
+    } catch (err) {
+      setToast({ message: 'ZIP download failed: ' + err.message, type: 'error' })
+    } finally {
+      setDownloadingZip(false); setZipProgress(null)
+    }
+  }
+
+  async function processImageForZip(imageBlob, wmConfig, wmBlobUrl) {
+    const MAX_LONG_EDGE = 2048
+    const bitmap = await createImageBitmap(imageBlob)
+    const { width: origW, height: origH } = bitmap
+    let newW = origW, newH = origH
+    if (origW > MAX_LONG_EDGE || origH > MAX_LONG_EDGE) {
+      if (origW >= origH) { newW = MAX_LONG_EDGE; newH = Math.round((origH / origW) * MAX_LONG_EDGE) }
+      else { newH = MAX_LONG_EDGE; newW = Math.round((origW / origH) * MAX_LONG_EDGE) }
+    }
+    const canvas = new OffscreenCanvas(newW, newH)
+    const ctx = canvas.getContext('2d')
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(bitmap, 0, 0, newW, newH)
+    bitmap.close()
+    if (wmConfig && wmBlobUrl) {
+      try {
+        const wmBitmap = await createImageBitmap(await fetch(wmBlobUrl).then(r => r.blob()))
+        const wmW = Math.round(newW * (wmConfig.scale ?? 0.15))
+        const wmH = Math.round((wmBitmap.height / wmBitmap.width) * wmW)
+        const padding = Math.round(newW * 0.02)
+        const pos = wmConfig.position || 'bottom-right'
+        const positions = {
+          'center':       [Math.round((newW - wmW) / 2), Math.round((newH - wmH) / 2)],
+          'top-left':     [padding, padding],
+          'top-right':    [newW - wmW - padding, padding],
+          'bottom-left':  [padding, newH - wmH - padding],
+          'bottom-right': [newW - wmW - padding, newH - wmH - padding],
+        }
+        const [x, y] = positions[pos] || positions['bottom-right']
+        ctx.save(); ctx.globalAlpha = wmConfig.opacity ?? 0.5
+        ctx.drawImage(wmBitmap, x, y, wmW, wmH)
+        ctx.restore(); wmBitmap.close()
+      } catch { /* continue without watermark */ }
+    }
+    return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.88 })
   }
 
   function handleOpenWatermark(image = null) {
@@ -796,24 +917,8 @@ export default function GalleryDetail() {
           onWatermarkSelected={() => { setWatermarkTarget('bulk'); handleOpenWatermark('bulk') }}
           onDownloadSelected={async (hires) => {
             const selected = images.filter(i => selectedIds.has(i.id))
-            const { data: { session } } = await supabase.auth.getSession()
-            const token = session.access_token
-            const workerUrl = import.meta.env.VITE_R2_WORKER_URL
-            const keys = selected.map(i => hires ? i.original_r2_key : i.preview_r2_key)
-            const names = selected.map(i => hires ? i.file_name : i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
-            const resp = await fetch(`${workerUrl}/download-zip`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ galleryId: id, imageKeys: keys, fileNames: names }),
-            })
-            if (!resp.ok) return
-            const blob = await resp.blob()
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a'); a.href = url
-            a.download = `${gallery.title.replace(/[^a-z0-9]/gi, '_')}.zip`
-            document.body.appendChild(a); a.click()
-            document.body.removeChild(a); URL.revokeObjectURL(url)
             setSelectedIds(new Set())
+            await doPhotographerZipDownload(selected, hires)
           }}
         />
       )}
@@ -927,6 +1032,56 @@ export default function GalleryDetail() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {downloadingZip && zipProgress && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-xs rounded-2xl p-6 space-y-5"
+            style={{ background: '#1e1e1e', border: '1px solid #333' }}>
+            <div className="flex flex-col items-center gap-3 pt-1">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(99,102,241,0.1)' }}>
+                {zipProgress.hires && zipProgress.current < zipProgress.total ? (
+                  <div className="w-5 h-5 border-2 rounded-full animate-spin"
+                    style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                )}
+              </div>
+              <div className="text-center space-y-1">
+                <p className="font-semibold text-sm" style={{ color: '#f0f0f0' }}>
+                  {zipProgress.current >= zipProgress.total ? 'Download ready!' : zipProgress.hires ? 'Preparing your download…' : 'Processing photos…'}
+                </p>
+                <p className="text-xs" style={{ color: '#9ca3af' }}>
+                  {zipProgress.current >= zipProgress.total
+                    ? 'Your ZIP file is downloading now.'
+                    : zipProgress.hires
+                    ? `Packaging ${zipProgress.total} photo${zipProgress.total !== 1 ? 's' : ''} — this may take a moment.`
+                    : `Processing photo ${Math.min(zipProgress.current + 1, zipProgress.total)} of ${zipProgress.total}`}
+                </p>
+              </div>
+            </div>
+            {!zipProgress.hires && (
+              <div className="space-y-1.5">
+                <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
+                  <div className="h-full rounded-full transition-all duration-300"
+                    style={{ width: `${zipProgress.total > 0 ? Math.round((zipProgress.current / zipProgress.total) * 100) : 0}%`, background: '#6366f1' }} />
+                </div>
+                <div className="flex justify-between text-xs" style={{ color: '#6b7280' }}>
+                  <span>{zipProgress.current} of {zipProgress.total} photos</span>
+                  <span>{zipProgress.total > 0 ? Math.round((zipProgress.current / zipProgress.total) * 100) : 0}%</span>
+                </div>
+              </div>
+            )}
+            {zipProgress.hires && zipProgress.current < zipProgress.total && (
+              <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
+                <div className="h-full rounded-full animate-pulse" style={{ width: '60%', background: '#6366f1' }} />
+              </div>
+            )}
+            <p className="text-xs text-center" style={{ color: '#4b5563' }}>Please keep this window open until complete.</p>
           </div>
         </div>
       )}

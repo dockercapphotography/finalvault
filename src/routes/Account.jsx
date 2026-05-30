@@ -39,6 +39,40 @@ async function getCroppedImg(imageSrc, croppedAreaPixels) {
   return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92))
 }
 
+/**
+ * Rasterize an SVG file to a PNG Blob at the given width.
+ * Height is calculated to maintain the SVG's aspect ratio.
+ * Used to convert SVG watermarks to PNG before uploading,
+ * since the Photon WASM image processor in the worker does not support SVG.
+ */
+async function svgToPngBlob(svgFile, targetWidth = 2000) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(svgFile)
+    const img = new Image()
+    img.onload = () => {
+      // Use the SVG's intrinsic dimensions for aspect ratio, fall back to square
+      const naturalW = img.naturalWidth || targetWidth
+      const naturalH = img.naturalHeight || targetWidth
+      const targetHeight = Math.round((naturalH / naturalW) * targetWidth)
+
+      const canvas = document.createElement('canvas')
+      canvas.width = targetWidth
+      canvas.height = targetHeight
+      const ctx = canvas.getContext('2d')
+      // Transparent background — preserve SVG alpha
+      ctx.clearRect(0, 0, targetWidth, targetHeight)
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob)
+        else reject(new Error('SVG rasterization failed'))
+      }, 'image/png')
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load SVG')) }
+    img.src = url
+  })
+}
+
 function AvatarCropModal({ imageSrc, onSave, onCancel, saving }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -364,7 +398,17 @@ function WatermarksTab({ onSaveState }) {
     if (!file) return
     try {
       setUploading(true)
-      const wm = await uploadWatermark(file, file.name.replace(/\.[^.]+$/, ''))
+      const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')
+      let uploadFile = file
+      let label = file.name.replace(/\.[^.]+$/, '')
+
+      if (isSvg) {
+        // Rasterize SVG to PNG before uploading — Photon WASM cannot process SVG
+        const pngBlob = await svgToPngBlob(file, 2000)
+        uploadFile = new File([pngBlob], label + '.png', { type: 'image/png' })
+      }
+
+      const wm = await uploadWatermark(uploadFile, label)
       setWatermarks(prev => [wm, ...prev])
       if (watermarks.length === 0) { await setActiveWatermark(wm.id); setActiveId(wm.id) }
       onSaveState('saved')
@@ -402,7 +446,7 @@ function WatermarksTab({ onSaveState }) {
         <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
           <Upload size={14} />{uploading ? 'Uploading…' : 'Upload watermark image'}
         </Button>
-        <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>PNG with transparency recommended. Max 5 MB.</p>
+        <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>PNG or SVG with transparency recommended. Max 5 MB. SVGs are automatically converted to PNG.</p>
       </div>
       {watermarks.length === 0 ? (
         <div className="px-5 py-8 text-center" style={{ background: 'var(--surface)' }}>

@@ -19,9 +19,13 @@ export async function getWatermarks() {
  * Returns null if none is set.
  */
 export async function getActiveWatermark() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
   const { data: profile, error: profileError } = await supabase
     .from('photographers')
     .select('active_watermark_id, watermarks(*)')
+    .eq('id', user.id)
     .single()
   if (profileError) throw profileError
   return profile?.watermarks ?? null
@@ -84,10 +88,11 @@ export async function updateWatermark(id, updates) {
  * Pass null to clear the active watermark.
  */
 export async function setActiveWatermark(watermarkId) {
+  const { data: { user } } = await supabase.auth.getUser()
   const { error } = await supabase
     .from('photographers')
     .update({ active_watermark_id: watermarkId })
-    .eq('id', (await supabase.auth.getUser()).data.user.id)
+    .eq('id', user.id)
   if (error) throw error
 }
 
