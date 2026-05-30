@@ -5,6 +5,7 @@ export default function ImageGrid({
   images, previewUrls, onDelete, coverId, selectedIds, onSelect, selectionMode,
   sets, onMoveToSet, onReWatermark, onDownload, onReorder,
   viewSize = 'small', showFilename = false,
+  onSetAsCover, onRename, onReplace, onOpen,
 }) {
   const dragIndexRef = useRef(null)
   const [dragOverIndex, setDragOverIndex] = useState(null)
@@ -88,6 +89,10 @@ export default function ImageGrid({
               onMoveToSet={onMoveToSet}
               onReWatermark={onReWatermark}
               onDownload={onDownload}
+              onSetAsCover={onSetAsCover}
+              onRename={onRename}
+              onReplace={onReplace}
+              onOpen={onOpen}
             />
             {showFilename && (
               <p className="text-center truncate mt-1 px-0.5"

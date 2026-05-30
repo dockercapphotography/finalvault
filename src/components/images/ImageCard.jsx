@@ -1,13 +1,17 @@
-import { useState } from 'react'
-import { Trash2, MoreVertical, Download, FolderInput, Droplets } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Trash2, MoreVertical, Download, FolderInput, Droplets, Maximize2, ImageIcon, Pencil, RefreshCw } from 'lucide-react'
 import PortalMenu from '../ui/PortalMenu.jsx'
 
 export default function ImageCard({
   image, previewUrl, onDelete, isCover, selected, onSelect,
   sets, onMoveToSet, onReWatermark, onDownload,
+  onSetAsCover, onRename, onReplace, onOpen,
 }) {
   const [hovered, setHovered] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const replaceInputRef = useRef(null)
 
   async function handleDelete() {
     setDeleting(true)
@@ -15,10 +19,44 @@ export default function ImageCard({
     catch { setDeleting(false) }
   }
 
+  function handleOpen() {
+    onOpen?.(image)
+  }
+
+  function handleStartRename() {
+    setRenameValue(image.file_name || '')
+    setRenaming(true)
+  }
+
+  async function handleRenameSubmit() {
+    const trimmed = renameValue.trim()
+    if (!trimmed || trimmed === image.file_name) { setRenaming(false); return }
+    try { await onRename?.(image.id, trimmed) }
+    catch {}
+    setRenaming(false)
+  }
+
+  function handleReplaceClick() {
+    replaceInputRef.current?.click()
+  }
+
+  async function handleReplaceFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    await onReplace?.(image, file)
+  }
+
   // Sets this image can actually move to (excludes its current set)
   const movableSets = sets?.filter(s => s.id !== image.set_id) ?? []
 
   const menuItems = [
+    {
+      label: 'Open',
+      icon: <Maximize2 size={13} />,
+      onClick: handleOpen,
+    },
+    { type: 'divider' },
     {
       label: 'Download',
       icon: <Download size={13} />,
@@ -27,7 +65,6 @@ export default function ImageCard({
         { label: 'Original', onClick: () => onDownload?.(image, true) },
       ],
     },
-    // Only show Move to Set if there are other sets to move to
     ...(movableSets.length > 0 ? [{
       label: 'Move to Set',
       icon: <FolderInput size={13} />,
@@ -36,6 +73,22 @@ export default function ImageCard({
         onClick: () => onMoveToSet?.(image.id, s.id),
       })),
     }] : []),
+    { type: 'divider' },
+    {
+      label: 'Set as Cover',
+      icon: <ImageIcon size={13} />,
+      onClick: () => onSetAsCover?.(image),
+    },
+    {
+      label: 'Rename',
+      icon: <Pencil size={13} />,
+      onClick: handleStartRename,
+    },
+    {
+      label: 'Replace Photo',
+      icon: <RefreshCw size={13} />,
+      onClick: handleReplaceClick,
+    },
     ...(onReWatermark ? [{
       label: 'Watermark',
       icon: <Droplets size={13} />,
@@ -62,11 +115,11 @@ export default function ImageCard({
     <div
       className="relative aspect-square transition-all"
       style={{ outline, outlineOffset: 2, borderRadius: 8, cursor: 'pointer' }}
-      onClick={() => onSelect(image.id)}
+      onClick={() => !renaming && onSelect(image.id)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Image — clipped separately so menu can escape */}
+      {/* Image */}
       <div className="absolute inset-0 rounded-lg overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
         {previewUrl ? (
           <img
@@ -120,6 +173,42 @@ export default function ImageCard({
                 <MoreVertical size={12} className="text-white" />
               </button>
             }
+          />
+        </div>
+      )}
+
+      {/* Hidden file input for Replace Photo */}
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleReplaceFile}
+      />
+
+      {/* Inline rename overlay */}
+      {renaming && (
+        <div
+          className="absolute inset-0 flex items-end justify-center pb-2 px-2"
+          style={{ zIndex: 60, background: 'rgba(0,0,0,0.55)', borderRadius: 8 }}
+          onClick={e => e.stopPropagation()}
+        >
+          <input
+            autoFocus
+            value={renameValue}
+            onChange={e => setRenameValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleRenameSubmit()
+              if (e.key === 'Escape') setRenaming(false)
+            }}
+            onBlur={handleRenameSubmit}
+            className="w-full text-xs rounded-lg px-2 py-1.5 text-center"
+            style={{
+              background: 'rgba(255,255,255,0.95)',
+              border: '2px solid #6366f1',
+              color: '#111',
+              outline: 'none',
+            }}
           />
         </div>
       )}

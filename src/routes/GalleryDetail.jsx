@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, Droplets, LayoutGrid, Check } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
-import { getImages, deleteImage, saveImageOrder, updateImageWatermark } from '../utils/imageApi.js'
-import { deleteFromR2 } from '../utils/r2.js'
+import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
+import { deleteFromR2, uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
 import { supabase } from '../supabaseClient.js'
 import { useImageUpload } from '../hooks/useImageUpload.js'
 import { usePreviewUrls } from '../hooks/usePreviewUrls.js'
@@ -37,6 +37,8 @@ export default function GalleryDetail() {
   const [coverId, setCoverId] = useState(null)
   const [activeWatermark, setActiveWatermark] = useState(null)
   const [showCoverPicker, setShowCoverPicker] = useState(false)
+  const [coverPickerImage, setCoverPickerImage] = useState(null)
+  const [lightboxImage, setLightboxImage] = useState(null)
   const [sets, setSets] = useState([])
   const [activeSetId, setActiveSetId] = useState(null)
   const [showAddSet, setShowAddSet] = useState(false)
@@ -394,6 +396,64 @@ export default function GalleryDetail() {
       } catch { /* continue without watermark */ }
     }
     return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.88 })
+  }
+
+  async function handleSetAsCover(image) {
+    // Open CoverPickerModal pre-seeded with this image for focal point selection
+    setCoverPickerImage(image)
+    setShowCoverPicker(true)
+  }
+
+  async function handleRename(imageId, newName) {
+    try {
+      const updated = await updateImageName(imageId, newName)
+      setImages(prev => prev.map(i => i.id === imageId ? { ...i, file_name: updated.file_name } : i))
+      setToast({ message: 'Renamed', type: 'success' })
+    } catch {
+      setToast({ message: 'Rename failed', type: 'error' })
+    }
+  }
+
+  async function handleReplace(image, file) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session.access_token
+      const ext = file.name.split('.').pop().toLowerCase()
+
+      // Upload new original (same key path, new uuid image id to bust cache)
+      const newImageId = crypto.randomUUID()
+      const newOriginalKey = buildOriginalKey(photographerId, id, newImageId, ext)
+      const newPreviewKey = buildPreviewKey(photographerId, id, newImageId)
+
+      setToast({ message: 'Uploading replacement…', type: 'success' })
+
+      // Generate preview with current active watermark
+      const { generatePreview } = await import('../utils/imageProcessor.js')
+      const previewBlob = await generatePreview(file, activeWatermark)
+
+      await Promise.all([
+        uploadToR2({ file, key: newOriginalKey, token }),
+        uploadToR2({
+          file: new File([previewBlob], `${newImageId}.webp`, { type: 'image/webp' }),
+          key: newPreviewKey,
+          token,
+        }),
+      ])
+
+      // Delete old R2 files
+      await Promise.all([
+        deleteFromR2({ key: image.original_r2_key, token }),
+        deleteFromR2({ key: image.preview_r2_key, token }),
+      ]).catch(() => {})
+
+      // Update DB with new keys
+      const updated = await updateImageKeys(image.id, newOriginalKey, newPreviewKey)
+      setImages(prev => prev.map(i => i.id === image.id ? { ...i, ...updated } : i))
+      setCacheBusts(prev => ({ ...prev, [image.id]: Date.now() }))
+      setToast({ message: 'Photo replaced', type: 'success' })
+    } catch (err) {
+      setToast({ message: 'Replace failed: ' + err.message, type: 'error' })
+    }
   }
 
   function handleOpenWatermark(image = null) {
@@ -956,6 +1016,10 @@ export default function GalleryDetail() {
               onReorder={handleImageReorder}
               viewSize={viewSize}
               showFilename={showFilename}
+              onSetAsCover={handleSetAsCover}
+              onRename={handleRename}
+              onReplace={handleReplace}
+              onOpen={img => setLightboxImage(img)}
             />
           )}
 
@@ -990,7 +1054,8 @@ export default function GalleryDetail() {
           previewUrls={previewUrls}
           onSelect={handleSetCover}
           onUpload={handleCoverUpload}
-          onClose={() => setShowCoverPicker(false)}
+          onClose={() => { setShowCoverPicker(false); setCoverPickerImage(null) }}
+          preSelectedImage={coverPickerImage}
           existingCoverUrl={
             gallery.cover_r2_key
               ? `${import.meta.env.VITE_R2_WORKER_URL}/preview/${encodeURIComponent(gallery.cover_r2_key)}`
@@ -1207,6 +1272,35 @@ export default function GalleryDetail() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Photographer lightbox */}
+      {lightboxImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.95)' }}
+          onClick={() => setLightboxImage(null)}>
+          <button onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center z-10"
+            style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            <X size={16} />
+          </button>
+          <img
+            src={previewUrls[lightboxImage.id]}
+            alt={lightboxImage.file_name}
+            draggable={false}
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxHeight: '90vh', maxWidth: '90vw',
+              objectFit: 'contain', borderRadius: 4,
+              userSelect: 'none', animation: 'lbFadeIn 0.18s ease',
+            }}
+          />
+          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full"
+            style={{ color: 'rgba(255,255,255,0.6)', background: 'rgba(0,0,0,0.4)' }}>
+            {lightboxImage.file_name}
+          </p>
+          <style>{`@keyframes lbFadeIn { from { opacity:0 } to { opacity:1 } }`}</style>
         </div>
       )}
 

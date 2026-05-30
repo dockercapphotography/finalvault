@@ -13,14 +13,19 @@ async function fetchAuthedBlob(r2Key) {
   return URL.createObjectURL(await resp.blob())
 }
 
-// Extract the R2 key from a worker preview URL
 function extractR2Key(workerUrl) {
   const match = workerUrl.match(/\/preview\/(.+)/)
   return match ? decodeURIComponent(match[1].split('?')[0]) : null
 }
 
-export default function CoverPickerModal({ images, previewUrls, onSelect, onUpload, onClose, existingCoverUrl, existingFocusX = 0.5, existingFocusY = 0.5 }) {
-  const [stage, setStage] = useState(existingCoverUrl ? 'focal' : 'pick')
+export default function CoverPickerModal({
+  images, previewUrls, onSelect, onUpload, onClose,
+  existingCoverUrl, existingFocusX = 0.5, existingFocusY = 0.5,
+  preSelectedImage = null,  // jump straight to focal with this image pre-chosen
+}) {
+  const [stage, setStage] = useState(
+    preSelectedImage ? 'focal' : existingCoverUrl ? 'focal' : 'pick'
+  )
   const [chosen, setChosen] = useState(null)
   const [focusX, setFocusX] = useState(existingFocusX)
   const [focusY, setFocusY] = useState(existingFocusY)
@@ -31,8 +36,24 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
   const isDragging = useRef(false)
   const ownedBlobsRef = useRef([])
 
-  // On mount: if existing cover is a bare worker URL, fetch it with auth
   useEffect(() => {
+    // If a specific image was pre-selected (from "Set as Cover" context menu),
+    // load it directly and skip the pick stage
+    if (preSelectedImage) {
+      setLoadingPreview(true)
+      setFocusX(0.5)
+      setFocusY(0.5)
+      fetchAuthedBlob(preSelectedImage.preview_r2_key)
+        .then(url => {
+          ownedBlobsRef.current.push(url)
+          setChosen({ type: 'gallery', image: preSelectedImage, url })
+        })
+        .catch(err => console.error('Failed to load pre-selected image:', err))
+        .finally(() => setLoadingPreview(false))
+      return
+    }
+
+    // Otherwise load existing cover as before
     if (!existingCoverUrl) return
     if (existingCoverUrl.startsWith('blob:')) {
       setChosen({ type: 'existing', url: existingCoverUrl })
@@ -144,7 +165,7 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
           </button>
         </div>
 
-        {/* Loading state while fetching existing cover */}
+        {/* Loading state while fetching existing cover or pre-selected image */}
         {stage === 'focal' && !chosen && (
           <div className="flex-1 flex items-center justify-center">
             <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
@@ -240,12 +261,15 @@ export default function CoverPickerModal({ images, previewUrls, onSelect, onUplo
                 }} />
             </div>
             <div className="flex items-center justify-between">
-              <button
-                onClick={() => { setStage('pick'); setChosen(null) }}
-                className="text-sm font-medium"
-                style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
-                ← Change image
-              </button>
+              {/* Only show "Change image" if not pre-selected from context menu */}
+              {!preSelectedImage ? (
+                <button
+                  onClick={() => { setStage('pick'); setChosen(null) }}
+                  className="text-sm font-medium"
+                  style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  ← Change image
+                </button>
+              ) : <div />}
               <button
                 onClick={handleSave}
                 disabled={saving}

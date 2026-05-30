@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient.js'
 export async function getImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')
-    .select('id, original_r2_key, preview_r2_key, file_name, file_size, width, height, sort_order, uploaded_at, set_id, watermark_id, watermarks(r2_key, opacity, position, scale)')
+    .select('id, original_r2_key, preview_r2_key, file_name, file_size, width, height, sort_order, uploaded_at, set_id, watermark_id')
     .eq('gallery_id', galleryId)
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })
@@ -51,4 +51,26 @@ export async function updateImageWatermark(imageId, watermarkId) {
     .update({ watermark_id: watermarkId })
     .eq('id', imageId)
   if (error) throw error
+}
+
+export async function updateImageName(imageId, fileName) {
+  const { data, error } = await supabase
+    .from('gallery_images')
+    .update({ file_name: fileName })
+    .eq('id', imageId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateImageKeys(imageId, originalR2Key, previewR2Key) {
+  const { data, error } = await supabase
+    .from('gallery_images')
+    .update({ original_r2_key: originalR2Key, preview_r2_key: previewR2Key })
+    .eq('id', imageId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
 }
