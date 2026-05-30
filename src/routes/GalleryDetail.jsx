@@ -4,6 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, Droplets, LayoutGrid, Check } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
+import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
 import { deleteFromR2, uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
 import { supabase } from '../supabaseClient.js'
 import { useImageUpload } from '../hooks/useImageUpload.js'
@@ -58,6 +59,7 @@ export default function GalleryDetail() {
   const [watermarking, setWatermarking] = useState(false)
   const [watermarkProgress, setWatermarkProgress] = useState({ current: 0, total: 0 })
   const [cacheBusts, setCacheBusts] = useState({})
+  const [bookmarkedImageIds, setBookmarkedImageIds] = useState(new Set())
   const [viewSize, setViewSize] = useState('small')
   const [showFilename, setShowFilename] = useState(false)
   const [showGridMenu, setShowGridMenu] = useState(false)
@@ -96,6 +98,7 @@ export default function GalleryDetail() {
     supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id))
     load()
     loadWatermarks()
+    getBookmarkedImageIds().then(setBookmarkedImageIds).catch(() => {})
   }, [id])
 
   async function loadWatermarks() {
@@ -750,7 +753,7 @@ export default function GalleryDetail() {
 
         {/* ── Desktop header ── */}
         <div className="hidden md:block">
-          <Button variant="ghost" onClick={() => navigate('/')} className="-ml-2">
+          <Button variant="ghost" onClick={() => navigate(-1)} className="-ml-2">
             <ArrowLeft size={15} />Back to galleries
           </Button>
         </div>
@@ -1024,6 +1027,7 @@ export default function GalleryDetail() {
               onRename={handleRename}
               onReplace={handleReplace}
               onOpen={img => setLightboxImage(img)}
+              bookmarkedImageIds={bookmarkedImageIds}
             />
           )}
 

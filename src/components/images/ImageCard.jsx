@@ -1,15 +1,18 @@
 import { useState, useRef } from 'react'
-import { Trash2, MoreVertical, Download, FolderInput, Droplets, Maximize2, ImageIcon, Pencil, RefreshCw } from 'lucide-react'
+import { Trash2, MoreVertical, Download, FolderInput, Droplets, Maximize2, ImageIcon, Pencil, RefreshCw, Bookmark } from 'lucide-react'
 import PortalMenu from '../ui/PortalMenu.jsx'
+import { bookmarkImage, unbookmarkImage } from '../../utils/bookmarkApi.js'
 
 export default function ImageCard({
   image, previewUrl, onDelete, isCover, selected, onSelect,
   sets, onMoveToSet, onReWatermark, onDownload,
   onSetAsCover, onRename, onReplace, onOpen,
+  isBookmarked: initialBookmarked = false,
 }) {
   const [hovered, setHovered] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  const [bookmarked, setBookmarked] = useState(initialBookmarked)
   const [renameValue, setRenameValue] = useState('')
   const replaceInputRef = useRef(null)
 
@@ -38,6 +41,13 @@ export default function ImageCard({
 
   function handleReplaceClick() {
     replaceInputRef.current?.click()
+  }
+
+  async function handleToggleBookmark() {
+    try {
+      if (bookmarked) { await unbookmarkImage(image.id); setBookmarked(false) }
+      else { await bookmarkImage(image.id); setBookmarked(true) }
+    } catch (err) { console.error(err) }
   }
 
   async function handleReplaceFile(e) {
@@ -94,6 +104,11 @@ export default function ImageCard({
       icon: <Droplets size={13} />,
       onClick: () => onReWatermark(image),
     }] : []),
+    {
+      label: bookmarked ? 'Remove Bookmark' : 'Bookmark',
+      icon: <Bookmark size={13} fill={bookmarked ? 'currentColor' : 'none'} />,
+      onClick: handleToggleBookmark,
+    },
     { type: 'divider' },
     {
       label: 'Delete',
@@ -151,6 +166,27 @@ export default function ImageCard({
           Cover
         </div>
       )}
+
+      {/* Bookmark toggle */}
+      <button
+        onClick={e => { e.stopPropagation(); handleToggleBookmark() }}
+        className="absolute bottom-2 right-2"
+        style={{
+          zIndex: 10,
+          background: bookmarked ? '#6366f1' : 'rgba(0,0,0,0.45)',
+          border: 'none',
+          borderRadius: '50%',
+          width: 24,
+          height: 24,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          backdropFilter: 'blur(4px)',
+          transition: 'background 0.15s',
+        }}>
+        <Bookmark size={12} color="#fff" fill={bookmarked ? '#fff' : 'none'} />
+      </button>
 
       {/* ••• context menu */}
       {!deleting && (

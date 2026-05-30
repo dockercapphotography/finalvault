@@ -6,6 +6,7 @@ export default function ImageGrid({
   sets, onMoveToSet, onReWatermark, onDownload, onReorder,
   viewSize = 'small', showFilename = false,
   onSetAsCover, onRename, onReplace, onOpen,
+  bookmarkedImageIds = new Set(),
 }) {
   const dragIndexRef = useRef(null)
   const [dragOverIndex, setDragOverIndex] = useState(null)
@@ -93,6 +94,7 @@ export default function ImageGrid({
               onRename={onRename}
               onReplace={onReplace}
               onOpen={onOpen}
+              isBookmarked={bookmarkedImageIds.has(image.id)}
             />
             {showFilename && (
               <p className="text-center truncate mt-1 px-0.5"

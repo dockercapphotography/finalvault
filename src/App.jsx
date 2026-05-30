@@ -8,6 +8,7 @@ import GalleryDetail from './routes/GalleryDetail.jsx'
 import GallerySettings from './routes/GallerySettings.jsx'
 import GalleryActivity from './routes/GalleryActivity.jsx'
 import Account from './routes/Account.jsx'
+import Bookmarked from './routes/Bookmarked.jsx'
 import Admin from './routes/Admin.jsx'
 import ClientGallery from './routes/ClientGallery.jsx'
 import ClientGalleryView from './routes/ClientGalleryView.jsx'
@@ -74,6 +75,11 @@ export default function App() {
       <Route path="/galleries/:id/activity" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><GalleryActivity /></PageWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/bookmarked" element={
+        <ProtectedRoute session={session}>
+          <PageWrapper session={session}><Bookmarked /></PageWrapper>
         </ProtectedRoute>
       } />
       <Route path="/account" element={

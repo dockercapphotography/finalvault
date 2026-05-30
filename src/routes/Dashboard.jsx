@@ -3,6 +3,7 @@ import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, ChevronDown, X, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react'
 import { getGalleries } from '../utils/galleryApi.js'
+import { getBookmarkedGalleryIds } from '../utils/bookmarkApi.js'
 import GalleryGrid from '../components/galleries/GalleryGrid.jsx'
 import Button from '../components/ui/Button.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -484,13 +485,16 @@ export default function Dashboard() {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
   useScrollLock(mobileFilterOpen)
   const [toast, setToast] = useState(null)
+  const [bookmarkedIds, setBookmarkedIds] = useState(new Set())
 
   useEffect(() => { loadGalleries() }, [])
 
   async function loadGalleries() {
     try {
       setLoading(true)
-      setGalleries(await getGalleries())
+      const [galleries, bIds] = await Promise.all([getGalleries(), getBookmarkedGalleryIds()])
+      setGalleries(galleries)
+      setBookmarkedIds(bIds)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -621,7 +625,7 @@ export default function Dashboard() {
       )}
 
       {!loading && !error && filtered.length > 0 && (
-        <GalleryGrid galleries={filtered} onCopyLink={handleCopyLink} />
+        <GalleryGrid galleries={filtered} onCopyLink={handleCopyLink} bookmarkedIds={bookmarkedIds} />
       )}
 
       {!loading && !error && galleries.length > 0 && filtered.length === 0 && (

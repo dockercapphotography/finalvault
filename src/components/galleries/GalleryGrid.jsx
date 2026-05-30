@@ -33,7 +33,7 @@ function useCoverUrls(galleries) {
   return coverUrls
 }
 
-export default function GalleryGrid({ galleries, onCopyLink }) {
+export default function GalleryGrid({ galleries, onCopyLink, bookmarkedIds = new Set() }) {
   const coverUrls = useCoverUrls(galleries)
 
   return (
@@ -44,6 +44,7 @@ export default function GalleryGrid({ galleries, onCopyLink }) {
           gallery={gallery}
           coverUrl={coverUrls[gallery.id] || null}
           onCopyLink={onCopyLink}
+          isBookmarked={bookmarkedIds.has(gallery.id)}
         />
       ))}
     </div>

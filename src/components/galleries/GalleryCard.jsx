@@ -1,10 +1,14 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Images, Lock, Clock } from 'lucide-react'
+import { Images, Lock, Clock, Bookmark } from 'lucide-react'
 import Badge from '../ui/Badge.jsx'
 import { formatDate } from '../../utils/formatters.js'
+import { bookmarkGallery, unbookmarkGallery } from '../../utils/bookmarkApi.js'
 
-export default function GalleryCard({ gallery, coverUrl, onCopyLink }) {
+export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarked: initialBookmarked = false }) {
   const navigate = useNavigate()
+  const [bookmarked, setBookmarked] = useState(initialBookmarked)
+  const [bookmarking, setBookmarking] = useState(false)
 
   const isExpired = gallery.expires_at && new Date(gallery.expires_at) < new Date()
   const status = !gallery.is_active ? 'inactive' : isExpired ? 'expired' : 'active'
@@ -18,6 +22,25 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink }) {
     gallery.event_name,
     gallery.event_date && formatDate(gallery.event_date),
   ].filter(Boolean).join(' · ')
+
+  async function handleBookmark(e) {
+    e.stopPropagation()
+    if (bookmarking) return
+    setBookmarking(true)
+    try {
+      if (bookmarked) {
+        await unbookmarkGallery(gallery.id)
+        setBookmarked(false)
+      } else {
+        await bookmarkGallery(gallery.id)
+        setBookmarked(true)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setBookmarking(false)
+    }
+  }
 
   return (
     <div
@@ -36,6 +59,22 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink }) {
           <Images size={28} style={{ color: 'var(--text-muted)' }} />
         )}
         <div className="absolute top-3 left-3">{statusBadge[status]}</div>
+
+        {/* Bookmark button */}
+        <button
+          onClick={handleBookmark}
+          className="absolute bottom-3 right-3 p-1.5 rounded-full transition-all"
+          style={{
+            background: bookmarked ? '#6366f1' : 'rgba(0,0,0,0.45)',
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+            backdropFilter: 'blur(4px)',
+            opacity: bookmarking ? 0.6 : 1,
+          }}>
+          <Bookmark size={13} fill={bookmarked ? '#fff' : 'none'} />
+        </button>
+
         {gallery.require_password && (
           <div className="absolute top-3 right-3 p-1.5 rounded-full" style={{ background: 'var(--surface)' }}>
             <Lock size={11} style={{ color: 'var(--text-muted)' }} />
