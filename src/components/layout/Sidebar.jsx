@@ -80,7 +80,10 @@ export default function Sidebar() {
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
-        {baseNavItems.map(({ to, label, icon: Icon, end }) => (
+        {[
+          { to: '/', label: 'Galleries', icon: baseNavItems[0].icon, end: true },
+          { to: '/bookmarked', label: 'Bookmarked', icon: baseNavItems[1].icon },
+        ].map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
@@ -96,6 +99,17 @@ export default function Sidebar() {
           </NavLink>
         ))}
         <NotificationBell mobile />
+        <NavLink
+          to="/account"
+          className="flex flex-col items-center justify-center gap-1 flex-1 h-full text-xs transition-colors"
+          style={({ isActive }) => ({
+            color: isActive ? 'var(--text)' : 'var(--text-muted)',
+            fontWeight: isActive ? '500' : '400',
+          })}
+        >
+          <Settings size={20} />
+          Account
+        </NavLink>
 
       </nav>
     </>

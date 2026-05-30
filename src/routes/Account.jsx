@@ -146,6 +146,7 @@ function ProfileTab({ user, onSaveState }) {
   const [securityMsg, setSecurityMsg] = useState(null)
   const [savingSecurity, setSavingSecurity] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(null)
+  const [storageInfo, setStorageInfo] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [cropSrc, setCropSrc] = useState(null)
   const avatarInputRef = useRef(null)
@@ -153,8 +154,20 @@ function ProfileTab({ user, onSaveState }) {
 
   useEffect(() => {
     if (!user) return
-    supabase.from('photographers').select('display_name, business_name, avatar_r2_key').eq('id', user.id).single()
-      .then(async ({ data }) => {
+    Promise.all([
+      supabase.from('photographers').select('display_name, business_name, avatar_r2_key').eq('id', user.id).single(),
+      supabase.from('photographer_storage').select('*, storage_tiers(name, storage_gb)').eq('photographer_id', user.id).single(),
+      supabase.from('galleries').select('id').eq('photographer_id', user.id),
+    ]).then(async ([{ data }, { data: storageRow }, { data: galleries }]) => {
+      if (storageRow) {
+        const galleryIds = (galleries || []).map(g => g.id)
+        let bytesUsed = storageRow.bytes_used || 0
+        if (galleryIds.length > 0) {
+          const { data: imgs } = await supabase.from('gallery_images').select('file_size, preview_size').in('gallery_id', galleryIds).is('deleted_at', null)
+          bytesUsed = (imgs || []).reduce((sum, img) => sum + (img.file_size || 0) + (img.preview_size || 0), 0)
+        }
+        setStorageInfo({ bytesUsed, tier: storageRow.storage_tiers })
+      }
         setDisplayName(data?.display_name || '')
         setBusinessName(data?.business_name || '')
         if (data?.avatar_r2_key) {
@@ -163,8 +176,13 @@ function ProfileTab({ user, onSaveState }) {
           if (resp.ok) { const blob = await resp.blob(); setAvatarUrl(URL.createObjectURL(blob)) }
         }
         setLoaded(true)
-      })
+    })
   }, [user])
+
+  function formatBytes(bytes) {
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+  }
 
   function handleFileSelect(e) {
     const file = e.target.files?.[0]
@@ -241,7 +259,7 @@ function ProfileTab({ user, onSaveState }) {
 
   return (
     <div className="space-y-4">
-      <SettingsSection title="Personal Information">
+      <SettingsSection title="Personal Information" description="Your name, photo, and business details.">
         <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
           <div className="flex items-center gap-4">
             <button onClick={() => avatarInputRef.current?.click()} style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, position: 'relative' }} title="Change profile photo">
@@ -272,7 +290,26 @@ function ProfileTab({ user, onSaveState }) {
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Security">
+      {storageInfo && (
+        <SettingsSection title="Storage" description="Your current storage usage and plan.">
+          <div className="px-5 py-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm" style={{ color: 'var(--text)' }}>{formatBytes(storageInfo.bytesUsed)} used</span>
+              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{storageInfo.tier?.name || 'Free'} · {storageInfo.tier?.storage_gb ? `${storageInfo.tier.storage_gb} GB` : '—'}</span>
+            </div>
+            <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
+              <div className="h-full rounded-full transition-all" style={{
+                width: storageInfo.tier?.storage_gb
+                  ? `${Math.min((storageInfo.bytesUsed / (storageInfo.tier.storage_gb * 1024 * 1024 * 1024)) * 100, 100)}%`
+                  : '0%',
+                background: 'var(--accent)'
+              }} />
+            </div>
+          </div>
+        </SettingsSection>
+      )}
+
+      <SettingsSection title="Security" description="Update your email address and password.">
         <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
           <div className="space-y-2">
             <Input label="New email address" value={newEmail} onChange={setNewEmail} placeholder={user?.email} hint="A confirmation link will be sent to the new address." />
