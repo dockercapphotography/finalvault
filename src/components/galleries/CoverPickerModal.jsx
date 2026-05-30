@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { X, Upload } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 
@@ -23,6 +24,7 @@ export default function CoverPickerModal({
   existingCoverUrl, existingFocusX = 0.5, existingFocusY = 0.5,
   preSelectedImage = null,  // jump straight to focal with this image pre-chosen
 }) {
+  useScrollLock(true)
   const [stage, setStage] = useState(
     preSelectedImage ? 'focal' : existingCoverUrl ? 'focal' : 'pick'
   )

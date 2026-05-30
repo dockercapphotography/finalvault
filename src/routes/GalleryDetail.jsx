@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, Droplets, LayoutGrid, Check } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
@@ -68,6 +69,9 @@ export default function GalleryDetail() {
   function openSheet() { setShowActionSheet(true); requestAnimationFrame(() => requestAnimationFrame(() => setSheetVisible(true))) }
   function closeSheet() { setSheetVisible(false); setTimeout(() => setShowActionSheet(false), 300) }
   const [shareModal, setShareModal] = useState(null)
+
+  const anyModalOpen = showWatermark || showCoverPicker || showActionSheet || !!confirmDeleteSetId || !!lightboxImage
+  useScrollLock(anyModalOpen)
 
   const activeSetImages = activeSetId ? images.filter(i => i.set_id === activeSetId) : images
   const hasImages = images.length > 0

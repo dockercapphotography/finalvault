@@ -1,3 +1,4 @@
+import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { useState, useEffect, useRef } from 'react'
 import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
@@ -164,6 +165,8 @@ export default function NotificationBell({ mobile = false }) {
       window.dispatchEvent(new CustomEvent('fv-notifications-read'))
     }
   }
+
+  useScrollLock(open && mobile)
 
   const groups = groupByDay(items)
 

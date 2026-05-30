@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
@@ -18,6 +19,8 @@ function DownloadMenu({ allowWebSize, allowHires, onDownload, loading }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const hasBoth = allowWebSize && allowHires
+
+  useScrollLock(lightboxIndex !== null)
 
   useEffect(() => {
     if (!open) return

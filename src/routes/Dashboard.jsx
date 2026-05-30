@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, ChevronDown, X, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react'
 import { getGalleries } from '../utils/galleryApi.js'
@@ -481,6 +482,7 @@ export default function Dashboard() {
   const [eventDateFilter, setEventDateFilter] = useState(null)
   const [expiryFilter, setExpiryFilter] = useState(null)
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
+  useScrollLock(mobileFilterOpen)
   const [toast, setToast] = useState(null)
 
   useEffect(() => { loadGalleries() }, [])

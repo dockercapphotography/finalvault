@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { X, Copy, Mail, Link, QrCode, Check, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import QRCode from 'https://esm.sh/qrcode@1.5.3'
