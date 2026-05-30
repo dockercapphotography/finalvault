@@ -516,59 +516,82 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5 max-w-7xl">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="mr-1">
+      {/* ── Desktop: title + search + new gallery all in one row ── */}
+      <div className="hidden md:flex items-center gap-3">
+        <div className="shrink-0">
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Galleries</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {galleries.length} {galleries.length === 1 ? 'gallery' : 'galleries'}
           </p>
         </div>
-
         {galleries.length > 0 && (
-          <div className="relative flex-1 min-w-[160px] max-w-xs">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search galleries..."
-              className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search galleries..."
+            className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+            onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           </div>
         )}
-
-        {galleries.length > 0 && (
-          <button onClick={() => setMobileFilterOpen(true)}
-            className="md:hidden flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium relative"
-            style={{ background: hasFilters ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${hasFilters ? '#6366f1' : 'var(--border)'}`, color: hasFilters ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer' }}>
-            <SlidersHorizontal size={14} />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
-                style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        )}
-
-        <Button onClick={() => navigate('/galleries/new')} className="ml-auto shrink-0">
-          <Plus size={15} />
-          <span className="hidden sm:inline">New Gallery</span>
-          <span className="sm:hidden">New</span>
+        <Button onClick={() => navigate('/galleries/new')} className="shrink-0">
+          <Plus size={15} />New Gallery
         </Button>
       </div>
 
+      {/* ── Desktop: filter pills ── */}
       {galleries.length > 0 && (
         <div className="hidden md:flex items-center gap-2 flex-wrap">
           <StatusPill value={statusFilter} onChange={setStatusFilter} />
           <DateRangePill label="Event Date" value={eventDateFilter} onChange={setEventDateFilter} presets={EVENT_PRESETS} />
           <DateRangePill label="Expiry Date" value={expiryFilter} onChange={setExpiryFilter} presets={EXPIRY_PRESETS} />
           {hasFilters && (
-            <button onClick={clearAllFilters} className="text-xs px-2.5 py-1.5 rounded-full"
+            <button onClick={clearAllFilters} className="text-xs"
               style={{ color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none' }}>
               Clear all
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── Mobile: title + actions row, then search row ── */}
+      <div className="flex items-center gap-2 md:hidden">
+        <div>
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Galleries</h1>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {galleries.length} {galleries.length === 1 ? 'gallery' : 'galleries'}
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {galleries.length > 0 && (
+            <button onClick={() => setMobileFilterOpen(true)}
+              className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
+              style={{ background: hasFilters ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${hasFilters ? '#6366f1' : 'var(--border)'}`, color: hasFilters ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer' }}>
+              <SlidersHorizontal size={14} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
+                  style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
+          <Button onClick={() => navigate('/galleries/new')} className="shrink-0">
+            <Plus size={15} />New
+          </Button>
+        </div>
+      </div>
+      {galleries.length > 0 && (
+        <div className="relative md:hidden">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search galleries..."
+            className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+            onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'} />
         </div>
       )}
 
