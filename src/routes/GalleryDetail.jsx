@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, Droplets } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
-import { getImages, deleteImage, saveImageOrder } from '../utils/imageApi.js'
+import { getImages, deleteImage, saveImageOrder, updateImageWatermark } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
 import { supabase } from '../supabaseClient.js'
 import { useImageUpload } from '../hooks/useImageUpload.js'
@@ -116,7 +116,8 @@ export default function GalleryDetail() {
 
       if (wm) {
         const url = `${workerUrl}/watermark/${encodeURIComponent(wm.r2_key)}?token=${session.access_token}`
-        setActiveWatermark({ url, opacity: wm.opacity, position: wm.position, scale: wm.scale ?? 0.15 })
+        // Include id so useImageUpload can save it to gallery_images.watermark_id
+        setActiveWatermark({ id: wm.id, url, opacity: wm.opacity, position: wm.position, scale: wm.scale ?? 0.15 })
       }
     } catch (err) {
       console.warn('Could not load watermark:', err)
@@ -352,8 +353,14 @@ export default function GalleryDetail() {
           body: formData,
         })
 
-        // Directly inject the new preview from the canvas blob — no need to re-fetch
         if (uploadResp.status === 200) {
+          // Save the watermark_id that was just applied to this image
+          await updateImageWatermark(img.id, wm.id)
+
+          // Update local images state so future downloads use the new watermark_id
+          setImages(prev => prev.map(i => i.id === img.id ? { ...i, watermark_id: wm.id } : i))
+
+          // Directly inject the new preview from the canvas blob — no need to re-fetch
           setCacheBusts(prev => ({ ...prev, [img.id]: Date.now() }))
           setWatermarkProgress(prev => ({ ...prev, current: prev.current + 1 }))
           const newBlobUrl = URL.createObjectURL(previewBlob)

@@ -5,7 +5,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import {
   getGalleryByToken, getClientImages, getViewerFromSession,
   getViewerFavorites, toggleFavorite, getComments, addComment,
-  getPreviewUrl, downloadOriginal, downloadPreview, downloadZip, verifyDownloadPin, logActivity,
+  getPreviewUrl, downloadWebSize, downloadHiRes, downloadZip, verifyDownloadPin, logActivity,
   getClientSets
 } from '../utils/clientApi.js'
 import { getTheme } from '../utils/themes.js'
@@ -259,7 +259,6 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
         </button>
       )}
 
-      {/* key={index} remounts TransformWrapper on navigation, resetting zoom cleanly */}
       <div className="relative" onClick={e => e.stopPropagation()}>
         <TransformWrapper
           key={index}
@@ -360,6 +359,70 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
   )
 }
 
+function ZipProgressModal({ hires, progress, total }) {
+  const pct = total > 0 && progress != null ? Math.round((progress / total) * 100) : 0
+  const done = progress != null && progress >= total
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full max-w-xs rounded-2xl p-6 space-y-5"
+        style={{ background: '#1e1e1e', border: '1px solid #333' }}>
+
+        {/* Icon + title */}
+        <div className="flex flex-col items-center gap-3 pt-1">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center"
+            style={{ background: done ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)' }}>
+            {hires && !done ? (
+              <div className="w-5 h-5 border-2 rounded-full animate-spin"
+                style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+            ) : (
+              <Download size={22} style={{ color: '#6366f1' }} />
+            )}
+          </div>
+          <div className="text-center space-y-1">
+            <p className="font-semibold text-sm" style={{ color: '#f0f0f0' }}>
+              {done ? 'Download ready!' : hires ? 'Preparing your download…' : 'Processing photos…'}
+            </p>
+            <p className="text-xs" style={{ color: '#9ca3af' }}>
+              {done
+                ? 'Your ZIP file is downloading now.'
+                : hires
+                ? `Packaging ${total} photo${total !== 1 ? 's' : ''} — this may take a moment.`
+                : `Processing photo ${Math.min((progress ?? 0) + 1, total)} of ${total}`}
+            </p>
+          </div>
+        </div>
+
+        {/* Web size — real progress bar */}
+        {!hires && (
+          <div className="space-y-1.5">
+            <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
+              <div className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${pct}%`, background: '#6366f1' }} />
+            </div>
+            <div className="flex justify-between text-xs" style={{ color: '#6b7280' }}>
+              <span>{progress ?? 0} of {total} photos</span>
+              <span>{pct}%</span>
+            </div>
+          </div>
+        )}
+
+        {/* Hires — indeterminate pulse bar */}
+        {hires && !done && (
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
+            <div className="h-full rounded-full animate-pulse" style={{ width: '60%', background: '#6366f1' }} />
+          </div>
+        )}
+
+        <p className="text-xs text-center" style={{ color: '#4b5563' }}>
+          Please keep this window open until complete.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
   const [comments, setComments] = useState([])
   const [body, setBody] = useState('')
@@ -439,6 +502,7 @@ export default function ClientGalleryView() {
   const [pinLoading, setPinLoading] = useState(false)
   const [pendingDownload, setPendingDownload] = useState(null)
   const [downloadingZip, setDownloadingZip] = useState(false)
+  const [zipProgress, setZipProgress] = useState(null)  // { current, total, hires }
   const [sets, setSets] = useState([])
   const [activeSetId, setActiveSetId] = useState(null)
 
@@ -480,8 +544,8 @@ export default function ClientGalleryView() {
     if (gallery.require_download_pin) {
       setPendingDownload({ type: 'single', image, hires }); setShowPinGate(true)
     } else {
-      if (hires) downloadOriginal(image.original_r2_key, image.file_name, token)
-      else downloadPreview(image.preview_r2_key, image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token)
+      if (hires) downloadHiRes(image.original_r2_key, image.file_name, token, null)
+      else downloadWebSize(image.original_r2_key, image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token, null, image.watermark_id)
       logActivity(gallery.id, viewer?.id, 'download_single', image.id)
     }
   }
@@ -493,14 +557,27 @@ export default function ClientGalleryView() {
   }
 
   async function doZipDownload(pin = null, hires = false) {
+    const total = images.length
     setDownloadingZip(true)
+    setZipProgress({ current: 0, total, hires })
     try {
-      const keys = hires ? images.map(i => i.original_r2_key) : images.map(i => i.preview_r2_key)
+      const keys = images.map(i => i.original_r2_key)
       const names = hires ? images.map(i => i.file_name) : images.map(i => i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
-      await downloadZip(gallery.id, token, keys, names, gallery.title, pin)
+      const watermarkIds = images.map(i => i.watermark_id || null)
+      const watermarkConfigs = images.map(i => i.watermarks || null)
+      await downloadZip(
+        gallery.id, token, keys, names, gallery.title, pin,
+        hires ? 'hires' : 'web',
+        watermarkIds,
+        watermarkConfigs,
+        hires ? null : (current, t) => setZipProgress(prev => ({ ...prev, current }))
+      )
       logActivity(gallery.id, viewer?.id, 'download_all')
+      // Show completion state briefly before closing
+      setZipProgress(prev => ({ ...prev, current: total }))
+      await new Promise(r => setTimeout(r, 1200))
     } catch (err) { console.error(err) }
-    finally { setDownloadingZip(false) }
+    finally { setDownloadingZip(false); setZipProgress(null) }
   }
 
   async function handlePinSubmit(pin) {
@@ -510,8 +587,8 @@ export default function ClientGalleryView() {
       if (!valid) { setPinError('Incorrect PIN. Please try again.'); return }
       setShowPinGate(false)
       if (pendingDownload?.type === 'single') {
-        if (pendingDownload.hires) await downloadOriginal(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
-        else await downloadPreview(pendingDownload.image.preview_r2_key, pendingDownload.image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token)
+        if (pendingDownload.hires) await downloadHiRes(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
+        else await downloadWebSize(pendingDownload.image.original_r2_key, pendingDownload.image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token, pin, pendingDownload.image.watermark_id)
         logActivity(gallery.id, viewer?.id, 'download_single', pendingDownload.image.id)
       } else {
         await doZipDownload(pin, pendingDownload?.hires || false)
@@ -654,6 +731,14 @@ export default function ClientGalleryView() {
 
       {showPinGate && (
         <PinGate onSubmit={handlePinSubmit} onCancel={() => { setShowPinGate(false); setPinError(''); setPendingDownload(null) }} error={pinError} loading={pinLoading} />
+      )}
+
+      {downloadingZip && zipProgress && (
+        <ZipProgressModal
+          hires={zipProgress.hires}
+          progress={zipProgress.current}
+          total={zipProgress.total}
+        />
       )}
     </div>
   )

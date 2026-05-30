@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient.js'
 export async function getImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')
-    .select('id, original_r2_key, preview_r2_key, file_name, file_size, width, height, sort_order, uploaded_at, set_id')
+    .select('id, original_r2_key, preview_r2_key, file_name, file_size, width, height, sort_order, uploaded_at, set_id, watermark_id')
     .eq('gallery_id', galleryId)
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })
@@ -43,4 +43,12 @@ export async function saveImageOrder(orderedIds) {
   )
   const failed = results.filter(r => r.error)
   if (failed.length > 0) throw new Error(failed[0].error.message)
+}
+
+export async function updateImageWatermark(imageId, watermarkId) {
+  const { error } = await supabase
+    .from('gallery_images')
+    .update({ watermark_id: watermarkId })
+    .eq('id', imageId)
+  if (error) throw error
 }

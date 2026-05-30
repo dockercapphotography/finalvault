@@ -1,6 +1,7 @@
 import { handleUpload } from './handlers/upload.js'
 import { handlePreview } from './handlers/preview.js'
 import { handleOriginal } from './handlers/original.js'
+import { handleDownload } from './handlers/download.js'
 import { handleDelete } from './handlers/delete.js'
 import { handleZip } from './handlers/zip.js'
 import { handleWatermarkUpload, handleWatermarkServe } from './handlers/watermark.js'
@@ -8,7 +9,7 @@ import { handleWatermarkUpload, handleWatermarkServe } from './handlers/watermar
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Share-Token, X-Download-Pin, X-Hires'
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Share-Token, X-Download-Pin, X-Hires, X-Download-Size'
 }
 
 export default {
@@ -29,6 +30,9 @@ export default {
       }
       if (request.method === 'GET' && pathname.startsWith('/original/')) {
         return await handleOriginal(request, env, CORS_HEADERS)
+      }
+      if (request.method === 'GET' && pathname.startsWith('/download/')) {
+        return await handleDownload(request, env, CORS_HEADERS)
       }
       if (request.method === 'DELETE' && pathname.startsWith('/delete/')) {
         return await handleDelete(request, env, CORS_HEADERS)

@@ -1,5 +1,20 @@
+/**
+ * zip.js — ZIP download handler
+ *
+ * POST /download-zip
+ * Body: { galleryId, imageKeys, fileNames, size, watermarkIds }
+ *   - imageKeys:    always original_r2_key values
+ *   - fileNames:    display filenames (_web.jpg suffixed by caller for web ZIPs)
+ *   - size:         'web' | 'hires'
+ *   - watermarkIds: array of watermark_id per image (parallel to imageKeys), for web ZIPs
+ *
+ * size=hires: ZIP raw originals as-is
+ * size=web:   resize + watermark each image using its stored watermark_id, ZIP as JPEGs
+ */
+
 import { verifyShareToken } from '../middleware/shareToken.js'
 import { verifyJWT } from '../middleware/auth.js'
+import { fetchWatermarkById, processWebImage } from '../utils/imageProcess.js'
 
 export async function handleZip(request, env, corsHeaders) {
   const hasJWT = request.headers.get('Authorization')?.startsWith('Bearer ')
@@ -7,36 +22,40 @@ export async function handleZip(request, env, corsHeaders) {
 
   let photographerId
   let galleryId
-  let allowDownloads = true
+  let size = 'hires'
+  let imageKeys = []
+  let fileNames = []
+  let watermarkIds = []
 
   if (hasJWT) {
-    // Photographer downloading their own images — always allowed
     const auth = await verifyJWT(request)
     if (!auth.valid) {
       return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
     }
     photographerId = auth.userId
-    // galleryId comes from body
+
     let body
-    try { body = await request.json() } catch { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, corsHeaders) }
+    try { body = await request.json() } catch {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, corsHeaders)
+    }
     galleryId = body.galleryId
-    const { imageKeys, fileNames } = body
+    imageKeys = body.imageKeys || []
+    fileNames = body.fileNames || []
+    size = body.size || 'hires'
+    watermarkIds = body.watermarkIds || []
+
     if (!galleryId || !Array.isArray(imageKeys) || imageKeys.length === 0) {
       return jsonResponse({ ok: false, error: 'Missing galleryId or imageKeys' }, 400, corsHeaders)
     }
-    // Verify gallery belongs to photographer
+
     const galleryResp = await fetch(
       `${env.SUPABASE_URL}/rest/v1/galleries?id=eq.${galleryId}&photographer_id=eq.${photographerId}&select=id`,
       { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
     )
     const galleries = await galleryResp.json()
-    if (!galleries?.length) return jsonResponse({ ok: false, error: 'Gallery not found' }, 404, corsHeaders)
-
-    const expectedPrefix = `photographers/${photographerId}/galleries/${galleryId}/`
-    const allValid = imageKeys.every(k => k.startsWith(expectedPrefix) && (k.includes('/preview/') || k.includes('/original/')))
-    if (!allValid) return jsonResponse({ ok: false, error: 'Access denied: invalid image keys' }, 403, corsHeaders)
-
-    return buildAndSendZip(imageKeys, fileNames || [], galleryId, env, corsHeaders)
+    if (!galleries?.length) {
+      return jsonResponse({ ok: false, error: 'Gallery not found' }, 404, corsHeaders)
+    }
 
   } else if (hasShareToken) {
     const shareAuth = await verifyShareToken(request, env, true)
@@ -50,39 +69,84 @@ export async function handleZip(request, env, corsHeaders) {
     galleryId = shareAuth.galleryId
 
     let body
-    try { body = await request.json() } catch { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, corsHeaders) }
-    const { imageKeys, fileNames } = body
-
-    if (!galleryId || !Array.isArray(imageKeys) || imageKeys.length === 0) {
-      return jsonResponse({ ok: false, error: 'Missing galleryId or imageKeys' }, 400, corsHeaders)
+    try { body = await request.json() } catch {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, corsHeaders)
     }
-    const expectedPrefix = `photographers/${photographerId}/galleries/${galleryId}/`
-    const allValid = imageKeys.every(k => k.startsWith(expectedPrefix) && (k.includes('/preview/') || k.includes('/original/')))
-    if (!allValid) return jsonResponse({ ok: false, error: 'Access denied: invalid image keys' }, 403, corsHeaders)
+    imageKeys = body.imageKeys || []
+    fileNames = body.fileNames || []
+    size = body.size || 'hires'
+    watermarkIds = body.watermarkIds || []
 
-    return buildAndSendZip(imageKeys, fileNames || [], galleryId, env, corsHeaders)
+    if (!Array.isArray(imageKeys) || imageKeys.length === 0) {
+      return jsonResponse({ ok: false, error: 'Missing imageKeys' }, 400, corsHeaders)
+    }
+
+    if (size === 'hires' && !shareAuth.allowHiresDownload) {
+      return jsonResponse(
+        { ok: false, error: 'High resolution downloads are not enabled for this gallery' },
+        403,
+        corsHeaders
+      )
+    }
 
   } else {
     return jsonResponse({ ok: false, error: 'Authentication required' }, 401, corsHeaders)
   }
+
+  // Security: all keys must belong to this photographer and be original keys
+  const expectedPrefix = `photographers/${photographerId}/galleries/${galleryId}/`
+  const allValid = imageKeys.every(k => k.startsWith(expectedPrefix) && k.includes('/original/'))
+  if (!allValid) {
+    return jsonResponse({ ok: false, error: 'Access denied: invalid image keys' }, 403, corsHeaders)
+  }
+
+  // For web ZIPs, pre-fetch unique watermarks to avoid redundant DB/R2 calls
+  const wmCache = {}
+  if (size === 'web') {
+    const uniqueIds = [...new Set(watermarkIds.filter(Boolean))]
+    await Promise.all(uniqueIds.map(async (wmId) => {
+      wmCache[wmId] = await fetchWatermarkById(wmId, env)
+    }))
+  }
+
+  return buildAndSendZip(imageKeys, fileNames, watermarkIds, galleryId, size, wmCache, env, corsHeaders)
 }
 
-async function buildAndSendZip(imageKeys, fileNames, galleryId, env, corsHeaders) {
+async function buildAndSendZip(imageKeys, fileNames, watermarkIds, galleryId, size, wmCache, env, corsHeaders) {
   try {
     const fetched = await Promise.all(
       imageKeys.map(async (key, i) => {
         try {
           const obj = await env.BUCKET.get(key)
           if (!obj) return null
-          const buffer = await obj.arrayBuffer()
-          const fileName = fileNames[i] || key.split('/').pop() || `image-${i}`
-          return { fileName, buffer }
-        } catch { return null }
+
+          const rawBytes = new Uint8Array(await obj.arrayBuffer())
+          let finalBytes
+          let fileName = fileNames[i] || key.split('/').pop() || `image-${i}`
+
+          if (size === 'web') {
+            const wmId = watermarkIds[i] || null
+            const wmConfig = wmId ? (wmCache[wmId] || null) : null
+            finalBytes = await processWebImage(rawBytes, wmConfig)
+            if (!fileName.endsWith('_web.jpg')) {
+              fileName = fileName.replace(/\.[^.]+$/, '_web.jpg')
+            }
+          } else {
+            finalBytes = rawBytes
+          }
+
+          return { fileName, buffer: finalBytes.buffer || finalBytes }
+        } catch (err) {
+          console.error(`Failed to process image ${key}:`, err)
+          return null
+        }
       })
     )
 
     const files = fetched.filter(Boolean)
-    if (files.length === 0) return jsonResponse({ ok: false, error: 'No images found' }, 404, corsHeaders)
+    if (files.length === 0) {
+      return jsonResponse({ ok: false, error: 'No images found' }, 404, corsHeaders)
+    }
 
     const zipBytes = await buildZip(files)
     const headers = new Headers(corsHeaders)
@@ -95,6 +159,8 @@ async function buildAndSendZip(imageKeys, fileNames, galleryId, env, corsHeaders
     return jsonResponse({ ok: false, error: 'ZIP generation failed: ' + err.message }, 500, corsHeaders)
   }
 }
+
+// ─── ZIP builder ──────────────────────────────────────────────────────────────
 
 async function buildZip(files) {
   const encoder = new TextEncoder()

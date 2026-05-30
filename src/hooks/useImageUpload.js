@@ -63,6 +63,7 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
           height,
           sort_order: index,
           set_id: setId || null,
+          watermark_id: watermark?.id || null,  // record which watermark was baked in
         })
 
         updateItem(index, { status: 'done' })

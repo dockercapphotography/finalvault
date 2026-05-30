@@ -43,6 +43,23 @@ Built on the same infrastructure as PoseVault — Cloudflare R2 for storage, Sup
 - Apply watermark to a single image, an entire set, or bulk-selected images
 - Progress bar modal during processing — locked to prevent window close
 - Per-gallery watermark override — select a specific watermark per gallery, falling back to the active watermark
+- Each image records which watermark was applied (`gallery_images.watermark_id`) — downloads always use the exact watermark that was baked into the preview, even if the active watermark changes later
+
+### Download Architecture
+
+Three distinct download types — never confused:
+
+| Type | Source | Processing | Watermark | Format |
+|------|--------|-----------|-----------|--------|
+| **Gallery display** | `/preview/` WebP | None | Baked in at upload | WebP |
+| **Web size download** | `/original/` | Resize to 2048px long edge | Applied fresh via worker (Photon WASM) | JPEG |
+| **High resolution download** | `/original/` | None | None — clean final delivery | Original format |
+
+**Single image downloads** are handled by the R2 Worker (`GET /download/:key?size=web|hires&watermark_id=...`). The worker fetches the original, resizes and composites the watermark (using `@cf-wasm/photon`) for web size, or serves the raw file for high resolution.
+
+**ZIP downloads** split by type:
+- *Web size ZIP* — processed entirely client-side (Canvas API + JSZip) to avoid Cloudflare Worker CPU limits. Each image is fetched, resized, watermarked, and encoded as JPEG in the browser sequentially. A progress modal shows per-image status.
+- *High resolution ZIP* — processed by the R2 Worker, which streams raw originals directly into a ZIP. No image processing required, so no CPU limit issues.
 
 ### Client Gallery Experience
 - Name gate on first visit (stored in session)
@@ -57,7 +74,7 @@ Built on the same infrastructure as PoseVault — Cloudflare R2 for storage, Sup
 - Heart/favorite individual images
 - Leave comments on individual images
 - Download individual images (web size or high-resolution original)
-- Download all as ZIP — gated behind download PIN if configured
+- Download all as ZIP with progress modal — web size shows per-image progress bar; high resolution shows spinner while worker packages files
 - Right-click and drag protection on preview images
 
 ### Access & Sharing
@@ -127,8 +144,9 @@ All themes are defined in a single `themes.js` config file — adding a new them
 | Backend | Supabase (PostgreSQL, Auth, Edge Functions) |
 | Image Storage | Cloudflare R2 (S3-compatible) |
 | R2 Proxy | Cloudflare Worker |
+| Image Processing | @cf-wasm/photon (WASM, worker-side) + Canvas API (client-side) |
 | Deployment | Cloudflare Pages |
-| ZIP Downloads | JSZip |
+| ZIP Downloads | JSZip (client-side web ZIPs) + custom ZIP builder (worker-side hires ZIPs) |
 | Image Viewer | react-zoom-pan-pinch |
 | Icons | Lucide React |
 | Testing | Playwright (planned) |
@@ -146,13 +164,17 @@ finalvault/
 │       ├── index.js             # Worker entry point and router
 │       ├── handlers/
 │       │   ├── upload.js        # POST /upload — authenticated upload
-│       │   ├── preview.js       # GET /preview/:key — serve preview image
-│       │   ├── original.js      # GET /original/:key — serve original (auth or PIN)
+│       │   ├── preview.js       # GET /preview/:key — gallery display only, never for downloads
+│       │   ├── original.js      # GET /original/:key — photographer access only
+│       │   ├── download.js      # GET /download/:key — unified download endpoint (web + hires)
 │       │   ├── delete.js        # DELETE /:key — authenticated delete
-│       │   └── zip.js           # POST /download-zip — ZIP stream with PIN gate
-│       └── middleware/
-│           ├── auth.js          # JWT verification
-│           └── shareToken.js    # Share token and PIN validation
+│       │   ├── zip.js           # POST /download-zip — hires ZIP (raw originals)
+│       │   └── watermark.js     # Watermark upload + serve (JWT or share token)
+│       ├── middleware/
+│       │   ├── auth.js          # JWT verification
+│       │   └── shareToken.js    # Share token and PIN validation
+│       └── utils/
+│           └── imageProcess.js  # Shared image processing: resize, watermark, JPEG encode
 ├── supabase/
 │   └── functions/
 │       └── send-gallery-email/  # Email delivery with cover image, template vars, social/payment footer
@@ -167,7 +189,8 @@ finalvault/
 │   ├── 008_storage_tiers.sql
 │   ├── 009_photographer_storage.sql
 │   ├── 010_storage_tiers.sql
-│   └── 011_gallery_templates.sql
+│   ├── 011_gallery_templates.sql
+│   └── 012_auth_user_trigger.sql
 ├── src/
 │   ├── main.jsx                 # Entry point and routes
 │   ├── App.jsx                  # Auth state orchestrator
@@ -180,7 +203,7 @@ finalvault/
 │   │   ├── GallerySettings.jsx  # 5 tabs: General, Access, Sharing, Display, Danger Zone
 │   │   ├── GalleryActivity.jsx  # Activity log for a gallery
 │   │   ├── ClientGallery.jsx    # Client gate page (name + password)
-│   │   ├── ClientGalleryView.jsx # Client gallery with sets, lightbox, pinch-zoom
+│   │   ├── ClientGalleryView.jsx # Client gallery with sets, lightbox, download modals
 │   │   ├── Account.jsx          # Profile, Watermarks, Templates, Email, Social, Payment
 │   │   └── Admin.jsx            # Users and storage tier management
 │   ├── components/
@@ -213,7 +236,7 @@ finalvault/
 │   │       ├── StorageMeter.jsx
 │   │       └── PortalMenu.jsx   # Self-contained context menu via React portal
 │   ├── hooks/
-│   │   ├── useImageUpload.js    # Upload handler with set_id and watermark support
+│   │   ├── useImageUpload.js    # Upload handler — saves watermark_id at upload time
 │   │   ├── usePreviewUrls.js    # Authenticated blob URL fetching with cache busting
 │   │   └── usePageDrop.js       # Page-level drag-and-drop for file upload
 │   └── utils/
@@ -221,9 +244,10 @@ finalvault/
 │       ├── galleryApi.js        # Gallery CRUD
 │       ├── gallerySetApi.js     # Set CRUD and reordering
 │       ├── galleryTemplateApi.js # Template CRUD and duplication
-│       ├── imageApi.js          # Image CRUD including set_id and sort_order
-│       ├── clientApi.js         # Client-facing API (viewers, favorites, comments)
+│       ├── imageApi.js          # Image CRUD including watermark_id
+│       ├── clientApi.js         # Client-facing API — downloads, favorites, comments
 │       ├── watermarkApi.js      # Watermark management
+│       ├── imageProcessor.js    # Client-side image processing (Canvas API)
 │       ├── r2.js                # R2 worker communication
 │       └── formatters.js        # Date and file size formatting
 ├── .env.example
@@ -254,6 +278,8 @@ cd r2-worker
 npx wrangler deploy
 ```
 
+The worker must be deployed separately — Cloudflare Pages deploys do not include the worker.
+
 **Supabase Edge Functions** — deployed via the Supabase CLI or dashboard.
 
 **Database migrations** — run SQL files manually via the Supabase dashboard SQL editor in order.
@@ -267,7 +293,7 @@ npx wrangler deploy
 | `photographers` | Photographer profiles, branding, social/payment links, notification tracking |
 | `galleries` | Core gallery entity — settings, access, theme, cover, share token |
 | `gallery_sets` | Named sets within a gallery with sort order |
-| `gallery_images` | Images with R2 keys, set assignment, and sort order |
+| `gallery_images` | Images with R2 keys, set assignment, sort order, and `watermark_id` |
 | `gallery_viewers` | Client session tracking (no account required) |
 | `gallery_favorites` | Client favorites per image |
 | `gallery_comments` | Comments on images from clients and photographer |
@@ -277,7 +303,22 @@ npx wrangler deploy
 | `email_templates` | Reusable email templates with variable substitution |
 | `storage_tiers` | Storage plan definitions |
 
-All tables have Row Level Security (RLS) enabled. Photographers can only access their own data. Clients access galleries via share token with anon RLS policies.
+All tables have Row Level Security (RLS) enabled. Photographers can only access their own data. Clients access galleries via share token with anon RLS policies. Watermarks are publicly readable (metadata only — the actual PNG is still served through the authenticated worker).
+
+---
+
+## Outstanding / Planned Work
+
+- **Async ZIP queue** — for large galleries, a Pixieset-style async job queue (Cloudflare Queue + Supabase `download_jobs` table + email notification when ready). Requires client email collection first.
+- **Client email collection** — optional email field at the gallery gate
+- **Slideshow mode** — auto-advance in the client gallery lightbox
+- **Email notifications to photographer** — on client view/favorite/download/comment
+- **Client selection/proofing** — "Submit my selections" flow
+- **Automated gallery expiry emails** — depends on client email + pg_cron
+- **Preview image caching** — switch from `no-cache` to `private, max-age=3600` with watermark-timestamp cache-bust key
+- **Mobile PWA** — manifest + icons done, needs installable manifest entry
+- **Playwright test suite** — full end-to-end coverage (blocked on download architecture being stable — now unblocked)
+- **Natural sort order** for filenames (e.g. `image-2.jpg` before `image-10.jpg`)
 
 ---
 
