@@ -671,10 +671,10 @@ export default function GalleryDetail() {
       <div className="max-w-5xl space-y-6">
         {/* ── Mobile top bar ── */}
         <div className="flex items-center gap-2 md:hidden -mx-0 mb-2">
-          <button onClick={() => navigate('/')} style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
-            <ArrowLeft size={18} />
+          <button onClick={() => navigate('/')} style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
+            <ArrowLeft size={18} style={{ flexShrink: 0 }} />
+            <h1 className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
           </button>
-          <h1 className="flex-1 text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
           {statusBadge[status]}
           <button onClick={openSheet} style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
             <MoreVertical size={18} />
