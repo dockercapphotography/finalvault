@@ -81,7 +81,7 @@ export default function GalleryDetail() {
   const hasSetImages = activeSetImages.length > 0
   const { previewUrls, setPreviewUrls } = usePreviewUrls(images)
 
-  const { uploadFiles, uploadItems, isUploading, reset: resetUpload } = useImageUpload({
+  const { uploadFiles, uploadItems, isUploading, storageError, reset: resetUpload } = useImageUpload({
     galleryId: id,
     photographerId,
     watermark: activeWatermark,
@@ -93,7 +93,7 @@ export default function GalleryDetail() {
     },
   })
 
-  const isDragOver = usePageDrop(uploadFiles, hasImages)
+  const isDragOver = usePageDrop(uploadFiles, hasSetImages)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id))
@@ -735,7 +735,7 @@ export default function GalleryDetail() {
 
   return (
     <>
-      {isDragOver && hasImages && (
+      {isDragOver && hasSetImages && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
           style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)' }}>
           <div className="flex flex-col items-center justify-center w-72 h-48 rounded-2xl"
@@ -1014,6 +1014,11 @@ export default function GalleryDetail() {
             </div>
           </div>
 
+          {storageError && (
+            <div className="mx-4 mt-2 px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+              {storageError}
+            </div>
+          )}
           {uploadItems.length > 0 && <UploadProgress items={uploadItems} />}
 
           {hasSetImages && (

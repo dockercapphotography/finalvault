@@ -147,7 +147,7 @@ export default function Admin() {
 
       const [{ data: photogs }, { data: tierRows }, { data: storageRows }, { data: galleryRows }, { data: imageRows }] = await Promise.all([
         supabase.from('photographers').select('id, display_name, created_at, is_admin'),
-        supabase.from('storage_tiers').select('*').order('storage_gb'),
+        supabase.from('storage_tiers').select('*').order('name'),
         supabase.from('photographer_storage').select('*'),
         supabase.from('galleries').select('id, photographer_id'),
         supabase.from('gallery_images').select('gallery_id, file_size, preview_size').is('deleted_at', null),
@@ -391,7 +391,7 @@ export default function Admin() {
 
           <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
             {tiers.map((tier, i) => {
-              const userCount = Object.values(storage).filter(s => s.tier_id === tier.id).length
+              const userCount = Object.values(storage).filter(s => tier && s.tier_id === tier.id).length
               return (
                 <div key={tier.id} className="flex items-center gap-4 px-4 py-3 text-sm"
                   style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>

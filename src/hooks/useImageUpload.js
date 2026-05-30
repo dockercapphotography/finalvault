@@ -4,9 +4,57 @@ import { generatePreview } from '../utils/imageProcessor.js'
 import { uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
 import { addImage } from '../utils/imageApi.js'
 
+// Estimate total bytes an upload batch will consume (original + preview)
+// Preview is typically 30-50% of original at 1600px/0.80 webp — use 0.4 as estimate
+const PREVIEW_SIZE_ESTIMATE = 0.4
+
+async function checkStorageCapacity(photographerId, files) {
+  const estimatedBytes = files.reduce((sum, f) => sum + f.size + (f.size * PREVIEW_SIZE_ESTIMATE), 0)
+
+  const [{ data: storageRow }, { data: galleries }] = await Promise.all([
+    supabase.from('photographer_storage')
+      .select('bytes_used, tier_id, storage_tiers(name, storage_gb)')
+      .eq('photographer_id', photographerId)
+      .single(),
+    supabase.from('galleries').select('id').eq('photographer_id', photographerId),
+  ])
+
+  if (!storageRow?.storage_tiers?.storage_gb) {
+    // No tier assigned — allow upload
+    return { allowed: true }
+  }
+
+  const galleryIds = (galleries || []).map(g => g.id)
+  let bytesUsed = 0
+  if (galleryIds.length > 0) {
+    const { data: imgs } = await supabase
+      .from('gallery_images')
+      .select('file_size, preview_size')
+      .in('gallery_id', galleryIds)
+      .is('deleted_at', null)
+    bytesUsed = (imgs || []).reduce((sum, img) => sum + (img.file_size || 0) + (img.preview_size || 0), 0)
+  }
+
+  const limitBytes = storageRow.storage_tiers.storage_gb * 1024 * 1024 * 1024
+  const available = limitBytes - bytesUsed
+
+  if (estimatedBytes > available) {
+    const fmt = (b) => b >= 1024 ** 3
+      ? `${(b / 1024 ** 3).toFixed(2)} GB`
+      : `${(b / (1024 * 1024)).toFixed(1)} MB`
+    return {
+      allowed: false,
+      message: `Not enough storage. This upload needs ~${fmt(estimatedBytes)} but you only have ${fmt(Math.max(0, available))} remaining on your ${storageRow.storage_tiers.name} plan (${storageRow.storage_tiers.storage_gb} GB total).`
+    }
+  }
+
+  return { allowed: true }
+}
+
 export function useImageUpload({ galleryId, photographerId, watermark, setId, onComplete }) {
   const [uploadItems, setUploadItems] = useState([])
   const [isUploading, setIsUploading] = useState(false)
+  const [storageError, setStorageError] = useState(null)
 
   const updateItem = (index, updates) => {
     setUploadItems(prev => prev.map((item, i) => i === index ? { ...item, ...updates } : item))
@@ -16,6 +64,14 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
     if (!token) return
+
+    // Check storage capacity before starting
+    setStorageError(null)
+    const capacityCheck = await checkStorageCapacity(photographerId, files)
+    if (!capacityCheck.allowed) {
+      setStorageError(capacityCheck.message)
+      return
+    }
 
     const items = files.map(f => ({
       name: f.name,
@@ -81,9 +137,10 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
   function reset() {
     setUploadItems([])
     setIsUploading(false)
+    setStorageError(null)
   }
 
-  return { uploadFiles, uploadItems, isUploading, reset }
+  return { uploadFiles, uploadItems, isUploading, storageError, reset }
 }
 
 async function getImageDimensions(file) {
