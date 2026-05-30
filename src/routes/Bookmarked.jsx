@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Bookmark, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getBookmarkedGalleries, getBookmarkedImages } from '../utils/bookmarkApi.js'
 import { supabase } from '../supabaseClient.js'
@@ -9,12 +9,18 @@ import ImageCard from '../components/images/ImageCard.jsx'
 
 export default function Bookmarked() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('galleries')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [tab, setTab] = useState(searchParams.get('tab') || 'galleries')
   const [galleries, setGalleries] = useState([])
   const [images, setImages] = useState([])
   const [previewUrls, setPreviewUrls] = useState({})
   const [loading, setLoading] = useState(true)
   const [lightboxIndex, setLightboxIndex] = useState(null)
+
+  function handleTabChange(t) {
+    setTab(t)
+    setSearchParams(t === 'galleries' ? {} : { tab: t }, { replace: true })
+  }
 
   useEffect(() => {
     async function load() {
@@ -55,7 +61,7 @@ export default function Bookmarked() {
           { id: 'galleries', label: 'Galleries', count: galleries.length },
           { id: 'photos',    label: 'Photos',    count: images.length },
         ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => handleTabChange(t.id)}
             className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium -mb-px"
             style={{
               color: tab === t.id ? '#6366f1' : 'var(--text-muted)',
@@ -107,8 +113,8 @@ export default function Bookmarked() {
                     selectionMode={false}
                     sets={[]}
                     isBookmarked={true}
-                      simplified={true}
-                      onUnbookmark={() => setImages(prev => prev.filter(i => i.id !== img.id))}
+                    simplified={true}
+                    onUnbookmark={() => setImages(prev => prev.filter(i => i.id !== img.id))}
                     onOpen={() => setLightboxIndex(idx)}
                   />
                   <p className="text-xs truncate px-0.5" style={{ color: 'var(--text-muted)', fontSize: 10 }}>
@@ -128,7 +134,7 @@ export default function Bookmarked() {
           previewUrls={previewUrls}
           onClose={() => setLightboxIndex(null)}
           onNavigate={setLightboxIndex}
-          onViewGallery={galleryId => navigate(`/galleries/${galleryId}`)}
+          onViewGallery={galleryId => navigate(`/galleries/${galleryId}`, { state: { from: `/bookmarked?tab=photos` } })}
         />
       )}
     </div>
