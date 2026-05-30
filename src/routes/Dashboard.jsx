@@ -63,11 +63,13 @@ function CalendarRangePicker({ value, onChange }) {
     cells.push({ date: new Date(py, pm, daysInPrevMonth - i), faded: true })
   }
   for (let d = 1; d <= daysInMonth; d++) cells.push({ date: new Date(viewYear, viewMonth, d), faded: false })
-  const remaining = (7 - (cells.length % 7)) % 7
-  for (let d = 1; d <= remaining; d++) {
+  // Always fill to exactly 6 rows (42 cells) so height stays consistent
+  const totalCells = 42
+  let nextD = 1
+  while (cells.length < totalCells) {
     const nm = viewMonth === 11 ? 0 : viewMonth + 1
     const ny = viewMonth === 11 ? viewYear + 1 : viewYear
-    cells.push({ date: new Date(ny, nm, d), faded: true })
+    cells.push({ date: new Date(ny, nm, nextD++), faded: true })
   }
 
   return (
