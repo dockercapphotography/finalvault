@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '../supabaseClient.js'
 import { generatePreview } from '../utils/imageProcessor.js'
-import { uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
+import { uploadToR2, deleteFromR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
 import { addImage } from '../utils/imageApi.js'
 
 // Estimate total bytes an upload batch will consume (original + preview)
@@ -84,6 +84,8 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
     setIsUploading(true)
 
     await Promise.all(files.map(async (file, index) => {
+      let originalKey = null
+      let previewKey = null
       try {
         const imageId = crypto.randomUUID()
         const ext = file.name.split('.').pop().toLowerCase()
@@ -92,8 +94,8 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
         const previewBlob = await generatePreview(file, watermark)
 
         updateItem(index, { status: 'uploading' })
-        const originalKey = buildOriginalKey(photographerId, galleryId, imageId, ext)
-        const previewKey = buildPreviewKey(photographerId, galleryId, imageId)
+        originalKey = buildOriginalKey(photographerId, galleryId, imageId, ext)
+        previewKey = buildPreviewKey(photographerId, galleryId, imageId)
 
         await Promise.all([
           uploadToR2({ file, key: originalKey, token }),
@@ -126,6 +128,9 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
         updateItem(index, { status: 'done' })
       } catch (err) {
         console.error(`Upload failed for ${file.name}:`, err)
+        // Clean up any R2 files that made it before the failure
+        if (originalKey) deleteFromR2({ key: originalKey, token }).catch(() => {})
+        if (previewKey) deleteFromR2({ key: previewKey, token }).catch(() => {})
         updateItem(index, { status: 'error', error: err.message })
       }
     }))
