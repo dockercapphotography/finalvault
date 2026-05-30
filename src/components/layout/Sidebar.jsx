@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Images, Settings, Shield, Bookmark } from 'lucide-react'
+import { Images, Settings, Bookmark } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import NotificationBell from './NotificationBell.jsx'
 
@@ -25,22 +25,7 @@ const LogoMark = () => (
 )
 
 export default function Sidebar() {
-  const [isAdmin, setIsAdmin] = useState(false)
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase.from('photographers')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-        .then(({ data }) => setIsAdmin(data?.is_admin || false))
-    })
-  }, [])
-
-  const navItems = isAdmin
-    ? [...baseNavItems, { to: '/admin', label: 'Admin', icon: Shield }]
-    : baseNavItems
+  const navItems = baseNavItems
 
   return (
     <>
@@ -111,19 +96,7 @@ export default function Sidebar() {
           </NavLink>
         ))}
         <NotificationBell mobile />
-        {isAdmin && (
-          <NavLink
-            to="/admin"
-            className="flex flex-col items-center justify-center gap-1 flex-1 h-full text-xs transition-colors"
-            style={({ isActive }) => ({
-              color: isActive ? 'var(--text)' : 'var(--text-muted)',
-              fontWeight: isActive ? '500' : '400',
-            })}
-          >
-            <Shield size={20} />
-            Admin
-          </NavLink>
-        )}
+
       </nav>
     </>
   )
