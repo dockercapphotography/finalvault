@@ -4,6 +4,7 @@ import ImageCard from './ImageCard.jsx'
 export default function ImageGrid({
   images, previewUrls, onDelete, coverId, selectedIds, onSelect, selectionMode,
   sets, onMoveToSet, onReWatermark, onDownload, onReorder,
+  viewSize = 'small', showFilename = false,
 }) {
   const dragIndexRef = useRef(null)
   const [dragOverIndex, setDragOverIndex] = useState(null)
@@ -49,7 +50,7 @@ export default function ImageGrid({
   }
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+    <div className={`grid gap-2 ${viewSize === 'large' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-6'}`}>
       {images.map((image, index) => {
         const isBeingDragged = isDragging && dragIndexRef.current === index
         const isDropTarget = dragOverIndex === index && dragIndexRef.current !== index
@@ -88,6 +89,12 @@ export default function ImageGrid({
               onReWatermark={onReWatermark}
               onDownload={onDownload}
             />
+            {showFilename && (
+              <p className="text-center truncate mt-1 px-0.5"
+                style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: '1.3' }}>
+                {image.file_name}
+              </p>
+            )}
           </div>
         )
       })}

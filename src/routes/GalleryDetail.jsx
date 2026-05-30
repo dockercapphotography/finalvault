@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, Droplets } from 'lucide-react'
+import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, Droplets, LayoutGrid, Check } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
@@ -55,6 +55,9 @@ export default function GalleryDetail() {
   const [watermarking, setWatermarking] = useState(false)
   const [watermarkProgress, setWatermarkProgress] = useState({ current: 0, total: 0 })
   const [cacheBusts, setCacheBusts] = useState({})
+  const [viewSize, setViewSize] = useState('small')
+  const [showFilename, setShowFilename] = useState(false)
+  const [showGridMenu, setShowGridMenu] = useState(false)
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [sheetVisible, setSheetVisible] = useState(false)
   const [downloadingZip, setDownloadingZip] = useState(false)
@@ -875,6 +878,62 @@ export default function GalleryDetail() {
             </h2>
             <div className="flex items-center gap-2">
               {hasSetImages && <SortDropdown value={sortBy} onChange={handleSortChange} />}
+              {hasSetImages && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowGridMenu(v => !v)}
+                    className="flex items-center justify-center rounded-lg"
+                    style={{
+                      width: 32, height: 32,
+                      background: showGridMenu ? 'var(--surface-raised)' : 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                    }}>
+                    <LayoutGrid size={14} />
+                  </button>
+                  {showGridMenu && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setShowGridMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 rounded-xl shadow-lg z-40 overflow-hidden"
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 160 }}>
+                        <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                          <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Grid Size</p>
+                        </div>
+                        {[['small', 'Small'], ['large', 'Large']].map(([val, label]) => (
+                          <button key={val} onClick={() => setViewSize(val)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 text-sm"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            {label}
+                            {viewSize === val && <Check size={13} style={{ color: '#6366f1' }} />}
+                          </button>
+                        ))}
+                        <div className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+                          <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Show</p>
+                        </div>
+                        <div className="flex items-center justify-between px-3 py-2.5">
+                          <span className="text-sm" style={{ color: 'var(--text)' }}>Filename</span>
+                          <button
+                            onClick={() => setShowFilename(v => !v)}
+                            style={{
+                              width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer',
+                              background: showFilename ? '#6366f1' : 'var(--border)',
+                              position: 'relative', transition: 'background 0.2s',
+                            }}>
+                            <span style={{
+                              position: 'absolute', top: 2, left: showFilename ? 18 : 2,
+                              width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                              transition: 'left 0.2s',
+                            }} />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               {hasImages && <ImageUploader onUpload={uploadFiles} compact />}
             </div>
           </div>
@@ -895,6 +954,8 @@ export default function GalleryDetail() {
               onReWatermark={handleOpenWatermark}
               onDownload={handleDownloadImage}
               onReorder={handleImageReorder}
+              viewSize={viewSize}
+              showFilename={showFilename}
             />
           )}
 
