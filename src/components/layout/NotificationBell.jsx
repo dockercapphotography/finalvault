@@ -61,10 +61,18 @@ export default function NotificationBell({ mobile = false }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      // Load last read first, then pass it directly into loadActivity
-      // to avoid the async state race where lastRead is still null
       loadLastRead(user.id).then(ts => loadActivity(user.id, ts))
     })
+  }, [])
+
+  // Listen for the global "notifications read" event fired by the other bell instance
+  useEffect(() => {
+    function handleNotificationsRead() {
+      setUnreadCount(0)
+      setLastRead(new Date().toISOString())
+    }
+    window.addEventListener('fv-notifications-read', handleNotificationsRead)
+    return () => window.removeEventListener('fv-notifications-read', handleNotificationsRead)
   }, [])
 
   useEffect(() => {
@@ -76,7 +84,6 @@ export default function NotificationBell({ mobile = false }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  // Returns the timestamp so callers can pass it directly without waiting on state
   async function loadLastRead(uid) {
     const { data } = await supabase
       .from('photographers')
@@ -134,8 +141,6 @@ export default function NotificationBell({ mobile = false }) {
 
     setItems(enriched)
 
-    // Use knownLastRead (passed directly) rather than lastRead state
-    // to avoid the race condition where state hasn't updated yet
     if (knownLastRead) {
       setUnreadCount(enriched.filter(i => new Date(i.occurred_at) > new Date(knownLastRead)).length)
     } else {
@@ -155,6 +160,8 @@ export default function NotificationBell({ mobile = false }) {
         .eq('id', userId)
       setLastRead(now)
       setUnreadCount(0)
+      // Notify the other bell instance (desktop ↔ mobile) to also clear its badge
+      window.dispatchEvent(new CustomEvent('fv-notifications-read'))
     }
   }
 
