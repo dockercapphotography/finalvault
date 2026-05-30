@@ -32,13 +32,15 @@ export default function GalleryActivity() {
   const [activity, setActivity] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [authToken, setAuthToken] = useState(null)
 
   useEffect(() => { load() }, [id])
 
   async function load() {
     try {
       setLoading(true)
-      const [{ data: g }, { data: logs }] = await Promise.all([
+      const [{ data: { session } }, { data: g }, { data: logs }] = await Promise.all([
+        supabase.auth.getSession(),
         supabase.from('galleries').select('id, title').eq('id', id).single(),
         supabase
           .from('gallery_activity_log')
@@ -51,6 +53,7 @@ export default function GalleryActivity() {
           .order('occurred_at', { ascending: false })
           .limit(200)
       ])
+      setAuthToken(session?.access_token || null)
       setGallery(g)
       setActivity((logs || []).map(log => ({
         ...log,
@@ -190,9 +193,9 @@ export default function GalleryActivity() {
                   <Icon size={13} style={{ color: cfg.color }} />
                 </div>
 
-                {previewKey && (
+                {previewKey && authToken && (
                   <img
-                    src={`${WORKER_URL}/preview/${encodeURIComponent(previewKey)}`}
+                    src={`${WORKER_URL}/preview/${encodeURIComponent(previewKey)}?token=${authToken}`}
                     alt={fileName}
                     className="w-7 h-7 rounded object-cover flex-shrink-0"
                     style={{ objectFit: 'cover' }}

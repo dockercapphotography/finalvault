@@ -5,7 +5,7 @@ import { verifyShareToken } from '../middleware/shareToken.js'
  * GET /preview/:key
  * Serve a watermarked WebP preview image.
  * Accessible by:
- *   - Photographer (JWT via Authorization header)
+ *   - Photographer (JWT via Authorization header OR ?token= query param for <img> tags)
  *   - Client (X-Share-Token header OR ?share_token= query param)
  */
 export async function handlePreview(request, env, corsHeaders) {
@@ -17,21 +17,26 @@ export async function handlePreview(request, env, corsHeaders) {
   }
 
   const hasJWT = request.headers.get('Authorization')?.startsWith('Bearer ')
+  const queryToken = url.searchParams.get('token')           // JWT via query param (for <img> tags)
   const hasShareHeader = !!request.headers.get('X-Share-Token')
   const queryShareToken = url.searchParams.get('share_token')
 
-  if (!hasJWT && !hasShareHeader && !queryShareToken) {
+  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken) {
     return jsonResponse({ ok: false, error: 'Authentication required' }, 401, corsHeaders)
   }
 
   let photographerId
 
-  if (hasJWT) {
-    const auth = await verifyJWT(request)
+  if (hasJWT || queryToken) {
+    // Photographer access — JWT from header or query param
+    const authRequest = queryToken
+      ? new Request(request.url, { headers: { 'Authorization': `Bearer ${queryToken}` } })
+      : request
+    const auth = await verifyJWT(authRequest)
     if (!auth.valid) return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
     photographerId = auth.userId
   } else {
-    // Support share token from either header or query param
+    // Client access — share token from header or query param
     const tokenRequest = queryShareToken
       ? new Request(request.url, {
           ...request,
