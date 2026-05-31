@@ -1,25 +1,9 @@
-import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient.js'
 import LoginScreen from '../components/auth/LoginScreen.jsx'
 
-export default function Login({ onPasswordUpdated }) {
+export default function Login({ isPasswordRecovery, onPasswordUpdated }) {
   const navigate = useNavigate()
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
-  const isPasswordRecoveryRef = useRef(false)
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        isPasswordRecoveryRef.current = true
-        setIsPasswordRecovery(true)
-      }
-      if (event === 'SIGNED_IN' && !isPasswordRecoveryRef.current) {
-        navigate('/')
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [navigate])
 
   const handleLogin = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -46,8 +30,6 @@ export default function Login({ onPasswordUpdated }) {
   const handleUpdatePassword = async (password) => {
     const { error } = await supabase.auth.updateUser({ password })
     if (error) throw error
-    isPasswordRecoveryRef.current = false
-    setIsPasswordRecovery(false)
     onPasswordUpdated?.()
     navigate('/')
   }
