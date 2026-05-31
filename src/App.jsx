@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './supabaseClient.js'
 
 import Dashboard from './routes/Dashboard.jsx'
@@ -15,6 +15,8 @@ import ClientGalleryView from './routes/ClientGalleryView.jsx'
 import Login from './routes/Login.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
 
+const RECOVERY_KEY = 'fv-password-recovery'
+
 function ProtectedRoute({ session, children }) {
   if (!session) return <Navigate to="/login" replace />
   return children
@@ -22,26 +24,27 @@ function ProtectedRoute({ session, children }) {
 
 export default function App() {
   const [session, setSession] = useState(undefined)
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
-  const isPasswordRecoveryRef = useRef(false)
+  // Read recovery flag from sessionStorage on mount — survives the location.replace reload
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(
+    () => sessionStorage.getItem(RECOVERY_KEY) === 'true'
+  )
 
   useEffect(() => {
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Auth]', event, session?.user?.email)
       if (event === 'PASSWORD_RECOVERY') {
-        isPasswordRecoveryRef.current = true
+        sessionStorage.setItem(RECOVERY_KEY, 'true')
         setIsPasswordRecovery(true)
         setSession(session)
-        // Force navigation to login to show the reset form
         window.location.replace('/login')
         return
       }
       if (event === 'USER_UPDATED') {
-        isPasswordRecoveryRef.current = false
+        sessionStorage.removeItem(RECOVERY_KEY)
         setIsPasswordRecovery(false)
       }
       setSession(session)
@@ -49,7 +52,6 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Load and apply saved theme
   useEffect(() => {
     const saved = localStorage.getItem('fv-theme') || 'light'
     document.documentElement.setAttribute('data-theme', saved)
@@ -60,11 +62,10 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={
-        // Always render Login — it handles its own state via isPasswordRecovery prop
         session && !isPasswordRecovery
           ? <Navigate to="/" replace />
           : <Login isPasswordRecovery={isPasswordRecovery} onPasswordUpdated={() => {
-              isPasswordRecoveryRef.current = false
+              sessionStorage.removeItem(RECOVERY_KEY)
               setIsPasswordRecovery(false)
             }} />
       } />
