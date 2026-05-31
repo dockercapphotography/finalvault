@@ -1,94 +1,108 @@
 import { test, expect } from '@playwright/test'
 
-const SAMPLE_WATERMARK = 'tests/fixtures/test-images/watermark.png'
+test.use({ storageState: 'tests/.auth/photographer.json' })
 
-async function login(page) {
-  await page.goto('/login')
-  await page.getByPlaceholder('Email').fill(process.env.PLAYWRIGHT_TEST_EMAIL ?? '')
-  await page.getByPlaceholder('Password', { exact: true }).fill(process.env.PLAYWRIGHT_TEST_PASSWORD ?? '')
-  await page.getByRole('button', { name: 'Sign In' }).click()
-  await expect(page).toHaveURL('/')
+async function goToWatermarksTab(page) {
+  await page.goto('/account')
+  await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible()
+  // Click the Watermarks tab
+  await page.getByRole('button', { name: 'Watermarks' }).click()
+  await expect(page.getByText('Upload watermark image')).toBeVisible()
 }
 
-async function waitForAccountReady(page) {
+async function goToProfileTab(page) {
+  await page.goto('/account')
   await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Watermarks' })).toBeVisible()
+  // Profile is the default tab — wait for content to load
+  await page.getByRole('button', { name: 'Profile' }).click()
+  await page.waitForLoadState('networkidle')
 }
 
 test.describe('Account — Watermarks', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page)
+  test('account page loads and shows tabs', async ({ page }) => {
     await page.goto('/account')
-    await waitForAccountReady(page)
+    await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Profile' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Watermarks' })).toBeVisible()
   })
 
-  test('shows account page with profile and watermark sections', async ({ page }) => {
-    await expect(page.getByText('Profile')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Watermarks' })).toBeVisible()
+  test('watermarks tab shows upload button', async ({ page }) => {
+    await goToWatermarksTab(page)
     await expect(page.getByText('Upload watermark image')).toBeVisible()
+    await expect(page.getByText('PNG or SVG with transparency recommended')).toBeVisible()
   })
 
-  test('saves display name on blur', async ({ page }) => {
-    const input = page.getByPlaceholder('Your name or studio name')
-    await input.fill('Test Studio')
-    await input.blur()
-    await expect(page.getByText('Changes saved')).toBeVisible()
-  })
-
-  test('upload button is present and file input accepts images', async ({ page }) => {
-    // Verify the upload UI is functional — actual R2 upload requires
-    // a live worker session and is tested manually / in staging.
-    await expect(page.getByText('Upload watermark image')).toBeVisible()
-    const fileInput = page.locator('input[aria-label="Upload watermark image"]')
-    await expect(fileInput).toHaveAttribute('accept', 'image/*')
-    await expect(page.getByText('PNG with transparency recommended')).toBeVisible()
+  test('upload button file input accepts images', async ({ page }) => {
+    await goToWatermarksTab(page)
+    const fileInput = page.locator('input[type="file"][accept="image/*"]')
+    await expect(fileInput).toBeAttached()
   })
 
   test('watermark card shows opacity slider', async ({ page }) => {
-    const count = await page.locator('input[aria-label="Watermark opacity"]').count()
-    test.skip(count === 0, 'No watermarks uploaded yet')
-    await expect(page.locator('input[aria-label="Watermark opacity"]').first()).toBeVisible()
+    await goToWatermarksTab(page)
+    // Opacity label is visible in the watermark card
+    await expect(page.getByText('Opacity').first()).toBeVisible()
+    await expect(page.locator('input[type="range"]').first()).toBeVisible()
   })
 
   test('watermark card shows position buttons', async ({ page }) => {
-    const count = await page.locator('button[aria-label^="Position:"]').count()
-    test.skip(count === 0, 'No watermarks uploaded yet')
-    await expect(page.locator('button[aria-label="Position: Bottom Right"]').first()).toBeVisible()
-    await expect(page.locator('button[aria-label="Position: Center"]').first()).toBeVisible()
+    await goToWatermarksTab(page)
+    await expect(page.getByText('Position').first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Center' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Top Left' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Bottom Right' })).toBeVisible()
   })
 
   test('can change watermark position', async ({ page }) => {
-    const count = await page.locator('button[aria-label^="Position:"]').count()
-    test.skip(count === 0, 'No watermarks uploaded yet')
-    await page.locator('button[aria-label="Position: Center"]').first().click()
-    await expect(page.getByText('Changes saved')).toBeVisible()
+    await goToWatermarksTab(page)
+    await page.getByRole('button', { name: 'Bottom Right' }).click()
+    await expect(page.getByText('Changes saved')).toBeVisible({ timeout: 10000 })
+    // Reset back to Center
+    await page.getByRole('button', { name: 'Center' }).click()
   })
 
-  test('can change watermark label', async ({ page }) => {
-    const count = await page.locator('input[aria-label="Watermark label"]').count()
-    test.skip(count === 0, 'No watermarks uploaded yet')
-    const labelInput = page.locator('input[aria-label="Watermark label"]').first()
-    // Use a unique value each run so the change guard always fires
-    const unique = `Studio Logo ${Date.now()}`
-    await labelInput.fill(unique)
-    await labelInput.blur()
-    await expect(page.getByText('Changes saved')).toBeVisible()
+  test('watermark card shows scale slider', async ({ page }) => {
+    await goToWatermarksTab(page)
+    await expect(page.getByText('Scale').first()).toBeVisible()
+    await expect(page.locator('input[type="range"]').nth(1)).toBeVisible()
   })
 })
 
 test.describe('Account — Profile', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page)
-    await page.goto('/account')
-    await waitForAccountReady(page)
-  })
-
   test('shows email address', async ({ page }) => {
+    await goToProfileTab(page)
     const email = process.env.PLAYWRIGHT_TEST_EMAIL ?? ''
     await expect(page.getByText(email).first()).toBeVisible()
   })
 
   test('display name input is present', async ({ page }) => {
-    await expect(page.getByPlaceholder('Your name or studio name')).toBeVisible()
+    await goToProfileTab(page)
+    await expect(page.getByPlaceholder('Your name')).toBeVisible()
+  })
+
+  test('saves display name on blur', async ({ page }) => {
+    await goToProfileTab(page)
+    const input = page.getByPlaceholder('Your name')
+    await input.fill('Test Studio')
+    await input.blur()
+    await expect(page.getByText('Changes saved')).toBeVisible({ timeout: 10000 })
+  })
+
+  test('can upload and save avatar photo', async ({ page }) => {
+    await goToProfileTab(page)
+    const avatarInput = page.locator('input[type="file"][accept*="image"]').first()
+    await expect(avatarInput).toBeAttached()
+    await avatarInput.setInputFiles('tests/fixtures/test-images/test_image.jpg')
+    // Crop modal opens
+    await expect(page.getByText('Crop profile photo')).toBeVisible({ timeout: 5000 })
+    // Click Save photo to confirm
+    await page.getByRole('button', { name: 'Save photo' }).click()
+    await expect(page.getByText('Crop profile photo')).not.toBeVisible({ timeout: 10000 })
+  })
+
+  test('shows storage meter', async ({ page }) => {
+    await goToProfileTab(page)
+    // Storage section exists with used/total display
+    await expect(page.getByRole('heading', { name: 'Storage' })).toBeVisible()
   })
 })

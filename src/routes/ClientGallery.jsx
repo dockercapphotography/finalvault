@@ -41,7 +41,7 @@ function GateWrapper({ gallery, photographerName, children }) {
           const blob = await resp.blob()
           setCoverBlobUrl(URL.createObjectURL(blob))
         }
-      } catch {}
+      } catch { return }
     }
     loadCover()
   }, [gallery?.cover_image_id, gallery?.cover_r2_key])
@@ -190,6 +190,7 @@ export default function ClientGallery() {
 
       setStage('name')
     } catch {
+      setStage('name')
       setError('Could not load gallery.')
     } finally {
       setLoading(false)
@@ -204,6 +205,7 @@ export default function ClientGallery() {
       if (gallery.require_password) setStage('password')
       else navigate(`/g/${token}/view${window.location.search}`, { replace: true })
     } catch {
+      setStage('name')
       setError('Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
@@ -223,6 +225,7 @@ export default function ClientGallery() {
         setPasswordError('Incorrect password. Please try again.')
       }
     } catch {
+      setStage('name')
       setPasswordError('Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)

@@ -1,6 +1,24 @@
 import { test, expect } from '@playwright/test'
+import { createClient } from '@supabase/supabase-js'
 
-// Click the visual toggle div (the pill) — it's a sibling of the sr-only checkbox inside <label>
+function sb() {
+  return createClient(
+    process.env.PLAYWRIGHT_SUPABASE_URL,
+    process.env.PLAYWRIGHT_SUPABASE_SERVICE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+
+async function getPhotographerId() {
+  const { data: { users } } = await sb().auth.admin.listUsers()
+  const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
+  if (!user) throw new Error('Test photographer not found')
+  return user.id
+}
+
+test.use({ storageState: 'tests/.auth/photographer.json' })
+
+// Click the visual toggle div (the pill)
 function rowToggle(page, rowLabel) {
   return page.locator('.flex.items-center.justify-between')
     .filter({ hasText: rowLabel })
@@ -8,7 +26,6 @@ function rowToggle(page, rowLabel) {
     .first()
 }
 
-// Wait for settings to load: heading visible + title input populated
 async function waitForSettingsReady(page) {
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
   const titleInput = page.getByPlaceholder('e.g. Smith Wedding — June 2026')
@@ -19,22 +36,29 @@ async function waitForSettingsReady(page) {
 test.describe('Gallery Settings', () => {
   let galleryId
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/login')
-    await page.getByPlaceholder('Email').fill(process.env.PLAYWRIGHT_TEST_EMAIL ?? '')
-    await page.getByPlaceholder('Password', { exact: true }).fill(process.env.PLAYWRIGHT_TEST_PASSWORD ?? '')
-    await page.getByRole('button', { name: 'Sign In' }).click()
-    await expect(page).toHaveURL('/')
+  test.beforeEach(async () => {
+    const photographerId = await getPhotographerId()
+    const { data, error } = await sb().from('galleries').insert({
+      photographer_id: photographerId,
+      title: 'Settings Test Gallery',
+      share_token: `settings-test-${crypto.randomUUID().slice(0, 8)}`,
+      is_active: true,
+      allow_downloads: true,
+      allow_favorites: true,
+      allow_comments: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).select().single()
+    if (error) throw new Error(error.message)
+    galleryId = data.id
+  })
 
-    await page.goto('/galleries/new')
-    await page.getByPlaceholder('e.g. Smith Wedding — June 2026').fill('Settings Test Gallery')
-    await page.getByRole('button', { name: 'Create Gallery' }).click()
-
-    await expect(page).toHaveURL(/\/galleries\/[0-9a-f-]{36}$/)
-    galleryId = page.url().split('/').pop()
+  test.afterEach(async () => {
+    await sb().from('galleries').delete().eq('id', galleryId)
   })
 
   test('navigates to settings page', async ({ page }) => {
+    await page.goto(`/galleries/${galleryId}`)
     await page.getByRole('link', { name: 'Settings' }).click()
     await expect(page).toHaveURL(`/galleries/${galleryId}/settings`)
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
@@ -132,21 +156,47 @@ test.describe('Gallery Settings', () => {
     await expect(page.getByText('Changes saved')).toBeVisible()
   })
 
-  test('switches to display tab and shows templates', async ({ page }) => {
+  test('switches to display tab and shows color themes', async ({ page }) => {
     await page.goto(`/galleries/${galleryId}/settings`)
     await waitForSettingsReady(page)
     await page.getByRole('button', { name: 'Display' }).click()
-    await expect(page.getByRole('button', { name: /Classic/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Minimal/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Editorial/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Bold/ })).toBeVisible()
+    await expect(page.getByText('Color Theme')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Light' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Dark' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Slate' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Dusk' })).toBeVisible()
   })
 
-  test('selecting a template saves immediately', async ({ page }) => {
+  test('selecting a color theme saves immediately', async ({ page }) => {
     await page.goto(`/galleries/${galleryId}/settings`)
     await waitForSettingsReady(page)
     await page.getByRole('button', { name: 'Display' }).click()
-    await page.getByRole('button', { name: /Minimal/ }).click()
+    await page.getByRole('button', { name: 'Dark' }).click()
     await expect(page.getByText('Changes saved')).toBeVisible()
+  })
+
+  test('display tab shows grid options', async ({ page }) => {
+    await page.goto(`/galleries/${galleryId}/settings`)
+    await waitForSettingsReady(page)
+    await page.getByRole('button', { name: 'Display' }).click()
+    await expect(page.getByRole('heading', { name: 'Grid' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Regular' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Large 4 per row' })).toBeVisible()
+  })
+
+  test('danger zone shows delete button', async ({ page }) => {
+    await page.goto(`/galleries/${galleryId}/settings`)
+    await waitForSettingsReady(page)
+    await page.getByRole('button', { name: 'Danger Zone' }).click()
+    await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible()
+  })
+
+  test('delete gallery requires confirmation', async ({ page }) => {
+    await page.goto(`/galleries/${galleryId}/settings`)
+    await waitForSettingsReady(page)
+    await page.getByRole('button', { name: 'Danger Zone' }).click()
+    await page.getByRole('button', { name: 'Delete' }).click()
+    await expect(page.getByText('Are you sure?')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Yes, delete permanently/ })).toBeVisible()
   })
 })

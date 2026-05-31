@@ -1,4 +1,3 @@
 import { test } from '@playwright/test'
-
-test.skip('creates a new storage tier', async () => tests/e2e/admin/tier-management.spec.js)
-test.skip('edits an existing tier', async () => tests/e2e/admin/tier-management.spec.js)
+// Admin tests consolidated into user-management.spec.js
+// This file is kept for naming consistency but tests live in user-management.spec.js

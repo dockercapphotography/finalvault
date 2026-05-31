@@ -1,23 +1,25 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from "@playwright/test"
 
-test.describe('Logout', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/login')
-    await page.getByPlaceholder('Email').fill(process.env.PLAYWRIGHT_TEST_EMAIL ?? '')
-    await page.getByPlaceholder('Password', { exact: true }).fill(process.env.PLAYWRIGHT_TEST_PASSWORD ?? '')
-    await page.getByRole('button', { name: 'Sign In' }).click()
-    await expect(page).toHaveURL('/')
+test.use({ storageState: "tests/.auth/photographer.json" })
+
+async function signOut(page) {
+  await page.goto("/")
+  await page.locator("header").getByText(/playwright@/).click()
+  await page.getByText("Sign out").first().click()
+  await expect(page.getByText("Sign out?")).toBeVisible()
+  await page.getByRole("button", { name: "Sign out" }).click()
+  await page.waitForURL("/login", { timeout: 15000 })
+}
+
+test.describe("Logout", () => {
+  test("signs out and redirects to login", async ({ page }) => {
+    await signOut(page)
+    await expect(page).toHaveURL("/login")
   })
 
-  test('signs out and redirects to login', async ({ page }) => {
-    await page.getByRole('button', { name: 'Sign out' }).click()
-    await expect(page).toHaveURL('/login', { timeout: 10000 })
-  })
-
-  test('cannot access dashboard after signing out', async ({ page }) => {
-    await page.getByRole('button', { name: 'Sign out' }).click()
-    await expect(page).toHaveURL('/login', { timeout: 10000 })
-    await page.goto('/')
-    await expect(page).toHaveURL('/login')
+  test("cannot access dashboard after signing out", async ({ page }) => {
+    await signOut(page)
+    await page.goto("/")
+    await expect(page).toHaveURL("/login")
   })
 })
