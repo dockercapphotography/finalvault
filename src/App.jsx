@@ -35,7 +35,6 @@ export default function App() {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Auth]', event, session?.user?.email)
       if (event === 'PASSWORD_RECOVERY') {
         sessionStorage.setItem(RECOVERY_KEY, 'true')
         setIsPasswordRecovery(true)
