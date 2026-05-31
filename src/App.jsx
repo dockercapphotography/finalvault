@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useState, useRef } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from './supabaseClient.js'
 
 import Dashboard from './routes/Dashboard.jsx'
@@ -20,19 +20,30 @@ function ProtectedRoute({ session, children }) {
   return children
 }
 
-function AuthRoute({ session, children }) {
-  if (session) return <Navigate to="/" replace />
-  return children
-}
-
 export default function App() {
   const [session, setSession] = useState(undefined)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
+  const isPasswordRecoveryRef = useRef(false)
 
   useEffect(() => {
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        isPasswordRecoveryRef.current = true
+        setIsPasswordRecovery(true)
+        setSession(session)
+        // Force navigation to login to show the reset form
+        window.location.replace('/login')
+        return
+      }
+      if (event === 'USER_UPDATED') {
+        isPasswordRecoveryRef.current = false
+        setIsPasswordRecovery(false)
+      }
       setSession(session)
     })
     return () => subscription.unsubscribe()
@@ -49,7 +60,13 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={
-        <AuthRoute session={session}><Login /></AuthRoute>
+        // Always render Login — it handles its own state via isPasswordRecovery prop
+        session && !isPasswordRecovery
+          ? <Navigate to="/" replace />
+          : <Login isPasswordRecovery={isPasswordRecovery} onPasswordUpdated={() => {
+              isPasswordRecoveryRef.current = false
+              setIsPasswordRecovery(false)
+            }} />
       } />
 
       <Route path="/" element={
