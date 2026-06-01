@@ -154,7 +154,6 @@ function EmailComposerModal({ gallery, onClose }) {
           body: JSON.stringify({ seedTemplates: true }),
         }
       )
-      // Reload templates after seeding in case new ones were added
       loadTemplates()
     } catch (err) {
       console.warn('Template seed failed silently:', err)
@@ -447,18 +446,33 @@ function TemplateManager({ templates: initial, onClose }) {
 export default function ShareButton({ gallery, openModal = null, onModalClose = null }) {
   const [open, setOpen] = useState(false)
   const [modal, setModal] = useState(openModal)
+  const [dropdownAlign, setDropdownAlign] = useState('left')
   const ref = useRef(null)
+  const dropdownRef = useRef(null)
 
   // When openModal prop changes (from mobile sheet), open that modal
   useEffect(() => {
     if (openModal) setModal(openModal)
   }, [openModal])
 
+  // Close on outside click
   useEffect(() => {
     if (!open) return
     const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  // After dropdown renders, check if it overflows the right edge of the viewport.
+  // If so, flip to right-aligned so it opens toward the left instead.
+  useEffect(() => {
+    if (!open || !dropdownRef.current) return
+    const rect = dropdownRef.current.getBoundingClientRect()
+    if (rect.right > window.innerWidth - 8) {
+      setDropdownAlign('right')
+    } else {
+      setDropdownAlign('left')
+    }
   }, [open])
 
   function handleModalClose() {
@@ -490,8 +504,15 @@ export default function ShareButton({ gallery, openModal = null, onModalClose = 
           <ChevronDown size={14} />
         </button>
         {open && (
-          <div className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-40 w-48"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div
+            ref={dropdownRef}
+            className="absolute top-full mt-1 rounded-xl shadow-lg overflow-hidden z-50 w-48"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              left: dropdownAlign === 'left' ? 0 : 'auto',
+              right: dropdownAlign === 'right' ? 0 : 'auto',
+            }}>
             {[
               { id: 'email', icon: Mail, label: 'Share by email' },
               { id: 'link', icon: Link, label: 'Get direct link' },
