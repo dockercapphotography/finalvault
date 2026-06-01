@@ -7,5 +7,7 @@ export function formatBytes(bytes) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 export function formatDate(dateString) {
-  return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  // Append time to date-only strings to prevent UTC-to-local timezone shift
+  const normalized = dateString?.length === 10 ? dateString + 'T00:00:00' : dateString
+  return new Date(normalized).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
