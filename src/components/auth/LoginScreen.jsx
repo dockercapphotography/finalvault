@@ -211,7 +211,7 @@ export default function LoginScreen({
 
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <img src="/finalvault_logo.svg" alt="FinalVault" width="36" height="36" />
+            <img src="/finalvault_logo.svg" alt="FinalVault" width="52" height="52" />
             <span style={{
               fontFamily: "'Montserrat', sans-serif",
               fontWeight: 700,
