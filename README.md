@@ -24,12 +24,6 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 
 ---
 
-## Screenshots
-
-> Gallery management, client view, and activity feed — all built for mobile and desktop.
-
----
-
 ## Features
 
 ### For Photographers
