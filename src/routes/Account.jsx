@@ -89,11 +89,12 @@ function AvatarCropModal({ imageSrc, onSave, onCancel, saving }) {
 }
 
 const BASE_ACCOUNT_TABS = [
-  { id: 'profile',    label: 'Profile' },
-  { id: 'watermarks', label: 'Watermarks' },
-  { id: 'templates',  label: 'Templates' },
-  { id: 'social',     label: 'Social' },
-  { id: 'payment',    label: 'Payment' },
+  { id: 'profile',       label: 'Profile' },
+  { id: 'watermarks',    label: 'Watermarks' },
+  { id: 'templates',     label: 'Templates' },
+  { id: 'social',        label: 'Social' },
+  { id: 'payment',       label: 'Payment' },
+  { id: 'notifications', label: 'Notifications' },
 ]
 
 const TEMPLATE_VARIABLES = [
@@ -198,7 +199,6 @@ function ProfileTab({ user, onSaveState }) {
     try {
       const croppedBlob = await getCroppedImg(cropSrc, croppedAreaPixels)
       const { data: { session } } = await supabase.auth.getSession()
-      // Delete old avatar from R2 if one exists
       const { data: existing } = await supabase.from('photographers').select('avatar_r2_key').eq('id', user.id).single()
       if (existing?.avatar_r2_key) {
         await fetch(`${WORKER_URL}/delete/${encodeURIComponent(existing.avatar_r2_key)}`, {
@@ -871,6 +871,81 @@ function LinksTab({ platforms, dbColumn, onSaveState }) {
   )
 }
 
+// ── Notifications Tab ─────────────────────────────────────────────────────────
+
+function NotificationsTab({ user, onSaveState }) {
+  const [prefs, setPrefs] = useState(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('notification_preferences')
+      .select('notify_favorites, notify_comments, notify_downloads')
+      .eq('photographer_id', user.id)
+      .single()
+      .then(({ data }) => {
+        setPrefs(data || { notify_favorites: true, notify_comments: true, notify_downloads: true })
+        setLoaded(true)
+      })
+  }, [user])
+
+  async function handleToggle(field, value) {
+    const updated = { ...prefs, [field]: value }
+    setPrefs(updated)
+    try {
+      const { error } = await supabase
+        .from('notification_preferences')
+        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .eq('photographer_id', user.id)
+      if (error) throw error
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  if (!loaded) return null
+
+  const rows = [
+    { field: 'notify_favorites', label: 'Client favorites an image',   desc: 'Get notified when a client hearts a photo' },
+    { field: 'notify_comments',  label: 'Client leaves a comment',     desc: 'Get notified when a client writes a comment' },
+    { field: 'notify_downloads', label: 'Client downloads an image',   desc: 'Get notified when a client downloads a photo or full gallery' },
+  ]
+
+  return (
+    <div className="space-y-4">
+      <SettingsSection
+        title="Activity Digest"
+        description="Receive a daily email summary of client activity across your galleries. Only sent when there is new activity since the last digest.">
+        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          {rows.map((row, i) => (
+            <div key={row.field} className="flex items-center justify-between px-5 py-4"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
+              </div>
+              <Toggle
+                checked={prefs[row.field]}
+                onChange={val => handleToggle(row.field, val)}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {(() => {
+              const utc8 = new Date()
+              utc8.setUTCHours(8, 0, 0, 0)
+              const localTime = utc8.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+              return <>Digests are sent daily at {localTime} to <span style={{ color: 'var(--text)' }}>{user?.email}</span>.</>
+            })()}
+          </p>
+        </div>
+      </SettingsSection>
+    </div>
+  )
+}
+
 // ── Main Account ──────────────────────────────────────────────────────────────
 
 export default function Account() {
@@ -922,9 +997,9 @@ export default function Account() {
         <Tabs tabs={ACCOUNT_TABS} active={activeTab} onChange={setActiveTab} />
       </div>
 
-      {activeTab === 'profile'    && <ProfileTab user={user} onSaveState={setSaveState} />}
-      {activeTab === 'watermarks' && <WatermarksTab onSaveState={setSaveState} />}
-      {activeTab === 'templates'  && (
+      {activeTab === 'profile'       && <ProfileTab user={user} onSaveState={setSaveState} />}
+      {activeTab === 'watermarks'    && <WatermarksTab onSaveState={setSaveState} />}
+      {activeTab === 'templates'     && (
         <div className="space-y-6">
           <GalleryTemplatesTab onSaveState={setSaveState} />
           <EmailTemplatesTab onSaveState={setSaveState} />
@@ -944,7 +1019,8 @@ export default function Account() {
           </div>
         </SettingsSection>
       )}
-      {activeTab === 'admin' && isAdmin && <Admin />}
+      {activeTab === 'notifications' && <NotificationsTab user={user} onSaveState={setSaveState} />}
+      {activeTab === 'admin'         && isAdmin && <Admin />}
 
       <SaveIndicator state={saveState} />
     </div>
