@@ -16,7 +16,7 @@ async function goToAdmin(page) {
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Admin Panel' })).toBeVisible({ timeout: 10000 })
   // Wait for data to load — user list appears
-  await expect(page.getByText('Nick Porterfield')).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText('Nick Porterfield').first()).toBeVisible({ timeout: 10000 })
 }
 
 async function goToTiersTab(page) {

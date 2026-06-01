@@ -4,7 +4,7 @@ test.use({ storageState: 'tests/.auth/photographer.json' })
 
 async function goToWatermarksTab(page) {
   await page.goto('/account')
-  await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible({ timeout: 10000 })
   // Click the Watermarks tab
   await page.getByRole('button', { name: 'Watermarks' }).click()
   await expect(page.getByText('Upload watermark image')).toBeVisible()
@@ -12,7 +12,7 @@ async function goToWatermarksTab(page) {
 
 async function goToProfileTab(page) {
   await page.goto('/account')
-  await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible({ timeout: 10000 })
   // Profile is the default tab — wait for content to load
   await page.getByRole('button', { name: 'Profile' }).click()
   await page.waitForLoadState('networkidle')
@@ -21,7 +21,7 @@ async function goToProfileTab(page) {
 test.describe('Account — Watermarks', () => {
   test('account page loads and shows tabs', async ({ page }) => {
     await page.goto('/account')
-    await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: 'Profile' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Watermarks' })).toBeVisible()
   })

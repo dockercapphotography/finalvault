@@ -46,6 +46,7 @@ async function enterGallery(page, shareToken, name = 'testclient@example.com') {
   await page.goto(`/g/${shareToken}`)
   await expect(page.locator('.animate-spin')).not.toBeAttached({ timeout: 15000 })
   await page.getByPlaceholder('Enter your email to continue').fill(name)
+  await expect(page.getByRole('button', { name: 'View Gallery' })).toBeEnabled({ timeout: 3000 })
   await page.getByRole('button', { name: 'View Gallery' }).click()
   await expect(page).toHaveURL(`/g/${shareToken}/view`, { timeout: 10000 })
 }

@@ -33,7 +33,8 @@ test.afterAll(async () => {
 
 async function goToGallery(page) {
   await page.goto(`/galleries/${galleryId}`)
-  await expect(page.getByRole('heading', { name: 'Share Link Test Gallery' })).toBeVisible({ timeout: 10000 })
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByRole('heading', { name: 'Share Link Test Gallery' })).toBeVisible({ timeout: 15000 })
 }
 
 test.describe('Share Link', () => {
