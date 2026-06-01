@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, ChevronLeft, Droplets, LayoutGrid, Check } from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
@@ -27,6 +27,7 @@ import { getSets, createSet, updateSet, deleteSet, saveSetOrder, moveImageToSet,
 export default function GalleryDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [gallery, setGallery] = useState(null)
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -762,7 +763,7 @@ export default function GalleryDetail() {
 
         {/* ── Desktop header ── */}
         <div className="hidden md:block">
-          <Button variant="ghost" onClick={() => navigate(-1)} className="-ml-2">
+          <Button variant="ghost" onClick={() => navigate(location.state?.from || '/galleries')} className="-ml-2">
             <ArrowLeft size={15} />Back to galleries
           </Button>
         </div>
