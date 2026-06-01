@@ -46,7 +46,7 @@ export default function GalleryActivity() {
           .from('gallery_activity_log')
           .select(`
             id, action, occurred_at, image_id, viewer_id, metadata,
-            gallery_viewers (display_name),
+            gallery_viewers (email, display_name),
             gallery_images (file_name, preview_r2_key)
           `)
           .eq('gallery_id', id)
@@ -74,7 +74,7 @@ export default function GalleryActivity() {
     views: activity.filter(a => a.action === 'view').length,
     favorites: activity.filter(a => a.action === 'favorite').length,
     downloads: activity.filter(a => a.action.startsWith('download')).length,
-    uniqueViewers: new Set(activity.map(a => a.gallery_viewers?.display_name).filter(Boolean)).size,
+    uniqueViewers: new Set(activity.map(a => a.gallery_viewers?.email ? a.gallery_viewers.email : a.gallery_viewers?.display_name).filter(Boolean)).size,
   }
 
   const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
@@ -180,7 +180,7 @@ export default function GalleryActivity() {
           {filtered.map(log => {
             const cfg = ACTION_CONFIG[log.action] || ACTION_CONFIG.view
             const Icon = cfg.icon
-            const name = log.gallery_viewers?.display_name || 'Someone'
+            const name = log.gallery_viewers?.email ? log.gallery_viewers.email : log.gallery_viewers?.display_name || 'Someone'
             const fileName = log.gallery_images?.file_name
             const previewKey = log.gallery_images?.preview_r2_key
 

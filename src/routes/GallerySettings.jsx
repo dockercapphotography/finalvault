@@ -129,6 +129,8 @@ export default function GallerySettings() {
   const [allowHiresDownload, setAllowHiresDownload] = useState(false)
   const [allowFavorites, setAllowFavorites] = useState(true)
   const [allowComments, setAllowComments] = useState(true)
+  const [expiryWarningEnabled, setExpiryWarningEnabled] = useState(false)
+  const [expiryWarningDays, setExpiryWarningDays] = useState(3)
   const [themeColor, setThemeColor] = useState('light')
   const [gridSize, setGridSize] = useState('medium')
   const [gridSpacing, setGridSpacing] = useState('tight')
@@ -164,6 +166,10 @@ export default function GallerySettings() {
       setAllowHiresDownload(g.allow_hires_download ?? false)
       setAllowFavorites(g.allow_favorites ?? true)
       setAllowComments(g.allow_comments ?? true)
+      setExpiryWarningEnabled(g.expiry_warning_enabled ?? false)
+      setExpiryWarningDays(g.expiry_warning_days ?? 3)
+      setExpiryWarningEnabled(g.expiry_warning_enabled ?? false)
+      setExpiryWarningDays(g.expiry_warning_days ?? 3)
       setThemeColor(g.theme_color || 'light')
       // Normalise legacy 'regular' value to 'medium'
       setGridSize(g.grid_size === 'regular' ? 'medium' : (g.grid_size || 'medium'))
@@ -199,7 +205,7 @@ export default function GallerySettings() {
     if (isFirstLoad.current || !gallery || !title) return
     try {
       const s = {
-        title, clientName, eventName, notes, eventDate, isActive, expiresAt,
+        title, clientName, eventName, notes, eventDate, isActive, expiresAt, expiryWarningEnabled, expiryWarningDays, expiryWarningEnabled, expiryWarningDays,
         requirePassword, password, requireDownloadPin, downloadPin,
         allowDownloads, downloadWatermarked, allowHiresDownload,
         allowFavorites, allowComments, themeColor, gridSize, gridSpacing,
@@ -221,6 +227,10 @@ export default function GallerySettings() {
         download_watermarked: s.downloadWatermarked,
         allow_hires_download: s.allowHiresDownload,
         allow_favorites: s.allowFavorites,
+        expiry_warning_enabled: s.expiryWarningEnabled,
+        expiry_warning_days: s.expiryWarningDays,
+        expiry_warning_enabled: s.expiryWarningEnabled,
+        expiry_warning_days: s.expiryWarningDays,
         allow_comments: s.allowComments,
         theme_color: s.themeColor,
         grid_size: s.gridSize,
@@ -228,7 +238,7 @@ export default function GallerySettings() {
       })
       setSaveState('saved')
     } catch { setSaveState('error') }
-  }, [gallery, title, clientName, eventName, notes, eventDate, isActive, expiresAt,
+  }, [gallery, title, clientName, eventName, notes, eventDate, isActive, expiresAt, expiryWarningEnabled, expiryWarningDays, expiryWarningEnabled, expiryWarningDays,
       requirePassword, password, requireDownloadPin, downloadPin,
       allowDownloads, downloadWatermarked, allowHiresDownload,
       allowFavorites, allowComments, themeColor, gridSize, gridSpacing, id])
@@ -364,6 +374,44 @@ export default function GallerySettings() {
             <SettingsRow label="Allow comments" description="Clients can leave comments on images">
               <Toggle checked={allowComments} onChange={v => handleToggle(setAllowComments, 'allowComments', v)} />
             </SettingsRow>
+          </SettingsSection>
+          <SettingsSection title="Expiry Notifications" description="Automatically email viewers before this gallery expires">
+            <SettingsRow label="Send expiry warning email" description="Notify viewers before the gallery expires">
+              <Toggle checked={expiryWarningEnabled} onChange={v => handleToggle(setExpiryWarningEnabled, 'expiryWarningEnabled', v)} />
+            </SettingsRow>
+            {expiryWarningEnabled && (
+              <div className="px-4 py-3" style={{ background: 'var(--surface)' }}>
+                <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Send warning</label>
+                <select
+                  value={expiryWarningDays}
+                  onChange={e => { setExpiryWarningDays(Number(e.target.value)); save({ expiryWarningDays: Number(e.target.value) }) }}
+                  className="w-full rounded-lg px-3 py-2 text-sm"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)' }}>
+                  {[1, 2, 3, 5, 7, 14].map(d => (
+                    <option key={d} value={d}>{d} day{d !== 1 ? 's' : ''} before expiry date</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </SettingsSection>
+          <SettingsSection title="Expiry Notifications" description="Automatically email viewers before this gallery expires">
+            <SettingsRow label="Send expiry warning email" description="Notify viewers before the gallery expires">
+              <Toggle checked={expiryWarningEnabled} onChange={v => handleToggle(setExpiryWarningEnabled, 'expiryWarningEnabled', v)} />
+            </SettingsRow>
+            {expiryWarningEnabled && (
+              <div className="px-4 py-3" style={{ background: 'var(--surface)' }}>
+                <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Send warning</label>
+                <select
+                  value={expiryWarningDays}
+                  onChange={e => { setExpiryWarningDays(Number(e.target.value)); save({ expiryWarningDays: Number(e.target.value) }) }}
+                  className="w-full rounded-lg px-3 py-2 text-sm"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)' }}>
+                  {[1, 2, 3, 5, 7, 14].map(d => (
+                    <option key={d} value={d}>{d} day{d !== 1 ? 's' : ''} before expiry date</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </SettingsSection>
         </div>
       )}

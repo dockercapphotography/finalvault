@@ -42,10 +42,10 @@ async function createGallery(overrides = {}) {
   return data
 }
 
-async function enterGallery(page, shareToken, name = 'Test Client') {
+async function enterGallery(page, shareToken, name = 'testclient@example.com') {
   await page.goto(`/g/${shareToken}`)
   await expect(page.locator('.animate-spin')).not.toBeAttached({ timeout: 15000 })
-  await page.getByPlaceholder('Enter your name to continue').fill(name)
+  await page.getByPlaceholder('Enter your email to continue').fill(name)
   await page.getByRole('button', { name: 'View Gallery' }).click()
   await expect(page).toHaveURL(`/g/${shareToken}/view`, { timeout: 10000 })
 }

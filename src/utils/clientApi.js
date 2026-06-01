@@ -60,7 +60,7 @@ export async function getClientImages(galleryId) {
   return data
 }
 
-export async function getOrCreateViewer(galleryId, displayName) {
+export async function getOrCreateViewer(galleryId, email) {
   const storageKey = `fv-viewer-${galleryId}`
   const existing = localStorage.getItem(storageKey)
   if (existing) {
@@ -74,7 +74,7 @@ export async function getOrCreateViewer(galleryId, displayName) {
   const sessionId = crypto.randomUUID()
   const { data, error } = await supabase
     .from('gallery_viewers')
-    .insert({ gallery_id: galleryId, session_id: sessionId, display_name: displayName })
+    .insert({ gallery_id: galleryId, session_id: sessionId, email: email })
     .select()
     .single()
   if (error) throw error
@@ -119,7 +119,7 @@ export async function getComments(galleryId, imageId = null) {
     .select(`
       id, body, created_at, image_id,
       viewer_id, photographer_id,
-      gallery_viewers (display_name),
+      gallery_viewers (display_name, email),
       photographers (display_name)
     `)
     .eq('gallery_id', galleryId)
@@ -146,7 +146,7 @@ export async function addComment(galleryId, imageId, viewerId, body) {
     })
     .select(`
       id, body, created_at, image_id,
-      viewer_id, gallery_viewers (display_name)
+      viewer_id, gallery_viewers (email)
     `)
     .single()
   if (error) throw error

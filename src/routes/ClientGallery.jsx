@@ -148,7 +148,7 @@ export default function ClientGallery() {
   const [stage, setStage] = useState('loading')
   const [photographerName, setPhotographerName] = useState('')
 
-  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -198,10 +198,15 @@ export default function ClientGallery() {
   }
 
   async function handleNameSubmit() {
-    if (!name.trim()) return
+    if (!email.trim()) return
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    setError(null)
     setSubmitting(true)
     try {
-      await getOrCreateViewer(gallery.id, name.trim())
+      await getOrCreateViewer(gallery.id, email.trim())
       if (gallery.require_password) setStage('password')
       else navigate(`/g/${token}/view${window.location.search}`, { replace: true })
     } catch {
@@ -255,12 +260,13 @@ export default function ClientGallery() {
     <GateWrapper gallery={gallery} photographerName={photographerName}>
       <div className="space-y-3">
         <InputField
-          value={name}
-          onChange={setName}
-          placeholder="Enter your name to continue"
+          value={email}
+          onChange={setEmail}
+          type="email"
+          placeholder="Enter your email to continue"
           autoFocus
         />
-        <GateButton onClick={handleNameSubmit} loading={submitting || !name.trim()}>
+        <GateButton onClick={handleNameSubmit} loading={submitting || !email.trim()}>
           View Gallery <ArrowRight size={16} />
         </GateButton>
       </div>

@@ -70,7 +70,7 @@ test.describe('Gallery access — name gate', () => {
     await page.goto(`/g/${gallery.share_token}`)
     await waitForGateReady(page)
     await expect(page.getByText('Access Test Gallery')).toBeVisible()
-    await expect(page.getByPlaceholder('Enter your name to continue')).toBeVisible()
+    await expect(page.getByPlaceholder('Enter your email to continue')).toBeVisible()
     await expect(page.getByRole('button', { name: 'View Gallery' })).toBeVisible()
   })
 
@@ -89,7 +89,7 @@ test.describe('Gallery access — name gate', () => {
   test('enters name and navigates to gallery view', async ({ page }) => {
     await page.goto(`/g/${gallery.share_token}`)
     await waitForGateReady(page)
-    await page.getByPlaceholder('Enter your name to continue').fill('Jane Smith')
+    await page.getByPlaceholder('Enter your email to continue').fill('jane@example.com')
     await page.getByRole('button', { name: 'View Gallery' }).click()
     await expect(page).toHaveURL(`/g/${gallery.share_token}/view`, { timeout: 10000 })
   })
@@ -97,7 +97,7 @@ test.describe('Gallery access — name gate', () => {
   test('returning visitor skips name gate', async ({ page }) => {
     await page.goto(`/g/${gallery.share_token}`)
     await waitForGateReady(page)
-    await page.getByPlaceholder('Enter your name to continue').fill('Jane Smith')
+    await page.getByPlaceholder('Enter your email to continue').fill('jane@example.com')
     await page.getByRole('button', { name: 'View Gallery' }).click()
     await expect(page).toHaveURL(`/g/${gallery.share_token}/view`, { timeout: 10000 })
     await page.goto(`/g/${gallery.share_token}`)
@@ -113,7 +113,7 @@ test.describe('Gallery access — password gate', () => {
     try {
       await page.goto(`/g/${gallery.share_token}`)
       await waitForGateReady(page)
-      await page.getByPlaceholder('Enter your name to continue').fill('Jane Smith')
+      await page.getByPlaceholder('Enter your email to continue').fill('jane@example.com')
       await page.getByRole('button', { name: 'View Gallery' }).click()
       await expect(page.getByText('This gallery is password protected')).toBeVisible()
       await expect(page.getByPlaceholder('Enter gallery password')).toBeVisible()
@@ -127,7 +127,7 @@ test.describe('Gallery access — password gate', () => {
     try {
       await page.goto(`/g/${gallery.share_token}`)
       await waitForGateReady(page)
-      await page.getByPlaceholder('Enter your name to continue').fill('Jane Smith')
+      await page.getByPlaceholder('Enter your email to continue').fill('jane@example.com')
       await page.getByRole('button', { name: 'View Gallery' }).click()
       await page.getByPlaceholder('Enter gallery password').fill('wrongpassword')
       await page.getByRole('button', { name: 'Unlock Gallery' }).click()
@@ -142,7 +142,7 @@ test.describe('Gallery access — password gate', () => {
     try {
       await page.goto(`/g/${gallery.share_token}`)
       await waitForGateReady(page)
-      await page.getByPlaceholder('Enter your name to continue').fill('Jane Smith')
+      await page.getByPlaceholder('Enter your email to continue').fill('jane@example.com')
       await page.getByRole('button', { name: 'View Gallery' }).click()
       await page.getByPlaceholder('Enter gallery password').fill('supersecret')
       await page.getByRole('button', { name: 'Unlock Gallery' }).click()
@@ -157,7 +157,7 @@ test.describe('Gallery access — password gate', () => {
     try {
       await page.goto(`/g/${gallery.share_token}`)
       await waitForGateReady(page)
-      await page.getByPlaceholder('Enter your name to continue').fill('Jane Smith')
+      await page.getByPlaceholder('Enter your email to continue').fill('jane@example.com')
       await page.getByRole('button', { name: 'View Gallery' }).click()
       await expect(page.getByRole('button', { name: 'Unlock Gallery' })).toBeDisabled()
     } finally {
@@ -170,7 +170,7 @@ test.describe('Gallery access — password gate', () => {
     try {
       await page.goto(`/g/${gallery.share_token}`)
       await waitForGateReady(page)
-      await page.getByPlaceholder('Enter your name to continue').fill('Jane Smith')
+      await page.getByPlaceholder('Enter your email to continue').fill('jane@example.com')
       await page.getByRole('button', { name: 'View Gallery' }).click()
       await page.getByPlaceholder('Enter gallery password').fill('wrongpassword')
       await page.getByRole('button', { name: 'Unlock Gallery' }).click()

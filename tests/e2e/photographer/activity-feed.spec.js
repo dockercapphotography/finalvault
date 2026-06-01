@@ -50,7 +50,7 @@ test.describe('Activity Feed', () => {
     const clientCtx = await browser.newContext()
     const clientPage = await clientCtx.newPage()
     await clientPage.goto(`/g/${shareToken}`)
-    await clientPage.getByPlaceholder('Enter your name to continue').fill('Activity Test Client')
+    await clientPage.getByPlaceholder('Enter your email to continue').fill('activitytest@example.com')
     await clientPage.getByRole('button', { name: 'View Gallery' }).click()
     await expect(clientPage).toHaveURL(`/g/${shareToken}/view`, { timeout: 10000 })
     await clientCtx.close()

@@ -114,7 +114,7 @@ export default function NotificationBell({ mobile = false }) {
       .from('gallery_activity_log')
       .select(`
         id, gallery_id, action, occurred_at, metadata, image_id,
-        gallery_viewers (display_name)
+        gallery_viewers (email, display_name)
       `)
       .in('gallery_id', galleryIds)
       .gte('occurred_at', since)
@@ -136,7 +136,7 @@ export default function NotificationBell({ mobile = false }) {
     const enriched = logs.map(log => ({
       ...log,
       galleryTitle: galleryMap[log.gallery_id] || 'Unknown gallery',
-      viewerName: log.gallery_viewers?.display_name || 'Someone',
+      viewerName: log.gallery_viewers?.email ? log.gallery_viewers.email : log.gallery_viewers?.display_name || 'Someone',
       fileName: log.image_id ? fileNameMap[log.image_id] : null,
     }))
 

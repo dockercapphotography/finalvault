@@ -194,15 +194,15 @@ export const test = base.extend({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-export async function enterGalleryAsClient(page, shareToken, name = 'Test Client') {
+export async function enterGalleryAsClient(page, shareToken, email = 'testclient@example.com') {
   await page.goto(`/g/${shareToken}`)
   await expect(page.locator('.animate-spin')).not.toBeAttached({ timeout: 15000 })
-  await page.getByPlaceholder('Enter your name to continue').fill(name)
+  await page.getByPlaceholder('Enter your email to continue').fill(email)
   await page.getByRole('button', { name: 'View Gallery' }).click()
   await expect(page).toHaveURL(`/g/${shareToken}/view`, { timeout: 10000 })
 }
 
 // Enter the fixture gallery as a client, cleaning up the viewer session after
-export async function enterFixtureGallery(page, name = 'Test Client') {
-  await enterGalleryAsClient(page, FIXTURE_GALLERY.shareToken, name)
+export async function enterFixtureGallery(page, email = 'testclient@example.com') {
+  await enterGalleryAsClient(page, FIXTURE_GALLERY.shareToken, email)
 }

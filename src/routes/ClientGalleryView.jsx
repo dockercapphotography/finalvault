@@ -454,7 +454,7 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
       {comments.map(c => (
         <div key={c.id} className="space-y-0.5">
           <p className="text-xs font-medium" style={{ color: '#f0f0f0' }}>
-            {c.gallery_viewers?.display_name || c.photographers?.display_name || 'Unknown'}
+            {c.gallery_viewers?.email ? c.gallery_viewers.email : c.photographers?.display_name || 'Unknown'}
           </p>
           <p className="text-sm" style={{ color: '#9ca3af' }}>{c.body}</p>
         </div>
