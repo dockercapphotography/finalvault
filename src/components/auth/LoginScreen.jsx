@@ -187,11 +187,11 @@ export default function LoginScreen({
         }
       `}</style>
 
-      <div className="min-h-[100dvh] flex" style={{ background: '#f5f0ff', position: 'relative', overflow: 'hidden' }}>
+      <div className="min-h-[100dvh] flex" style={{ background: '#f5f0ff', position: 'relative', overflow: 'hidden', backgroundImage: 'radial-gradient(circle, rgba(124,92,191,0.12) 1.5px, transparent 1.5px)', backgroundSize: '24px 24px' }}>
 
         {/* Animated blobs — shared background */}
         <div className="fv-blob1" style={{
-          position: 'absolute', top: '-80px', left: '-80px',
+          position: 'absolute', top: '-80px', right: '-80px',
           width: '400px', height: '400px', borderRadius: '50%',
           background: '#b780ef', opacity: 0.22, filter: 'blur(70px)', pointerEvents: 'none',
         }} />
@@ -201,16 +201,35 @@ export default function LoginScreen({
           background: '#7c5cbf', opacity: 0.18, filter: 'blur(60px)', pointerEvents: 'none',
         }} />
         <div className="fv-blob3" style={{
-          position: 'absolute', top: '40%', left: '40%',
+          position: 'absolute', top: '40%', right: '5%',
           width: '280px', height: '280px', borderRadius: '50%',
           background: '#d7b8f6', opacity: 0.25, filter: 'blur(65px)', pointerEvents: 'none',
         }} />
 
         {/* ── Left panel — marketing ── */}
-        <div className="hidden lg:flex flex-col justify-between flex-1 px-16 py-14" style={{ position: 'relative', zIndex: 1 }}>
+        <div className="hidden lg:flex flex-col flex-1 px-16 py-14" style={{ position: 'relative', zIndex: 1 }}>
 
-          {/* Logo */}
-          <div className="flex items-center gap-3">
+          {/* Concentric circles */}
+          {/* Bottom-right circles */}
+          <div style={{ position: 'absolute', bottom: '-60px', right: '-60px', width: '300px', height: '300px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.25)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'absolute', bottom: '-25px', right: '-25px', width: '200px', height: '200px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.18)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'absolute', bottom: '10px', right: '10px', width: '110px', height: '110px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.12)', pointerEvents: 'none', zIndex: 0 }} />
+          {/* Top-left circles */}
+          <div style={{ position: 'absolute', top: '-80px', left: '-80px', width: '280px', height: '280px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.18)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'absolute', top: '-50px', left: '-50px', width: '180px', height: '180px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.13)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'absolute', top: '-20px', left: '-20px', width: '100px', height: '100px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.09)', pointerEvents: 'none', zIndex: 0 }} />
+          {/* Diagonal lines SVG */}
+          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.06 }} xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="diag" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+                <line x1="0" y1="0" x2="0" y2="40" stroke="#7c5cbf" strokeWidth="1"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#diag)" />
+          </svg>
+
+        {/* Logo */}
+          <div className="flex items-center gap-3" style={{ position: 'relative', zIndex: 1 }}>
             <img src="/finalvault_logo.svg" alt="FinalVault" width="52" height="52" />
             <span style={{
               fontFamily: "'Montserrat', sans-serif",
@@ -223,7 +242,8 @@ export default function LoginScreen({
           </div>
 
           {/* Hero text */}
-          <div className="space-y-10 max-w-md">
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+          <div className="space-y-8 max-w-md">
             <div className="space-y-4">
               <p style={{
                 fontFamily: "'Montserrat', sans-serif",
@@ -231,13 +251,13 @@ export default function LoginScreen({
                 fontSize: '38px',
                 lineHeight: 1.15,
                 letterSpacing: '-0.02em',
-                color: '#2a1254',
+                color: '#1a0a3c',
               }}>
                 Your galleries.<br />
                 Your terms.<br />
                 <span style={{ color: '#7c5cbf' }}>Your platform.</span>
               </p>
-              <p style={{ color: 'rgba(60,32,112,0.65)', fontSize: '15px', lineHeight: 1.7, maxWidth: '360px' }}>
+              <p style={{ color: 'rgba(30,10,70,0.8)', fontSize: '15px', lineHeight: 1.7, maxWidth: '360px' }}>
                 Professional client gallery delivery for photographers who want full control over how they deliver their work.
               </p>
             </div>
@@ -251,16 +271,17 @@ export default function LoginScreen({
                     <Icon size={16} style={{ color: '#7c5cbf' }} />
                   </div>
                   <div>
-                    <p style={{ fontWeight: 600, fontSize: '14px', color: '#2a1254', marginBottom: '2px' }}>{title}</p>
-                    <p style={{ fontSize: '13px', color: 'rgba(60,32,112,0.6)', lineHeight: 1.6 }}>{desc}</p>
+                    <p style={{ fontWeight: 600, fontSize: '14px', color: '#1a0a3c', marginBottom: '2px' }}>{title}</p>
+                    <p style={{ fontSize: '13px', color: 'rgba(30,10,70,0.72)', lineHeight: 1.6 }}>{desc}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+          </div>
 
           {/* Footer */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4" style={{ position: 'relative', zIndex: 1 }}>
             <p style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)' }}>
               © {new Date().getFullYear()} Docker Cap Photography
             </p>
