@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Eye, EyeOff, Images, Share2, Bell, ShieldCheck } from 'lucide-react'
 
-const LogoMark = () => (
-  <img src="/finalvault_logo.svg" alt="FinalVault" width="48" height="48" />
-)
-
 const FEATURES = [
   {
     icon: Images,
@@ -187,9 +183,16 @@ export default function LoginScreen({
         }
       `}</style>
 
-      <div className="min-h-[100dvh] flex" style={{ background: '#f5f0ff', position: 'relative', overflow: 'hidden', backgroundImage: 'radial-gradient(circle, rgba(124,92,191,0.12) 1.5px, transparent 1.5px)', backgroundSize: '24px 24px' }}>
+      <div className="min-h-[100dvh] flex"
+        style={{
+          background: '#f5f0ff',
+          position: 'relative',
+          overflow: 'hidden',
+          backgroundImage: 'radial-gradient(circle, rgba(124,92,191,0.12) 1.5px, transparent 1.5px)',
+          backgroundSize: '24px 24px',
+        }}>
 
-        {/* Animated blobs — shared background */}
+        {/* Animated blobs */}
         <div className="fv-blob1" style={{
           position: 'absolute', top: '-80px', right: '-80px',
           width: '400px', height: '400px', borderRadius: '50%',
@@ -206,19 +209,21 @@ export default function LoginScreen({
           background: '#d7b8f6', opacity: 0.25, filter: 'blur(65px)', pointerEvents: 'none',
         }} />
 
-        {/* ── Left panel — marketing ── */}
-        <div className="hidden lg:flex flex-col flex-1 px-16 py-14" style={{ position: 'relative', zIndex: 1 }}>
+        {/* ── Left panel — desktop only ── */}
+        <div className="hidden lg:flex flex-col flex-1 px-16 py-14"
+          style={{ position: 'relative', zIndex: 1 }}>
 
-          {/* Concentric circles */}
-          {/* Bottom-right circles */}
-          <div style={{ position: 'absolute', bottom: '-60px', right: '-60px', width: '300px', height: '300px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.25)', pointerEvents: 'none', zIndex: 0 }} />
-          <div style={{ position: 'absolute', bottom: '-25px', right: '-25px', width: '200px', height: '200px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.18)', pointerEvents: 'none', zIndex: 0 }} />
-          <div style={{ position: 'absolute', bottom: '10px', right: '10px', width: '110px', height: '110px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.12)', pointerEvents: 'none', zIndex: 0 }} />
-          {/* Top-left circles */}
-          <div style={{ position: 'absolute', top: '-80px', left: '-80px', width: '280px', height: '280px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.18)', pointerEvents: 'none', zIndex: 0 }} />
-          <div style={{ position: 'absolute', top: '-50px', left: '-50px', width: '180px', height: '180px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.13)', pointerEvents: 'none', zIndex: 0 }} />
-          <div style={{ position: 'absolute', top: '-20px', left: '-20px', width: '100px', height: '100px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.09)', pointerEvents: 'none', zIndex: 0 }} />
-          {/* Diagonal lines SVG */}
+          {/* Concentric circles — bottom right */}
+          <div style={{ position: 'absolute', bottom: '-60px', right: '-60px', width: '300px', height: '300px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.25)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: '-25px', right: '-25px', width: '200px', height: '200px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.18)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: '10px', right: '10px', width: '110px', height: '110px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.12)', pointerEvents: 'none' }} />
+
+          {/* Concentric circles — top left */}
+          <div style={{ position: 'absolute', top: '-80px', left: '-80px', width: '280px', height: '280px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.18)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: '-50px', left: '-50px', width: '180px', height: '180px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.13)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: '-20px', left: '-20px', width: '100px', height: '100px', borderRadius: '50%', border: '2px solid rgba(124,92,191,0.09)', pointerEvents: 'none' }} />
+
+          {/* Diagonal lines */}
           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.06 }} xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern id="diag" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
@@ -228,61 +233,63 @@ export default function LoginScreen({
             <rect width="100%" height="100%" fill="url(#diag)" />
           </svg>
 
-        {/* Logo */}
+          {/* Logo */}
           <div className="flex items-center gap-3" style={{ position: 'relative', zIndex: 1 }}>
-            <img src="/finalvault_logo.svg" alt="FinalVault" width="52" height="52" />
+            <img src="/finalvault_logo.svg" alt="FinalVault" width="52" height="52"
+              style={{ filter: 'drop-shadow(0 2px 10px rgba(124,92,191,0.35))' }} />
             <span style={{
               fontFamily: "'Montserrat', sans-serif",
               fontWeight: 700,
-              fontSize: '15px',
+              fontSize: '22px',
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: '#3c2070',
             }}>FinalVault</span>
           </div>
 
-          {/* Hero text */}
+          {/* Hero + features */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1 }}>
-          <div className="space-y-8 max-w-md">
-            <div className="space-y-4">
-              <p style={{
-                fontFamily: "'Montserrat', sans-serif",
-                fontWeight: 700,
-                fontSize: '38px',
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                color: '#1a0a3c',
-              }}>
-                Your galleries.<br />
-                Your terms.<br />
-                <span style={{ color: '#7c5cbf' }}>Your platform.</span>
-              </p>
-              <p style={{ color: 'rgba(30,10,70,0.8)', fontSize: '15px', lineHeight: 1.7, maxWidth: '360px' }}>
-                Professional client gallery delivery for photographers who want full control over how they deliver their work.
-              </p>
-            </div>
+            <div style={{ maxWidth: '560px', width: '100%', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <p style={{
+                  fontFamily: "'Montserrat', sans-serif",
+                  fontWeight: 700,
+                  fontSize: '38px',
+                  lineHeight: 1.15,
+                  letterSpacing: '-0.02em',
+                  color: '#1a0a3c',
+                  margin: 0,
+                }}>
+                  Your galleries.<br />
+                  Your terms.<br />
+                  <span style={{ color: '#7c5cbf' }}>Your platform.</span>
+                </p>
+                <p style={{ color: 'rgba(30,10,70,0.8)', fontSize: '15px', lineHeight: 1.7, margin: 0 }}>
+                  Professional client gallery delivery for photographers who want full control over how they deliver their work.
+                </p>
+              </div>
 
-            {/* Feature list */}
-            <div className="space-y-5">
-              {FEATURES.map(({ icon: Icon, title, desc }) => (
-                <div key={title} className="fv-feature flex items-start gap-4">
-                  <div className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                    style={{ background: 'rgba(124,92,191,0.12)', border: '1px solid rgba(124,92,191,0.2)' }}>
-                    <Icon size={16} style={{ color: '#7c5cbf' }} />
+              <div style={{ height: '1px', background: 'rgba(124,92,191,0.2)', width: '100%' }} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {FEATURES.map(({ icon: Icon, title, desc }) => (
+                  <div key={title} className="fv-feature" style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                    <div style={{ flexShrink: 0, width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(124,92,191,0.12)', border: '1px solid rgba(124,92,191,0.2)' }}>
+                      <Icon size={16} style={{ color: '#7c5cbf' }} />
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 600, fontSize: '14px', color: '#1a0a3c', margin: '0 0 2px' }}>{title}</p>
+                      <p style={{ fontSize: '13px', color: 'rgba(30,10,70,0.72)', lineHeight: 1.6, margin: 0 }}>{desc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontWeight: 600, fontSize: '14px', color: '#1a0a3c', marginBottom: '2px' }}>{title}</p>
-                    <p style={{ fontSize: '13px', color: 'rgba(30,10,70,0.72)', lineHeight: 1.6 }}>{desc}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
-          </div>
 
-          {/* Footer */}
-          <div className="flex items-center gap-4" style={{ position: 'relative', zIndex: 1 }}>
-            <p style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)' }}>
+          {/* Desktop footer */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative', zIndex: 1 }}>
+            <p style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)', margin: 0 }}>
               © {new Date().getFullYear()} Docker Cap Photography
             </p>
             <a href="/privacy" style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)', textDecoration: 'none' }}
@@ -307,19 +314,21 @@ export default function LoginScreen({
 
           {/* Mobile logo */}
           <div className="flex flex-col items-center gap-3 mb-8 lg:hidden">
-            <LogoMark />
+            <img src="/finalvault_logo.svg" alt="FinalVault" width="90" height="90"
+              style={{ filter: 'drop-shadow(0 6px 20px rgba(124,92,191,0.4))' }} />
             <span style={{
               fontFamily: "'Montserrat', sans-serif",
               fontWeight: 700,
-              fontSize: '16px',
-              letterSpacing: '0.1em',
+              fontSize: '28px',
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: '#3c2070',
             }}>FinalVault</span>
           </div>
 
           <div className="w-full max-w-sm">
-            <div className="mb-6">
+            {/* Title — centered on mobile, left on desktop */}
+            <div className="mb-6 text-center lg:text-left">
               <h2 style={{ fontWeight: 700, fontSize: '20px', color: '#2a1254', marginBottom: '4px' }}>
                 {getTitle()}
               </h2>
@@ -387,7 +396,7 @@ export default function LoginScreen({
                     onBlur={e => e.target.style.borderColor = 'rgba(120,80,200,0.2)'} />
                   <button type="button" onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2"
-                    style={{ color: 'rgba(80,40,140,0.5)', cursor: 'pointer' }}>
+                    style={{ color: 'rgba(80,40,140,0.5)', cursor: 'pointer', background: 'none', border: 'none' }}>
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
@@ -407,7 +416,7 @@ export default function LoginScreen({
                       onBlur={e => e.target.style.borderColor = 'rgba(120,80,200,0.2)'} />
                     <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2"
-                      style={{ color: 'rgba(80,40,140,0.5)', cursor: 'pointer' }}>
+                      style={{ color: 'rgba(80,40,140,0.5)', cursor: 'pointer', background: 'none', border: 'none' }}>
                       {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
@@ -463,6 +472,7 @@ export default function LoginScreen({
                   color: '#fff',
                   opacity: isSubmitDisabled ? 0.4 : 1,
                   cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+                  border: 'none',
                 }}>
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -498,11 +508,26 @@ export default function LoginScreen({
               {mode !== 'login' && (
                 <button onClick={() => setMode('login')} disabled={isSubmitting}
                   className="w-full text-sm pt-1 transition-colors"
-                  style={{ color: 'rgba(80,40,140,0.6)', cursor: 'pointer' }}>
+                  style={{ color: 'rgba(80,40,140,0.6)', cursor: 'pointer', background: 'none', border: 'none' }}>
                   ← Back to sign in
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Mobile footer */}
+          <div className="flex items-center justify-center gap-4 mt-6 lg:hidden">
+            <a href="/privacy" style={{ fontSize: '12px', color: 'rgba(60,32,112,0.45)', textDecoration: 'none' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'rgba(60,32,112,0.7)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(60,32,112,0.45)'}>
+              Privacy Policy
+            </a>
+            <span style={{ fontSize: '12px', color: 'rgba(60,32,112,0.25)' }}>·</span>
+            <a href="/terms" style={{ fontSize: '12px', color: 'rgba(60,32,112,0.45)', textDecoration: 'none' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'rgba(60,32,112,0.7)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(60,32,112,0.45)'}>
+              Terms of Service
+            </a>
           </div>
         </div>
       </div>
