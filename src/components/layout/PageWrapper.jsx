@@ -19,7 +19,7 @@ export default function PageWrapper({ session, children }) {
         </main>
 
         {/* Desktop-only footer */}
-        <footer className="hidden md:flex items-center justify-between px-6 py-3"
+        <footer data-testid="app-footer" className="hidden md:flex items-center justify-between px-6 py-3"
           style={{
             borderTop: '1px solid var(--border)',
             background: 'var(--bg)',

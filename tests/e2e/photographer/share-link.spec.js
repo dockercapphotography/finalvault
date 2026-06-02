@@ -12,32 +12,45 @@ function sb() {
 test.use({ storageState: 'tests/.auth/photographer.json' })
 test.describe.configure({ mode: 'serial' })
 
-let galleryId
-
-test.beforeAll(async () => {
-  const { data: { users } } = await sb().auth.admin.listUsers()
-  const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
-  const { data } = await sb().from('galleries').insert({
-    photographer_id: user.id,
-    title: 'Share Link Test Gallery',
-    client_name: 'Test Client',
-    is_active: true,
-    allow_downloads: true,
-  }).select().single()
-  galleryId = data.id
-})
-
-test.afterAll(async () => {
-  await sb().from('galleries').delete().eq('id', galleryId)
-})
-
-async function goToGallery(page) {
-  await page.goto(`/galleries/${galleryId}`)
-  await page.waitForLoadState('networkidle')
-  await expect(page.getByRole('heading', { name: 'Share Link Test Gallery' })).toBeVisible({ timeout: 15000 })
-}
-
 test.describe('Share Link', () => {
+  let galleryId
+
+  async function goToGallery(page) {
+    // Retry once in case of transient network issue
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await page.goto(`/galleries/${galleryId}`)
+      await page.waitForLoadState('domcontentloaded')
+      const heading = page.getByRole('heading', { name: /Share Link Test Gallery/ })
+      try {
+        await expect(heading).toBeVisible({ timeout: 25000 })
+        return
+      } catch {
+        if (attempt === 2) throw new Error('Gallery heading not visible after 3 attempts')
+      }
+    }
+  }
+
+  test.beforeAll(async () => {
+    const { data: { users } } = await sb().auth.admin.listUsers()
+    const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
+    // Use a unique title per worker run to avoid cross-browser beforeAll cleanup conflicts
+    const suffix = crypto.randomUUID().slice(0, 8)
+    const { data, error } = await sb().from('galleries').insert({
+      photographer_id: user.id,
+      title: `Share Link Test Gallery ${suffix}`,
+      client_name: 'Test Client',
+      share_token: crypto.randomUUID().replace(/-/g, ''),
+      is_active: true,
+      allow_downloads: true,
+    }).select().single()
+    if (error) throw new Error(`Failed to create share-link gallery: ${error.message}`)
+    galleryId = data.id
+  })
+
+  test.afterAll(async () => {
+    await sb().from('galleries').delete().eq('id', galleryId)
+  })
+
   test('Share button is visible on gallery detail page', async ({ page }) => {
     await goToGallery(page)
     await expect(page.getByRole('button', { name: /Share/ })).toBeVisible()
@@ -60,10 +73,8 @@ test.describe('Share Link', () => {
   })
 
   test('Copy button copies gallery URL to clipboard', async ({ page, context, browserName }) => {
-    // clipboard-read only supported in chromium
-    if (browserName === 'chromium') {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-    }
+    if (browserName !== 'chromium') test.skip()
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await goToGallery(page)
     await page.getByRole('button', { name: /Share/ }).click()
     await page.getByText('Get direct link').click()

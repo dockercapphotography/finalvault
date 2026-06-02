@@ -458,7 +458,7 @@ function SetupChecklist({ galleries, hasWatermark, hasShared, dismissed, onDismi
       {expanded && (
         <div className="px-4 pb-4 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
           {steps.map((step, i) => (
-            <div key={step.id} className="flex items-start gap-3 pt-3">
+            <div key={step.id} data-testid={`checklist-step-${step.id}`} className="flex items-start gap-3 pt-3">
               <div className="shrink-0 mt-0.5">
                 {step.done
                   ? <CheckCircle2 size={18} style={{ color: '#22c55e' }} />
@@ -488,7 +488,7 @@ function SetupChecklist({ galleries, hasWatermark, hasShared, dismissed, onDismi
 
   // ── Desktop: fixed right panel ──
   const desktopPanel = (
-    <div className="hidden md:block fixed right-6 top-28 z-20 w-72"
+    <div data-testid="checklist-desktop-panel" className="hidden md:block fixed right-6 top-28 z-20 w-72"
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--border)',
@@ -500,7 +500,7 @@ function SetupChecklist({ galleries, hasWatermark, hasShared, dismissed, onDismi
           <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Getting started</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{completedCount} of {steps.length} complete</p>
         </div>
-        <button onClick={onDismiss} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+        <button data-testid="checklist-dismiss-btn" onClick={onDismiss} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
           <X size={16} />
         </button>
       </div>
@@ -515,7 +515,7 @@ function SetupChecklist({ galleries, hasWatermark, hasShared, dismissed, onDismi
 
       <div className="p-4 space-y-4">
         {steps.map(step => (
-          <div key={step.id} className="flex items-start gap-3">
+          <div key={step.id} data-testid={`checklist-step-${step.id}`} className="flex items-start gap-3">
             <div className="shrink-0 mt-0.5">
               {step.done
                 ? <CheckCircle2 size={18} style={{ color: '#22c55e' }} />
@@ -543,10 +543,10 @@ function SetupChecklist({ galleries, hasWatermark, hasShared, dismissed, onDismi
   )
 
   return (
-    <>
+    <div data-testid="setup-checklist">
       {mobileBanner}
       {desktopPanel}
-    </>
+    </div>
   )
 }
 

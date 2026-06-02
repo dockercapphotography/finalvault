@@ -26,16 +26,18 @@ async function cleanupViewerData(galleryId) {
 // The sticky header sits at the bottom edge of the hero (top: ~720px in a 720px viewport)
 // Scrolling by ~50px brings it to top: ~670px which is in view
 async function scrollToGrid(page) {
-  await page.evaluate(() => window.scrollTo({ top: 50, behavior: "instant" }))
-  await page.waitForTimeout(300)
+  // Scroll past the hero image to trigger the sticky header
+  await page.evaluate(() => window.scrollTo({ top: 800, behavior: "instant" }))
+  await page.waitForTimeout(500)
 }
 
-// Get the header download button — it is button index 0, just below the hero
+// Get the header download button from the sticky header
 async function clickHeaderDownload(page) {
   await scrollToGrid(page)
-  // The sticky header download button is the first button after the set tabs
-  // Use coordinate click at the known position (top-right area after scroll)
-  await page.locator("div.sticky button").first().click()
+  // Wait for sticky header to be present then click its download button
+  const stickyHeader = page.locator('div.sticky')
+  await stickyHeader.waitFor({ state: 'visible', timeout: 10000 })
+  await stickyHeader.getByRole('button').first().click()
 }
 
 async function createGallery(overrides = {}) {
@@ -105,9 +107,10 @@ test.describe('Download ZIP — enabled', () => {
   test('ZIP progress modal appears during download', async ({ page }) => {
     await enterGalleryAsClient(page, FIXTURE_GALLERY.shareToken)
     await scrollToGrid(page)
-    const smallTitle2 = page.locator('h1.text-sm, h1[class*="text-sm"]')
-    const headerBtn2 = page.locator('div').filter({ has: smallTitle2 }).filter({ has: page.locator('button') }).last().locator('button').last()
-    await headerBtn2.click()
+    await scrollToGrid(page)
+    const stickyHdr = page.locator('div.sticky')
+    await stickyHdr.waitFor({ state: 'visible', timeout: 10000 })
+    await stickyHdr.getByRole('button').first().click()
     const webSizeBtn = page.getByText('Web Size')
     if (await webSizeBtn.isVisible()) await webSizeBtn.click()
     // Progress modal should appear
@@ -154,9 +157,10 @@ test.describe('Download ZIP — PIN gate', () => {
   test('PIN gate appears when download requires PIN', async ({ page }) => {
     await enterGalleryAsClient(page, gallery.share_token)
     await scrollToGrid(page)
-    const smallTitle2 = page.locator('h1.text-sm, h1[class*="text-sm"]')
-    const headerBtn2 = page.locator('div').filter({ has: smallTitle2 }).filter({ has: page.locator('button') }).last().locator('button').last()
-    await headerBtn2.click()
+    await scrollToGrid(page)
+    const stickyHdr = page.locator('div.sticky')
+    await stickyHdr.waitFor({ state: 'visible', timeout: 10000 })
+    await stickyHdr.getByRole('button').first().click()
     const webSizeBtn = page.getByText('Web Size')
     if (await webSizeBtn.isVisible()) await webSizeBtn.click()
     await expect(page.getByText('Download PIN required')).toBeVisible()
@@ -166,9 +170,10 @@ test.describe('Download ZIP — PIN gate', () => {
   test('wrong PIN shows error message', async ({ page }) => {
     await enterGalleryAsClient(page, gallery.share_token)
     await scrollToGrid(page)
-    const smallTitle2 = page.locator('h1.text-sm, h1[class*="text-sm"]')
-    const headerBtn2 = page.locator('div').filter({ has: smallTitle2 }).filter({ has: page.locator('button') }).last().locator('button').last()
-    await headerBtn2.click()
+    await scrollToGrid(page)
+    const stickyHdr = page.locator('div.sticky')
+    await stickyHdr.waitFor({ state: 'visible', timeout: 10000 })
+    await stickyHdr.getByRole('button').first().click()
     const webSizeBtn = page.getByText('Web Size')
     if (await webSizeBtn.isVisible()) await webSizeBtn.click()
     await page.locator('input[inputmode="numeric"]').fill('0000')
@@ -179,9 +184,10 @@ test.describe('Download ZIP — PIN gate', () => {
   test('correct PIN dismisses gate and starts download', async ({ page }) => {
     await enterGalleryAsClient(page, gallery.share_token)
     await scrollToGrid(page)
-    const smallTitle2 = page.locator('h1.text-sm, h1[class*="text-sm"]')
-    const headerBtn2 = page.locator('div').filter({ has: smallTitle2 }).filter({ has: page.locator('button') }).last().locator('button').last()
-    await headerBtn2.click()
+    await scrollToGrid(page)
+    const stickyHdr = page.locator('div.sticky')
+    await stickyHdr.waitFor({ state: 'visible', timeout: 10000 })
+    await stickyHdr.getByRole('button').first().click()
     const webSizeBtn = page.getByText('Web Size')
     if (await webSizeBtn.isVisible()) await webSizeBtn.click()
     await page.locator('input[inputmode="numeric"]').fill('7391')

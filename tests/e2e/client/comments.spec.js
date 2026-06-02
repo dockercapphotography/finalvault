@@ -73,7 +73,7 @@ test.describe('Comments — enabled', () => {
     await openCommentSheet(page)
     await page.getByPlaceholder('Add a comment…').fill('This is a test comment')
     await page.getByRole('button', { name: 'Post' }).click()
-    await expect(page.getByText('This is a test comment')).toBeVisible()
+    await expect(page.getByText('This is a test comment').first()).toBeVisible()
   })
 
   test('comment input clears after posting', async ({ page }) => {

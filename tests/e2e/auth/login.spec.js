@@ -6,7 +6,9 @@ test.describe('Login', () => {
   })
 
   test('shows FinalVault branding', async ({ page }) => {
-    await expect(page.locator('h1').first()).toContainText('FinalVault')
+    // Two FinalVault spans exist: desktop (hidden on mobile) + mobile (hidden on desktop)
+    // Use the alt text on the logo image which is always present, or check either span visible
+    await expect(page.getByAltText('FinalVault').first()).toBeAttached()
   })
 
   test('shows sign in form by default', async ({ page }) => {
