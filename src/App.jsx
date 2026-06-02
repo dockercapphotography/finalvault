@@ -13,6 +13,8 @@ import Admin from './routes/Admin.jsx'
 import ClientGallery from './routes/ClientGallery.jsx'
 import ClientGalleryView from './routes/ClientGalleryView.jsx'
 import Login from './routes/Login.jsx'
+import PrivacyPolicy from './routes/PrivacyPolicy.jsx'
+import TermsOfService from './routes/TermsOfService.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
 
 const RECOVERY_KEY = 'fv-password-recovery'
@@ -110,6 +112,8 @@ export default function App() {
         </ProtectedRoute>
       } />
 
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
       <Route path="/g/:token" element={<ClientGallery />} />
       <Route path="/g/:token/view" element={<ClientGalleryView />} />
       <Route path="*" element={<Navigate to="/" replace />} />

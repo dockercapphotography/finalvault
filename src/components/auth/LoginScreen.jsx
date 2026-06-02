@@ -285,12 +285,12 @@ export default function LoginScreen({
             <p style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)' }}>
               © {new Date().getFullYear()} Docker Cap Photography
             </p>
-            <a href="#" style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)', textDecoration: 'none' }}
+            <a href="/privacy" style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)', textDecoration: 'none' }}
               onMouseEnter={e => e.currentTarget.style.color = 'rgba(60,32,112,0.7)'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgba(60,32,112,0.4)'}>
               Privacy Policy
             </a>
-            <a href="#" style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)', textDecoration: 'none' }}
+            <a href="/terms" style={{ fontSize: '12px', color: 'rgba(60,32,112,0.4)', textDecoration: 'none' }}
               onMouseEnter={e => e.currentTarget.style.color = 'rgba(60,32,112,0.7)'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgba(60,32,112,0.4)'}>
               Terms of Service

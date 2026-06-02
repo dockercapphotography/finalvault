@@ -31,12 +31,12 @@ export default function PageWrapper({ session, children }) {
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <a href="#" className="text-xs" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
+            <a href="/privacy" className="text-xs" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
               Privacy Policy
             </a>
-            <a href="#" className="text-xs" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
+            <a href="/terms" className="text-xs" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
               Terms of Service
