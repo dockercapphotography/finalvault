@@ -11,6 +11,33 @@
     }
   ],
 
+  "rate_limiting": [
+    {
+      "binding": "RATE_LIMIT_UPLOAD",
+      "namespace_id": "1",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    },
+    {
+      "binding": "RATE_LIMIT_DOWNLOAD",
+      "namespace_id": "2",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "binding": "RATE_LIMIT_WATERMARK",
+      "namespace_id": "3",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    }
+  ],
+
   // Environment variables (non-secret)
   "vars": {
     "SUPABASE_URL": "https://imukbaawmtmctfqchxdx.supabase.co"

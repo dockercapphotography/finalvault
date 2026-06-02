@@ -12,6 +12,21 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Share-Token, X-Download-Pin, X-Hires, X-Download-Size'
 }
 
+function ipKey(request) {
+  return request.headers.get('CF-Connecting-IP') || 'unknown'
+}
+
+function rateLimitedResponse() {
+  return new Response(JSON.stringify({ ok: false, error: 'Too many requests. Please slow down.' }), {
+    status: 429,
+    headers: {
+      ...CORS_HEADERS,
+      'Content-Type': 'application/json',
+      'Retry-After': '60',
+    }
+  })
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
@@ -20,28 +35,45 @@ export default {
 
     const url = new URL(request.url)
     const pathname = url.pathname
+    const ip = ipKey(request)
 
     try {
+      // ── Upload (30/min per IP) ──────────────────────────────────────────
       if (request.method === 'POST' && pathname === '/upload') {
+        const { success } = await env.RATE_LIMIT_UPLOAD.limit({ key: ip })
+        if (!success) return rateLimitedResponse()
         return await handleUpload(request, env, CORS_HEADERS)
       }
+
+      // ── Watermark upload (20/min per IP) ───────────────────────────────
+      if (request.method === 'POST' && pathname === '/watermark-upload') {
+        const { success } = await env.RATE_LIMIT_WATERMARK.limit({ key: ip })
+        if (!success) return rateLimitedResponse()
+        return await handleWatermarkUpload(request, env, CORS_HEADERS)
+      }
+
+      // ── Downloads (60/min per IP) ──────────────────────────────────────
+      if (request.method === 'GET' && pathname.startsWith('/download/')) {
+        const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
+        if (!success) return rateLimitedResponse()
+        return await handleDownload(request, env, CORS_HEADERS)
+      }
+
+      if (request.method === 'POST' && pathname === '/download-zip') {
+        const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
+        if (!success) return rateLimitedResponse()
+        return await handleZip(request, env, CORS_HEADERS)
+      }
+
+      // ── Unthrottled routes ─────────────────────────────────────────────
       if (request.method === 'GET' && pathname.startsWith('/preview/')) {
         return await handlePreview(request, env, CORS_HEADERS)
       }
       if (request.method === 'GET' && pathname.startsWith('/original/')) {
         return await handleOriginal(request, env, CORS_HEADERS)
       }
-      if (request.method === 'GET' && pathname.startsWith('/download/')) {
-        return await handleDownload(request, env, CORS_HEADERS)
-      }
       if (request.method === 'DELETE' && pathname.startsWith('/delete/')) {
         return await handleDelete(request, env, CORS_HEADERS)
-      }
-      if (request.method === 'POST' && pathname === '/download-zip') {
-        return await handleZip(request, env, CORS_HEADERS)
-      }
-      if (request.method === 'POST' && pathname === '/watermark-upload') {
-        return await handleWatermarkUpload(request, env, CORS_HEADERS)
       }
       if (request.method === 'GET' && pathname.startsWith('/watermark/')) {
         return await handleWatermarkServe(request, env, CORS_HEADERS)
