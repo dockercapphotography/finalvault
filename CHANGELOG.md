@@ -100,6 +100,15 @@ Single-image downloads handled by the Cloudflare Worker. ZIP downloads split by 
 
 ---
 
+## v1.1.0 Roadmap
+
+- **Gallery folders** — hierarchical folder organization for galleries using PostgreSQL `ltree`. Planned support for nested folders (e.g. PopCon Indy → PopCon Indy 2026 → Hall Shots). UI will support 2 levels initially with arbitrary depth at the data layer.
+- **Self-serve billing** — Stripe integration for photographers to upgrade storage tiers without admin intervention
+- **Async ZIP queue** — server-side job queue for large gallery downloads via Cloudflare Queues + email notification when ready
+- **Google Analytics** — visitor and funnel tracking for marketing insights once user acquisition begins
+
+---
+
 ## Known Limitations
 
 - **Storage tier enforcement** — hard limits are in place and enforced per tier. Free tier is 5 GB. Upgrading to a higher tier currently requires manual assignment by an admin; self-serve billing and plan upgrades via Stripe are planned for v1.1.
