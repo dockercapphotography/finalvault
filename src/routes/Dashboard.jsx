@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, ChevronDown, X, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react'
+import { Plus, Search, ChevronDown, X, ChevronLeft, ChevronRight, SlidersHorizontal, CheckCircle2, Circle, ChevronUp, Images, Share2, Upload } from 'lucide-react'
 import { getGalleries } from '../utils/galleryApi.js'
 import { getBookmarkedGalleryIds } from '../utils/bookmarkApi.js'
+import { supabase } from '../supabaseClient.js'
 import GalleryGrid from '../components/galleries/GalleryGrid.jsx'
 import Button from '../components/ui/Button.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -18,7 +19,7 @@ function CalendarRangePicker({ value, onChange }) {
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [hovering, setHovering] = useState(null)
-  const [picker, setPicker] = useState(null) // null | 'month' | 'year'
+  const [picker, setPicker] = useState(null)
 
   const from = value?.from || null
   const to = value?.to || null
@@ -54,7 +55,6 @@ function CalendarRangePicker({ value, onChange }) {
     return false
   }
 
-  // Build grid with faded prev/next month days
   const firstDay = new Date(viewYear, viewMonth, 1).getDay()
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
   const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate()
@@ -65,7 +65,6 @@ function CalendarRangePicker({ value, onChange }) {
     cells.push({ date: new Date(py, pm, daysInPrevMonth - i), faded: true })
   }
   for (let d = 1; d <= daysInMonth; d++) cells.push({ date: new Date(viewYear, viewMonth, d), faded: false })
-  // Always fill to exactly 6 rows (42 cells) so height stays consistent
   const totalCells = 42
   let nextD = 1
   while (cells.length < totalCells) {
@@ -76,7 +75,6 @@ function CalendarRangePicker({ value, onChange }) {
 
   return (
     <div style={{ width: 300 }}>
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
           <ChevronLeft size={16} />
@@ -98,7 +96,6 @@ function CalendarRangePicker({ value, onChange }) {
         </button>
       </div>
 
-      {/* Month picker */}
       {picker === 'month' && (
         <div className="grid grid-cols-3 gap-1">
           {MONTHS.map((m, i) => (
@@ -113,7 +110,6 @@ function CalendarRangePicker({ value, onChange }) {
         </div>
       )}
 
-      {/* Year picker */}
       {picker === 'year' && (
         <div className="grid grid-cols-3 gap-1 overflow-y-auto" style={{ maxHeight: 220 }}>
           {Array.from({ length: 20 }, (_, i) => today.getFullYear() - 5 + i).map(y => (
@@ -128,7 +124,6 @@ function CalendarRangePicker({ value, onChange }) {
         </div>
       )}
 
-      {/* Day grid — only when not in month/year picker */}
       {picker === null && (
         <>
           <div className="grid grid-cols-7 mb-1">
@@ -150,11 +145,9 @@ function CalendarRangePicker({ value, onChange }) {
                     background: sel ? '#6366f1' : inRange ? 'rgba(99,102,241,0.12)' : 'transparent',
                     color: sel ? '#fff' : isToday ? '#6366f1' : 'var(--text)',
                     opacity: faded ? 0.25 : 1,
-                    border: 'none',
-                    borderRadius: 6,
+                    border: 'none', borderRadius: 6,
                     cursor: faded ? 'default' : 'pointer',
-                    padding: '10px 0',
-                    fontSize: 12,
+                    padding: '10px 0', fontSize: 12,
                     fontWeight: sel || isToday ? '600' : '400',
                   }}>
                   {date.getDate()}
@@ -174,8 +167,6 @@ function CalendarRangePicker({ value, onChange }) {
     </div>
   )
 }
-
-// ── Date filter panel (calendar + presets) ────────────────────────────────────
 
 function DateFilterPanel({ value, onChange, presets }) {
   return (
@@ -203,8 +194,6 @@ function DateFilterPanel({ value, onChange, presets }) {
     </div>
   )
 }
-
-// ── Status pill ───────────────────────────────────────────────────────────────
 
 function StatusPill({ value, onChange }) {
   const [open, setOpen] = useState(false)
@@ -250,8 +239,6 @@ function StatusPill({ value, onChange }) {
     </div>
   )
 }
-
-// ── Date range pill ───────────────────────────────────────────────────────────
 
 function DateRangePill({ label, value, onChange, presets }) {
   const [open, setOpen] = useState(false)
@@ -300,8 +287,6 @@ function DateRangePill({ label, value, onChange, presets }) {
   )
 }
 
-// ── Mobile filter sheet ───────────────────────────────────────────────────────
-
 function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, eventDateFilter, setEventDateFilter, expiryFilter, setExpiryFilter, eventPresets, expiryPresets, hasFilters, onClear }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
@@ -325,8 +310,7 @@ function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, event
           background: 'var(--surface)',
           transform: visible ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
-          maxHeight: '80vh',
-          overflowY: 'auto',
+          maxHeight: '80vh', overflowY: 'auto',
         }}>
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-strong)' }} />
@@ -391,6 +375,181 @@ function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, event
   )
 }
 
+// ── Setup Checklist ───────────────────────────────────────────────────────────
+
+function SetupChecklist({ galleries, hasWatermark, hasShared, dismissed, onDismiss }) {
+  const [expanded, setExpanded] = useState(false)
+  const navigate = useNavigate()
+
+  const hasGallery = galleries.length > 0
+  const hasImages = galleries.some(g => (g.image_count?.[0]?.count ?? 0) > 0)
+
+  const steps = [
+    {
+      id: 'watermark',
+      icon: Upload,
+      label: 'Upload a watermark',
+      desc: 'Add your logo or watermark to protect your preview images.',
+      done: hasWatermark,
+      action: () => navigate('/account?tab=watermarks'),
+      cta: 'Add Watermark',
+    },
+    {
+      id: 'gallery',
+      icon: Images,
+      label: 'Create your first gallery',
+      desc: 'Set up a gallery with a title, client name, and photo sets.',
+      done: hasGallery,
+      action: () => navigate('/galleries/new'),
+      cta: 'Create Gallery',
+    },
+    {
+      id: 'upload',
+      icon: Upload,
+      label: 'Upload your images',
+      desc: 'Add photos to your gallery — drag and drop or click to upload.',
+      done: hasImages,
+      action: () => hasGallery ? navigate(`/galleries/${galleries[0].id}`) : navigate('/galleries/new'),
+      cta: 'Upload Images',
+    },
+    {
+      id: 'share',
+      icon: Share2,
+      label: 'Share with your client',
+      desc: 'Send a gallery link via email, direct link, or QR code.',
+      done: hasShared,
+      action: () => hasGallery ? navigate(`/galleries/${galleries[0].id}`) : navigate('/galleries/new'),
+      cta: 'Go to Gallery',
+    },
+  ]
+
+  const completedCount = steps.filter(s => s.done).length
+  const allDone = completedCount === steps.length
+
+  if (dismissed || allDone) return null
+
+  // ── Mobile: collapsible banner ──
+  const mobileBanner = (
+    <div className="md:hidden rounded-xl overflow-hidden mb-2"
+      style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between px-4 py-3"
+        style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            {steps.map(s => (
+              <div key={s.id} className="w-2 h-2 rounded-full"
+                style={{ background: s.done ? '#22c55e' : 'var(--border-strong)' }} />
+            ))}
+          </div>
+          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+            Getting started · {completedCount} of {steps.length} complete
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div onClick={e => { e.stopPropagation(); onDismiss() }}
+            style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}>
+            <X size={14} />
+          </div>
+          {expanded ? <ChevronUp size={16} style={{ color: 'var(--text-muted)' }} /> : <ChevronDown size={16} style={{ color: 'var(--text-muted)' }} />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
+          {steps.map((step, i) => (
+            <div key={step.id} className="flex items-start gap-3 pt-3">
+              <div className="shrink-0 mt-0.5">
+                {step.done
+                  ? <CheckCircle2 size={18} style={{ color: '#22c55e' }} />
+                  : <Circle size={18} style={{ color: 'var(--border-strong)' }} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium" style={{ color: step.done ? 'var(--text-muted)' : 'var(--text)', textDecoration: step.done ? 'line-through' : 'none' }}>
+                  {step.label}
+                </p>
+                {!step.done && (
+                  <>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{step.desc}</p>
+                    <button onClick={step.action}
+                      className="text-xs font-medium mt-2 px-3 py-1.5 rounded-lg"
+                      style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                      {step.cta}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  // ── Desktop: fixed right panel ──
+  const desktopPanel = (
+    <div className="hidden md:block fixed right-6 top-28 z-20 w-72"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: '16px',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+      }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Getting started</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{completedCount} of {steps.length} complete</p>
+        </div>
+        <button onClick={onDismiss} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Progress bar */}
+      <div className="px-4 pt-3">
+        <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
+          <div className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${(completedCount / steps.length) * 100}%`, background: '#6366f1' }} />
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {steps.map(step => (
+          <div key={step.id} className="flex items-start gap-3">
+            <div className="shrink-0 mt-0.5">
+              {step.done
+                ? <CheckCircle2 size={18} style={{ color: '#22c55e' }} />
+                : <Circle size={18} style={{ color: 'var(--border-strong)' }} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium" style={{ color: step.done ? 'var(--text-muted)' : 'var(--text)', textDecoration: step.done ? 'line-through' : 'none' }}>
+                {step.label}
+              </p>
+              {!step.done && (
+                <>
+                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{step.desc}</p>
+                  <button onClick={step.action}
+                    className="text-xs font-medium mt-2 px-3 py-1.5 rounded-lg"
+                    style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                    {step.cta}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      {mobileBanner}
+      {desktopPanel}
+    </>
+  )
+}
+
 // ── Filtering logic ───────────────────────────────────────────────────────────
 
 function getGalleryStatus(g) {
@@ -448,8 +607,6 @@ function applyFilters(galleries, { search, status, eventDate, expiry }) {
   })
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
 const EVENT_PRESETS = [
   { value: 'last_week',     label: 'Last week' },
   { value: 'last_2_weeks',  label: 'Last 2 weeks' },
@@ -486,20 +643,37 @@ export default function Dashboard() {
   useScrollLock(mobileFilterOpen)
   const [toast, setToast] = useState(null)
   const [bookmarkedIds, setBookmarkedIds] = useState(new Set())
+  const [firstSharedAt, setFirstSharedAt] = useState(null)
+  const [hasWatermark, setHasWatermark] = useState(false)
+  const [checklistDismissed, setChecklistDismissed] = useState(
+    () => localStorage.getItem('fv-onboarding-dismissed') === 'true'
+  )
 
   useEffect(() => { loadGalleries() }, [])
 
   async function loadGalleries() {
     try {
       setLoading(true)
-      const [galleries, bIds] = await Promise.all([getGalleries(), getBookmarkedGalleryIds()])
+      const [galleries, bIds, { data: photog }, { data: watermarks }] = await Promise.all([
+        getGalleries(),
+        getBookmarkedGalleryIds(),
+        supabase.auth.getUser().then(({ data: { user } }) => supabase.from('photographers').select('first_shared_at').eq('id', user.id).single()),
+        supabase.from('watermarks').select('id').limit(1),
+      ])
       setGalleries(galleries)
       setBookmarkedIds(bIds)
+      setFirstSharedAt(photog?.first_shared_at || null)
+      setHasWatermark((watermarks?.length ?? 0) > 0)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleDismissChecklist() {
+    localStorage.setItem('fv-onboarding-dismissed', 'true')
+    setChecklistDismissed(true)
   }
 
   function handleCopyLink(shareToken) {
@@ -518,8 +692,26 @@ export default function Dashboard() {
     setStatusFilter(null); setEventDateFilter(null); setExpiryFilter(null); setSearch('')
   }
 
+  const hasGallery = galleries.length > 0
+  const hasImages = galleries.some(g => (g.image_count?.[0]?.count ?? 0) > 0)
+  const hasShared = !!firstSharedAt
+  const allDone = hasWatermark && hasGallery && hasImages && hasShared
+  const showChecklist = !loading && !checklistDismissed && !allDone
+
   return (
-    <div className="space-y-5 max-w-7xl">
+    <div className={`space-y-5 max-w-7xl ${showChecklist ? 'md:pr-80' : ''}`}>
+
+      {/* Setup checklist — mobile banner appears here, desktop is fixed */}
+      {!loading && (
+        <SetupChecklist
+          galleries={galleries}
+          hasWatermark={hasWatermark}
+          hasShared={hasShared}
+          dismissed={checklistDismissed}
+          onDismiss={handleDismissChecklist}
+        />
+      )}
+
       {/* ── Desktop: title + search + new gallery all in one row ── */}
       <div className="hidden md:flex items-center gap-3">
         <div className="shrink-0">
@@ -530,13 +722,13 @@ export default function Dashboard() {
         </div>
         {galleries.length > 0 && (
           <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search galleries..."
-            className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search galleries..."
+              className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           </div>
         )}
         <Button onClick={() => navigate('/galleries/new')} className="shrink-0">

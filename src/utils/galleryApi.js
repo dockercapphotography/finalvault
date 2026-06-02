@@ -12,7 +12,8 @@ export async function getGalleries() {
       is_active, share_token, require_password,
       created_at, updated_at, expires_at,
       cover_image_id,
-      gallery_images!cover_image_id (preview_r2_key)
+      gallery_images!cover_image_id (preview_r2_key),
+      image_count:gallery_images!gallery_images_gallery_id_fkey(count)
     `)
     .order('created_at', { ascending: false })
 

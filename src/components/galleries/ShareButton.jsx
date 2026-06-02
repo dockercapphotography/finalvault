@@ -480,7 +480,25 @@ export default function ShareButton({ gallery, openModal = null, onModalClose = 
     onModalClose?.()
   }
 
-  function open_(m) { setOpen(false); setModal(m) }
+  async function recordFirstShare() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: photog } = await supabase
+        .from('photographers')
+        .select('first_shared_at')
+        .eq('id', user.id)
+        .single()
+      if (!photog?.first_shared_at) {
+        await supabase
+          .from('photographers')
+          .update({ first_shared_at: new Date().toISOString() })
+          .eq('id', user.id)
+      }
+    } catch {}
+  }
+
+  function open_(m) { setOpen(false); setModal(m); recordFirstShare() }
 
   // If only being used as a modal launcher (mobile sheet), render nothing visible
   if (openModal !== null && !open) {

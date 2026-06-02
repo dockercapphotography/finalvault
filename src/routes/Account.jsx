@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Upload, CheckCircle, Plus, Trash2, Pencil, X, Copy, Shield } from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { supabase } from '../supabaseClient.js'
@@ -950,7 +951,8 @@ function NotificationsTab({ user, onSaveState }) {
 
 export default function Account() {
   const [user, setUser] = useState(null)
-  const [activeTab, setActiveTab] = useState('profile')
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile')
   const [isAdmin, setIsAdmin] = useState(false)
   const [saveState, setSaveState] = useState('idle')
   const dismissTimer = useRef(null)
