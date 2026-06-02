@@ -54,13 +54,14 @@ CREATE TABLE contracts (
   title               TEXT NOT NULL,
   body                TEXT NOT NULL,           -- rendered body with variables filled in
   body_hash           TEXT NOT NULL,           -- SHA-256 of body at time of sending
-  status              TEXT DEFAULT 'draft',    -- draft | sent | signed | void
+  status              TEXT DEFAULT 'draft',    -- draft | sent | pending_photographer | signed | void
   sign_token          TEXT UNIQUE,             -- public token for signing URL
   signed_at           TIMESTAMPTZ,
   signed_name         TEXT,                    -- typed name of signer
   signed_ip           TEXT,                    -- IP address at time of signing
   signed_user_agent   TEXT,                    -- browser at time of signing
-  photographer_signed_at TIMESTAMPTZ,          -- optional counter-signature
+  photographer_signed_at TIMESTAMPTZ,          -- counter-signature timestamp
+  photographer_signed_name TEXT,               -- photographer's typed/confirmed name
   sent_at             TIMESTAMPTZ,
   void_at             TIMESTAMPTZ,
   void_reason         TEXT,
@@ -137,10 +138,21 @@ Variables are wrapped in `{{double_braces}}` and auto-filled when sending a cont
 - System records: typed name, timestamp, IP address, user agent
 - Status → `signed`, confirmation email sent to both parties
 
-**After signing:**
-- Contract record shows signed name, date, and IP
-- Photographer can download a PDF of the signed contract
-- Contract is linked to the gallery if applicable
+**After client signs:**
+- Status → `pending_photographer`
+- Photographer receives email: "Your client signed — review and counter-sign"
+- Notification bell shows "Pending your signature" badge
+- Contract record shows client signed name, date, and IP
+
+**Counter-signing (photographer):**
+1. Photographer clicks notification or opens contract detail
+2. Reviews the fully rendered contract and client signature block
+3. Confirms or types their name (pre-filled with display name)
+4. Clicks "Counter-sign"
+5. System records: photographer signed name + timestamp
+6. Status → `signed`
+7. Final PDF generated with both signature blocks
+8. Confirmation email sent to both parties with PDF attached
 
 ### Audit Trail
 Each signed contract stores:
@@ -149,6 +161,8 @@ Each signed contract stores:
 - `signed_ip` — client IP address
 - `signed_user_agent` — browser/device
 - `body_hash` — SHA-256 of the contract body they signed (proves it hasn't been altered)
+- `photographer_signed_name` — photographer's confirmed name
+- `photographer_signed_at` — counter-signature timestamp
 
 This is sufficient for US law under ESIGN/UETA for the vast majority of photography disputes.
 
@@ -161,6 +175,10 @@ On signing, generate a PDF containing:
 
 Store PDF in R2 at `photographers/{id}/contracts/{contract_id}.pdf`.
 
+PDF signature block shows both signatures in order:
+- "Signed by [client name] on [date] from IP [ip]"
+- "Counter-signed by [photographer name] on [date]" 
+
 ---
 
 ## UI Touchpoints
@@ -171,6 +189,8 @@ Store PDF in R2 at `photographers/{id}/contracts/{contract_id}.pdf`.
 | Gallery creation | Add "Link to client" step or field |
 | Gallery detail | Show linked client name + contract status badge |
 | Account → Contracts tab | Manage contract templates |
+| Notification bell | Badge when client signs and counter-signature is pending |
+| Contract detail | Counter-sign action for photographer |
 | `/clients` | New route — client list |
 | `/clients/:id` | New route — client detail |
 | `/sign/:token` | New public route — signing page |
@@ -187,7 +207,6 @@ The `contracts` table is designed to accommodate a `docuseal_submission_id` colu
 - Payment collection
 - Booking / scheduling
 - Import from CSV
-- Counter-signature workflow (photographer signing)
 - Contract expiry / auto-void
 
 ---
@@ -199,8 +218,9 @@ The `contracts` table is designed to accommodate a `docuseal_submission_id` colu
 4. Contract templates — CRUD in Account settings
 5. Send contract flow — variable resolution, email delivery
 6. Signing page — public route, typed signature, audit record
-7. PDF generation — signed contract PDF stored in R2
-8. Post-sign emails — confirmation to both parties
+7. Counter-sign flow — photographer notification, review, and counter-signature
+8. PDF generation — signed contract PDF with both signature blocks stored in R2
+9. Post-sign emails — confirmation to both parties with PDF attached
 
 ---
 
