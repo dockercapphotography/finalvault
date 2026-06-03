@@ -12,6 +12,7 @@ import SettingsRow from '../components/ui/SettingsRow.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
 import Input from '../components/ui/Input.jsx'
 import Button from '../components/ui/Button.jsx'
+import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
 
 const TABS = [
   { id: 'general',  label: 'General' },
@@ -239,7 +240,11 @@ export default function GallerySettings() {
       allowDownloads, downloadWatermarked, allowHiresDownload,
       allowFavorites, allowComments, themeColor, gridSize, gridSpacing, id])
 
-  function handleToggle(setter, key, val) { setter(val); save({ [key]: val }) }
+  function handleToggle(setter, key, val) {
+    setter(val)
+    const overrides = { [key]: val }
+    save(overrides)
+  }
 
   function handleTogglePassword(val) {
     setRequirePassword(val)
@@ -266,9 +271,11 @@ export default function GallerySettings() {
 
   return (
     <div className="max-w-2xl space-y-5">
-      <Button variant="ghost" onClick={() => navigate(`/galleries/${id}`)} className="-ml-2">
-        <ArrowLeft size={15} />Back to gallery
-      </Button>
+      <PageBreadcrumb crumbs={[
+        { label: 'Galleries', to: '/' },
+        { label: gallery.title, to: `/galleries/${id}` },
+        { label: 'Settings' },
+      ]} />
 
       <div>
         <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Settings</h1>
@@ -367,11 +374,13 @@ export default function GallerySettings() {
             <SettingsRow label="Allow comments" description="Clients can leave comments on images">
               <Toggle checked={allowComments} onChange={v => handleToggle(setAllowComments, 'allowComments', v)} />
             </SettingsRow>
+
           </SettingsSection>
           <SettingsSection title="Expiry" description="Set a gallery expiry date and optionally notify viewers before it expires">
             <div className="px-5 py-4" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
               <Input label="Expiry date" value={expiresAt} onChange={setExpiresAt} onBlur={() => save()} type="date" hint="Gallery automatically deactivates after this date. Leave blank for no expiry." />
             </div>
+            {expiresAt && <>
             <SettingsRow label="Send expiry warning email" description="Notify viewers before the gallery expires">
               <Toggle checked={expiryWarningEnabled} onChange={v => handleToggle(setExpiryWarningEnabled, 'expiryWarningEnabled', v)} />
             </SettingsRow>
@@ -389,6 +398,7 @@ export default function GallerySettings() {
                 </select>
               </div>
             )}
+            </>}
           </SettingsSection>
         </div>
       )}

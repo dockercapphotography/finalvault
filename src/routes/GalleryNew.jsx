@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Check } from 'lucide-react'
 import { createGallery } from '../utils/galleryApi.js'
 import { createSet } from '../utils/gallerySetApi.js'
@@ -10,6 +10,10 @@ import Input from '../components/ui/Input.jsx'
 
 export default function GalleryNew() {
   const navigate = useNavigate()
+  const location = useLocation()
+  // folderId passed via router state when "New Gallery" is clicked from inside a folder
+  const folderId = location.state?.folderId ?? null
+
   const [step, setStep] = useState('template') // 'template' | 'info' | 'sets'
   const [templates, setTemplates] = useState([])
   const [selectedTemplate, setSelectedTemplate] = useState(null)
@@ -27,7 +31,6 @@ export default function GalleryNew() {
 
   function handleSelectTemplate(template) {
     setSelectedTemplate(template)
-    // Pre-fill sets from template
     setSets(template.sets.map(name => ({ name })))
   }
 
@@ -73,6 +76,7 @@ export default function GalleryNew() {
         requirePassword: selectedTemplate?.require_password ?? false,
         requireDownloadPin: selectedTemplate?.require_download_pin ?? false,
         watermarkId: selectedTemplate?.watermark_id || null,
+        folderId,
       })
       for (let i = 0; i < validSets.length; i++) {
         await createSet(gallery.id, validSets[i].name)
@@ -158,7 +162,6 @@ export default function GalleryNew() {
                       outline: 'none',
                     }}>
                     <div className="flex items-center gap-4">
-                      {/* Theme swatch — 3 dots */}
                       <div className="shrink-0 flex gap-1.5 items-center justify-center w-16 h-10 rounded-lg"
                         style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
                         <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.bg, borderColor: 'var(--border)' }} />
@@ -259,7 +262,7 @@ export default function GalleryNew() {
               type="text"
               value={values.eventName}
               onChange={e => setValues(v => ({ ...v, eventName: e.target.value }))}
-              placeholder="e.g. Sarah &amp; James Smith Wedding"
+              placeholder="e.g. Sarah & James Smith Wedding"
               className="w-full text-sm rounded-lg px-3 py-2.5"
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
               onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}

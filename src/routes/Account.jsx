@@ -909,7 +909,7 @@ function NotificationsTab({ user, onSaveState }) {
   const rows = [
     { field: 'notify_favorites', label: 'Client favorites an image',   desc: 'Get notified when a client hearts a photo' },
     { field: 'notify_comments',  label: 'Client leaves a comment',     desc: 'Get notified when a client writes a comment' },
-    { field: 'notify_downloads', label: 'Client downloads an image',   desc: 'Get notified when a client downloads a photo or full gallery' },
+    { field: 'notify_downloads',  label: 'Client downloads an image',        desc: 'Get notified when a client downloads a photo or full gallery' },
   ]
 
   return (

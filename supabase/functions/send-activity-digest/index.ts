@@ -111,6 +111,7 @@ serve(async (req) => {
 
       if (!activity?.length) { skipped++; continue }
 
+
       // Get photographer's auth email
       const { data: { user } } = await supabase.auth.admin.getUserById(photographer.id)
       if (!user?.email) { skipped++; continue }
@@ -185,7 +186,7 @@ const ACTION_ICONS: Record<string, { img: string; label: string }> = {
   favorite:        { label: 'Favorited an image',     img: `${BASE_URL}/digest-favorite.png` },
   comment:         { label: 'Left a comment',         img: `${BASE_URL}/digest-comment.png` },
   download_single: { label: 'Downloaded an image',    img: `${BASE_URL}/digest-download.png` },
-  download_all:    { label: 'Downloaded full gallery', img: `${BASE_URL}/digest-download.png` },
+  download_all:       { label: 'Downloaded full gallery',    img: `${BASE_URL}/digest-download.png` },
 }
 
 function buildDigestHtml({ senderName, byGallery, totalEvents, galleryCount, since }: {

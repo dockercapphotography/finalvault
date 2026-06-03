@@ -224,9 +224,9 @@ export default function ImageCard({
           className="absolute top-2 right-2"
           style={{
             zIndex: 50,
-            opacity: hovered ? 1 : 0,
+            opacity: 1,
             transition: 'opacity 0.15s',
-            pointerEvents: hovered ? 'auto' : 'none',
+            pointerEvents: 'auto',
           }}
           onClick={e => e.stopPropagation()}
         >

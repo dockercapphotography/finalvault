@@ -38,21 +38,17 @@ export default {
     const ip = ipKey(request)
 
     try {
-      // ── Upload (30/min per IP) ──────────────────────────────────────────
+      // ── Upload (no rate limit — JWT auth is the protection) ────────────
       if (request.method === 'POST' && pathname === '/upload') {
-        const { success } = await env.RATE_LIMIT_UPLOAD.limit({ key: ip })
-        if (!success) return rateLimitedResponse()
         return await handleUpload(request, env, CORS_HEADERS)
       }
 
-      // ── Watermark upload (20/min per IP) ───────────────────────────────
+      // ── Watermark upload (no rate limit — JWT auth is the protection) ──
       if (request.method === 'POST' && pathname === '/watermark-upload') {
-        const { success } = await env.RATE_LIMIT_WATERMARK.limit({ key: ip })
-        if (!success) return rateLimitedResponse()
         return await handleWatermarkUpload(request, env, CORS_HEADERS)
       }
 
-      // ── Downloads (60/min per IP) ──────────────────────────────────────
+      // ── Downloads (100/min per IP) ─────────────────────────────────────
       if (request.method === 'GET' && pathname.startsWith('/download/')) {
         const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
         if (!success) return rateLimitedResponse()

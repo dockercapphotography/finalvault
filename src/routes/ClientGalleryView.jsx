@@ -508,6 +508,7 @@ export default function ClientGalleryView() {
   const [zipProgress, setZipProgress] = useState(null)  // { current, total, hires }
   const [sets, setSets] = useState([])
   const [activeSetId, setActiveSetId] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => { load() }, [token])
 
@@ -749,6 +750,8 @@ export default function ClientGalleryView() {
           total={zipProgress.total}
         />
       )}
+
+
     </div>
   )
 }

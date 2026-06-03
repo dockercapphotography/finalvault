@@ -23,6 +23,7 @@ import CoverPickerModal from '../components/galleries/CoverPickerModal.jsx'
 import ShareButton from '../components/galleries/ShareButton.jsx'
 import { getActiveWatermark, getWatermarkUrl, getWatermarks } from '../utils/watermarkApi.js'
 import { getSets, createSet, updateSet, deleteSet, saveSetOrder, moveImageToSet, moveImagesToSet } from '../utils/gallerySetApi.js'
+import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
 
 export default function GalleryDetail() {
   const { id } = useParams()
@@ -763,9 +764,10 @@ export default function GalleryDetail() {
 
         {/* ── Desktop header ── */}
         <div className="hidden md:block">
-          <Button variant="ghost" onClick={() => navigate(location.state?.from || '/galleries')} className="-ml-2">
-            <ArrowLeft size={15} />Back to galleries
-          </Button>
+          <PageBreadcrumb crumbs={[
+            { label: 'Galleries', to: '/' },
+            { label: gallery.title },
+          ]} />
         </div>
 
         <div className="hidden md:block">
@@ -1050,6 +1052,7 @@ export default function GalleryDetail() {
             <ImageUploader onUpload={uploadFiles} />
           )}
         </div>
+
 
       </div>
 

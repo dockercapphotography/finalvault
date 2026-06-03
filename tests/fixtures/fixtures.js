@@ -190,6 +190,41 @@ export const test = base.extend({
     await sb.from('gallery_activity_log').delete().eq('gallery_id', gallery.id)
     await sb.from('galleries').delete().eq('id', gallery.id)
   },
+
+  // Like testGallery but with allow_proofing enabled (requires allow_favorites: true)
+  testGalleryWithProofing: async ({}, use) => {
+    const sb = adminClient()
+    const { data: { users } } = await sb.auth.admin.listUsers()
+    const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
+    if (!user) throw new Error('Test photographer user not found in Supabase')
+
+    const shareToken = `pw-test-${crypto.randomUUID().slice(0, 8)}`
+    const { data: gallery, error } = await sb.from('galleries').insert({
+      photographer_id: user.id,
+      title: 'Proofing Test Gallery',
+      client_name: 'Test Client',
+      share_token: shareToken,
+      is_active: true,
+      allow_downloads: false,
+      allow_favorites: true,
+      allow_comments: false,
+      allow_proofing: true,
+      require_password: false,
+      require_download_pin: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).select().single()
+
+    if (error) throw new Error(`Could not create proofing gallery: ${error.message}`)
+
+    await use({ galleryId: gallery.id, shareToken: gallery.share_token, photographerId: user.id })
+
+    await sb.from('gallery_selections').delete().eq('gallery_id', gallery.id)
+    await sb.from('gallery_favorites').delete().eq('gallery_id', gallery.id)
+    await sb.from('gallery_viewers').delete().eq('gallery_id', gallery.id)
+    await sb.from('gallery_activity_log').delete().eq('gallery_id', gallery.id)
+    await sb.from('galleries').delete().eq('id', gallery.id)
+  },
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -205,4 +240,59 @@ export async function enterGalleryAsClient(page, shareToken, email = 'testclient
 // Enter the fixture gallery as a client, cleaning up the viewer session after
 export async function enterFixtureGallery(page, email = 'testclient@example.com') {
   await enterGalleryAsClient(page, FIXTURE_GALLERY.shareToken, email)
+}
+
+// Creates a viewer and submits a gallery_selection record directly via Supabase.
+// Use this in photographer-side tests that need a pre-existing submission to inspect.
+export async function submitTestSelection(galleryId, {
+  viewerName = 'Test Client',
+  viewerEmail = 'testclient@example.com',
+  imageIds = [],
+  note = null,
+} = {}) {
+  const sb = adminClient()
+
+  // Create or reuse a viewer record
+  const { data: viewer, error: viewerErr } = await sb
+    .from('gallery_viewers')
+    .insert({
+      gallery_id: galleryId,
+      display_name: viewerName,
+      email: viewerEmail,
+      session_id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      last_seen_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+
+  if (viewerErr) throw new Error(`Could not create test viewer: ${viewerErr.message}`)
+
+  // Upsert the selection record
+  const { data: selection, error: selErr } = await sb
+    .from('gallery_selections')
+    .upsert({
+      gallery_id: galleryId,
+      viewer_id: viewer.id,
+      image_ids: imageIds,
+      image_count: imageIds.length,
+      viewer_name: viewerName,
+      viewer_email: viewerEmail,
+      note: note,
+      submitted_at: new Date().toISOString(),
+    }, { onConflict: 'gallery_id,viewer_id' })
+    .select()
+    .single()
+
+  if (selErr) throw new Error(`Could not create test selection: ${selErr.message}`)
+
+  // Log the activity entry
+  await sb.from('gallery_activity_log').insert({
+    gallery_id: galleryId,
+    viewer_id: viewer.id,
+    action: 'selection_submitted',
+    occurred_at: new Date().toISOString(),
+  })
+
+  return { viewer, selection, viewerName, viewerEmail, imageCount: imageIds.length }
 }

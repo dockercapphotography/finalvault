@@ -206,7 +206,7 @@ export default function ClientGallery() {
     setError(null)
     setSubmitting(true)
     try {
-      await getOrCreateViewer(gallery.id, email.trim())
+      const viewer = await getOrCreateViewer(gallery.id, email.trim())
       if (gallery.require_password) setStage('password')
       else navigate(`/g/${token}/view${window.location.search}`, { replace: true })
     } catch {
