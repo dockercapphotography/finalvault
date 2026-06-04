@@ -630,7 +630,7 @@ export default function ClientGalleryView() {
   const eventDateStr = gallery.event_date ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null
 
   return (
-    <div className="min-h-screen" style={{ background: theme.bg, ...themeStyle, overflowX: "hidden" }} onContextMenu={noContext}>
+    <div className="min-h-screen" style={{ background: theme.bg, ...themeStyle, overflowX: "hidden", minHeight: "100svh" }} onContextMenu={noContext}>
 
       {isPreview && (
         <div style={{ background: '#6366f1', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>
@@ -639,7 +639,7 @@ export default function ClientGalleryView() {
       )}
 
       {heroUrl && (
-        <div className="relative w-full overflow-hidden" style={{ height: '100vh', minHeight: 500 }}>
+        <div className="relative w-full overflow-hidden" style={{ height: '100svh', minHeight: 500 }}>
           <img src={heroUrl} alt="" draggable={false} onContextMenu={noContext} className="w-full h-full"
             style={{ objectFit: 'cover', objectPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`, userSelect: 'none' }}
           />
