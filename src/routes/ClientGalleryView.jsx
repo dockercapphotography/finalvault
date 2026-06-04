@@ -187,24 +187,9 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
   const [isZoomed, setIsZoomed] = useState(false)
 
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow
-    const prevOverflowX = document.body.style.overflowX
-    const prevPosition = document.body.style.position
-    const prevWidth = document.body.style.width
-    const scrollY = window.scrollY
+    const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    document.body.style.overflowX = 'hidden'
-    document.body.style.position = 'fixed'
-    document.body.style.width = '100%'
-    document.body.style.top = `-${scrollY}px`
-    return () => {
-      document.body.style.overflow = prevOverflow
-      document.body.style.overflowX = prevOverflowX
-      document.body.style.position = prevPosition
-      document.body.style.width = prevWidth
-      document.body.style.top = ''
-      window.scrollTo(0, scrollY)
-    }
+    return () => { document.body.style.overflow = prev }
   }, [])
 
   useEffect(() => {
@@ -671,7 +656,7 @@ export default function ClientGalleryView() {
       )}
 
       <div className="sticky top-0 z-30 px-4 py-3 flex items-center justify-between"
-        style={{ background: theme.bg, borderBottom: `1px solid ${theme.border}` }}>
+        style={{ background: theme.bg, borderBottom: `1px solid ${theme.border}`, maxWidth: "100%", boxSizing: "border-box" }}>
         <h1 className="text-sm font-semibold truncate" style={{ color: theme.text }}>{gallery.title}</h1>
         {gallery.allow_downloads && (
           <DownloadMenu allowWebSize={gallery.download_watermarked} allowHires={gallery.allow_hires_download} onDownload={handleDownloadZip} loading={downloadingZip} />
