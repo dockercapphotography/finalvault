@@ -556,7 +556,7 @@ export default function ClientGalleryView() {
       setPendingDownload({ type: 'single', image, hires }); setShowPinGate(true)
     } else {
       if (hires) downloadHiRes(image.original_r2_key, image.file_name, token, null)
-      else downloadWebSize(image.original_r2_key, image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token, null, image.watermark_id)
+      else downloadWebSize(image.original_r2_key, image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token, null, image.watermark_id, image.web_r2_key || null)
       if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_single', image.id)
     }
   }
@@ -599,7 +599,7 @@ export default function ClientGalleryView() {
       setShowPinGate(false)
       if (pendingDownload?.type === 'single') {
         if (pendingDownload.hires) await downloadHiRes(pendingDownload.image.original_r2_key, pendingDownload.image.file_name, token, pin)
-        else await downloadWebSize(pendingDownload.image.original_r2_key, pendingDownload.image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token, pin, pendingDownload.image.watermark_id)
+        else await downloadWebSize(pendingDownload.image.original_r2_key, pendingDownload.image.file_name.replace(/\.[^.]+$/, '_web.jpg'), token, pin, pendingDownload.image.watermark_id, pendingDownload.image.web_r2_key || null)
         if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_single', pendingDownload.image.id)
       } else {
         await doZipDownload(pin, pendingDownload?.hires || false)

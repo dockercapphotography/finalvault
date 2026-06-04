@@ -166,7 +166,8 @@ function ProfileTab({ user, onSaveState }) {
         let bytesUsed = storageRow.bytes_used || 0
         if (galleryIds.length > 0) {
           const { data: imgs } = await supabase.from('gallery_images').select('file_size, preview_size').in('gallery_id', galleryIds).is('deleted_at', null)
-          bytesUsed = (imgs || []).reduce((sum, img) => sum + (img.file_size || 0) + (img.preview_size || 0), 0)
+          // Only count original file sizes — previews and web files are system infrastructure
+          bytesUsed = (imgs || []).reduce((sum, img) => sum + (img.file_size || 0), 0)
         }
         setStorageInfo({ bytesUsed, tier: storageRow.storage_tiers })
       }

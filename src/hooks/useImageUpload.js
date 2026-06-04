@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '../supabaseClient.js'
-import { generatePreview } from '../utils/imageProcessor.js'
-import { uploadToR2, deleteFromR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
+import { generatePreview, generateWebJpeg } from '../utils/imageProcessor.js'
+import { uploadToR2, deleteFromR2, buildOriginalKey, buildPreviewKey, buildWebKey } from '../utils/r2.js'
 import { addImage } from '../utils/imageApi.js'
 
 // Estimate total bytes an upload batch will consume (original + preview)
 // Preview is typically 30-50% of original at 1600px/0.80 webp — use 0.4 as estimate
-const PREVIEW_SIZE_ESTIMATE = 0.4
+const PREVIEW_SIZE_ESTIMATE = 0.0 // Only original size counts toward storage
 
 async function checkStorageCapacity(photographerId, files) {
-  const estimatedBytes = files.reduce((sum, f) => sum + f.size + (f.size * PREVIEW_SIZE_ESTIMATE), 0)
+  const estimatedBytes = files.reduce((sum, f) => sum + f.size, 0)
 
   const [{ data: storageRow }, { data: galleries }] = await Promise.all([
     supabase.from('photographer_storage')
@@ -32,7 +32,8 @@ async function checkStorageCapacity(photographerId, files) {
       .select('file_size, preview_size')
       .in('gallery_id', galleryIds)
       .is('deleted_at', null)
-    bytesUsed = (imgs || []).reduce((sum, img) => sum + (img.file_size || 0) + (img.preview_size || 0), 0)
+    // Only count original file_size — previews and web files are system-generated infrastructure
+    bytesUsed = (imgs || []).reduce((sum, img) => sum + (img.file_size || 0), 0)
   }
 
   const limitBytes = storageRow.storage_tiers.storage_gb * 1024 * 1024 * 1024
@@ -86,16 +87,22 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
     await Promise.all(files.map(async (file, index) => {
       let originalKey = null
       let previewKey = null
+      let webKey = null
       try {
         const imageId = crypto.randomUUID()
         const ext = file.name.split('.').pop().toLowerCase()
 
         updateItem(index, { status: 'processing' })
-        const previewBlob = await generatePreview(file, watermark)
+        // Generate both preview WebP and web JPEG in parallel
+        const [previewBlob, webBlob] = await Promise.all([
+          generatePreview(file, watermark),
+          generateWebJpeg(file, watermark),
+        ])
 
         updateItem(index, { status: 'uploading' })
         originalKey = buildOriginalKey(photographerId, galleryId, imageId, ext)
         previewKey = buildPreviewKey(photographerId, galleryId, imageId)
+        webKey = buildWebKey(photographerId, galleryId, imageId)
 
         await Promise.all([
           uploadToR2({ file, key: originalKey, token }),
@@ -103,7 +110,12 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
             file: new File([previewBlob], `${imageId}.webp`, { type: 'image/webp' }),
             key: previewKey,
             token
-          })
+          }),
+          uploadToR2({
+            file: new File([webBlob], `${imageId}.jpg`, { type: 'image/jpeg' }),
+            key: webKey,
+            token
+          }),
         ])
 
         const { width, height } = await getImageDimensions(file)
@@ -114,9 +126,11 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
           photographer_id: photographerId,
           original_r2_key: originalKey,
           preview_r2_key: previewKey,
+          web_r2_key: webKey,
           file_name: file.name,
           file_size: file.size,
           preview_size: previewBlob.size,
+          web_size: webBlob.size,
           file_type: file.type || 'application/octet-stream',
           width,
           height,
@@ -131,6 +145,7 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
         // Clean up any R2 files that made it before the failure
         if (originalKey) deleteFromR2({ key: originalKey, token }).catch(() => {})
         if (previewKey) deleteFromR2({ key: previewKey, token }).catch(() => {})
+        if (webKey) deleteFromR2({ key: webKey, token }).catch(() => {})
         updateItem(index, { status: 'error', error: err.message })
       }
     }))

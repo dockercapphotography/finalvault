@@ -18,6 +18,7 @@ export async function handleDownload(request, env, corsHeaders) {
   const url = new URL(request.url)
   const key = decodeURIComponent(url.pathname.replace(/^\/download\//, ''))
   const size = url.searchParams.get('size') || 'web'
+  const webKey = url.searchParams.get('web_key') || null
   const watermarkId = url.searchParams.get('watermark_id') || null
 
   if (!key) {
@@ -95,7 +96,26 @@ export async function handleDownload(request, env, corsHeaders) {
     return new Response(originalObj.body, { status: 200, headers })
   }
 
-  // --- WEB: resize + watermark + JPEG ---
+  // --- WEB: serve pre-generated JPEG directly if available (fast path) ---
+  if (size === 'web' && webKey) {
+    try {
+      const decodedWebKey = decodeURIComponent(webKey)
+      const webObj = await env.BUCKET.get(decodedWebKey)
+      if (webObj) {
+        const webFileName = key.split('/').pop().replace(/\.[^.]+$/, '_web.jpg')
+        const headers = new Headers(corsHeaders)
+        headers.set('Content-Type', 'image/jpeg')
+        headers.set('Content-Disposition', `attachment; filename="${webFileName}"`)
+        headers.set('Cache-Control', 'private, max-age=86400')
+        return new Response(webObj.body, { status: 200, headers })
+      }
+      // Fall through to WASM if web key not found in R2
+    } catch (err) {
+      console.error('Web key serve error, falling back to WASM:', err)
+    }
+  }
+
+  // --- WEB: resize + watermark + JPEG (fallback for images without web_r2_key) ---
   try {
     const inputBytes = new Uint8Array(await originalObj.arrayBuffer())
 

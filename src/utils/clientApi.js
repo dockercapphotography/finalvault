@@ -52,7 +52,7 @@ export async function getPhotographerName(photographerId) {
 export async function getClientImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')
-    .select('id, preview_r2_key, original_r2_key, file_name, width, height, sort_order, set_id, watermark_id, updated_at, watermarks(r2_key, opacity, position, scale)')
+    .select('id, preview_r2_key, original_r2_key, web_r2_key, file_name, width, height, sort_order, set_id, watermark_id, updated_at, watermarks(r2_key, opacity, position, scale)')
     .eq('gallery_id', galleryId)
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })
@@ -175,9 +175,10 @@ export function getPreviewUrl(r2Key, shareToken, cacheBust) {
  * @param {string|null} pinToken
  * @param {string|null} watermarkId - image.watermark_id
  */
-export async function downloadWebSize(originalR2Key, fileName, shareToken, pinToken = null, watermarkId = null) {
+export async function downloadWebSize(originalR2Key, fileName, shareToken, pinToken = null, watermarkId = null, webR2Key = null) {
   const params = new URLSearchParams({ size: 'web' })
   if (watermarkId) params.set('watermark_id', watermarkId)
+  if (webR2Key) params.set('web_key', encodeURIComponent(webR2Key))
 
   const headers = {}
   if (shareToken) headers['X-Share-Token'] = shareToken

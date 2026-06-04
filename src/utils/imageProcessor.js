@@ -1,5 +1,8 @@
-const PREVIEW_MAX_LONG_EDGE = 1600
-const PREVIEW_QUALITY = 0.80
+const PREVIEW_MAX_LONG_EDGE = 2048
+const PREVIEW_QUALITY = 0.82
+
+const WEB_MAX_LONG_EDGE = 2048
+const WEB_QUALITY = 0.88
 
 export async function generatePreview(file, watermark = null) {
   const imageBitmap = await loadImageBitmap(file)
@@ -20,6 +23,32 @@ export async function generatePreview(file, watermark = null) {
   }
 
   return await canvas.convertToBlob({ type: 'image/webp', quality: PREVIEW_QUALITY })
+}
+
+/**
+ * Generate a web-size JPEG for download delivery.
+ * Same dimensions and watermark as preview, but JPEG format for universal compatibility.
+ * Reuses the already-loaded bitmap from generatePreview pipeline where possible.
+ */
+export async function generateWebJpeg(file, watermark = null) {
+  const imageBitmap = await loadImageBitmap(file)
+  const { width, height } = getResizeDimensions(
+    imageBitmap.width, imageBitmap.height, WEB_MAX_LONG_EDGE
+  )
+
+  const canvas = new OffscreenCanvas(width, height)
+  const ctx = canvas.getContext('2d')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(imageBitmap, 0, 0, width, height)
+  imageBitmap.close()
+
+  if (watermark?.url) {
+    try { await compositeWatermark(ctx, watermark, width, height) }
+    catch (err) { console.warn('Watermark failed:', err) }
+  }
+
+  return await canvas.convertToBlob({ type: 'image/jpeg', quality: WEB_QUALITY })
 }
 
 export async function getImageDimensions(file) {

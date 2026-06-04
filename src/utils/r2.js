@@ -17,6 +17,10 @@ export function buildPreviewKey(photographerId, galleryId, imageId) {
   return `photographers/${photographerId}/galleries/${galleryId}/preview/${imageId}.webp`
 }
 
+export function buildWebKey(photographerId, galleryId, imageId) {
+  return `photographers/${photographerId}/galleries/${galleryId}/web/${imageId}.jpg`
+}
+
 export async function uploadToR2({ file, key, token }) {
   const formData = new FormData()
   formData.append('file', file)
