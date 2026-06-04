@@ -67,7 +67,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 | Deployment | Cloudflare Pages |
 | Email | Resend |
 | Scheduling | pg_cron (daily digest + expiry reminders) |
-| Testing | Playwright (387 end-to-end tests) |
+| Testing | Playwright (473 end-to-end tests) |
 | Icons | Lucide React |
 
 ---
@@ -162,7 +162,7 @@ npx playwright install
 npx playwright test
 ```
 
-387 end-to-end tests covering auth, client gallery access, photographer workflows, uploads, and admin.
+473 end-to-end tests covering auth, client gallery access, photographer workflows, uploads, and admin.
 
 ---
 

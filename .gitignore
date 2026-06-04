@@ -35,3 +35,5 @@ dev-dist/
 dev-dist/
 cleanup-r2-orphans.mjs
 tests/.auth/
+test-results.txt
+*.bak
