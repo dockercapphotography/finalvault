@@ -102,7 +102,6 @@ export default function PageWrapper({ session, children }) {
                     <Item>Client cards with image thumbnails, timestamps, and lightbox</Item>
                   </Group>
                   <Group label="Improvements">
-                    <Item>Preview images cached in memory — 166MB → ~91KB on reload</Item>
                     <Item>Comment button now available inside the image lightbox</Item>
                     <Item>iOS downloads use native share sheet (save to Photos)</Item>
                     <Item>Image card ⋮ menu always visible on mobile</Item>
