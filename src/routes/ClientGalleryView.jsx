@@ -630,7 +630,7 @@ export default function ClientGalleryView() {
   const eventDateStr = gallery.event_date ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null
 
   return (
-    <div className="min-h-screen" style={{ background: theme.bg, ...themeStyle }} onContextMenu={noContext}>
+    <div className="min-h-screen" style={{ background: theme.bg, ...themeStyle, overflowX: "hidden" }} onContextMenu={noContext}>
 
       {isPreview && (
         <div style={{ background: '#6366f1', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>
