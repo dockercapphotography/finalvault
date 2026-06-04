@@ -328,7 +328,7 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
     <div className="fixed inset-0 z-60 flex items-center justify-center px-4"
       style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
       onClick={onCancel}>
-      <style>{`.pin-input::placeholder { color: rgba(240,240,240,0.15); } .comment-input::placeholder { color: rgba(240,240,240,0.3); }`}</style>
+      <style>{`.pin-input::placeholder { color: rgba(240,240,240,0.15); } .comment-input::placeholder { color: rgba(240,240,240,0.3); } body { scrollbar-width: none; } body::-webkit-scrollbar { display: none; }`}</style>
       <div className="w-full max-w-xs rounded-2xl p-6 space-y-4"
         style={{ background: '#1e1e1e', border: '1px solid #333' }}
         onClick={e => e.stopPropagation()}>

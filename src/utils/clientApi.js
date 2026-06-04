@@ -415,7 +415,8 @@ async function triggerBrowserDownload(blob, fileName) {
         return
       }
     } catch (err) {
-      if (err.name !== 'AbortError') console.warn('Share failed, falling back:', err)
+      if (err.name === 'AbortError') return
+      console.warn('Share failed, falling back:', err)
     }
   }
   const url = URL.createObjectURL(blob)
