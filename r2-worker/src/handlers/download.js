@@ -102,7 +102,18 @@ export async function handleDownload(request, env, corsHeaders) {
     // Look up the watermark that was baked into this image's preview
     const wmConfig = watermarkId ? await fetchWatermarkById(watermarkId, env) : null
 
-    const jpegBytes = await processWebImage(inputBytes, wmConfig)
+    // Retry once on WASM cold-start failures (unreachable error on first invocation)
+    let jpegBytes
+    try {
+      jpegBytes = await processWebImage(inputBytes, wmConfig)
+    } catch (wasmErr) {
+      if (wasmErr.message?.includes('unreachable')) {
+        await new Promise(r => setTimeout(r, 100))
+        jpegBytes = await processWebImage(inputBytes, wmConfig)
+      } else {
+        throw wasmErr
+      }
+    }
     const webFileName = originalFileName.replace(/\.[^.]+$/, '_web.jpg')
 
     const headers = new Headers(corsHeaders)
