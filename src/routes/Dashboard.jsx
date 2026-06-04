@@ -683,7 +683,7 @@ function NewFolderModal({ open, onClose, onCreated, parentFolderId }) {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') onClose() }}
-                placeholder="e.g. PopCon Indy"
+                placeholder="e.g. Weddings 2026"
                 className="w-full text-sm rounded-lg px-3 py-2.5 outline-none"
                 style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)' }}
                 onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
