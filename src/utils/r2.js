@@ -48,21 +48,58 @@ export function getPreviewUrl(key) {
   return `${WORKER_URL}/preview/${encodeURIComponent(key)}`
 }
 
+// Module-level cache: maps "key::cacheBust" → blob object URL.
+// Survives re-renders and re-mounts. Keyed by cacheBust (updated_at) so a
+// re-watermarked image gets a fresh fetch while unchanged images are served instantly.
+const previewBlobCache = new Map()
+const previewFetchInFlight = new Map()
+
 /**
  * Fetch a preview image as an object URL for display in <img>.
- * cacheBust: optional string appended as ?t=... to force a fresh fetch after re-watermark.
+ * cacheBust: optional string — changes when image is re-watermarked (updated_at).
+ * Results are cached in memory so re-renders never hit R2 twice for the same image.
  */
 export async function fetchPreviewObjectUrl({ key, shareToken, token, cacheBust }) {
-  const headers = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  if (shareToken) headers['X-Share-Token'] = shareToken
+  const cacheKey = `${key}::${cacheBust || 'none'}`
 
-  const bust = cacheBust ? `?t=${cacheBust}` : ''
-  const resp = await fetch(`${WORKER_URL}/preview/${encodeURIComponent(key)}${bust}`, { headers })
-  if (!resp.ok) throw new Error('Failed to fetch preview')
+  // Return cached blob URL if available
+  if (previewBlobCache.has(cacheKey)) {
+    return previewBlobCache.get(cacheKey)
+  }
 
-  const blob = await resp.blob()
-  return URL.createObjectURL(blob)
+  // Deduplicate in-flight requests for the same key
+  if (previewFetchInFlight.has(cacheKey)) {
+    return previewFetchInFlight.get(cacheKey)
+  }
+
+  const fetchPromise = (async () => {
+    const headers = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    if (shareToken) headers['X-Share-Token'] = shareToken
+
+    const bust = cacheBust ? `?t=${encodeURIComponent(cacheBust)}` : ''
+    const resp = await fetch(`${WORKER_URL}/preview/${encodeURIComponent(key)}${bust}`, { headers })
+    if (!resp.ok) throw new Error('Failed to fetch preview')
+
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    previewBlobCache.set(cacheKey, objectUrl)
+    previewFetchInFlight.delete(cacheKey)
+    return objectUrl
+  })()
+
+  previewFetchInFlight.set(cacheKey, fetchPromise)
+  return fetchPromise
+}
+
+// Call this after a re-watermark to bust the cache for a specific key
+export function bustPreviewCache(key) {
+  for (const cacheKey of previewBlobCache.keys()) {
+    if (cacheKey.startsWith(key + '::')) {
+      URL.revokeObjectURL(previewBlobCache.get(cacheKey))
+      previewBlobCache.delete(cacheKey)
+    }
+  }
 }
 
 export async function downloadOriginal({ key, shareToken, downloadPin, token }) {

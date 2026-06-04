@@ -765,7 +765,12 @@ export default function GalleryDetail() {
         {/* ── Desktop header ── */}
         <div className="hidden md:block">
           <PageBreadcrumb crumbs={[
-            { label: 'Galleries', to: '/' },
+            { label: 'Galleries', to: '/', toState: { restoreFolderPath: [] } },
+            ...(location.state?.folderPath || []).map((f, i, arr) => ({
+              label: f.name,
+              to: '/',
+              toState: { restoreFolderPath: arr.slice(0, i + 1) },
+            })),
             { label: gallery.title },
           ]} />
         </div>

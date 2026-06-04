@@ -37,7 +37,7 @@ export default function PageBreadcrumb({ crumbs = [] }) {
               </span>
             ) : (
               <button
-                onClick={() => navigate(crumb.to)}
+                onClick={() => navigate(crumb.to, { state: crumb.toState })}
                 className="text-sm truncate flex items-center gap-1"
                 style={{ color: '#6366f1', cursor: 'pointer', background: 'none', border: 'none', maxWidth: 200 }}
                 onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}

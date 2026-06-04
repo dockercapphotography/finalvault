@@ -186,7 +186,7 @@ function MoveFolderModal({ open, onClose, gallery, onMoved }) {
 
 export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarked: initialBookmarked = false }) {
   const navigate = useNavigate()
-  const { onGalleryMoved, onGalleryDeleted, onCopyLink: ctxCopyLink } = useFolderContext()
+  const { onGalleryMoved, onGalleryDeleted, onCopyLink: ctxCopyLink, folderPath = [] } = useFolderContext()
 
   const [bookmarked, setBookmarked] = useState(initialBookmarked)
   const [bookmarking, setBookmarking] = useState(false)
@@ -270,7 +270,7 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
         {...attributes}
         style={{ ...dragStyle, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '0.75rem', overflow: 'hidden', cursor: isDragging ? 'grabbing' : 'pointer', position: 'relative', touchAction: 'none' }}
         className="transition-all hover:shadow-md hidden md:block"
-        onClick={() => !menuOpen && !confirmDelete && !isDragging && navigate(`/galleries/${gallery.id}`)}
+        onClick={() => !menuOpen && !confirmDelete && !isDragging && navigate(`/galleries/${gallery.id}`, { state: { folderPath } })}
         onMouseEnter={e => { if (!isDragging) e.currentTarget.style.borderColor = 'var(--border-strong)' }}
         onMouseLeave={e => { if (!isDragging) e.currentTarget.style.borderColor = 'var(--border)' }}
       >
@@ -412,7 +412,7 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
       <div
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '0.75rem', overflow: 'hidden', cursor: 'pointer' }}
         className="transition-all hover:shadow-md block md:hidden"
-        onClick={() => !menuOpen && !confirmDelete && navigate(`/galleries/${gallery.id}`)}
+        onClick={() => !menuOpen && !confirmDelete && navigate(`/galleries/${gallery.id}`, { state: { folderPath } })}
         onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
         onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
       >

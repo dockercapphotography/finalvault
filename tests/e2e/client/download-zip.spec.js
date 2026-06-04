@@ -87,7 +87,9 @@ test.describe('Download ZIP — enabled', () => {
     await expect(headerContainer.locator('button').last()).toBeVisible()
   })
 
-  test('clicking header download shows web size option', async ({ page }) => {
+  test('clicking header download shows web size option', async ({ page, browserName, isMobile }) => {
+    // iOS Safari uses the native share sheet instead of a download event
+    test.skip(isMobile && browserName === 'webkit', 'iOS uses native share sheet, no download event')
     await enterGalleryAsClient(page, FIXTURE_GALLERY.shareToken)
     await scrollToGrid(page)
     // Click the download button in the sticky header area
@@ -181,7 +183,8 @@ test.describe('Download ZIP — PIN gate', () => {
     await expect(page.getByText('Incorrect PIN')).toBeVisible()
   })
 
-  test('correct PIN dismisses gate and starts download', async ({ page }) => {
+  test('correct PIN dismisses gate and starts download', async ({ page, browserName, isMobile }) => {
+    test.skip(isMobile && browserName === 'webkit', 'iOS uses native share sheet, no download event')
     await enterGalleryAsClient(page, gallery.share_token)
     await scrollToGrid(page)
     await scrollToGrid(page)

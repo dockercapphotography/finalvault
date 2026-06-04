@@ -10,7 +10,7 @@ Own your delivery experience. No monthly SaaS fees. No compromises.
 
 [Live App](https://finalvault.dockercapphotography.com) · [Report a Bug](https://github.com/dockercapphotography/finalvault/issues) · [Request a Feature](https://github.com/dockercapphotography/finalvault/issues)
 
-![Tests](https://img.shields.io/badge/tests-387%20passing-22c55e?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-473%20passing-22c55e?style=flat-square)
 ![Cloudflare Pages](https://img.shields.io/badge/deployed-Cloudflare%20Pages-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![Supabase](https://img.shields.io/badge/database-Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
 
@@ -29,6 +29,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 ### For Photographers
 
 - **Gallery management** — create galleries with client name, event details, internal notes, and named photo sets
+- **Folder organization** — organize galleries into nested folders with drag-and-drop, breadcrumb navigation, and full path tracking
 - **8 color themes** — Light, Dark, Slate, Dusk, Ember, Sage, Blush, Noir — applied per gallery
 - **Watermarking** — upload watermark images, configure opacity/position/scale, apply per image, set, or in bulk
 - **Gallery templates** — save your preferred settings as a reusable template for faster gallery creation
@@ -36,6 +37,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Access controls** — gallery password, download PIN, expiry date, active/inactive toggle
 - **Expiry reminders** — automatically email clients before their gallery expires (1, 3, 7, 14, or 30 days warning)
 - **Activity feed** — see who viewed, favorited, downloaded, and commented across all galleries
+- **Client Favorites** — see exactly which images each client favorited, with timestamps and a lightbox viewer
 - **Daily digest emails** — morning summary of client activity, with per-event notification controls
 - **Share via email, link, or QR code** — with custom email templates, variable substitution, and your social/payment links in the footer
 - **Bookmarks** — save galleries and individual images for quick reference

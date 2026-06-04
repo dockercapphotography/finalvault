@@ -1,133 +1,89 @@
-# FinalVault v1.0.0
+# Changelog
 
-**Release date: June 1, 2026**
-
-This is the first public release of FinalVault — a self-hosted client gallery delivery platform for photographers. Built from the ground up as an alternative to Pixieset and Shootproof, FinalVault gives photographers full ownership of their delivery experience with no monthly SaaS fees.
+All notable changes to FinalVault are documented here.
 
 ---
 
-## What's Included
+## v1.1.0 — June 3, 2026
 
-### Gallery Management
-- Create galleries with title, client name, event name, event date, and internal notes
-- Organize images into named **photo sets** (e.g. Previews, Edited Finals, BTS)
-- Drag-to-reorder sets and images within sets
-- Move images between sets via context menu or bulk action bar
-- Set a **cover image** with focal point drag control — used in the gallery hero and email
-- **Gallery templates** — save display settings, sets, access settings, and watermark as a reusable template for faster creation
-- **8 color themes** for the client gallery: Light, Dark, Slate, Dusk, Ember, Sage, Blush, Noir
+### New Features
 
-### Watermarking
-- Upload and manage multiple watermark images (PNG or SVG — SVGs auto-converted to PNG)
-- Configure opacity, position (center, corners), and scale per watermark
-- Apply to a single image, an entire set, or bulk-selected images
-- Per-gallery watermark override — choose a specific watermark per gallery
-- Each image records exactly which watermark was applied, ensuring downloads always use the correct version even if the active watermark changes later
+**Gallery Folders**
+- Organize galleries into folders with unlimited nesting depth
+- Drag and drop galleries into folders (desktop)
+- Navigate folders with breadcrumb trail showing full path
+- Create, rename, and delete folders via ⋮ menu on folder cards
+- Delete folder with contents shows warning with subfolder and gallery counts before confirming
+- Move gallery to folder via navigable Finder-style picker (no flat list)
+- New gallery created inside a folder is automatically assigned to that folder
+- Gallery count subtitle shows count for current folder only, not total
+- Folder breadcrumb persists when navigating into a gallery and back
 
-### Download Architecture
-Three independent download types — never confused:
+**Client Favorites — Photographer View**
+- Activity page shows which clients favorited which images
+- Client cards display viewer email and favorited image count
+- Click a client card to open a detail panel with image thumbnails and timestamps
+- Thumbnails open a lightbox with full navigation
+- Delete a client's favorites record from the ⋮ menu
 
-| Type | Source | Processing | Watermark |
-|------|--------|-----------|-----------|
-| Gallery display | WebP preview | None | Baked in at upload |
-| Web size download | Original | Resize to 2048px | Applied fresh via Worker |
-| High-res download | Original | None | None — clean delivery |
+**Client Gallery — Lightbox Comments**
+- Comment button now available inside the image lightbox
+- Comment sheet overlays the lightbox without closing it
 
-Single-image downloads handled by the Cloudflare Worker. ZIP downloads split by type — web size processed client-side via Canvas + JSZip with per-image progress; high-res packaged by the Worker with no CPU limits.
+### Improvements
 
-### Client Gallery Experience
-- **Email gate** on first visit — clients enter their email address (no account required)
-- Optional **gallery password** and separate **download PIN**
-- Full-bleed cover image hero with focal point support
-- Set tabs for multi-set navigation
-- Responsive image grid with configurable thumbnail size and spacing
-- **Full-screen lightbox** with pinch-to-zoom, double-tap, swipe navigation, and body scroll lock
-- Heart/favorite individual images
-- Leave comments on individual images
-- Download individual images or full-gallery ZIP with progress modal
-- Right-click and drag protection on preview images
+**Navigation & Breadcrumbs**
+- Gallery detail, settings, and activity pages now show breadcrumb navigation instead of plain back button
+- Breadcrumb shows full folder path (e.g. Galleries › 2026 › FanExpo › Private Shoots › Gallery Name)
+- Clicking any folder segment in the breadcrumb navigates back to that exact folder level
 
-### Access & Sharing
-- Per-gallery active/inactive toggle and expiry date
-- Share via **email** (with custom templates and variable substitution), **direct link**, or **QR code**
-- Email delivery includes cover image, access details, and social/payment links in footer
-- **Expiry reminder emails** — automatically notify clients before their gallery expires (1, 3, 7, 14, or 30 days), configurable per gallery
+**Performance**
+- Preview images are now cached in memory after first load — re-renders and sort changes no longer re-fetch from R2
+- In-flight request deduplication prevents redundant R2 requests when multiple renders fire simultaneously
+- First load of a 160-image gallery: 166MB → 36MB transferred; subsequent loads: ~91KB transferred
 
-### Activity & Notifications
-- Per-gallery **activity log** — views, downloads, favorites, comments
-- **Notification bell** — last 7 days of activity across all galleries, grouped by day
-- **Daily activity digest emails** — morning summary of client activity (favorites, comments, downloads) with per-event notification toggles in Account settings
+**Uploads**
+- Removed rate limiting on upload and watermark endpoints — JWT authentication is the real protection
+- Download endpoint rate limit kept at 100 requests/min per IP
+- Large batch uploads (180+ images) no longer hit rate limits
 
-### Account
-- Profile: display name, business/studio name, profile photo
-- Security: email and password change
-- Watermarks: upload, configure, set active watermark
-- Gallery Templates: create, edit, duplicate, delete
-- Email Templates: reusable templates with variable substitution (`{{gallery_name}}`, `{{client_name}}`, etc.)
-- Social links: Instagram, Facebook, TikTok, X, YouTube, Pinterest
-- Payment links: Venmo, PayPal, Ko-Fi, Cash App
-- Notification preferences: per-event digest toggles
-- Storage meter showing current usage vs. plan limit
+**Mobile Downloads (iOS)**
+- Downloads on iOS Safari now use the native Web Share API, presenting the system share sheet
+- Users can save directly to Photos from the share sheet
+- Desktop and Android downloads unchanged (standard anchor download)
 
-### Bookmarks
-- Bookmark galleries and individual images for quick reference
-- `/bookmarked` route with Galleries and Photos tabs
-- Bookmarked photo lightbox with View Gallery navigation
+**Gallery Cards**
+- Image card ⋮ menu is always visible on mobile (was hover-only, unusable on touch)
+- Folder cards show creation date below gallery/subfolder count
 
-### Admin Panel
-- User management with storage tier assignment
-- Storage tier management: create, edit, delete tiers with GB limits
-- Mobile-friendly layout
+### Bug Fixes
+- Fixed drag handle z-index blocking gallery card ⋮ menu click
+- Fixed gallery card navigation with 200ms hold-to-drag — clicks always register instantly
+- Fixed folder deletion blocked by subfolders — now deletes entire subtree via server-side RPC
+- Fixed comment overlay z-index rendering behind lightbox
 
-### PWA
-- Installable as a home screen app on iOS and Android
-- Service worker with network-first caching for the app shell
+### Tests
+- 473 passing across chromium, firefox, mobile-chrome, mobile-safari
+- 5 skipped (2 pre-existing, 2 intentional iOS download skips, 1 pre-existing upload)
+- New specs: `client-favorites.spec.js`, `gallery-folders.spec.js`
 
 ---
 
-## Infrastructure
+## v1.0.0 — May 31, 2026
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18, Tailwind CSS v4, Vite 7 |
-| Database & Auth | Supabase (PostgreSQL + RLS + Edge Functions) |
-| Storage | Cloudflare R2 |
-| Image Processing | `@cf-wasm/photon` (worker-side) + Canvas API (client-side) |
-| Deployment | Cloudflare Pages |
-| Email | Resend |
-| Scheduling | pg_cron (daily digest + expiry reminders) |
-| Testing | Playwright — 387 end-to-end tests passing |
+Initial release of FinalVault.
 
----
-
-## v1.1.0 Roadmap
-
-- **Gallery folders** — hierarchical folder organization for galleries using PostgreSQL `ltree`. Planned support for nested folders (e.g. PopCon Indy → PopCon Indy 2026 → Hall Shots). UI will support 2 levels initially with arbitrary depth at the data layer.
-- **Self-serve billing** — Stripe integration for photographers to upgrade storage tiers without admin intervention
-- **Async ZIP queue** — server-side job queue for large gallery downloads via Cloudflare Queues + email notification when ready
-- **Google Analytics** — visitor and funnel tracking for marketing insights once user acquisition begins
-
----
-
-## Known Limitations
-
-- **Storage tier enforcement** — hard limits are in place and enforced per tier. Free tier is 5 GB. Upgrading to a higher tier currently requires manual assignment by an admin; self-serve billing and plan upgrades via Stripe are planned for v1.1.
-- **EXIF stripping** — originals are stored as-is. Photographers should strip GPS data on export from Lightroom or Capture One if privacy is a concern.
-- **Async ZIP queue** — very large galleries may hit browser memory limits on web-size ZIP downloads. A server-side queue is planned for v1.1.
-
----
-
-## Self-Hosting Cost
-
-FinalVault is designed to run on free or near-free infrastructure:
-
-| Service | Free Tier |
-|---------|-----------|
-| Cloudflare Pages | Unlimited deployments |
-| Cloudflare R2 | 10 GB storage, 1M ops/month |
-| Supabase | 500 MB database, 2 GB storage |
-| Resend | 3,000 emails/month |
-
----
-
-*FinalVault is proprietary software. Copyright © 2025–2026 Docker Cap Photography. All rights reserved.*
+**Core Features**
+- Photographer dashboard with gallery management
+- Gallery creation wizard with set management
+- Image upload with client-side watermark application and R2 storage
+- Client gallery delivery via share token with name gate and optional password
+- Client favorites, comments, and ZIP download with optional PIN
+- Web Size (watermarked) and High Res download options
+- Gallery settings: status, expiry, password, PIN, download permissions, color themes, grid options
+- Watermark management: upload, opacity, position, scale
+- Share via email, direct link, and QR code
+- Activity feed: views, favorites, comments, downloads per gallery
+- Admin panel: user management, storage tiers
+- Account: profile, avatar, storage meter
+- Full Playwright test suite across 3 browsers + 2 mobile viewports

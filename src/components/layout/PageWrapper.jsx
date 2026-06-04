@@ -1,12 +1,14 @@
+import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.0.0'
+const VERSION = '1.1.0'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
 
 export default function PageWrapper({ session, children }) {
+  const [showChangelog, setShowChangelog] = useState(false)
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
       <Sidebar />
@@ -41,12 +43,108 @@ export default function PageWrapper({ session, children }) {
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
               Terms of Service
             </a>
-            <span className="text-xs" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+            <button
+              onClick={() => setShowChangelog(true)}
+              className="text-xs"
+              style={{ color: 'var(--text-muted)', opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}>
               v{VERSION} · Build: {BUILD_DATE}
-            </span>
+            </button>
           </div>
         </footer>
       </div>
+
+      {/* Changelog modal */}
+      {showChangelog && (
+        <>
+          <div
+            className="fixed inset-0 z-50"
+            style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+            onClick={() => setShowChangelog(false)}
+          />
+          <div
+            className="fixed left-1/2 top-1/2 z-50 w-full"
+            style={{
+              transform: 'translate(-50%, -50%)',
+              maxWidth: 640,
+              maxHeight: '80vh',
+              padding: '0 16px',
+            }}>
+            <div
+              className="rounded-2xl shadow-xl overflow-hidden flex flex-col"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '80vh' }}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>What's New</h2>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>v{VERSION}</p>
+                </div>
+                <button
+                  onClick={() => setShowChangelog(false)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style={{ background: 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16 }}>
+                  ✕
+                </button>
+              </div>
+              {/* Scrollable content */}
+              <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.1.0 — June 3, 2026">
+                  <Group label="Gallery Folders">
+                    <Item>Organize galleries into nested folders with drag-and-drop</Item>
+                    <Item>Rename, delete, and move folders via ⋮ menu</Item>
+                    <Item>Navigable Move to Folder picker (Finder-style, no flat list)</Item>
+                    <Item>Full breadcrumb trail with working back-navigation through folder hierarchy</Item>
+                    <Item>Delete folder with contents shows exact subfolder and gallery counts</Item>
+                  </Group>
+                  <Group label="Client Favorites — Photographer View">
+                    <Item>Activity page shows which clients favorited which images</Item>
+                    <Item>Client cards with image thumbnails, timestamps, and lightbox</Item>
+                  </Group>
+                  <Group label="Improvements">
+                    <Item>Preview images cached in memory — 166MB → ~91KB on reload</Item>
+                    <Item>Comment button now available inside the image lightbox</Item>
+                    <Item>iOS downloads use native share sheet (save to Photos)</Item>
+                    <Item>Image card ⋮ menu always visible on mobile</Item>
+                    <Item>Large batch uploads no longer rate-limited</Item>
+                    <Item>Folder cards show creation date</Item>
+                  </Group>
+                </Section>
+                <Section title="v1.0.0 — May 31, 2026">
+                  <Item>Initial release — gallery management, client delivery, favorites, comments, downloads, watermarks, activity feed, admin panel</Item>
+                </Section>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
+  )
+}
+
+function Section({ title, children }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{title}</p>
+      <div className="space-y-3">{children}</div>
+    </div>
+  )
+}
+
+function Group({ label, children }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>{label}</p>
+      <ul className="space-y-0.5 pl-3">{children}</ul>
+    </div>
+  )
+}
+
+function Item({ children }) {
+  return (
+    <li className="text-xs flex items-start gap-1.5" style={{ color: 'var(--text-muted)' }}>
+      <span style={{ color: '#6366f1', flexShrink: 0 }}>·</span>
+      {children}
+    </li>
   )
 }

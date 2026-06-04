@@ -403,7 +403,21 @@ function getWatermarkPosition(position, cW, cH, wmW, wmH, pad) {
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-function triggerBrowserDownload(blob, fileName) {
+async function triggerBrowserDownload(blob, fileName) {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
+  if (isIOS && navigator.canShare) {
+    try {
+      const ext = fileName.split('.').pop().toLowerCase()
+      const mimeType = blob.type || (ext === 'zip' ? 'application/zip' : 'image/jpeg')
+      const file = new File([blob], fileName, { type: mimeType })
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: fileName })
+        return
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') console.warn('Share failed, falling back:', err)
+    }
+  }
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -411,7 +425,7 @@ function triggerBrowserDownload(blob, fileName) {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export async function logActivity(galleryId, viewerId, action, imageId = null, metadata = null) {

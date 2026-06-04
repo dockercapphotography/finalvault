@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Search, ChevronDown, X, ChevronLeft, ChevronRight, SlidersHorizontal, CheckCircle2, Circle, ChevronUp, Images, Share2, Upload, Folder, FolderPlus, Home } from 'lucide-react'
 import { getGalleries, getFolders, createFolder, moveGalleryToFolder } from '../utils/galleryApi.js'
 import { getBookmarkedGalleryIds } from '../utils/bookmarkApi.js'
@@ -384,6 +384,7 @@ function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, event
 function SetupChecklist({ galleries, hasWatermark, hasShared, dismissed, onDismiss }) {
   const [expanded, setExpanded] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
 
   const hasGallery = galleries.length > 0
   const hasImages = galleries.some(g => (g.image_count?.[0]?.count ?? 0) > 0)
@@ -815,6 +816,7 @@ function buildFolderCoverUrls(galleries, authToken) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [galleries, setGalleries] = useState([])
   const [folders, setFolders] = useState([])
   const [loading, setLoading] = useState(true)
@@ -839,7 +841,15 @@ export default function Dashboard() {
   const [folderPath, setFolderPath] = useState([])               // [{ id, name }, ...]
   const [newFolderOpen, setNewFolderOpen] = useState(false)
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    loadData().then(() => {
+      const restore = location.state?.restoreFolderPath
+      if (restore?.length) {
+        setFolderPath(restore)
+        setCurrentFolderId(restore[restore.length - 1].id)
+      }
+    })
+  }, [])
 
   async function loadData() {
     try {
@@ -1018,6 +1028,7 @@ export default function Dashboard() {
   const folderContextValue = {
     folders,
     currentFolderId,
+    folderPath,
     onGalleryMoved: handleGalleryMoved,
     onGalleryDeleted: handleGalleryDeleted,
     onCopyLink: handleCopyLink,

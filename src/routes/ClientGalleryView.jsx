@@ -179,7 +179,7 @@ function LightboxDownloadButton({ allowWebSize, allowHires, onDownload }) {
   )
 }
 
-function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleFavorite, allowDownloads, allowWebSize, allowHires, onDownload, token }) {
+function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleFavorite, allowDownloads, allowWebSize, allowHires, onDownload, allowComments, onComment, token }) {
   const image = images[index]
   const touchStartX = useRef(null)
   const touchStartY = useRef(null)
@@ -245,6 +245,13 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
           style={{ background: isFav ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)', color: isFav ? '#ef4444' : '#fff', cursor: 'pointer' }}>
           <Heart size={16} fill={isFav ? '#ef4444' : 'none'} />
         </button>
+        {allowComments && (
+          <button onClick={() => onComment(image.id)}
+            className="w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}>
+            <MessageCircle size={16} />
+          </button>
+        )}
         <button onClick={onClose}
           className="w-9 h-9 rounded-full flex items-center justify-center"
           style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}>
@@ -723,12 +730,12 @@ export default function ClientGalleryView() {
           onNext={() => setLightboxIndex(i => Math.min(activeImages.length - 1, i + 1))}
           favorites={favorites} onToggleFavorite={handleToggleFavorite}
           allowDownloads={gallery.allow_downloads} allowWebSize={gallery.download_watermarked} allowHires={gallery.allow_hires_download}
-          onDownload={handleDownloadSingle} token={token}
+          onDownload={handleDownloadSingle} allowComments={gallery.allow_comments} onComment={setActiveCommentImageId} token={token}
         />
       )}
 
       {activeCommentImageId && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setActiveCommentImageId(null)}>
+        <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setActiveCommentImageId(null)}>
           <div className="w-full max-w-lg rounded-t-2xl p-6 space-y-4" style={{ background: '#1e1e1e', border: '1px solid #333', borderBottom: 'none', maxHeight: '60vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="font-medium text-sm" style={{ color: '#f0f0f0' }}>Comments</p>
