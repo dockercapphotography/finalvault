@@ -240,7 +240,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.95)' }}
+      style={{ background: 'rgba(0,0,0,0.95)', maxWidth: '100vw', overflowX: 'hidden', left: 0, right: 0 }}
       onContextMenu={noContext}
       onClick={onClose}
       onTouchStart={handleTouchStart}
