@@ -68,6 +68,7 @@ export default function GalleryDetail() {
   const [showGridMenu, setShowGridMenu] = useState(false)
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [sheetVisible, setSheetVisible] = useState(false)
+  const sheetTouchStartY = useRef(null)
   const [downloadingZip, setDownloadingZip] = useState(false)
   const [zipProgress, setZipProgress] = useState(null)  // { current, total, hires }
 
@@ -1262,8 +1263,14 @@ export default function GalleryDetail() {
               transform: sheetVisible ? 'translateY(0)' : 'translateY(100%)',
               transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
             }}
-            onClick={e => e.stopPropagation()}>
-            <div className="w-8 h-1 rounded-full mx-auto mb-2" style={{ background: 'var(--border-strong)' }} />
+            onClick={e => e.stopPropagation()}
+            onTouchStart={e => { sheetTouchStartY.current = e.touches[0].clientY }}
+            onTouchEnd={e => {
+              const dy = e.changedTouches[0].clientY - (sheetTouchStartY.current ?? e.changedTouches[0].clientY)
+              sheetTouchStartY.current = null
+              if (dy > 60) closeSheet()
+            }}>
+            <div className="w-8 h-1 rounded-full mx-auto mb-2" style={{ background: 'var(--border-strong)', touchAction: 'none' }} />
 
             {/* Gallery info strip */}
             <div className="px-1 pb-2" style={{ borderBottom: '1px solid var(--border)' }}>
