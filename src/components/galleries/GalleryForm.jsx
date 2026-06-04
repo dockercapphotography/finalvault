@@ -2,7 +2,7 @@ import Input from '../ui/Input.jsx'
 import Button from '../ui/Button.jsx'
 
 const TEMPLATES = [
-  { id: 'classic',   name: 'Classic',   description: 'Clean grid, similar to Pixieset' },
+  { id: 'classic',   name: 'Classic',   description: 'Clean grid, classic layout' },
   { id: 'minimal',   name: 'Minimal',   description: 'Full bleed, minimal UI chrome' },
   { id: 'editorial', name: 'Editorial', description: 'Magazine-style with typography' },
   { id: 'bold',      name: 'Bold',      description: 'Large hero image, dramatic' },

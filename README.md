@@ -18,7 +18,7 @@ Own your delivery experience. No monthly SaaS fees. No compromises.
 
 ---
 
-FinalVault is a self-hosted client gallery platform built for photographers who want full control over how they deliver work — without paying $30–60/month to Pixieset or Shootproof. Upload your edited images, configure access settings, and share a polished, mobile-friendly gallery link with your clients.
+FinalVault is a self-hosted client gallery platform built for photographers who want full control over how they deliver work — without paying $30–60/month to traditional gallery SaaS platforms. Upload your edited images, configure access settings, and share a polished, mobile-friendly gallery link with your clients.
 
 Clients get a beautiful, branded gallery experience with no account required. They can browse, favorite, comment, and download their photos. You decide exactly what they can do, for how long, and how it looks.
 
