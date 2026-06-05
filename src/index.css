@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-html, body {
+html, body, #root {
   overflow-x: hidden;
+  width: 100%;
 }
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
 
