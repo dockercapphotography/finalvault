@@ -923,6 +923,10 @@ export default function Dashboard() {
     await loadData()
   }
 
+  function handleFolderCoverChanged(folderId, coverR2Key, focusX = 0.5, focusY = 0.5) {
+    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, cover_r2_key: coverR2Key, cover_focus_x: focusX, cover_focus_y: focusY } : f))
+  }
+
   // Called when a new folder is created
   function handleFolderCreated(folder) {
     setFolders(prev => [...prev, folder])
@@ -1203,6 +1207,7 @@ export default function Dashboard() {
                 onNavigate={handleNavigateToFolder}
                 onRenamed={handleFolderRenamed}
                 onDeleted={handleFolderDeleted}
+                onCoverChanged={handleFolderCoverChanged}
               />
             ) : (
               <GalleryCard

@@ -39,7 +39,7 @@ export async function handleUpload(request, env, corsHeaders) {
   }
 
   // Key must follow expected pattern (original or preview)
-  if (!key.includes('/original/') && !key.includes('/preview/') && !key.includes('/web/')) {
+  if (!key.includes('/original/') && !key.includes('/preview/') && !key.includes('/web/') && !key.includes('/folders/')) {
     return jsonResponse({ ok: false, error: 'Invalid key: must contain /original/ or /preview/' }, 400, corsHeaders)
   }
 

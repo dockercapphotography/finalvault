@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.1.0'
+const VERSION = '1.1.1'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,23 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.1.1 — June 4, 2026">
+                  <Group label="Folder Cover Photos">
+                    <Item>Set a custom cover image for any folder via the ⋮ menu</Item>
+                    <Item>Full focal point picker — control how the image crops in the folder card</Item>
+                    <Item>Select from gallery images or upload a custom image</Item>
+                  </Group>
+                  <Group label="Faster Downloads">
+                    <Item>Web size JEPGs generated at upload — no more worker memory errors on large images</Item>
+                    <Item>Downloads serve pre-generated files directly — zero processing</Item>
+                  </Group>
+                  <Group label="Mobile Fixes">
+                    <Item>Fixed horizontal scroll caused by set tabs overflowing viewport</Item>
+                    <Item>iOS browser chrome no longer causes layout shifts</Item>
+                    <Item>iOS share sheet no longer re-prompts after cancelling download</Item>
+                    <Item>Swipe down to close mobile action sheet fixed</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.1.0 — June 3, 2026">
                   <Group label="Gallery Folders">
                     <Item>Organize galleries into nested folders with drag-and-drop</Item>

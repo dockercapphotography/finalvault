@@ -225,7 +225,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext, favorites, onToggleF
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.95)', maxWidth: '100vw', overflowX: 'hidden', left: 0, right: 0 }}
+      style={{ background: 'rgba(0,0,0,0.95)' }}
       onContextMenu={noContext}
       onClick={onClose}
       onTouchStart={handleTouchStart}
@@ -328,7 +328,7 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
     <div className="fixed inset-0 z-60 flex items-center justify-center px-4"
       style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
       onClick={onCancel}>
-      <style>{`.pin-input::placeholder { color: rgba(240,240,240,0.15); } .comment-input::placeholder { color: rgba(240,240,240,0.3); } body { scrollbar-width: none; overflow-x: hidden; } body::-webkit-scrollbar { display: none; } html { overflow-x: hidden; }`}</style>
+      <style>{`.pin-input::placeholder { color: rgba(240,240,240,0.15); } .comment-input::placeholder { color: rgba(240,240,240,0.3); } body { scrollbar-width: none; } body::-webkit-scrollbar { display: none; }`}</style>
       <div className="w-full max-w-xs rounded-2xl p-6 space-y-4"
         style={{ background: '#1e1e1e', border: '1px solid #333' }}
         onClick={e => e.stopPropagation()}>
@@ -667,7 +667,7 @@ export default function ClientGalleryView() {
       {sets.length > 1 && (
         <div className="overflow-x-auto"
           style={{ borderBottom: `1px solid ${theme.border}`, background: theme.bg }}>
-          <div className="flex items-center min-w-max px-4">
+          <div className="flex items-center px-4">
             {sets.map(set => (
               <button
                 key={set.id}
