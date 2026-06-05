@@ -64,6 +64,19 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.1.3 — June 4, 2026
+
+### New Features
+
+**Gallery Guide**
+- First-time clients see an onboarding modal walking them through the gallery
+- Steps are dynamic — only features that are enabled on the gallery appear (downloads, favorites, comments)
+- Download step description adjusts based on whether web size, high-res, or both are available
+- Guide is dismissed with a single "Go to gallery" button and never shown again (stored in localStorage)
+- Photographers can enable or disable the guide per gallery via Settings → Sharing
+
+---
+
 ## v1.1.0 — June 3, 2026
 
 ### New Features

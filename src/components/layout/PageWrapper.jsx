@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.1.2'
+const VERSION = '1.1.3'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -110,6 +110,14 @@ export default function PageWrapper({ session, children }) {
                     <Item>iOS browser chrome no longer causes layout shifts</Item>
                     <Item>iOS share sheet no longer re-prompts after cancelling download</Item>
                     <Item>Swipe down to close mobile action sheet fixed</Item>
+                  </Group>
+                </Section>
+                <Section title="v1.1.3 — June 4, 2026">
+                  <Group label="Gallery Guide">
+                    <Item>First-time clients see an onboarding modal explaining key gallery features</Item>
+                    <Item>Steps adjust dynamically — only enabled features appear</Item>
+                    <Item>Download step adapts to web size, high-res, or both</Item>
+                    <Item>Toggle per gallery in Settings → Sharing</Item>
                   </Group>
                 </Section>
                 <Section title="v1.1.0 — June 3, 2026">
