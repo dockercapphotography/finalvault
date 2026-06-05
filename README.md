@@ -18,7 +18,7 @@ Own your delivery experience. No monthly SaaS fees. No compromises.
 
 ---
 
-FinalVault is a self-hosted client gallery platform built for photographers who want full control over how they deliver work — without paying $30–60/month to traditional gallery SaaS platforms. Upload your edited images, configure access settings, and share a polished, mobile-friendly gallery link with your clients.
+FinalVault is a self-hosted client gallery platform built for photographers who want full control over how they deliver work — without paying $30–60/month to Pixieset or Shootproof. Upload your edited images, configure access settings, and share a polished, mobile-friendly gallery link with your clients.
 
 Clients get a beautiful, branded gallery experience with no account required. They can browse, favorite, comment, and download their photos. You decide exactly what they can do, for how long, and how it looks.
 
@@ -29,11 +29,11 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 ### For Photographers
 
 - **Gallery management** — create galleries with client name, event details, internal notes, and named photo sets
-- **Folder organization** — organize galleries into nested folders with drag-and-drop, breadcrumb navigation, and full path tracking
+- **Folder organization** — organize galleries into nested folders with drag-and-drop, breadcrumb navigation, full path tracking, and custom folder cover photos
 - **8 color themes** — Light, Dark, Slate, Dusk, Ember, Sage, Blush, Noir — applied per gallery
 - **Watermarking** — upload watermark images, configure opacity/position/scale, apply per image, set, or in bulk
 - **Gallery templates** — save your preferred settings as a reusable template for faster gallery creation
-- **Flexible downloads** — three independent download types: gallery display (WebP preview), web-size JPEG, and full-resolution original
+- **Flexible downloads** — three independent download types: gallery display (WebP preview), web-size JPEG (generated at upload time, served directly), and full-resolution original
 - **Access controls** — gallery password, download PIN, expiry date, active/inactive toggle
 - **Expiry reminders** — automatically email clients before their gallery expires (1, 3, 7, 14, or 30 days warning)
 - **Activity feed** — see who viewed, favorited, downloaded, and commented across all galleries
@@ -41,15 +41,18 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Daily digest emails** — morning summary of client activity, with per-event notification controls
 - **Share via email, link, or QR code** — with custom email templates, variable substitution, and your social/payment links in the footer
 - **Bookmarks** — save galleries and individual images for quick reference
+- **Gallery Guide control** — enable or disable the client onboarding guide per gallery
 
 ### For Clients
 
 - **No account required** — clients enter their email at the gallery gate, that's it
+- **Gallery Guide** — first-time visitors see a short onboarding modal explaining how to download, favorite, and comment; steps adjust dynamically based on what's enabled
 - **Set tabs** — galleries organized into named sections (Previews, Finals, etc.)
 - **Full-screen lightbox** — pinch-to-zoom, double-tap, swipe navigation, body scroll lock
-- **Favorites** — heart individual images; you see them in the activity feed
-- **Comments** — leave notes on specific images
+- **Favorites** — heart individual images; your photographer can see your picks
+- **Comments** — leave notes on specific images, including from inside the lightbox
 - **Downloads** — web-size JPEG or full-resolution original, individual or full-gallery ZIP
+- **iOS native downloads** — save directly to Photos via the system share sheet
 - **Right-click and drag protection** on preview images
 - **Mobile PWA** — installable as a home screen app on iOS and Android
 
@@ -115,7 +118,7 @@ Run the SQL migrations in order via the Supabase SQL editor:
 sql/001_photographers.sql
 sql/002_galleries.sql
 ...
-sql/016_pg_cron_digest_job.sql
+sql/019_show_guide.sql
 ```
 
 **4. Deploy the R2 Worker**
@@ -172,11 +175,13 @@ npx playwright test
 |-------|---------|
 | `photographers` | Profiles, branding, social/payment links |
 | `galleries` | Core gallery entity — settings, access, theme, share token |
+| `gallery_folders` | Nested folder organization for galleries |
 | `gallery_sets` | Named sets within a gallery |
 | `gallery_images` | Images with R2 keys, set assignment, watermark reference |
 | `gallery_viewers` | Client session tracking (no account required) |
 | `gallery_favorites` | Client favorites per image |
 | `gallery_comments` | Comments on images |
+| `gallery_selections` | Client proofing — submitted image selections |
 | `gallery_activity_log` | Audit trail: views, downloads, favorites, comments |
 | `gallery_templates` | Reusable gallery creation templates |
 | `watermarks` | Watermark images with opacity, position, and scale |
@@ -198,10 +203,11 @@ finalvault/
 │   ├── middleware/              # JWT auth, share token validation
 │   └── utils/                  # Image processing (resize, watermark, encode)
 ├── supabase/functions/          # Edge Functions — email delivery, digest, expiry reminders
-├── sql/                         # Incremental database migrations (001–016)
+├── sql/                         # Incremental database migrations (001–019)
 └── src/
     ├── routes/                  # Page components
     ├── components/              # UI components (galleries, images, watermarks, layout)
+    │   └── client/              # Client-facing components (GalleryGuide, etc.)
     ├── hooks/                   # useImageUpload, usePreviewUrls, usePageDrop
     └── utils/                   # API helpers, themes, image processing, R2 communication
 ```
