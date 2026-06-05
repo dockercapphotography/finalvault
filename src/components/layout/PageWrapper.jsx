@@ -89,6 +89,14 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.1.3 — June 4, 2026">
+                  <Group label="Gallery Guide">
+                    <Item>First-time clients see an onboarding modal explaining key gallery features</Item>
+                    <Item>Steps adjust dynamically — only enabled features appear</Item>
+                    <Item>Download step adapts to web size, high-res, or both</Item>
+                    <Item>Toggle per gallery in Settings → Sharing</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.1.2 — June 4, 2026">
                   <Group label="iOS Safari Fix">
                     <Item>Fixed iOS Safari auto-zooming the page by 6.67%, causing UI elements to be cut off and the background to shift when swiping</Item>
@@ -110,14 +118,6 @@ export default function PageWrapper({ session, children }) {
                     <Item>iOS browser chrome no longer causes layout shifts</Item>
                     <Item>iOS share sheet no longer re-prompts after cancelling download</Item>
                     <Item>Swipe down to close mobile action sheet fixed</Item>
-                  </Group>
-                </Section>
-                <Section title="v1.1.3 — June 4, 2026">
-                  <Group label="Gallery Guide">
-                    <Item>First-time clients see an onboarding modal explaining key gallery features</Item>
-                    <Item>Steps adjust dynamically — only enabled features appear</Item>
-                    <Item>Download step adapts to web size, high-res, or both</Item>
-                    <Item>Toggle per gallery in Settings → Sharing</Item>
                   </Group>
                 </Section>
                 <Section title="v1.1.0 — June 3, 2026">
