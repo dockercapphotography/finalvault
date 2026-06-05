@@ -4,6 +4,20 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.1.2 — June 4, 2026
+
+### Bug Fixes
+
+**iOS Safari Layout Fix**
+- Fixed iOS Safari automatically zooming the page by 6.67% due to automatic text size adjustment
+- Root cause: Safari was bumping font size from 15px to 16px and zooming the entire page to compensate (`visualViewport.scale` was 1.0666667 instead of 1.0)
+- This caused UI elements (download button, sticky header) to appear cut off on the right edge
+- Also caused the page background to visibly shift when swiping in the lightbox
+- Fixed with `-webkit-text-size-adjust: 100%` — tells Safari the text size is already correct
+- Also added `overscroll-behavior: none` to prevent iOS elastic horizontal bounce
+
+---
+
 ## v1.1.1 — June 4, 2026
 
 ### New Features
@@ -24,10 +38,9 @@ All notable changes to FinalVault are documented here.
 ### Bug Fixes
 
 **Mobile / iOS**
-- Fixed horizontal scroll caused by set tabs container (`min-w-max`) being wider than the viewport
-- Added `overflow-x: hidden` globally to `html` and `body` to prevent horizontal drift
-- Lightbox uses `overscroll-behavior: none` to reduce background page movement on iOS
-- Hero and root container now use `100svh` (small viewport height) instead of `100vh` — prevents layout shifts when iOS browser chrome shows/hides
+- Fixed horizontal scroll caused by set tabs container being wider than the viewport
+- Added `overflow-x: hidden` globally to prevent horizontal drift
+- Hero and root container now use `100svh` instead of `100vh`
 - Sticky header constrained to `100%` width with `box-sizing: border-box`
 - iOS share sheet no longer re-prompts after user cancels download
 
@@ -38,17 +51,16 @@ All notable changes to FinalVault are documented here.
 
 **Client Gallery**
 - Comment button in lightbox no longer closes the lightbox before opening comments
-- Comment overlay z-index raised above lightbox so it renders on top
-- Scrollbar hidden on client gallery (was visible as white/black bar on mobile)
+- Comment overlay z-index raised above lightbox
+- Scrollbar hidden on client gallery
 
 **Photographer Dashboard**
-- Swipe down to close mobile action sheet now works correctly (uses ref instead of event property)
+- Swipe down to close mobile action sheet now works correctly
 
 ### Infrastructure
 - R2 worker serves `web_r2_key` directly for fast zero-processing downloads
 - `gallery_folders` table: added `cover_r2_key`, `cover_focus_x`, `cover_focus_y` columns
 - `gallery_images` table: added `web_r2_key`, `web_size` columns
-- Storage calculations exclude preview and web file sizes — only original uploads count
 
 ---
 
@@ -81,9 +93,9 @@ All notable changes to FinalVault are documented here.
 ### Improvements
 
 **Navigation & Breadcrumbs**
-- Gallery detail, settings, and activity pages now show breadcrumb navigation instead of plain back button
+- Gallery detail, settings, and activity pages now show breadcrumb navigation
 - Breadcrumb shows full folder path
-- Clicking any folder segment in the breadcrumb navigates back to that exact folder level
+- Clicking any folder segment navigates back to that exact folder level
 
 **Performance**
 - Preview images cached in memory after first load

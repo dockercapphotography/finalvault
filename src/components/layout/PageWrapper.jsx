@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.1.1'
+const VERSION = '1.1.2'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,12 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.1.2 — June 4, 2026">
+                  <Group label="iOS Safari Fix">
+                    <Item>Fixed iOS Safari auto-zooming the page by 6.67%, causing UI elements to be cut off and the background to shift when swiping</Item>
+                    <Item>Added overscroll-behavior: none to prevent elastic horizontal bounce</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.1.1 — June 4, 2026">
                   <Group label="Folder Cover Photos">
                     <Item>Set a custom cover image for any folder via the ⋮ menu</Item>
