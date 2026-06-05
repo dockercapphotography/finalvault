@@ -11,7 +11,7 @@ export async function getGalleryByToken(token) {
       require_password, allow_downloads, allow_favorites, allow_comments,
       require_download_pin, download_watermarked, allow_hires_download, share_token,
       photographer_id, cover_image_id, cover_r2_key, cover_focus_x, cover_focus_y,
-      event_date, plain_password, plain_download_pin,
+      event_date, plain_password, plain_download_pin, show_guide,
       theme_color, grid_size, grid_spacing, allow_proofing
     `)
     .eq('share_token', token)

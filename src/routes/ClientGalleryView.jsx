@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
+import GalleryGuide from '../components/client/GalleryGuide.jsx'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import {
   getGalleryByToken, getClientImages, getViewerFromSession,
@@ -756,6 +757,10 @@ export default function ClientGalleryView() {
           progress={zipProgress.current}
           total={zipProgress.total}
         />
+      )}
+
+      {gallery && gallery.show_guide && (
+        <GalleryGuide gallery={gallery} />
       )}
 
 

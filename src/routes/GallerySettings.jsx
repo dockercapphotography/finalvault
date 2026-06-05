@@ -130,6 +130,7 @@ export default function GallerySettings() {
   const [allowHiresDownload, setAllowHiresDownload] = useState(false)
   const [allowFavorites, setAllowFavorites] = useState(true)
   const [allowComments, setAllowComments] = useState(true)
+  const [showGuide, setShowGuide] = useState(true)
   const [expiryWarningEnabled, setExpiryWarningEnabled] = useState(false)
   const [expiryWarningDays, setExpiryWarningDays] = useState(3)
   const [themeColor, setThemeColor] = useState('light')
@@ -167,6 +168,7 @@ export default function GallerySettings() {
       setAllowHiresDownload(g.allow_hires_download ?? false)
       setAllowFavorites(g.allow_favorites ?? true)
       setAllowComments(g.allow_comments ?? true)
+      setShowGuide(g.show_guide ?? true)
       setExpiryWarningEnabled(g.expiry_warning_enabled ?? false)
       setExpiryWarningDays(g.expiry_warning_days ?? 3)
       setThemeColor(g.theme_color || 'light')
@@ -207,7 +209,7 @@ export default function GallerySettings() {
         title, clientName, eventName, notes, eventDate, isActive, expiresAt, expiryWarningEnabled, expiryWarningDays,
         requirePassword, password, requireDownloadPin, downloadPin,
         allowDownloads, downloadWatermarked, allowHiresDownload,
-        allowFavorites, allowComments, themeColor, gridSize, gridSpacing,
+        allowFavorites, allowComments, showGuide, themeColor, gridSize, gridSpacing,
         ...overrides
       }
       await updateGallery(id, {
@@ -229,6 +231,7 @@ export default function GallerySettings() {
         expiry_warning_enabled: s.expiryWarningEnabled,
         expiry_warning_days: s.expiryWarningDays,
         allow_comments: s.allowComments,
+        show_guide: s.showGuide,
         theme_color: s.themeColor,
         grid_size: s.gridSize,
         grid_spacing: s.gridSpacing,
@@ -238,7 +241,7 @@ export default function GallerySettings() {
   }, [gallery, title, clientName, eventName, notes, eventDate, isActive, expiresAt, expiryWarningEnabled, expiryWarningDays,
       requirePassword, password, requireDownloadPin, downloadPin,
       allowDownloads, downloadWatermarked, allowHiresDownload,
-      allowFavorites, allowComments, themeColor, gridSize, gridSpacing, id])
+      allowFavorites, allowComments, showGuide, themeColor, gridSize, gridSpacing, id])
 
   function handleToggle(setter, key, val) {
     setter(val)
@@ -376,6 +379,12 @@ export default function GallerySettings() {
             </SettingsRow>
 
           </SettingsSection>
+
+          <SettingsSection title="Gallery Guide" description="Walk clients through the gallery on their first visit">
+            <SettingsRow label="Show gallery guide" description="Clients see a short tutorial the first time they open the gallery">
+              <Toggle checked={showGuide} onChange={v => handleToggle(setShowGuide, 'showGuide', v)} />
+            </SettingsRow>
+          </SettingsSection>
           <SettingsSection title="Expiry" description="Set a gallery expiry date and optionally notify viewers before it expires">
             <div className="px-5 py-4" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
               <Input label="Expiry date" value={expiresAt} onChange={setExpiresAt} onBlur={() => save()} type="date" hint="Gallery automatically deactivates after this date. Leave blank for no expiry." />
@@ -456,6 +465,7 @@ export default function GallerySettings() {
               </div>
             </div>
           </SettingsSection>
+
         </div>
       )}
 
