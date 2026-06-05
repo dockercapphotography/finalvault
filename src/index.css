@@ -3,7 +3,6 @@
 html, body, #root {
   overflow-x: hidden;
   width: 100%;
-  overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
