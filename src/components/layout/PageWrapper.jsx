@@ -89,7 +89,7 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
-                <Section title="v1.1.3 — June 4, 2026">
+<Section title="v1.1.3 — June 4, 2026">
                   <Group label="Gallery Guide">
                     <Item>First-time clients see an onboarding modal explaining key gallery features</Item>
                     <Item>Steps adjust dynamically — only enabled features appear</Item>
@@ -143,7 +143,7 @@ export default function PageWrapper({ session, children }) {
                 <Section title="v1.0.0 — May 31, 2026">
                   <Item>Initial release — gallery management, client delivery, favorites, comments, downloads, watermarks, activity feed, admin panel</Item>
                 </Section>
-              </div>
+                              </div>
             </div>
           </div>
         </>
