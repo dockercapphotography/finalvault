@@ -1,3 +1,4 @@
+import BottomSheet from './BottomSheet.jsx'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { useState, useEffect, useRef } from 'react'
 import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle } from 'lucide-react'
@@ -57,6 +58,7 @@ export default function NotificationBell({ mobile = false }) {
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(false)
   const panelRef = useRef(null)
+
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -188,22 +190,10 @@ export default function NotificationBell({ mobile = false }) {
           Alerts
         </button>
 
-        {open && (
-          <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.3)' }}
-            onClick={() => setOpen(false)} />
-        )}
-        <div
-          className="fixed left-0 right-0 bottom-0 z-50 rounded-t-2xl shadow-2xl overflow-hidden transition-transform duration-300"
-          style={{
-            background: 'var(--surface)',
-            transform: open ? 'translateY(0)' : 'translateY(100%)',
-            maxHeight: '75vh',
-          }}>
-          <div className="flex justify-center pt-3 pb-1">
-            <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-strong)' }} />
-          </div>
+
+        <BottomSheet open={open} onClose={() => setOpen(false)} maxHeight="75vh">
           <NotificationPanel groups={groups} loading={loading} items={items} onClose={() => setOpen(false)} />
-        </div>
+        </BottomSheet>
       </div>
     )
   }

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useNavigate, useLocation } from 'react-router-dom'
-import {Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Circle, Folder, FolderPlus, Home, Images, Plus, Search, Share2, SlidersHorizontal, Upload, X} from 'lucide-react'
+import {ArrowDownUp, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Circle, Folder, FolderPlus, Home, Images, LayoutGrid, Plus, Search, Share2, SlidersHorizontal, Upload, X} from 'lucide-react'
+import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { getGalleries, getFolders, getTags, createFolder, moveGalleryToFolder } from '../utils/galleryApi.js'
 import { getBookmarkedGalleryIds } from '../utils/bookmarkApi.js'
 import { supabase } from '../supabaseClient.js'
@@ -347,109 +348,254 @@ function DateRangePill({ label, value, onChange, presets }) {
   )
 }
 
-function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, eventDateFilter, setEventDateFilter, expiryFilter, setExpiryFilter, tagFilter, setTagFilter, allTags, eventPresets, expiryPresets, hasFilters, onClear }) {
+function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, eventDateFilter, setEventDateFilter, expiryFilter, setExpiryFilter, tagFilter, setTagFilter, allTags, eventPresets, expiryPresets, hasFilters, onClear, sortBy, setSortBy, gridSize, setGridSize }) {
   const [visible, setVisible] = useState(false)
+  const [subScreen, setSubScreen] = useState(null) // null | 'status' | 'eventDate' | 'expiry' | 'tags' | 'sort'
+  const sheetTouchStartY = useRef(null)
+  const sheetRef = useRef(null)
+  const sheetDragY = useRef(0)
+
+  useScrollLock(open)
   useEffect(() => {
     if (open) requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
-    else setVisible(false)
+    else { setVisible(false); setSubScreen(null) }
+  }, [open])
+  useEffect(() => {
+    if (!open || !sheetRef.current) return
+    function blockTouch(e) {
+      // Allow scrolling inside elements with overflow scroll/auto
+      let el = e.target
+      while (el && el !== sheetRef.current) {
+        const style = window.getComputedStyle(el)
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') return
+        el = el.parentElement
+      }
+      e.preventDefault()
+    }
+    const el = sheetRef.current
+    el.addEventListener('touchmove', blockTouch, { passive: false })
+    return () => el.removeEventListener('touchmove', blockTouch)
   }, [open])
 
-  const statusOptions = [
-    { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
-    { value: 'expired', label: 'Expired' },
+  const SORT_OPTIONS = [
+    { id: 'created_desc', label: 'Created: New → Old' },
+    { id: 'created_asc',  label: 'Created: Old → New' },
+    { id: 'event_desc',   label: 'Event Date: New → Old' },
+    { id: 'event_asc',    label: 'Event Date: Old → New' },
+    { id: 'updated_desc', label: 'Last Updated: New → Old' },
+    { id: 'updated_asc',  label: 'Last Updated: Old → New' },
+    { id: 'name_asc',     label: 'Name: A → Z' },
+    { id: 'name_desc',    label: 'Name: Z → A' },
   ]
 
-  if (!open) return null
+  const STATUS_OPTIONS = [
+    { value: null,       label: 'Any' },
+    { value: 'active',   label: 'Active' },
+    { value: 'inactive', label: 'Inactive' },
+    { value: 'expired',  label: 'Expired' },
+  ]
 
-  return (
+  function statusLabel() {
+    return STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'Any'
+  }
+  function eventDateLabel() {
+    if (!eventDateFilter) return 'Any'
+    return eventPresets.find(p => p.value === eventDateFilter.preset)?.label ?? 'Any'
+  }
+  function expiryLabel() {
+    if (!expiryFilter) return 'Any'
+    return expiryPresets.find(p => p.value === expiryFilter.preset)?.label ?? 'Any'
+  }
+  function tagsLabel() {
+    if (tagFilter.length === 0) return 'None'
+    if (tagFilter.length === 1) return allTags.find(t => t.id === tagFilter[0])?.name ?? '1 selected'
+    return `${tagFilter.length} selected`
+  }
+  function sortLabel() {
+    return SORT_OPTIONS.find(o => o.id === sortBy)?.label ?? 'Created: New → Old'
+  }
+
+  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }
+  const rowLabelStyle = { fontSize: 15, color: 'var(--text)' }
+  const rowValStyle = (set) => ({ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: set ? '#6366f1' : 'var(--text-muted)' })
+  const radioRowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }
+
+  function RadioDot({ selected }) {
+    return (
+      <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${selected ? '#6366f1' : 'var(--border-strong)'}`, background: selected ? '#6366f1' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {selected && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />}
+      </div>
+    )
+  }
+
+  function CheckBox({ selected }) {
+    return (
+      <div style={{ width: 20, height: 20, borderRadius: 6, border: `1.5px solid ${selected ? '#6366f1' : 'var(--border-strong)'}`, background: selected ? '#6366f1' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {selected && <svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4 7L10 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+      </div>
+    )
+  }
+
+  const sheetContent = (
     <>
-      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onClose} />
-      <div className="fixed left-0 right-0 bottom-0 z-50 rounded-t-2xl"
-        style={{
-          background: 'var(--surface)',
-          transform: visible ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
-          maxHeight: '80vh', overflowY: 'auto',
-        }}>
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-strong)' }} />
-        </div>
-        <div className="px-5 py-4 space-y-5">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Filters</h3>
-            {hasFilters && (
-              <button onClick={onClear} className="text-xs" style={{ color: '#6366f1', cursor: 'pointer', background: 'none', border: 'none' }}>Clear all</button>
+      {subScreen === null && (
+        <>
+          {/* Main header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>Filters & sort</span>
+            {hasFilters && <button onClick={onClear} style={{ fontSize: 13, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>}
+          </div>
+          {/* Filter rows */}
+          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
+            <button style={rowStyle} onClick={() => setSubScreen('status')}>
+              <span style={rowLabelStyle}>Status</span>
+              <span style={rowValStyle(!!statusFilter)}>{statusLabel()} <ChevronRight size={14} /></span>
+            </button>
+            <button style={rowStyle} onClick={() => setSubScreen('eventDate')}>
+              <span style={rowLabelStyle}>Event date</span>
+              <span style={rowValStyle(!!eventDateFilter)}>{eventDateLabel()} <ChevronRight size={14} /></span>
+            </button>
+            <button style={rowStyle} onClick={() => setSubScreen('expiry')}>
+              <span style={rowLabelStyle}>Expiry</span>
+              <span style={rowValStyle(!!expiryFilter)}>{expiryLabel()} <ChevronRight size={14} /></span>
+            </button>
+            {allTags.length > 0 && (
+              <button style={rowStyle} onClick={() => setSubScreen('tags')}>
+                <span style={rowLabelStyle}>Tags</span>
+                <span style={rowValStyle(tagFilter.length > 0)}>{tagsLabel()} <ChevronRight size={14} /></span>
+              </button>
+            )}
+            <button style={{ ...rowStyle, borderTop: '0.5px solid var(--border)', marginTop: 8 }} onClick={() => setSubScreen('sort')}>
+              <span style={rowLabelStyle}>Sort by</span>
+              <span style={rowValStyle(false)}>{sortLabel()} <ChevronRight size={14} /></span>
+            </button>
+          </div>
+          <div style={{ padding: '12px 16px 24px', flexShrink: 0 }}>
+            <button onClick={onClose} style={{ width: '100%', padding: '13px', borderRadius: 12, background: '#6366f1', color: '#fff', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Done</button>
+          </div>
+        </>
+      )}
+
+      {subScreen === 'status' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
+              <ChevronLeft size={16} /> Back
+            </button>
+            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Status</span>
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
+            {STATUS_OPTIONS.map(opt => (
+              <button key={String(opt.value)} style={radioRowStyle} onClick={() => { setStatusFilter(opt.value); setSubScreen(null) }}>
+                <span style={{ fontSize: 15, color: 'var(--text)' }}>{opt.label}</span>
+                <RadioDot selected={statusFilter === opt.value} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {subScreen === 'eventDate' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
+              <ChevronLeft size={16} /> Back
+            </button>
+            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Event date</span>
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
+            <button style={radioRowStyle} onClick={() => { setEventDateFilter(null); setSubScreen(null) }}>
+              <span style={{ fontSize: 15, color: 'var(--text)' }}>Any</span>
+              <RadioDot selected={!eventDateFilter} />
+            </button>
+            {eventPresets.map(p => (
+              <button key={p.value} style={radioRowStyle} onClick={() => { setEventDateFilter({ type: 'preset', preset: p.value }); setSubScreen(null) }}>
+                <span style={{ fontSize: 15, color: 'var(--text)' }}>{p.label}</span>
+                <RadioDot selected={eventDateFilter?.preset === p.value} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {subScreen === 'expiry' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
+              <ChevronLeft size={16} /> Back
+            </button>
+            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Expiry</span>
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
+            <button style={radioRowStyle} onClick={() => { setExpiryFilter(null); setSubScreen(null) }}>
+              <span style={{ fontSize: 15, color: 'var(--text)' }}>Any</span>
+              <RadioDot selected={!expiryFilter} />
+            </button>
+            {expiryPresets.map(p => (
+              <button key={p.value} style={radioRowStyle} onClick={() => { setExpiryFilter({ type: 'preset', preset: p.value }); setSubScreen(null) }}>
+                <span style={{ fontSize: 15, color: 'var(--text)' }}>{p.label}</span>
+                <RadioDot selected={expiryFilter?.preset === p.value} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {subScreen === 'tags' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
+              <ChevronLeft size={16} /> Back
+            </button>
+            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Tags</span>
+            {tagFilter.length > 0 && (
+              <button onClick={() => setTagFilter([])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: 13, padding: 0, marginLeft: 'auto' }}>Clear</button>
             )}
           </div>
-          <div>
-            <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Status</p>
-            <div className="flex flex-wrap gap-2">
-              {statusOptions.map(opt => (
-                <button key={opt.value} onClick={() => setStatusFilter(statusFilter === opt.value ? null : opt.value)}
-                  className="px-3 py-1.5 rounded-full text-sm font-medium"
-                  style={{ background: statusFilter === opt.value ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', border: `1px solid ${statusFilter === opt.value ? '#6366f1' : 'var(--border)'}`, color: statusFilter === opt.value ? '#6366f1' : 'var(--text)', cursor: 'pointer' }}>
-                  {opt.label}
+          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
+            {allTags.map(tag => {
+              const selected = tagFilter.includes(tag.id)
+              return (
+                <button key={tag.id} style={{ ...radioRowStyle, gap: 12 }}
+                  onClick={() => setTagFilter(selected ? tagFilter.filter(id => id !== tag.id) : [...tagFilter, tag.id])}>
+                  <CheckBox selected={selected} />
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: tag.color || '#6366f1', flexShrink: 0 }} />
+                  <span style={{ fontSize: 15, color: 'var(--text)', flex: 1, textAlign: 'left' }}>{tag.name}</span>
                 </button>
-              ))}
-            </div>
+              )
+            })}
           </div>
-          <div>
-            <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Event Date</p>
-            <div className="flex flex-wrap gap-2">
-              {eventPresets.map(p => {
-                const active = eventDateFilter?.preset === p.value
-                return (
-                  <button key={p.value} onClick={() => setEventDateFilter(active ? null : { type: 'preset', preset: p.value })}
-                    className="px-3 py-1.5 rounded-full text-sm font-medium"
-                    style={{ background: active ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`, color: active ? '#6366f1' : 'var(--text)', cursor: 'pointer' }}>
-                    {p.label}
-                  </button>
-                )
-              })}
-            </div>
+          <div style={{ padding: '12px 16px 24px', flexShrink: 0 }}>
+            <button onClick={() => setSubScreen(null)} style={{ width: '100%', padding: '13px', borderRadius: 12, background: '#6366f1', color: '#fff', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Done</button>
           </div>
-          <div>
-            <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Expiry</p>
-            <div className="flex flex-wrap gap-2">
-              {expiryPresets.map(p => {
-                const active = expiryFilter?.preset === p.value
-                return (
-                  <button key={p.value} onClick={() => setExpiryFilter(active ? null : { type: 'preset', preset: p.value })}
-                    className="px-3 py-1.5 rounded-full text-sm font-medium"
-                    style={{ background: active ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`, color: active ? '#6366f1' : 'var(--text)', cursor: 'pointer' }}>
-                    {p.label}
-                  </button>
-                )
-              })}
-            </div>
+        </>
+      )}
+
+      {subScreen === 'sort' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
+              <ChevronLeft size={16} /> Back
+            </button>
+            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Sort by</span>
           </div>
-          {allTags.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Tags</p>
-              <div className="flex flex-wrap gap-2">
-                {allTags.map(tag => {
-                  const active = tagFilter.includes(tag.id)
-                  return (
-                    <button key={tag.id} onClick={() => setTagFilter(active ? tagFilter.filter(id => id !== tag.id) : [...tagFilter, tag.id])}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
-                      style={{ background: active ? (tag.color || '#6366f1') + '22' : 'var(--surface-raised)', border: `1px solid ${active ? (tag.color || '#6366f1') : 'var(--border)'}`, color: active ? (tag.color || '#6366f1') : 'var(--text-muted)', cursor: 'pointer' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: tag.color || '#6366f1', display: 'inline-block' }} />
-                      {tag.name}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-          <button onClick={onClose}
-            className="w-full py-3 rounded-xl text-sm font-medium"
-            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            Done
-          </button>
-        </div>
-      </div>
+          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
+            {SORT_OPTIONS.map(opt => (
+              <button key={opt.id} style={radioRowStyle} onClick={() => { setSortBy(opt.id); setSubScreen(null) }}>
+                <span style={{ fontSize: 15, color: 'var(--text)' }}>{opt.label}</span>
+                <RadioDot selected={sortBy === opt.id} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </>
+  )
+
+  return (
+    <BottomSheet open={open} onClose={onClose}>
+      {sheetContent}
+    </BottomSheet>
   )
 }
 
@@ -893,6 +1039,118 @@ function buildFolderCoverUrls(galleries, authToken) {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
+
+
+function DisplayDropdown({ gridSize, onGridSize }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center justify-center px-2.5 py-1.5 rounded-lg text-sm transition-colors"
+        style={{
+          background: open ? 'var(--surface-raised)' : 'var(--surface)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+        }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = open ? 'var(--border-strong)' : 'var(--border)'}
+        title="Display options"
+      >
+        <LayoutGrid size={15} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-44 rounded-xl shadow-lg z-30 overflow-hidden"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p className="px-4 pt-3 pb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Grid Size</p>
+          {[{ id: 'default', label: 'Default' }, { id: 'large', label: 'Large' }].map(opt => (
+            <button key={opt.id} onClick={() => { onGridSize(opt.id); setOpen(false) }}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left"
+              style={{ cursor: 'pointer', color: opt.id === gridSize ? 'var(--text)' : 'var(--text-secondary)', background: 'transparent', border: 'none' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-raised)'; e.currentTarget.style.cursor = 'pointer' }}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              {opt.label}
+              {opt.id === gridSize && <Check size={13} style={{ color: 'var(--accent)' }} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const DASHBOARD_SORT_OPTIONS = [
+  { id: 'created_desc', label: 'Created: New → Old' },
+  { id: 'created_asc',  label: 'Created: Old → New' },
+  { id: 'event_desc',   label: 'Event Date: New → Old' },
+  { id: 'event_asc',    label: 'Event Date: Old → New' },
+  { id: 'updated_desc', label: 'Last Updated: New → Old' },
+  { id: 'updated_asc',  label: 'Last Updated: Old → New' },
+  { id: 'name_asc',     label: 'Name: A → Z' },
+  { id: 'name_desc',    label: 'Name: Z → A' },
+]
+
+function DashboardSortDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  const current = DASHBOARD_SORT_OPTIONS.find(o => o.id === value) || DASHBOARD_SORT_OPTIONS[0]
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors"
+        style={{
+          background: open ? 'var(--surface-raised)' : 'var(--surface)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+        }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = open ? 'var(--border-strong)' : 'var(--border)'}
+        title="Sort galleries"
+      >
+        <ArrowDownUp size={14} />
+        <span className="hidden sm:inline">{current.label}</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-56 rounded-xl shadow-lg z-30 overflow-hidden"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p className="px-4 pt-3 pb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Sort galleries by</p>
+          {DASHBOARD_SORT_OPTIONS.map(option => (
+            <button key={option.id} onClick={() => { onChange(option.id); setOpen(false) }}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left"
+              style={{ cursor: 'pointer', color: option.id === value ? 'var(--text)' : 'var(--text-secondary)', background: 'transparent', border: 'none' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-raised)'; e.currentTarget.style.cursor = 'pointer' }}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              {option.label}
+              {option.id === value && <Check size={13} style={{ color: 'var(--accent)' }} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -903,6 +1161,8 @@ export default function Dashboard() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(null)
   const [tagFilter, setTagFilter] = useState([])
+  const [sortBy, setSortBy] = useState('created_desc')
+  const [gridSize, setGridSize] = useState('default')
   const [allTags, setAllTags] = useState([])
   const [eventDateFilter, setEventDateFilter] = useState(null)
   const [expiryFilter, setExpiryFilter] = useState(null)
@@ -1192,6 +1452,10 @@ export default function Dashboard() {
               Clear all
             </button>
           )}
+          <div className="ml-auto flex items-center gap-2">
+            <DashboardSortDropdown value={sortBy} onChange={setSortBy} />
+            <DisplayDropdown gridSize={gridSize} onGridSize={setGridSize} />
+          </div>
         </div>
       )}
 
@@ -1210,10 +1474,10 @@ export default function Dashboard() {
         <div className="ml-auto flex items-center gap-2">
           {(galleries.length > 0 || folders.length > 0) && (
             <button onClick={() => setMobileFilterOpen(true)}
-              className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
-              style={{ background: hasFilters ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${hasFilters ? '#6366f1' : 'var(--border)'}`, color: hasFilters ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer' }}>
-              <SlidersHorizontal size={14} />
-              Filters
+              className="relative flex items-center justify-center rounded-xl"
+              style={{ width: 44, height: 44, background: hasFilters ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${hasFilters ? '#6366f1' : 'var(--border)'}`, color: hasFilters ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
+              aria-label="Filters">
+              <SlidersHorizontal size={18} />
               {activeFilterCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
                   style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
@@ -1224,14 +1488,20 @@ export default function Dashboard() {
           )}
           <button
             onClick={() => setNewFolderOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-2 rounded-lg text-sm"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+            className="flex items-center justify-center rounded-xl"
+            style={{ width: 44, height: 44, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
+            aria-label="New Folder"
           >
-            <FolderPlus size={15} />
+            <FolderPlus size={18} />
           </button>
-          <Button onClick={() => navigate('/galleries/new', { state: { folderId: currentFolderId } })} className="shrink-0">
-            <Plus size={15} />New
-          </Button>
+          <button
+            onClick={() => navigate('/galleries/new', { state: { folderId: currentFolderId } })}
+            className="flex items-center justify-center rounded-xl"
+            style={{ width: 44, height: 44, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+            aria-label="New Gallery"
+          >
+            <Plus size={18} />
+          </button>
         </div>
       </div>
 
@@ -1278,9 +1548,40 @@ export default function Dashboard() {
       {!loading && !error && (visibleFolders.length > 0 || filteredGalleries.length > 0) && (() => {
         const folderItems = (isSearching || tagFilter.length > 0 || statusFilter || eventDateFilter || expiryFilter) ? [] : visibleFolders.map(f => ({ ...f, _type: 'folder', _sortKey: f.created_at }))
         const galleryItems = filteredGalleries.map(g => ({ ...g, _type: 'gallery', _sortKey: g.created_at }))
-        const allItems = [...folderItems, ...galleryItems].sort((a, b) => new Date(b._sortKey) - new Date(a._sortKey))
+        function sortItems(items) {
+          switch (sortBy) {
+            case 'created_asc':
+              return [...items].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+            case 'event_desc':
+              return [...items].sort((a, b) => {
+                if (!a.event_date && !b.event_date) return 0
+                if (!a.event_date) return 1
+                if (!b.event_date) return -1
+                return new Date(b.event_date) - new Date(a.event_date)
+              })
+            case 'event_asc':
+              return [...items].sort((a, b) => {
+                if (!a.event_date && !b.event_date) return 0
+                if (!a.event_date) return 1
+                if (!b.event_date) return -1
+                return new Date(a.event_date) - new Date(b.event_date)
+              })
+            case 'updated_desc':
+              return [...items].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+            case 'updated_asc':
+              return [...items].sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at))
+            case 'name_asc':
+              return [...items].sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''))
+            case 'name_desc':
+              return [...items].sort((a, b) => (b.title || b.name || '').localeCompare(a.title || a.name || ''))
+            case 'created_desc':
+            default:
+              return [...items].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          }
+        }
+        const allItems = sortItems([...folderItems, ...galleryItems])
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className={gridSize === 'large' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"}>
             {allItems.map(item => item._type === 'folder' ? (
               <FolderCard
                 key={`folder-${item.id}`}
@@ -1354,6 +1655,7 @@ export default function Dashboard() {
         tagFilter={tagFilter} setTagFilter={setTagFilter} allTags={allTags}
         eventPresets={EVENT_PRESETS} expiryPresets={EXPIRY_PRESETS}
         hasFilters={hasFilters} onClear={clearAllFilters}
+        sortBy={sortBy} setSortBy={setSortBy} gridSize={gridSize} setGridSize={setGridSize}
       />
 
       <NewFolderModal

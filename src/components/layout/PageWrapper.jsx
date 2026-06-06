@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.1.5'
+const VERSION = '1.1.6'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,21 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.1.6 — June 6, 2026">
+                  <Group label="Dashboard sort &amp; display">
+                    <Item>Sort galleries by Created, Event Date, Last Updated, or Name</Item>
+                    <Item>Toggle between Default and Large grid sizes on desktop</Item>
+                  </Group>
+                  <Group label="Filter improvements">
+                    <Item>All filters flatten folder structure — shows matching galleries across all folders</Item>
+                    <Item>Mobile filter sheet redesigned with drill-down sub-screens</Item>
+                    <Item>Mobile header buttons are now icon-only with larger tap targets</Item>
+                  </Group>
+                  <Group label="Bottom sheets">
+                    <Item>All mobile bottom sheets now share a single consistent component</Item>
+                    <Item>Swipe-down-to-close and background scroll lock on every sheet</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.1.5 — June 5, 2026">
                   <Group label="Gallery Category Tags">
                     <Item>Create a tag library with custom colors via Account → Tags</Item>

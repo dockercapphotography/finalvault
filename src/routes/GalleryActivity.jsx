@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, Heart, HeartOff, MessageCircle, Download, Package, CheckCircle, X, ChevronLeft, ChevronRight, MoreVertical, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
 import { formatDate } from '../utils/formatters.js'
+import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
 
@@ -62,8 +63,6 @@ function avatarColor(str) {
 function FavoritesLightbox({ images, startIndex, authToken, onClose }) {
   const [index, setIndex] = useState(startIndex)
   const touchStartX = useRef(null)
-
-  useScrollLock(true)
 
   useEffect(() => {
     function handleKey(e) {
@@ -285,6 +284,7 @@ function ClientFavoritesPanel({ viewer, favorites, authToken, totalImages, onClo
   const [visible, setVisible] = useState(false)
   const color = avatarColor(viewer.email || viewer.display_name)
 
+
   useScrollLock(true)
 
   useEffect(() => {
@@ -306,31 +306,13 @@ function ClientFavoritesPanel({ viewer, favorites, authToken, totalImages, onClo
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-40"
-        style={{
-          background: visible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
-          transition: 'background 0.28s ease',
-          backdropFilter: visible ? 'blur(2px)' : 'none',
-        }}
-        onClick={handleClose}
-      />
+
 
       {/* Mobile: bottom sheet */}
-      <div
-        className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl overflow-hidden md:hidden"
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderBottom: 'none',
-          maxHeight: '85vh',
-          transform: visible ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)',
-        }}>
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-8 h-1 rounded-full" style={{ background: 'var(--border-strong)' }} />
-        </div>
-        <PanelContent {...panelProps} />
+      <div className="md:hidden">
+        <BottomSheet open={true} onClose={handleClose}>
+          <PanelContent {...panelProps} />
+        </BottomSheet>
       </div>
 
       {/* Desktop: right slide-in */}

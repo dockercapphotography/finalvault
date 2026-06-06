@@ -4,6 +4,33 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.1.6 — June 6, 2026
+
+### New Features
+
+**Dashboard Gallery Sort**
+- New sort dropdown on the dashboard — sort by Created, Event Date, Last Updated, or Name
+- Sort applies to both galleries and folders in the current view
+- Sort available in the mobile filter sheet under "Sort by"
+
+**Dashboard Display Options**
+- New display button on desktop — toggle between Default and Large grid sizes
+- Grid size control lives in the desktop toolbar; hidden on mobile (full-width already)
+
+**Dashboard Filter Improvements**
+- All filters (Status, Event Date, Expiry, Tags) now flatten folder structure and show matching galleries across all folders — same behavior as search
+- Mobile filter sheet redesigned with drill-down navigation — each filter opens a clean sub-screen with radio or checkbox selection
+- Filters auto-apply on selection (no separate Apply button needed)
+- Mobile header buttons are now icon-only with larger 44px tap targets
+
+**Shared Bottom Sheet Component**
+- All mobile bottom sheets (Dashboard filters, Gallery action sheet, Notification bell, Activity panel) now use a shared BottomSheet component
+- Consistent swipe-down-to-close from the drag handle across every sheet
+- Background scroll locked when any sheet is open
+- Scroll chaining prevented — background no longer scrolls when touching non-scrollable sheet areas
+
+---
+
 ## v1.1.5 — June 5, 2026
 
 ### New Features

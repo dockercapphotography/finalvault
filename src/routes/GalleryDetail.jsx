@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, ChevronLeft, Droplets, LayoutGrid, Check } from 'lucide-react'
@@ -72,8 +73,8 @@ export default function GalleryDetail() {
   const [downloadingZip, setDownloadingZip] = useState(false)
   const [zipProgress, setZipProgress] = useState(null)  // { current, total, hires }
 
-  function openSheet() { setShowActionSheet(true); requestAnimationFrame(() => requestAnimationFrame(() => setSheetVisible(true))) }
-  function closeSheet() { setSheetVisible(false); setTimeout(() => setShowActionSheet(false), 300) }
+  function openSheet() { setShowActionSheet(true) }
+  function closeSheet() { setShowActionSheet(false) }
   const [shareModal, setShareModal] = useState(null)
 
   const anyModalOpen = showWatermark || showCoverPicker || showActionSheet || !!confirmDeleteSetId || lightboxIndex !== null
@@ -1251,27 +1252,9 @@ export default function GalleryDetail() {
       )}
 
       {/* ── Mobile action sheet ── */}
-      {showActionSheet && (
-        <div className="fixed inset-0 z-50 flex items-end md:hidden"
-          style={{ background: sheetVisible ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0)', transition: 'background 0.3s ease' }}
-          onClick={closeSheet}>
-          <div className="w-full rounded-t-2xl p-4 space-y-3"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderBottom: 'none',
-              transform: sheetVisible ? 'translateY(0)' : 'translateY(100%)',
-              transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
-            }}
-            onClick={e => e.stopPropagation()}
-            onTouchStart={e => { sheetTouchStartY.current = e.touches[0].clientY }}
-            onTouchEnd={e => {
-              const dy = e.changedTouches[0].clientY - (sheetTouchStartY.current ?? e.changedTouches[0].clientY)
-              sheetTouchStartY.current = null
-              if (dy > 60) closeSheet()
-            }}>
-            <div className="w-8 h-1 rounded-full mx-auto mb-2" style={{ background: 'var(--border-strong)', touchAction: 'none' }} />
-
+      <div className="md:hidden">
+        <BottomSheet open={showActionSheet} onClose={closeSheet} maxHeight="auto">
+          <div className="p-4 space-y-3">
             {/* Gallery info strip */}
             <div className="px-1 pb-2" style={{ borderBottom: '1px solid var(--border)' }}>
               <div className="flex items-center gap-2 mb-0.5">
@@ -1310,8 +1293,8 @@ export default function GalleryDetail() {
               ))}
             </div>
           </div>
-        </div>
-      )}
+        </BottomSheet>
+      </div>
 
       {/* Photographer lightbox */}
       {lightboxIndex !== null && (() => {
