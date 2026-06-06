@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
-import { ArrowLeft, Settings, BarChart2, Copy, ExternalLink, Upload, ImageIcon, MoreVertical, Mail, Link as LinkIcon, QrCode, X, Plus, Pencil, Trash2, ChevronRight, ChevronLeft, Droplets, LayoutGrid, Check } from 'lucide-react'
+import {ArrowLeft, BarChart2, Check, ChevronLeft, ChevronRight, Copy, Droplets, ExternalLink, ImageIcon, LayoutGrid, Link as LinkIcon, Mail, MoreVertical, Pencil, Plus, QrCode, Settings, SlidersHorizontal, Trash2, Upload, X} from 'lucide-react'
 import { getGallery, updateGallery } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
 import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
@@ -67,6 +67,8 @@ export default function GalleryDetail() {
   const [viewSize, setViewSize] = useState('small')
   const [showFilename, setShowFilename] = useState(false)
   const [showGridMenu, setShowGridMenu] = useState(false)
+  const [showGalleryFilters, setShowGalleryFilters] = useState(false)
+  const [galleryFiltersSubScreen, setGalleryFiltersSubScreen] = useState(null)
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [sheetVisible, setSheetVisible] = useState(false)
   const sheetTouchStartY = useRef(null)
@@ -963,9 +965,10 @@ export default function GalleryDetail() {
               {savingOrder && <span className="ml-2 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>Saving order...</span>}
             </h2>
             <div className="flex items-center gap-2">
-              {hasSetImages && <SortDropdown value={sortBy} onChange={handleSortChange} />}
+              {/* Desktop: sort + grid controls */}
+              {hasSetImages && <div className="hidden md:block"><SortDropdown value={sortBy} onChange={handleSortChange} /></div>}
               {hasSetImages && (
-                <div className="relative">
+                <div className="relative hidden md:block">
                   <button
                     onClick={() => setShowGridMenu(v => !v)}
                     className="flex items-center justify-center rounded-lg"
@@ -1019,6 +1022,16 @@ export default function GalleryDetail() {
                     </>
                   )}
                 </div>
+              )}
+              {/* Mobile: single Filters button */}
+              {hasSetImages && (
+                <button
+                  onClick={() => { setShowGalleryFilters(true); setGalleryFiltersSubScreen(null) }}
+                  className="flex items-center justify-center rounded-lg md:hidden"
+                  style={{ width: 32, height: 32, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)' }}
+                  aria-label="Sort and display options">
+                  <SlidersHorizontal size={14} />
+                </button>
               )}
               {hasImages && <ImageUploader onUpload={uploadFiles} compact />}
             </div>
@@ -1252,6 +1265,81 @@ export default function GalleryDetail() {
       )}
 
       {/* ── Mobile action sheet ── */}
+      {/* ── Mobile gallery filters sheet ── */}
+      <div className="md:hidden">
+        <BottomSheet open={showGalleryFilters} onClose={() => setShowGalleryFilters(false)}>
+          {galleryFiltersSubScreen === null && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+                <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>Sort &amp; display</span>
+              </div>
+              <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }}
+                onClick={() => setGalleryFiltersSubScreen('sort')}>
+                <span style={{ fontSize: 15, color: 'var(--text)' }}>Sort</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>
+                  {sortBy === 'custom' ? 'Custom order' : sortBy === 'name_asc' ? 'Name: A → Z' : sortBy === 'name_desc' ? 'Name: Z → A' : sortBy === 'date_asc' ? 'Date: Old → New' : 'Date: New → Old'}
+                  <ChevronRight size={14} />
+                </span>
+              </button>
+              <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }}
+                onClick={() => setGalleryFiltersSubScreen('grid')}>
+                <span style={{ fontSize: 15, color: 'var(--text)' }}>Grid size</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>
+                  {viewSize === 'small' ? 'Small' : 'Large'}
+                  <ChevronRight size={14} />
+                </span>
+              </button>
+              <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }}
+                onClick={() => setShowFilename(v => !v)}>
+                <span style={{ fontSize: 15, color: 'var(--text)' }}>Show filename</span>
+                <div style={{ width: 36, height: 20, borderRadius: 10, background: showFilename ? '#6366f1' : 'var(--border)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                  <span style={{ position: 'absolute', top: 2, left: showFilename ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                </div>
+              </button>
+              <div style={{ padding: '12px 16px 24px' }}>
+                <button onClick={() => setShowGalleryFilters(false)} style={{ width: '100%', padding: 13, borderRadius: 12, background: '#6366f1', color: '#fff', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Done</button>
+              </div>
+            </>
+          )}
+          {galleryFiltersSubScreen === 'sort' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+                <button onClick={() => setGalleryFiltersSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
+                  <ChevronLeft size={16} /> Back
+                </button>
+                <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Sort</span>
+              </div>
+              {[['date_desc', 'Date: New → Old'], ['date_asc', 'Date: Old → New'], ['name_asc', 'Name: A → Z'], ['name_desc', 'Name: Z → A'], ['custom', 'Custom order']].map(([val, label]) => (
+                <button key={val}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }}
+                  onClick={() => { handleSortChange(val); setGalleryFiltersSubScreen(null) }}>
+                  <span style={{ fontSize: 15, color: 'var(--text)' }}>{label}</span>
+                  {sortBy === val && <Check size={14} style={{ color: '#6366f1' }} />}
+                </button>
+              ))}
+            </>
+          )}
+          {galleryFiltersSubScreen === 'grid' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+                <button onClick={() => setGalleryFiltersSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
+                  <ChevronLeft size={16} /> Back
+                </button>
+                <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Grid size</span>
+              </div>
+              {[['small', 'Small'], ['large', 'Large']].map(([val, label]) => (
+                <button key={val}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }}
+                  onClick={() => { setViewSize(val); setGalleryFiltersSubScreen(null) }}>
+                  <span style={{ fontSize: 15, color: 'var(--text)' }}>{label}</span>
+                  {viewSize === val && <Check size={14} style={{ color: '#6366f1' }} />}
+                </button>
+              ))}
+            </>
+          )}
+        </BottomSheet>
+      </div>
+
       <div className="md:hidden">
         <BottomSheet open={showActionSheet} onClose={closeSheet} maxHeight="auto">
           <div className="p-4 space-y-3">
