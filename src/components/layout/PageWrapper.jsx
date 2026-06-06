@@ -89,7 +89,15 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
-<Section title="v1.1.3 — June 4, 2026">
+                <Section title="v1.1.4 — June 5, 2026">
+                  <Group label="Bug Fixes">
+                    <Item>Fixed activity digest emails not sending — Edge Functions redeployed with new Supabase key format</Item>
+                    <Item>Fixed folder cover upload failing with 403 error</Item>
+                    <Item>RAW camera files now rejected at upload with clear error modal</Item>
+                    <Item>Fixed overscroll-behavior blocking vertical scroll throughout the app</Item>
+                  </Group>
+                </Section>
+                <Section title="v1.1.3 — June 4, 2026">
                   <Group label="Gallery Guide">
                     <Item>First-time clients see an onboarding modal explaining key gallery features</Item>
                     <Item>Steps adjust dynamically — only enabled features appear</Item>
@@ -100,7 +108,6 @@ export default function PageWrapper({ session, children }) {
                 <Section title="v1.1.2 — June 4, 2026">
                   <Group label="iOS Safari Fix">
                     <Item>Fixed iOS Safari auto-zooming the page by 6.67%, causing UI elements to be cut off and the background to shift when swiping</Item>
-                    <Item>Added overscroll-behavior: none to prevent elastic horizontal bounce</Item>
                   </Group>
                 </Section>
                 <Section title="v1.1.1 — June 4, 2026">
@@ -118,35 +125,6 @@ export default function PageWrapper({ session, children }) {
                     <Item>iOS browser chrome no longer causes layout shifts</Item>
                     <Item>iOS share sheet no longer re-prompts after cancelling download</Item>
                     <Item>Swipe down to close mobile action sheet fixed</Item>
-                  </Group>
-                </Section>
-                <Section title="v1.1.4 — June 5, 2026">
-                  <Group label="Bug Fixes">
-                    <Item>Fixed activity digest emails not sending — Edge Functions redeployed with new Supabase key format</Item>
-                    <Item>Fixed folder cover upload failing with 403 error</Item>
-                    <Item>RAW camera files now rejected at upload with clear error modal</Item>
-                    <Item>Fixed overscroll-behavior blocking vertical scroll throughout the app</Item>
-                  </Group>
-                </Section>
-                <Section title="v1.1.3 — June 4, 2026">
-                  <Group label="Gallery Guide">
-                    <Item>First-time clients see an onboarding modal explaining how to use the gallery</Item>
-                    <Item>Steps are dynamic — only enabled features appear</Item>
-                    <Item>Photographers can enable or disable per gallery via Settings → Sharing</Item>
-                  </Group>
-                </Section>
-                <Section title="v1.1.2 — June 4, 2026">
-                  <Group label="iOS Safari Fix">
-                    <Item>Fixed iOS Safari auto-zooming the page by 6.67%, causing UI elements to be cut off</Item>
-                  </Group>
-                </Section>
-                <Section title="v1.1.1 — June 4, 2026">
-                  <Group label="Folder Cover Photos">
-                    <Item>Set a custom cover image for any folder with focal point picker</Item>
-                    <Item>Select from gallery images or upload a custom image</Item>
-                  </Group>
-                  <Group label="Web JPEG Downloads">
-                    <Item>Web size JEPGs generated at upload — no more 503 errors on large images</Item>
                   </Group>
                 </Section>
                 <Section title="v1.1.0 — June 3, 2026">
@@ -172,7 +150,7 @@ export default function PageWrapper({ session, children }) {
                 <Section title="v1.0.0 — May 31, 2026">
                   <Item>Initial release — gallery management, client delivery, favorites, comments, downloads, watermarks, activity feed, admin panel</Item>
                 </Section>
-                              </div>
+              </div>
             </div>
           </div>
         </>
