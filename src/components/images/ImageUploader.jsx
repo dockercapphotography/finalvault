@@ -4,7 +4,11 @@ import Button from '../ui/Button.jsx'
 
 const ACCEPTED_EXTENSIONS = [
   '.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif',
-  '.heic', '.heif', '.cr2', '.cr3', '.nef', '.arw',
+  '.heic', '.heif'
+]
+
+const RAW_EXTENSIONS = [
+  '.cr2', '.cr3', '.nef', '.nrw', '.arw', '.sr2',
   '.dng', '.raf', '.orf', '.rw2', '.pef', '.srw'
 ]
 
@@ -13,10 +17,12 @@ export default function ImageUploader({ onUpload, disabled = false, compact = fa
   const inputRef = useRef(null)
 
   const handleFiles = useCallback((files) => {
-    const valid = Array.from(files).filter(f => {
-      const ext = '.' + f.name.split('.').pop().toLowerCase()
-      return ACCEPTED_EXTENSIONS.includes(ext)
-    })
+    const fileList = Array.from(files)
+    const rawFiles = fileList.filter(f => RAW_EXTENSIONS.includes('.' + f.name.split('.').pop().toLowerCase()))
+    const valid = fileList.filter(f => ACCEPTED_EXTENSIONS.includes('.' + f.name.split('.').pop().toLowerCase()))
+    if (rawFiles.length > 0) {
+      alert(`RAW files are not supported (${rawFiles.map(f => f.name).join(', ')}).\n\nPlease export your images as JPEG or TIFF before uploading.`)
+    }
     if (valid.length > 0) onUpload(valid)
   }, [onUpload])
 
@@ -84,7 +90,7 @@ export default function ImageUploader({ onUpload, disabled = false, compact = fa
           Drop images here or click to browse
         </p>
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          JPEG, PNG, TIFF, HEIC, RAW supported
+          JPEG, PNG, TIFF, HEIC supported
         </p>
       </div>
     </>
