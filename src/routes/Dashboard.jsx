@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Search, ChevronDown, X, ChevronLeft, ChevronRight, SlidersHorizontal, CheckCircle2, Circle, ChevronUp, Images, Share2, Upload, Folder, FolderPlus, Home } from 'lucide-react'
-import { getGalleries, getFolders, createFolder, moveGalleryToFolder } from '../utils/galleryApi.js'
+import {Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Circle, Folder, FolderPlus, Home, Images, Plus, Search, Share2, SlidersHorizontal, Upload, X} from 'lucide-react'
+import { getGalleries, getFolders, getTags, createFolder, moveGalleryToFolder } from '../utils/galleryApi.js'
 import { getBookmarkedGalleryIds } from '../utils/bookmarkApi.js'
 import { supabase } from '../supabaseClient.js'
 import GalleryGrid from '../components/galleries/GalleryGrid.jsx'
@@ -199,6 +199,62 @@ function DateFilterPanel({ value, onChange, presets }) {
   )
 }
 
+
+function TagsPill({ value, onChange, tags }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const active = value.length > 0
+
+  useEffect(() => {
+    if (!open) return
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  function toggleTag(id) {
+    onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id])
+  }
+
+  const label = active
+    ? value.length === 1
+      ? tags.find(t => t.id === value[0])?.name || 'Tags'
+      : `Tags · ${value.length}`
+    : 'Tags'
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
+        style={{ background: active ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`, color: active ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <span className="truncate" style={{ maxWidth: 120 }}>{label}</span>
+        {active
+          ? <X size={12} onClick={e => { e.stopPropagation(); onChange([]) }} style={{ cursor: 'pointer', flexShrink: 0 }} />
+          : <ChevronDown size={12} style={{ flexShrink: 0 }} />}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 rounded-xl shadow-lg z-30"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 180, maxHeight: 280, overflowY: 'auto' }}>
+          {tags.map(tag => {
+            const selected = value.includes(tag.id)
+            return (
+              <button key={tag.id} onClick={() => toggleTag(tag.id)}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+                style={{ background: selected ? 'rgba(99,102,241,0.06)' : 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text)' }}
+                onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--surface-raised)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = selected ? 'rgba(99,102,241,0.06)' : 'transparent' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: tag.color || '#6366f1', flexShrink: 0 }} />
+                <span className="flex-1">{tag.name}</span>
+                {selected && <Check size={13} style={{ color: '#6366f1', flexShrink: 0 }} />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function StatusPill({ value, onChange }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -291,7 +347,7 @@ function DateRangePill({ label, value, onChange, presets }) {
   )
 }
 
-function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, eventDateFilter, setEventDateFilter, expiryFilter, setExpiryFilter, eventPresets, expiryPresets, hasFilters, onClear }) {
+function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, eventDateFilter, setEventDateFilter, expiryFilter, setExpiryFilter, tagFilter, setTagFilter, allTags, eventPresets, expiryPresets, hasFilters, onClear }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
     if (open) requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
@@ -368,6 +424,24 @@ function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, event
               })}
             </div>
           </div>
+          {allTags.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Tags</p>
+              <div className="flex flex-wrap gap-2">
+                {allTags.map(tag => {
+                  const active = tagFilter.includes(tag.id)
+                  return (
+                    <button key={tag.id} onClick={() => setTagFilter(active ? tagFilter.filter(id => id !== tag.id) : [...tagFilter, tag.id])}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
+                      style={{ background: active ? (tag.color || '#6366f1') + '22' : 'var(--surface-raised)', border: `1px solid ${active ? (tag.color || '#6366f1') : 'var(--border)'}`, color: active ? (tag.color || '#6366f1') : 'var(--text-muted)', cursor: 'pointer' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: tag.color || '#6366f1', display: 'inline-block' }} />
+                      {tag.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           <button onClick={onClose}
             className="w-full py-3 rounded-xl text-sm font-medium"
             style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
@@ -755,11 +829,16 @@ function matchesDateFilter(dateStr, filter) {
   return true
 }
 
-function applyFilters(galleries, { search, status, eventDate, expiry }) {
+function applyFilters(galleries, { search, status, eventDate, expiry, tags }) {
   return galleries.filter(g => {
     if (search) {
       const q = search.toLowerCase()
-      if (!g.title.toLowerCase().includes(q) && !g.client_name?.toLowerCase().includes(q) && !g.event_name?.toLowerCase().includes(q)) return false
+      const tagMatch = (g.tags ?? []).some(t => t.name.includes(q))
+      if (!g.title.toLowerCase().includes(q) && !g.client_name?.toLowerCase().includes(q) && !g.event_name?.toLowerCase().includes(q) && !tagMatch) return false
+    }
+    if (tags && tags.length > 0) {
+      const galleryTagIds = new Set((g.tags ?? []).map(t => t.id))
+      if (!tags.every(tagId => galleryTagIds.has(tagId))) return false
     }
     if (status && getGalleryStatus(g) !== status) return false
     if (eventDate && !matchesDateFilter(g.event_date, eventDate)) return false
@@ -823,6 +902,8 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(null)
+  const [tagFilter, setTagFilter] = useState([])
+  const [allTags, setAllTags] = useState([])
   const [eventDateFilter, setEventDateFilter] = useState(null)
   const [expiryFilter, setExpiryFilter] = useState(null)
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
@@ -854,15 +935,17 @@ export default function Dashboard() {
   async function loadData() {
     try {
       setLoading(true)
-      const [galleriesData, foldersData, bIds, { data: photog }, { data: watermarks }, { data: { session } }] = await Promise.all([
+      const [galleriesData, foldersData, bIds, tagsData, { data: photog }, { data: watermarks }, { data: { session } }] = await Promise.all([
         getGalleries(),
         getFolders(),
         getBookmarkedGalleryIds(),
+        getTags(),
         supabase.auth.getUser().then(({ data: { user } }) => supabase.from('photographers').select('first_shared_at').eq('id', user.id).single()),
         supabase.from('watermarks').select('id').limit(1),
         supabase.auth.getSession(),
       ])
       setGalleries(galleriesData)
+      setAllTags(tagsData)
       setFolders(foldersData)
       setBookmarkedIds(bIds)
       setFirstSharedAt(photog?.first_shared_at || null)
@@ -944,28 +1027,28 @@ export default function Dashboard() {
     setGalleries(prev => prev.filter(g => g.id !== galleryId))
   }
 
-  const hasFilters = statusFilter || eventDateFilter || expiryFilter
-  const activeFilterCount = [statusFilter, eventDateFilter, expiryFilter].filter(Boolean).length
+  const hasFilters = statusFilter || eventDateFilter || expiryFilter || tagFilter.length > 0
+  const activeFilterCount = [statusFilter, eventDateFilter, expiryFilter].filter(Boolean).length + (tagFilter.length > 0 ? 1 : 0)
 
   // When searching, show all galleries regardless of folder
   const isSearching = search.trim().length > 0
 
   // Folders visible in the current view (direct children of currentFolderId)
-  const visibleFolders = isSearching ? [] : folders.filter(f =>
+  const visibleFolders = (isSearching || tagFilter.length > 0) ? [] : folders.filter(f =>
     currentFolderId === null ? f.parent_id === null : f.parent_id === currentFolderId
   )
 
   // Galleries visible in the current view
-  const galleriesInView = isSearching
+  const galleriesInView = (isSearching || tagFilter.length > 0)
     ? galleries  // search across all
     : galleries.filter(g => g.folder_id === currentFolderId)
 
   const filteredGalleries = applyFilters(galleriesInView, {
-    search, status: statusFilter, eventDate: eventDateFilter, expiry: expiryFilter,
+    search, status: statusFilter, eventDate: eventDateFilter, expiry: expiryFilter, tags: tagFilter,
   })
 
   function clearAllFilters() {
-    setStatusFilter(null); setEventDateFilter(null); setExpiryFilter(null); setSearch('')
+    setStatusFilter(null); setEventDateFilter(null); setExpiryFilter(null); setTagFilter([]); setSearch('')
   }
 
   const hasGallery = galleries.length > 0
@@ -1102,6 +1185,7 @@ export default function Dashboard() {
           <StatusPill value={statusFilter} onChange={setStatusFilter} />
           <DateRangePill label="Event Date" value={eventDateFilter} onChange={setEventDateFilter} presets={EVENT_PRESETS} />
           <DateRangePill label="Expiry Date" value={expiryFilter} onChange={setExpiryFilter} presets={EXPIRY_PRESETS} />
+          {allTags.length > 0 && <TagsPill value={tagFilter} onChange={setTagFilter} tags={allTags} />}
           {hasFilters && (
             <button onClick={clearAllFilters} className="text-xs"
               style={{ color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none' }}>
@@ -1192,7 +1276,7 @@ export default function Dashboard() {
 
       {/* Unified grid — folders and galleries sorted together by created_at */}
       {!loading && !error && (visibleFolders.length > 0 || filteredGalleries.length > 0) && (() => {
-        const folderItems = isSearching ? [] : visibleFolders.map(f => ({ ...f, _type: 'folder', _sortKey: f.created_at }))
+        const folderItems = (isSearching || tagFilter.length > 0) ? [] : visibleFolders.map(f => ({ ...f, _type: 'folder', _sortKey: f.created_at }))
         const galleryItems = filteredGalleries.map(g => ({ ...g, _type: 'gallery', _sortKey: g.created_at }))
         const allItems = [...folderItems, ...galleryItems].sort((a, b) => new Date(b._sortKey) - new Date(a._sortKey))
         return (
@@ -1267,6 +1351,7 @@ export default function Dashboard() {
         statusFilter={statusFilter} setStatusFilter={setStatusFilter}
         eventDateFilter={eventDateFilter} setEventDateFilter={setEventDateFilter}
         expiryFilter={expiryFilter} setExpiryFilter={setExpiryFilter}
+        tagFilter={tagFilter} setTagFilter={setTagFilter} allTags={allTags}
         eventPresets={EVENT_PRESETS} expiryPresets={EXPIRY_PRESETS}
         hasFilters={hasFilters} onClear={clearAllFilters}
       />

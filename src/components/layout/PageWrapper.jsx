@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.1.4'
+const VERSION = '1.1.5'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,14 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.1.5 — June 5, 2026">
+                  <Group label="Gallery Category Tags">
+                    <Item>Create a tag library with custom colors via Account → Tags</Item>
+                    <Item>Assign tags to galleries from Settings → General with autocomplete and inline creation</Item>
+                    <Item>Dashboard search now matches tag names</Item>
+                    <Item>New Tags filter pill — multi-select, AND logic, flattens folders</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.1.4 — June 5, 2026">
                   <Group label="Bug Fixes">
                     <Item>Fixed activity digest emails not sending — Edge Functions redeployed with new Supabase key format</Item>

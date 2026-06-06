@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Eye, EyeOff, RefreshCw, CheckCircle, Copy, Trash2 } from 'lucide-react'
-import { getGallery, updateGallery, deleteGallery } from '../utils/galleryApi.js'
+import {ArrowLeft, CheckCircle, Copy, Eye, EyeOff, Plus, RefreshCw, Trash2, X} from 'lucide-react'
+import { getGallery, updateGallery, getTags, getGalleryTags, assignTag, unassignTag, createAndAssignTag, deleteGallery } from '../utils/galleryApi.js'
 import { getImages } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
 import { THEMES } from '../utils/themes.js'
@@ -131,6 +132,15 @@ export default function GallerySettings() {
   const [allowFavorites, setAllowFavorites] = useState(true)
   const [allowComments, setAllowComments] = useState(true)
   const [showGuide, setShowGuide] = useState(true)
+  const [galleryTags, setGalleryTags] = useState([])
+  const [allTags, setAllTags] = useState([])
+  const [tagInput, setTagInput] = useState('')
+  const [tagSuggestions, setTagSuggestions] = useState([])
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false)
+  const [tagDropdownPos, setTagDropdownPos] = useState({ top: 0, left: 0, width: 0 })
+  const tagInputRef = useRef(null)
+  const tagDropdownMouseDown = useRef(false)
+  const tagDropdownRef = useRef(null)
   const [expiryWarningEnabled, setExpiryWarningEnabled] = useState(false)
   const [expiryWarningDays, setExpiryWarningDays] = useState(3)
   const [themeColor, setThemeColor] = useState('light')
@@ -169,6 +179,9 @@ export default function GallerySettings() {
       setAllowFavorites(g.allow_favorites ?? true)
       setAllowComments(g.allow_comments ?? true)
       setShowGuide(g.show_guide ?? true)
+      const [tagsData, allTagsData] = await Promise.all([getGalleryTags(id), getTags()])
+      setGalleryTags(tagsData)
+      setAllTags(allTagsData)
       setExpiryWarningEnabled(g.expiry_warning_enabled ?? false)
       setExpiryWarningDays(g.expiry_warning_days ?? 3)
       setThemeColor(g.theme_color || 'light')
@@ -263,6 +276,85 @@ export default function GallerySettings() {
     save({ requireDownloadPin: val, downloadPin: pin })
   }
 
+  // ── Tag handlers ─────────────────────────────────────────────────────────────
+
+  function handleTagInput(val) {
+    setTagInput(val)
+    const assigned = new Set(galleryTags.map(t => t.id))
+    const q = val.toLowerCase()
+    const suggestions = allTags.filter(t => !assigned.has(t.id) && (q === '' || t.name.includes(q)))
+    setTagSuggestions(suggestions)
+    setShowTagSuggestions(true)
+  }
+
+  function openTagDropdown() {
+    if (tagInputRef.current) {
+      const rect = tagInputRef.current.getBoundingClientRect()
+      setTagDropdownPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX, width: rect.width })
+    }
+    const assigned = new Set(galleryTags.map(t => t.id))
+    const suggestions = allTags.filter(t => !assigned.has(t.id))
+    setTagSuggestions(suggestions)
+    setShowTagSuggestions(true)
+  }
+
+  useEffect(() => {
+    if (!showTagSuggestions) return
+    function handleOutsideClick(e) {
+      if (tagInputRef.current && tagInputRef.current.contains(e.target)) return
+      if (tagDropdownRef.current && tagDropdownRef.current.contains(e.target)) return
+      setShowTagSuggestions(false)
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [showTagSuggestions])
+
+  async function handleSelectTag(tag) {
+    setTagInput('')
+    setTagInput('')
+    if (galleryTags.find(t => t.id === tag.id)) return
+    try {
+      await assignTag(id, tag.id)
+      setGalleryTags(prev => [...prev, tag])
+      setAllTags(prev => prev.map(t => t.id === tag.id ? { ...t, usage_count: (t.usage_count || 0) + 1 } : t))
+    } catch (err) { console.error(err) }
+  }
+
+  async function handleCreateTag(name) {
+    setTagInput('')
+    setTagInput('')
+    try {
+      const tag = await createAndAssignTag(id, { name: name.trim().toLowerCase() })
+      setGalleryTags(prev => [...prev, tag])
+      setAllTags(prev => [...prev, { ...tag, usage_count: 1 }])
+    } catch (err) { console.error(err) }
+  }
+
+  async function handleRemoveTag(tagId) {
+    try {
+      await unassignTag(id, tagId)
+      setGalleryTags(prev => prev.filter(t => t.id !== tagId))
+      setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, usage_count: Math.max(0, (t.usage_count || 1) - 1) } : t))
+    } catch (err) { console.error(err) }
+  }
+
+  function handleTagKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const q = tagInput.trim().toLowerCase()
+      if (!q) return
+      const exact = allTags.find(t => t.name === q)
+      if (exact && !galleryTags.find(t => t.id === exact.id)) {
+        handleSelectTag(exact)
+      } else if (!exact) {
+        handleCreateTag(q)
+      }
+    }
+    if (e.key === 'Escape') {
+      setShowTagSuggestions(false)
+    }
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-24">
       <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
@@ -312,6 +404,88 @@ export default function GallerySettings() {
               </div>
               <Input label="Event name" value={eventName} onChange={setEventName} onBlur={() => save()} placeholder="e.g. PopCon Indy 2026" hint="Shown in the client gallery header" />
               <Input label="Internal notes" value={notes} onChange={setNotes} onBlur={() => save()} placeholder="Not visible to clients" type="textarea" />
+            </div>
+          </SettingsSection>
+          <SettingsSection title="Tags" description="Categorize this gallery for easy filtering on your dashboard">
+            <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
+              {/* Assigned tag pills */}
+              {galleryTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {galleryTags.map(tag => (
+                    <span key={tag.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                      style={{ background: (tag.color || '#6366f1') + '22', color: tag.color || '#6366f1', border: `1px solid ${tag.color || '#6366f1'}44` }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: tag.color || '#6366f1', display: 'inline-block', flexShrink: 0 }} />
+                      {tag.name}
+                      <button onClick={() => handleRemoveTag(tag.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', padding: 0, marginLeft: 2 }}>
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* Tag input */}
+              <div style={{ position: 'relative' }}>
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={tagInput}
+                  onChange={e => handleTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  onFocus={openTagDropdown}
+                  onBlur={() => {}}
+                  placeholder="Add a tag..."
+                  className="w-full text-sm rounded-lg px-3 py-2 outline-none"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                />
+                {showTagSuggestions && createPortal(
+                  <div
+                    ref={tagDropdownRef}
+                    onMouseDown={() => { tagDropdownMouseDown.current = true }}
+                    onMouseUp={() => { tagDropdownMouseDown.current = false; tagInputRef.current?.focus() }}
+                    style={{
+                    position: 'absolute',
+                    top: tagDropdownPos.top,
+                    left: tagDropdownPos.left,
+                    width: tagDropdownPos.width,
+                    zIndex: 9999,
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.14)',
+                    overflow: 'hidden', maxHeight: 240, overflowY: 'auto',
+                  }}>
+                    {tagSuggestions.length === 0 && !tagInput.trim() && (
+                      <div className="px-3 py-3 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        All tags assigned
+                      </div>
+                    )}
+                    {tagSuggestions.map(tag => (
+                      <button key={tag.id} onMouseDown={() => handleSelectTag(tag)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: tag.color || '#6366f1', flexShrink: 0 }} />
+                        {tag.name}
+                        <span className="ml-auto text-xs" style={{ color: 'var(--text-muted)' }}>{tag.usage_count} {tag.usage_count === 1 ? 'gallery' : 'galleries'}</span>
+                      </button>
+                    ))}
+                    {tagInput.trim() && !allTags.find(t => t.name === tagInput.trim().toLowerCase()) && (
+                      <button onMouseDown={() => handleCreateTag(tagInput.trim())}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', borderTop: tagSuggestions.length > 0 ? '1px solid var(--border)' : 'none' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                        <Plus size={12} />
+                        Create tag "{tagInput.trim().toLowerCase()}"
+                      </button>
+                    )}
+                  </div>,
+                  document.body
+                )}
+              </div>
+              <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                Type to search existing tags or press Enter to create a new one
+              </p>
             </div>
           </SettingsSection>
           <SettingsSection title="Status">

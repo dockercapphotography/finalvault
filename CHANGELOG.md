@@ -4,6 +4,22 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.1.5 — June 5, 2026
+
+### New Features
+
+**Gallery Category Tags**
+
+- Create a tag library per account with custom colors via Account → Tags
+- Assign tags to galleries from Gallery Settings → General with typeahead autocomplete and inline tag creation
+- Tags persist across galleries — create once, reuse everywhere
+- Dashboard search now matches tag names — search "convention" to find all tagged galleries
+- New Tags filter pill on the dashboard — multi-select with AND logic (gallery must have all selected tags)
+- Tag filter flattens folder structure to show matching galleries across all folders
+- Tags filter included in mobile filter sheet
+
+---
+
 ## v1.1.4 — June 5, 2026
 
 ### Bug Fixes

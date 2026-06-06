@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Upload, CheckCircle, Plus, Trash2, Pencil, X, Copy, Shield } from 'lucide-react'
+import {CheckCircle, Copy, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { supabase } from '../supabaseClient.js'
 import {
@@ -11,6 +11,7 @@ import {
   getGalleryTemplates, createGalleryTemplate, updateGalleryTemplate,
   deleteGalleryTemplate, duplicateGalleryTemplate
 } from '../utils/galleryTemplateApi.js'
+import { getTags, createTag, updateTag, deleteTag } from '../utils/galleryApi.js'
 import { THEMES, getTheme } from '../utils/themes.js'
 import Toggle from '../components/ui/Toggle.jsx'
 import WatermarkCard from '../components/watermarks/WatermarkCard.jsx'
@@ -89,6 +90,221 @@ function AvatarCropModal({ imageSrc, onSave, onCancel, saving }) {
   )
 }
 
+
+// ── Tags Tab ──────────────────────────────────────────────────────────────────
+
+const TAG_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
+  '#f97316', '#eab308', '#22c55e', '#14b8a6',
+  '#3b82f6', '#6b7280',
+]
+
+function TagsTab({ onSaveState }) {
+  const [tags, setTags] = useState([])
+  const [loaded, setLoaded] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newColor, setNewColor] = useState(TAG_COLORS[0])
+  const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editColor, setEditColor] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    try {
+      const data = await getTags()
+      setTags(data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoaded(true)
+    }
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault()
+    if (!newName.trim()) return
+    setCreating(true)
+    try {
+      const tag = await createTag({ name: newName.trim(), color: newColor })
+      setTags(prev => [...prev, { ...tag, usage_count: 0 }].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewName('')
+      setNewColor(TAG_COLORS[0])
+      onSaveState('saved')
+    } catch (err) {
+      console.error(err)
+      onSaveState('error')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  function startEdit(tag) {
+    setEditingId(tag.id)
+    setEditName(tag.name)
+    setEditColor(tag.color || TAG_COLORS[0])
+    setDeletingId(null)
+  }
+
+  async function handleUpdate(id) {
+    if (!editName.trim()) return
+    try {
+      const updated = await updateTag(id, { name: editName.trim(), color: editColor })
+      setTags(prev => prev.map(t => t.id === id ? { ...t, ...updated } : t).sort((a, b) => a.name.localeCompare(b.name)))
+      setEditingId(null)
+      onSaveState('saved')
+    } catch (err) {
+      console.error(err)
+      onSaveState('error')
+    }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await deleteTag(id)
+      setTags(prev => prev.filter(t => t.id !== id))
+      setDeletingId(null)
+      onSaveState('saved')
+    } catch (err) {
+      console.error(err)
+      onSaveState('error')
+    }
+  }
+
+  if (!loaded) return (
+    <div className="flex items-center justify-center py-16">
+      <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+        style={{ borderColor: 'var(--border-strong)', borderTopColor: 'transparent' }} />
+    </div>
+  )
+
+  return (
+    <div className="space-y-4">
+      <SettingsSection title="Gallery Tags" description="Create tags to categorize your galleries. Tags can be assigned per gallery and filtered on your dashboard.">
+
+        {/* Create new tag */}
+        <div className="px-5 py-4 space-y-3" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+          <p className="text-xs font-medium" style={{ color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New tag</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {TAG_COLORS.map(c => (
+              <button
+                key={c}
+                onClick={() => setNewColor(c)}
+                style={{
+                  width: 20, height: 20, borderRadius: '50%', background: c, cursor: 'pointer',
+                  border: newColor === c ? '2px solid var(--text)' : '2px solid transparent',
+                  flexShrink: 0,
+                }}
+                aria-label={c}
+              />
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCreate(e) }}
+              placeholder="Tag name (e.g. convention, wedding, portrait)"
+              className="flex-1 text-sm rounded-lg px-3 py-2 outline-none"
+              style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+            <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
+              <Plus size={14} />
+              {creating ? 'Creating...' : 'Create'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Tag list */}
+        {tags.length === 0 ? (
+          <div className="px-5 py-10 text-center" style={{ background: 'var(--surface)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3"
+              style={{ background: 'var(--surface-raised)' }}>
+              <Tag size={18} style={{ color: 'var(--text-muted)' }} />
+            </div>
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>No tags yet</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Create your first tag above to start categorizing galleries</p>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)' }}>
+            {tags.map((tag, i) => (
+              <div key={tag.id}>
+                {i > 0 && <div style={{ borderTop: '1px solid var(--border)' }} />}
+
+                {editingId === tag.id ? (
+                  <div className="px-5 py-3 space-y-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {TAG_COLORS.map(c => (
+                        <button
+                          key={c}
+                          onClick={() => setEditColor(c)}
+                          style={{
+                            width: 20, height: 20, borderRadius: '50%', background: c, cursor: 'pointer',
+                            border: editColor === c ? '2px solid var(--text)' : '2px solid transparent',
+                            flexShrink: 0,
+                          }}
+                          aria-label={c}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleUpdate(tag.id); if (e.key === 'Escape') setEditingId(null) }}
+                        autoFocus
+                        className="flex-1 text-sm rounded-lg px-3 py-2 outline-none"
+                        style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-strong)', color: 'var(--text)' }}
+                      />
+                      <Button onClick={() => handleUpdate(tag.id)}>Save</Button>
+                      <button onClick={() => setEditingId(null)} className="text-sm px-3 py-1.5 rounded-lg"
+                        style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : deletingId === tag.id ? (
+                  <div className="px-5 py-3">
+                    <DeleteConfirmRow
+                      label={`"${tag.name}"` + (tag.usage_count > 0 ? ` (used in ${tag.usage_count} ${tag.usage_count === 1 ? 'gallery' : 'galleries'})` : '')}
+                      onConfirm={() => handleDelete(tag.id)}
+                      onCancel={() => setDeletingId(null)}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 px-5 py-3">
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: tag.color || '#6366f1', flexShrink: 0 }} />
+                    <span className="text-sm flex-1" style={{ color: 'var(--text)' }}>{tag.name}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {tag.usage_count} {tag.usage_count === 1 ? 'gallery' : 'galleries'}
+                    </span>
+                    <button onClick={() => startEdit(tag)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                      <Pencil size={13} />
+                    </button>
+                    <button onClick={() => { setDeletingId(tag.id); setEditingId(null) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingsSection>
+    </div>
+  )
+}
+
 const BASE_ACCOUNT_TABS = [
   { id: 'profile',       label: 'Profile' },
   { id: 'watermarks',    label: 'Watermarks' },
@@ -96,6 +312,7 @@ const BASE_ACCOUNT_TABS = [
   { id: 'social',        label: 'Social' },
   { id: 'payment',       label: 'Payment' },
   { id: 'notifications', label: 'Notifications' },
+  { id: 'tags',          label: 'Tags' },
 ]
 
 const TEMPLATE_VARIABLES = [
@@ -1023,6 +1240,7 @@ export default function Account() {
         </SettingsSection>
       )}
       {activeTab === 'notifications' && <NotificationsTab user={user} onSaveState={setSaveState} />}
+      {activeTab === 'tags'          && <TagsTab onSaveState={setSaveState} />}
       {activeTab === 'admin'         && isAdmin && <Admin />}
 
       <SaveIndicator state={saveState} />

@@ -16,12 +16,17 @@ export async function getGalleries() {
       created_at, updated_at, expires_at,
       cover_image_id, folder_id,
       gallery_images!cover_image_id (preview_r2_key),
-      image_count:gallery_images!gallery_images_gallery_id_fkey(count)
+      image_count:gallery_images!gallery_images_gallery_id_fkey(count),
+      tags:gallery_tag_assignments(gallery_tags(id, name, color))
     `)
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return data
+  // Normalize nested tag shape: [{gallery_tags: {id, name, color}}] -> [{id, name, color}]
+  return (data ?? []).map(g => ({
+    ...g,
+    tags: (g.tags ?? []).map(t => t.gallery_tags).filter(Boolean),
+  }))
 }
 
 export async function getGallery(id) {
@@ -396,4 +401,107 @@ export async function getSelectionImages(imageIds) {
 
   if (error) return { ok: false, error: error.message }
   return { ok: true, data: data ?? [] }
+}
+
+// ── Gallery Tags ──────────────────────────────────────────────────────────────
+
+// Fetch all tags for the current photographer, with usage counts.
+export async function getTags() {
+  const { data, error } = await supabase
+    .from('gallery_tags')
+    .select(`
+      id, name, color, created_at, updated_at,
+      usage_count:gallery_tag_assignments(count)
+    `)
+    .order('name', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []).map(t => ({
+    ...t,
+    usage_count: t.usage_count?.[0]?.count ?? 0,
+  }))
+}
+
+// Create a new tag for the current photographer.
+export async function createTag({ name, color = null }) {
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase
+    .from('gallery_tags')
+    .insert({
+      photographer_id: user.id,
+      name: name.trim().toLowerCase(),
+      color: color || null,
+      updated_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Update an existing tag (rename or recolor).
+export async function updateTag(id, { name, color }) {
+  const updates = { updated_at: new Date().toISOString() }
+  if (name !== undefined) updates.name = name.trim().toLowerCase()
+  if (color !== undefined) updates.color = color || null
+
+  const { data, error } = await supabase
+    .from('gallery_tags')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Delete a tag — cascades to all gallery_tag_assignments via FK.
+export async function deleteTag(id) {
+  const { error } = await supabase
+    .from('gallery_tags')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+// Fetch all tags assigned to a specific gallery.
+export async function getGalleryTags(galleryId) {
+  const { data, error } = await supabase
+    .from('gallery_tag_assignments')
+    .select('tag_id, gallery_tags(id, name, color)')
+    .eq('gallery_id', galleryId)
+
+  if (error) throw error
+  return (data ?? []).map(row => row.gallery_tags)
+}
+
+// Assign an existing tag to a gallery.
+export async function assignTag(galleryId, tagId) {
+  const { error } = await supabase
+    .from('gallery_tag_assignments')
+    .upsert({ gallery_id: galleryId, tag_id: tagId }, { onConflict: 'gallery_id,tag_id' })
+
+  if (error) throw error
+}
+
+// Remove a tag assignment from a gallery.
+export async function unassignTag(galleryId, tagId) {
+  const { error } = await supabase
+    .from('gallery_tag_assignments')
+    .delete()
+    .eq('gallery_id', galleryId)
+    .eq('tag_id', tagId)
+
+  if (error) throw error
+}
+
+// Create a new tag and immediately assign it to a gallery.
+// Returns the new tag.
+export async function createAndAssignTag(galleryId, { name, color = null }) {
+  const tag = await createTag({ name, color })
+  await assignTag(galleryId, tag.id)
+  return tag
 }
