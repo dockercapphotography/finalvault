@@ -1034,12 +1034,12 @@ export default function Dashboard() {
   const isSearching = search.trim().length > 0
 
   // Folders visible in the current view (direct children of currentFolderId)
-  const visibleFolders = (isSearching || tagFilter.length > 0) ? [] : folders.filter(f =>
+  const visibleFolders = (isSearching || tagFilter.length > 0 || statusFilter || eventDateFilter || expiryFilter) ? [] : folders.filter(f =>
     currentFolderId === null ? f.parent_id === null : f.parent_id === currentFolderId
   )
 
   // Galleries visible in the current view
-  const galleriesInView = (isSearching || tagFilter.length > 0)
+  const galleriesInView = (isSearching || tagFilter.length > 0 || statusFilter || eventDateFilter || expiryFilter)
     ? galleries  // search across all
     : galleries.filter(g => g.folder_id === currentFolderId)
 
@@ -1276,7 +1276,7 @@ export default function Dashboard() {
 
       {/* Unified grid — folders and galleries sorted together by created_at */}
       {!loading && !error && (visibleFolders.length > 0 || filteredGalleries.length > 0) && (() => {
-        const folderItems = (isSearching || tagFilter.length > 0) ? [] : visibleFolders.map(f => ({ ...f, _type: 'folder', _sortKey: f.created_at }))
+        const folderItems = (isSearching || tagFilter.length > 0 || statusFilter || eventDateFilter || expiryFilter) ? [] : visibleFolders.map(f => ({ ...f, _type: 'folder', _sortKey: f.created_at }))
         const galleryItems = filteredGalleries.map(g => ({ ...g, _type: 'gallery', _sortKey: g.created_at }))
         const allItems = [...folderItems, ...galleryItems].sort((a, b) => new Date(b._sortKey) - new Date(a._sortKey))
         return (
