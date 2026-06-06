@@ -4,6 +4,30 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.1.4 — June 5, 2026
+
+### Bug Fixes
+
+**Activity Digest**
+- Fixed activity digest emails not sending since June 1st
+- Root cause: Supabase migrated to new API key format (`sb_publishable_` / `sb_secret_`) which is not a JWT and cannot be used in Edge Function Authorization headers
+- Redeployed all three Edge Functions (`send-activity-digest`, `send-gallery-email`, `send-expiry-reminder`) with `--no-verify-jwt` flag
+- Updated cron job to use new key format with both `apikey` and `Authorization` headers
+
+**Image Uploads**
+- RAW camera files (CR2, CR3, NEF, NRW, ARW, SR2, DNG, RAF, ORF, RW2, PEF, SRW) are now explicitly rejected at upload time
+- Custom error modal shows rejected filenames and lists supported formats (JPEG, PNG, TIFF, HEIC)
+- Upload zone label updated — RAW removed from supported formats list
+
+**Folder Covers**
+- Fixed folder cover upload failing with 403 error — `photographer_id` was missing from folder queries
+- Folder cover images upload correctly to `photographers/{id}/folders/{id}/cover.{ext}` path
+
+**Scroll**
+- Removed `overscroll-behavior: none` that was unintentionally blocking vertical scroll throughout the app (introduced in v1.1.2)
+
+---
+
 ## v1.1.3 — June 4, 2026
 
 ### New Features
@@ -27,7 +51,6 @@ All notable changes to FinalVault are documented here.
 - This caused UI elements (download button, sticky header) to appear cut off on the right edge
 - Also caused the page background to visibly shift when swiping in the lightbox
 - Fixed with `-webkit-text-size-adjust: 100%` — tells Safari the text size is already correct
-- Also added `overscroll-behavior: none` to prevent iOS elastic horizontal bounce
 
 ---
 
