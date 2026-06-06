@@ -42,6 +42,8 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Share via email, link, or QR code** — with custom email templates, variable substitution, and your social/payment links in the footer
 - **Bookmarks** — save galleries and individual images for quick reference
 - **Gallery Guide control** — enable or disable the client onboarding guide per gallery
+- **Gallery category tags** — create a per-account tag library with custom colors, assign tags to galleries, filter and search by tag on the dashboard
+- **Dashboard sort & display** — sort galleries by Created, Event Date, Last Updated, or Name; toggle between Default and Large grid sizes
 
 ### For Clients
 
@@ -118,7 +120,7 @@ Run the SQL migrations in order via the Supabase SQL editor:
 sql/001_photographers.sql
 sql/002_galleries.sql
 ...
-sql/019_show_guide.sql
+sql/020_gallery_tags.sql
 ```
 
 **4. Deploy the R2 Worker**
@@ -188,6 +190,8 @@ npx playwright test
 | `email_templates` | Reusable email templates with variable substitution |
 | `notification_preferences` | Per-photographer digest notification toggles |
 | `storage_tiers` | Storage plan definitions |
+| `gallery_tags` | Per-photographer tag library with custom colors |
+| `gallery_tag_assignments` | Many-to-many tag assignments to galleries |
 
 All tables use Row Level Security (RLS). Photographers access only their own data. Clients access galleries via share token through anon RLS policies.
 
@@ -207,7 +211,8 @@ finalvault/
 └── src/
     ├── routes/                  # Page components
     ├── components/              # UI components (galleries, images, watermarks, layout)
-    │   └── client/              # Client-facing components (GalleryGuide, etc.)
+    │   ├── client/              # Client-facing components (GalleryGuide, etc.)
+    │   └── layout/              # Shared layout components (BottomSheet, PageWrapper, NotificationBell)
     ├── hooks/                   # useImageUpload, usePreviewUrls, usePageDrop
     └── utils/                   # API helpers, themes, image processing, R2 communication
 ```
