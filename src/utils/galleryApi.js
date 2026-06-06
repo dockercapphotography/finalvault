@@ -112,7 +112,7 @@ export async function getGalleryImageCount(galleryId) {
 export async function getFolders() {
   const { data, error } = await supabase
     .from('gallery_folders')
-    .select('id, name, parent_id, path, cover_r2_key, cover_focus_x, cover_focus_y, created_at, updated_at')
+    .select('id, name, parent_id, path, cover_r2_key, cover_focus_x, cover_focus_y, photographer_id, created_at, updated_at')
     .order('name', { ascending: true })
 
   if (error) throw error
@@ -123,7 +123,7 @@ export async function getFolders() {
 export async function getChildFolders(parentId = null) {
   let query = supabase
     .from('gallery_folders')
-    .select('id, name, parent_id, path, cover_r2_key, cover_focus_x, cover_focus_y, created_at, updated_at')
+    .select('id, name, parent_id, path, cover_r2_key, cover_focus_x, cover_focus_y, photographer_id, created_at, updated_at')
     .order('name', { ascending: true })
 
   if (parentId === null) {
