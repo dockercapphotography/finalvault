@@ -74,9 +74,7 @@ function UnsupportedFileModal({ files, onClose }) {
                 </span>
               ))}
             </div>
-            <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Export your RAW files as JPEG or TIFF from Lightroom, Capture One, or your camera's software before uploading.
-            </p>
+
           </div>
 
           {/* Footer */}
