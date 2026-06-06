@@ -87,7 +87,7 @@ export default function BottomSheet({ open, onClose, maxHeight = '85vh', childre
       >
         {/* Drag handle — swipe-to-close target */}
         <div
-          style={{ flexShrink: 0, touchAction: 'none', paddingBottom: 4 }}
+          style={{ flexShrink: 0, touchAction: 'none', paddingTop: 4, paddingBottom: 12 }}
           onTouchStart={e => {
             touchStartY.current = e.touches[0].clientY
             dragY.current = 0
@@ -110,7 +110,7 @@ export default function BottomSheet({ open, onClose, maxHeight = '85vh', childre
             dragY.current = 0
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-strong)' }} />
           </div>
         </div>
