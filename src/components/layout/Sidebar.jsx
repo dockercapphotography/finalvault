@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Images, Settings, Bookmark } from 'lucide-react'
+import { Images, Settings, Bookmark, Users } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import NotificationBell from './NotificationBell.jsx'
 
 const baseNavItems = [
   { to: '/', label: 'Galleries', icon: Images, end: true },
   { to: '/bookmarked', label: 'Bookmarked', icon: Bookmark },
+  { to: '/clients', label: 'Clients', icon: Users },
   { to: '/account', label: 'Account', icon: Settings },
 ]
 
