@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import {ArrowLeft, CheckCircle, Copy, Eye, EyeOff, Plus, RefreshCw, Trash2, X} from 'lucide-react'
 import { getGallery, updateGallery, getTags, getGalleryTags, assignTag, unassignTag, createAndAssignTag, deleteGallery } from '../utils/galleryApi.js'
+import { getClients } from '../utils/crmApi.js'
 import { getImages } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
 import { THEMES } from '../utils/themes.js'
@@ -14,6 +15,7 @@ import Toggle from '../components/ui/Toggle.jsx'
 import Input from '../components/ui/Input.jsx'
 import Button from '../components/ui/Button.jsx'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
+import ClientPicker from '../components/ui/ClientPicker.jsx'
 
 const TABS = [
   { id: 'general',  label: 'General' },
@@ -133,6 +135,8 @@ export default function GallerySettings() {
   const [allowComments, setAllowComments] = useState(true)
   const [showGuide, setShowGuide] = useState(true)
   const [galleryTags, setGalleryTags] = useState([])
+  const [linkedClientId, setLinkedClientId] = useState('')
+  const [allClients, setAllClients] = useState([])
   const [allTags, setAllTags] = useState([])
   const [tagInput, setTagInput] = useState('')
   const [tagSuggestions, setTagSuggestions] = useState([])
@@ -188,6 +192,8 @@ export default function GallerySettings() {
       // Normalise legacy 'regular' value to 'medium'
       setGridSize(g.grid_size === 'regular' ? 'medium' : (g.grid_size || 'medium'))
       setGridSpacing(g.grid_spacing === 'regular' ? 'tight' : (g.grid_spacing || 'tight'))
+      setLinkedClientId(g.client_id || '')
+      getClients().then(setAllClients).catch(() => {})
     } catch {
       setSaveState('error')
     } finally {
@@ -245,6 +251,7 @@ export default function GallerySettings() {
         expiry_warning_days: s.expiryWarningDays,
         allow_comments: s.allowComments,
         show_guide: s.showGuide,
+        client_id: s.linkedClientId || null,
         theme_color: s.themeColor,
         grid_size: s.gridSize,
         grid_spacing: s.gridSpacing,
@@ -406,6 +413,21 @@ export default function GallerySettings() {
               <Input label="Internal notes" value={notes} onChange={setNotes} onBlur={() => save()} placeholder="Not visible to clients" type="textarea" />
             </div>
           </SettingsSection>
+          {allClients.length > 0 && (
+            <SettingsSection title="Linked Client" description="Associate this gallery with a client record">
+              <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
+                <ClientPicker
+                  clients={allClients}
+                  value={linkedClientId}
+                  onChange={clientId => {
+                    setLinkedClientId(clientId)
+                    save({ linkedClientId: clientId })
+                  }}
+                />
+              </div>
+            </SettingsSection>
+          )}
+
           <SettingsSection title="Tags" description="Categorize this gallery for easy filtering on your dashboard">
             <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
               {/* Assigned tag pills */}

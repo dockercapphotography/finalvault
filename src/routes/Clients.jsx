@@ -4,6 +4,7 @@ import { Plus, Search, User, Mail, Phone, Tag, X, ChevronRight } from 'lucide-re
 import { getClients, createClient, deleteClient } from '../utils/crmApi.js'
 import Button from '../components/ui/Button.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import { formatPhone } from '../utils/formatters.js'
 import Input from '../components/ui/Input.jsx'
 
 const CONTRACT_STATUS_BADGE = {
@@ -351,7 +352,7 @@ export default function Clients() {
                   )}
                   {client.phone && (
                     <span className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                      <Phone size={11} />{client.phone}
+                      <Phone size={11} />{formatPhone(client.phone)}
                     </span>
                   )}
                 </div>

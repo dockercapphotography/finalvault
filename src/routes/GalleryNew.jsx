@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Check } from 'lucide-react'
 import { createGallery } from '../utils/galleryApi.js'
+import { getClients } from '../utils/crmApi.js'
 import { createSet } from '../utils/gallerySetApi.js'
 import { getGalleryTemplates } from '../utils/galleryTemplateApi.js'
 import { THEMES, getTheme } from '../utils/themes.js'
 import Button from '../components/ui/Button.jsx'
+import ClientPicker from '../components/ui/ClientPicker.jsx'
 import Input from '../components/ui/Input.jsx'
 
 export default function GalleryNew() {
@@ -18,6 +20,8 @@ export default function GalleryNew() {
   const [templates, setTemplates] = useState([])
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [values, setValues] = useState({ title: '', clientName: '', eventName: '', notes: '', eventDate: '' })
+  const [clients, setClients] = useState([])
+  const [selectedClientId, setSelectedClientId] = useState('')
   const [sets, setSets] = useState([{ name: '' }])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -27,6 +31,7 @@ export default function GalleryNew() {
     getGalleryTemplates()
       .then(data => { setTemplates(data); setLoadingTemplates(false) })
       .catch(() => setLoadingTemplates(false))
+    getClients().then(setClients).catch(() => {})
   }, [])
 
   function handleSelectTemplate(template) {
@@ -65,6 +70,7 @@ export default function GalleryNew() {
         eventName: values.eventName,
         notes: values.notes,
         eventDate: values.eventDate,
+        clientId: selectedClientId || null,
         themeColor: selectedTemplate?.theme_color || 'light',
         gridSize: selectedTemplate?.grid_size || 'medium',
         gridSpacing: selectedTemplate?.grid_spacing || 'tight',
@@ -227,6 +233,27 @@ export default function GalleryNew() {
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
             />
           </div>
+
+          {clients.length > 0 && (
+            <div>
+              <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>
+                Link to client <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
+              </label>
+              <ClientPicker
+                clients={clients}
+                value={selectedClientId}
+                onChange={clientId => {
+                  setSelectedClientId(clientId)
+                  if (clientId) {
+                    const c = clients.find(c => c.id === clientId)
+                    if (c && !values.clientName) {
+                      setValues(v => ({ ...v, clientName: `${c.first_name} ${c.last_name}` }))
+                    }
+                  }
+                }}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

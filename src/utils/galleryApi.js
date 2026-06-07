@@ -45,7 +45,7 @@ export async function createGallery({
   themeColor, gridSize, gridSpacing,
   allowDownloads, downloadWatermarked, allowHiresDownload,
   allowFavorites, allowComments, requirePassword, requireDownloadPin,
-  watermarkId, folderId,
+  watermarkId, folderId, clientId,
 }) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
@@ -68,6 +68,7 @@ export async function createGallery({
       require_download_pin: requireDownloadPin ?? false,
       watermark_id: watermarkId || null,
       folder_id: folderId || null,
+      client_id: clientId || null,
       photographer_id: user.id,
       share_token: generateShareToken(),
     })

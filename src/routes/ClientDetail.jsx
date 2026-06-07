@@ -6,7 +6,7 @@ import {
   AlertCircle, Ban, Send
 } from 'lucide-react'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts } from '../utils/crmApi.js'
-import { formatDate } from '../utils/formatters.js'
+import { formatDate, formatPhone } from '../utils/formatters.js'
 import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -321,9 +321,9 @@ export default function ClientDetail() {
                   </a>
                 )}
                 {client.phone && (
-                  <a href={`tel:${client.phone}`} className="text-sm flex items-center gap-1.5"
+                  <a href={`tel:${formatPhone(client.phone)}`} className="text-sm flex items-center gap-1.5"
                     style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-                    <Phone size={13} />{client.phone}
+                    <Phone size={13} />{formatPhone(client.phone)}
                   </a>
                 )}
                 {location && (
