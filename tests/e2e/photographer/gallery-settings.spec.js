@@ -199,4 +199,157 @@ test.describe('Gallery Settings', () => {
     await expect(page.getByText('Are you sure?')).toBeVisible()
     await expect(page.getByRole('button', { name: /Yes, delete permanently/ })).toBeVisible()
   })
+  // ── show_guide toggle ────────────────────────────────────────────────────────
+
+  test('Sharing tab shows Gallery Guide toggle', async ({ page }) => {
+    const photographerId = await getPhotographerId()
+    const shareToken = `pw-guide-${Date.now()}`
+    const { data: gallery } = await sb().from('galleries').insert({
+      photographer_id: photographerId, title: 'Guide Test Gallery',
+      share_token: shareToken, is_active: true, show_guide: true,
+    }).select().single()
+    try {
+      await page.goto(`/galleries/${gallery.id}/settings`)
+      await waitForSettingsReady(page)
+      await page.getByRole('button', { name: 'Sharing' }).click()
+      await expect(page.getByText('Show gallery guide')).toBeVisible()
+    } finally {
+      await sb().from('galleries').delete().eq('id', gallery.id)
+    }
+  })
+
+  test('toggling show_guide saves immediately', async ({ page }) => {
+    const photographerId = await getPhotographerId()
+    const shareToken = `pw-guide2-${Date.now()}`
+    const { data: gallery } = await sb().from('galleries').insert({
+      photographer_id: photographerId, title: 'Guide Toggle Test',
+      share_token: shareToken, is_active: true, show_guide: true,
+    }).select().single()
+    try {
+      await page.goto(`/galleries/${gallery.id}/settings`)
+      await waitForSettingsReady(page)
+      await page.getByRole('button', { name: 'Sharing' }).click()
+      const toggle = rowToggle(page, 'Show gallery guide')
+      await toggle.click()
+      await page.waitForTimeout(800)
+      const { data } = await sb().from('galleries').select('show_guide').eq('id', gallery.id).single()
+      expect(data.show_guide).toBe(false)
+    } finally {
+      await sb().from('galleries').delete().eq('id', gallery.id)
+    }
+  })
+
+  // ── Tags section in General tab ──────────────────────────────────────────────
+
+  test('General tab shows Tags section', async ({ page }) => {
+    const photographerId = await getPhotographerId()
+    const shareToken = `pw-tags-${Date.now()}`
+    const { data: gallery } = await sb().from('galleries').insert({
+      photographer_id: photographerId, title: 'Tags Section Test',
+      share_token: shareToken, is_active: true, show_guide: false,
+    }).select().single()
+    try {
+      await page.goto(`/galleries/${gallery.id}/settings`)
+      await waitForSettingsReady(page)
+      // Tags section is below the fold — scroll to it
+      await page.getByText('Tags', { exact: true }).scrollIntoViewIfNeeded()
+      await expect(page.getByText('Tags', { exact: true })).toBeVisible()
+      await expect(page.getByPlaceholder('Add a tag...')).toBeVisible()
+    } finally {
+      await sb().from('galleries').delete().eq('id', gallery.id)
+    }
+  })
+
+  test('can assign an existing tag to a gallery via autocomplete', async ({ page }) => {
+    const photographerId = await getPhotographerId()
+    const shareToken = `pw-assign-${Date.now()}`
+    const tagName = `pw-tag-${Date.now()}`
+    const { data: gallery } = await sb().from('galleries').insert({
+      photographer_id: photographerId, title: 'Tag Assign Test',
+      share_token: shareToken, is_active: true, show_guide: false,
+    }).select().single()
+    const { data: tag } = await sb().from('gallery_tags').insert({
+      photographer_id: photographerId, name: tagName, color: '#6366f1'
+    }).select().single()
+    try {
+      await page.goto(`/galleries/${gallery.id}/settings`)
+      await waitForSettingsReady(page)
+      const input = page.getByPlaceholder('Add a tag...')
+      await input.click()
+      await input.fill(tagName.slice(0, 6))
+      await expect(page.getByText(tagName)).toBeVisible({ timeout: 3000 })
+      await page.getByText(tagName).first().click()
+      await expect(page.getByText(tagName, { exact: false })).toBeVisible()
+      await page.waitForTimeout(500)
+      const { data } = await sb().from('gallery_tag_assignments').select('id')
+        .eq('gallery_id', gallery.id).eq('tag_id', tag.id).maybeSingle()
+      expect(data).toBeTruthy()
+    } finally {
+      await sb().from('gallery_tag_assignments').delete().eq('tag_id', tag.id)
+      await sb().from('gallery_tags').delete().eq('id', tag.id)
+      await sb().from('galleries').delete().eq('id', gallery.id)
+    }
+  })
+
+  test('can create a new tag inline via Enter key', async ({ page }) => {
+    const photographerId = await getPhotographerId()
+    const shareToken = `pw-create-${Date.now()}`
+    const tagName = `new-tag-${Date.now()}`
+    const { data: gallery } = await sb().from('galleries').insert({
+      photographer_id: photographerId, title: 'Tag Create Test',
+      share_token: shareToken, is_active: true, show_guide: false,
+    }).select().single()
+    try {
+      await page.goto(`/galleries/${gallery.id}/settings`)
+      await waitForSettingsReady(page)
+      const input = page.getByPlaceholder('Add a tag...')
+      await input.click()
+      await input.fill(tagName)
+      await expect(page.getByText(`Create tag "${tagName}"`)).toBeVisible({ timeout: 3000 })
+      await input.press('Enter')
+      await expect(page.getByText(tagName, { exact: false })).toBeVisible()
+      const { data } = await sb().from('gallery_tags').select('id').eq('name', tagName).single()
+      expect(data).toBeTruthy()
+    } finally {
+      const { data: tag } = await sb().from('gallery_tags').select('id').eq('name', tagName).maybeSingle()
+      if (tag) {
+        await sb().from('gallery_tag_assignments').delete().eq('tag_id', tag.id)
+        await sb().from('gallery_tags').delete().eq('id', tag.id)
+      }
+      await sb().from('galleries').delete().eq('id', gallery.id)
+    }
+  })
+
+  test('can remove a tag assignment by clicking ×', async ({ page }) => {
+    const photographerId = await getPhotographerId()
+    const shareToken = `pw-remove-${Date.now()}`
+    const tagName = `rm-tag-${Date.now()}`
+    const { data: gallery } = await sb().from('galleries').insert({
+      photographer_id: photographerId, title: 'Tag Remove Test',
+      share_token: shareToken, is_active: true, show_guide: false,
+    }).select().single()
+    const { data: tag } = await sb().from('gallery_tags').insert({
+      photographer_id: photographerId, name: tagName, color: '#6366f1'
+    }).select().single()
+    await sb().from('gallery_tag_assignments').insert({ gallery_id: gallery.id, tag_id: tag.id })
+    try {
+      await page.goto(`/galleries/${gallery.id}/settings`)
+      await waitForSettingsReady(page)
+      // Pill should be visible
+      await expect(page.getByText(tagName, { exact: false })).toBeVisible()
+      // The × button is inside the pill — look for it next to the tag text
+      // Pills render as: [color dot] [tag name] [× button]
+      // Target the pill container and click its last button
+      const pill = page.locator('button, span').filter({ hasText: new RegExp(`^${tagName}$`) }).first()
+      // Pill's × is a sibling button — use the parent container
+      await page.locator('div').filter({ hasText: new RegExp(`^${tagName}$`) })
+        .getByRole('button').first().click()
+      await expect(page.getByText(tagName, { exact: true })).not.toBeVisible({ timeout: 3000 })
+    } finally {
+      await sb().from('gallery_tag_assignments').delete().eq('tag_id', tag.id)
+      await sb().from('gallery_tags').delete().eq('id', tag.id)
+      await sb().from('galleries').delete().eq('id', gallery.id)
+    }
+  })
+
 })
