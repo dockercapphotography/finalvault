@@ -316,6 +316,7 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
           >
             <button
               onClick={() => { setMenuOpen(v => !v); setConfirmDelete(false) }}
+              aria-label="Gallery menu"
               className="w-7 h-7 rounded-full flex items-center justify-center"
               style={{
                 background: menuOpen ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)',
@@ -424,7 +425,7 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
           </button>
           {gallery.require_password && <div className="absolute top-3 right-3 p-1.5 rounded-full" style={{ background: 'var(--surface)' }}><Lock size={11} style={{ color: 'var(--text-muted)' }} /></div>}
           <div ref={mobileMenuRef} className="absolute top-3" style={{ right: gallery.require_password ? 40 : 12 }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => { setMenuOpen(v => !v); setConfirmDelete(false) }} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: menuOpen ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)', color: '#fff', border: 'none', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+            <button onClick={() => { setMenuOpen(v => !v); setConfirmDelete(false) }} aria-label="Gallery menu" className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: menuOpen ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)', color: '#fff', border: 'none', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
               <MoreVertical size={13} />
             </button>
             {menuOpen && (

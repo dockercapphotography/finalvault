@@ -198,7 +198,7 @@ test.describe('Gallery access — unavailable states', () => {
     try {
       await page.goto(`/g/${gallery.share_token}`)
       await waitForGateReady(page)
-      await expect(page.getByText('Could not load gallery')).toBeVisible()
+      await expect(page.getByText('Could not load gallery.')).toBeVisible()
     } finally {
       await cleanupGallery(gallery.id)
     }

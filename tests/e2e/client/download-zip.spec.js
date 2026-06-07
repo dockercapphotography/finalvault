@@ -33,11 +33,10 @@ async function scrollToGrid(page) {
 
 // Get the header download button from the sticky header
 async function clickHeaderDownload(page) {
-  await scrollToGrid(page)
-  // Wait for sticky header to be present then click its download button
   const stickyHeader = page.locator('div.sticky')
   await stickyHeader.waitFor({ state: 'visible', timeout: 10000 })
-  await stickyHeader.getByRole('button').first().click()
+  // Download button is the last button in the sticky header (rightmost).
+  await stickyHeader.getByRole('button').last().click()
 }
 
 async function createGallery(overrides = {}) {
@@ -54,6 +53,7 @@ async function createGallery(overrides = {}) {
     allow_favorites: false,
     allow_comments: false,
     require_download_pin: false,
+    show_guide: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...overrides,
@@ -112,7 +112,7 @@ test.describe('Download ZIP — enabled', () => {
     await scrollToGrid(page)
     const stickyHdr = page.locator('div.sticky')
     await stickyHdr.waitFor({ state: 'visible', timeout: 10000 })
-    await stickyHdr.getByRole('button').first().click()
+    await stickyHdr.getByRole('button').last().click()
     const webSizeBtn = page.getByText('Web Size')
     if (await webSizeBtn.isVisible()) await webSizeBtn.click()
     // Progress modal should appear
@@ -162,7 +162,7 @@ test.describe('Download ZIP — PIN gate', () => {
     await scrollToGrid(page)
     const stickyHdr = page.locator('div.sticky')
     await stickyHdr.waitFor({ state: 'visible', timeout: 10000 })
-    await stickyHdr.getByRole('button').first().click()
+    await stickyHdr.getByRole('button').last().click()
     const webSizeBtn = page.getByText('Web Size')
     if (await webSizeBtn.isVisible()) await webSizeBtn.click()
     await expect(page.getByText('Download PIN required')).toBeVisible()
@@ -175,7 +175,7 @@ test.describe('Download ZIP — PIN gate', () => {
     await scrollToGrid(page)
     const stickyHdr = page.locator('div.sticky')
     await stickyHdr.waitFor({ state: 'visible', timeout: 10000 })
-    await stickyHdr.getByRole('button').first().click()
+    await stickyHdr.getByRole('button').last().click()
     const webSizeBtn = page.getByText('Web Size')
     if (await webSizeBtn.isVisible()) await webSizeBtn.click()
     await page.locator('input[inputmode="numeric"]').fill('0000')
@@ -190,7 +190,7 @@ test.describe('Download ZIP — PIN gate', () => {
     await scrollToGrid(page)
     const stickyHdr = page.locator('div.sticky')
     await stickyHdr.waitFor({ state: 'visible', timeout: 10000 })
-    await stickyHdr.getByRole('button').first().click()
+    await stickyHdr.getByRole('button').last().click()
     const webSizeBtn = page.getByText('Web Size')
     if (await webSizeBtn.isVisible()) await webSizeBtn.click()
     await page.locator('input[inputmode="numeric"]').fill('7391')

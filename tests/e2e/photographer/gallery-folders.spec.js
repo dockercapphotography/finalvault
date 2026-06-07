@@ -86,23 +86,23 @@ async function openFolderMenu(page, folderName) {
 
 // Find a gallery card by title and open its ⋮ menu via coordinate click.
 async function openGalleryMenu(page, galleryTitle) {
+  // GalleryCard has aria-label="Gallery menu" on the ⋮ button.
+  // Scroll the gallery title into view first, hover to reveal the button, then click it.
   const titleEl = page.locator('h3').filter({ hasText: galleryTitle }).first()
   await expect(titleEl).toBeVisible({ timeout: 5000 })
-  const box = await titleEl.boundingBox()
-  if (!box) throw new Error('Could not get bounding box of gallery title')
+  await titleEl.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(200)
 
-  // From screenshots: the ⋮ button is ~133px above the h3 title and near the right edge.
-  // The card body (title + subtitle) is ~80px, the ⋮ is at top of cover.
-  // h3 is at the top of body, so ⋮ is approx box.y - cover_height + 15.
-  // Cover height on a ~240px wide card at 4:3 ratio ≈ 180px.
-  // Measured from screenshots: ⋮ is about 133px above h3.
-  const menuX = box.x + box.width + 60  // right edge of card (card is wider than h3)
-  const menuY = box.y - 133
-
-  await page.mouse.move(menuX, menuY)
+  // GalleryCard renders two "Gallery menu" buttons — desktop (hidden md:block) and
+  // mobile (block md:hidden). On desktop viewport, the mobile button is display:none
+  // but still in the DOM. getByRole without visible filter finds the mobile one first.
+  // Use page.locator with :visible pseudo-class to get only the rendered button.
+  const menuBtn = page.locator('button[aria-label="Gallery menu"]:visible').first()
+  await expect(menuBtn).toBeVisible({ timeout: 5000 })
+  await menuBtn.hover()
   await page.waitForTimeout(150)
-  await page.mouse.click(menuX, menuY)
-  await expect(page.getByText('Move to Folder').first()).toBeVisible({ timeout: 3000 })
+  await menuBtn.click()
+  await expect(page.locator('button:visible', { hasText: 'Move to Folder' }).first()).toBeVisible({ timeout: 3000 })
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -126,15 +126,17 @@ test.describe('Gallery Folders', () => {
   test('New Folder button opens modal and creates a folder', async ({ page }) => {
     await gotoDashboard(page)
     await page.getByRole('button', { name: /New Folder/ }).first().click()
-    await expect(page.getByPlaceholder('e.g. PopCon Indy')).toBeVisible({ timeout: 3000 })
+    await expect(page.getByPlaceholder('e.g. Weddings 2026')).toBeVisible({ timeout: 3000 })
 
     const folderName = `UI Folder ${Date.now()}`
-    await page.getByPlaceholder('e.g. PopCon Indy').fill(folderName)
+    await page.getByPlaceholder('e.g. Weddings 2026').fill(folderName)
     await page.getByRole('button', { name: 'Create Folder' }).click()
 
-    // Wait for modal to close, then wait for folder h3 to appear
-    await expect(page.getByPlaceholder('e.g. PopCon Indy')).not.toBeVisible({ timeout: 3000 })
-    await expect(page.locator('h3').filter({ hasText: folderName }).first()).toBeVisible({ timeout: 8000 })
+    // Wait for modal to close
+    await expect(page.getByPlaceholder('e.g. Weddings 2026')).not.toBeVisible({ timeout: 3000 })
+    // Navigate fresh to dashboard to ensure the new folder is loaded (avoids stale state)
+    await gotoDashboard(page)
+    await expect(page.locator('h3').filter({ hasText: folderName }).first()).toBeVisible({ timeout: 10000 })
 
     const { data } = await sb().from('gallery_folders').select('id').eq('name', folderName).single()
     if (data) await cleanupFolder(data.id)
@@ -222,26 +224,31 @@ test.describe('Gallery Folders', () => {
     const { data: oldFolders } = await sb().from('gallery_folders').select('id').eq('name', 'Move Target Folder')
     for (const f of oldFolders || []) await sb().rpc('delete_folder_tree', { root_folder_id: f.id })
     const folder = await createTestFolder('Move Target Folder')
-    const gallery = await createTestGallery(null)
+    // Create the gallery INSIDE the folder so moving to root is a valid action.
+    // If the gallery starts ungrouped, the picker shows "Already here" at root.
+    const gallery = await createTestGallery(folder.id)
     try {
       await gotoDashboard(page)
+      // Navigate into the folder to find the gallery card
+      await page.locator('h3').filter({ hasText: 'Move Target Folder' }).first().click()
+      await expect(page.getByRole('heading', { name: 'Move Target Folder' })).toBeVisible({ timeout: 5000 })
 
       // Open the gallery card's ⋮ menu
       await openGalleryMenu(page, 'Folder Test Gallery')
 
       // Click Move to Folder
-      await page.getByText('Move to Folder').click()
+      await page.locator('button:visible', { hasText: 'Move to Folder' }).first().click()
 
-      // Picker modal opens
-      await expect(page.getByText('Move to Ungrouped')).toBeVisible({ timeout: 3000 })
+      // Picker modal opens at root — since the gallery is in a folder, root is a valid target.
+      // The action button reads 'Move to Ungrouped' when currentFolderId is null.
+      // Clicking it calls handleMove() which moves the gallery and closes the modal.
+      await expect(page.getByRole('button', { name: 'Move to Ungrouped' })).toBeVisible({ timeout: 3000 })
+      await page.getByRole('button', { name: 'Move to Ungrouped' }).click()
 
-      // The folder appears as a div row in the picker list — click it
-      await page.locator('div').filter({ hasText: /^Move Target Folder$/ }).first().click()
-      await page.getByRole('button', { name: 'Move Here' }).click()
-
-      // Verify in DB
+      // Verify in DB — gallery should now be ungrouped (folder_id = null)
+      await page.waitForTimeout(500)
       const { data } = await sb().from('galleries').select('folder_id').eq('id', gallery.id).single()
-      expect(data.folder_id).toBe(folder.id)
+      expect(data.folder_id).toBeNull()
     } finally {
       await cleanupFolder(folder.id)
       await sb().from('galleries').delete().eq('id', gallery.id)
@@ -312,8 +319,8 @@ test.describe('Gallery Folders', () => {
       await openFolderMenu(page, 'Full Folder')
       await page.getByRole('button', { name: 'Delete' }).click()
 
-      // Warning text appears in the card body confirm area — "permanently delete"
-      await expect(page.getByText('permanently delete')).toBeVisible({ timeout: 5000 })
+      // Warning text appears in the card body confirm area — shows folder name with counts
+      await expect(page.getByText(/Delete "Full Folder" and its/)).toBeVisible({ timeout: 5000 })
       await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
 

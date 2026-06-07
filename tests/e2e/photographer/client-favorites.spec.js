@@ -215,8 +215,8 @@ test.describe('Client Favorites — Activity Page', () => {
       await gotoActivity(page)
       await clickCard(page, email)
       await waitForPanel(page)
-      // Click the semi-transparent backdrop (fixed inset-0 z-40 div)
-      await page.locator('div.fixed.inset-0').first().click({ position: { x: 10, y: 10 } })
+      // The desktop panel has no backdrop — close via Escape key
+      await page.keyboard.press('Escape')
       // Panel slides out after 280ms close animation
       await expect(desktopPanel(page)).not.toBeVisible({ timeout: 2000 })
     } finally {

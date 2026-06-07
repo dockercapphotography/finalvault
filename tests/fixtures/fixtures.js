@@ -108,6 +108,7 @@ export const test = base.extend({
       allow_comments: true,
       require_password: false,
       require_download_pin: false,
+      show_guide: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).select().single()
@@ -142,6 +143,7 @@ export const test = base.extend({
       allow_downloads: false,
       allow_favorites: true,
       allow_comments: true,
+      show_guide: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).select().single()
@@ -178,6 +180,7 @@ export const test = base.extend({
       allow_hires_download: false,
       allow_favorites: true,
       allow_comments: true,
+      show_guide: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).select().single()
@@ -211,6 +214,7 @@ export const test = base.extend({
       allow_proofing: true,
       require_password: false,
       require_download_pin: false,
+      show_guide: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).select().single()
@@ -235,6 +239,18 @@ export async function enterGalleryAsClient(page, shareToken, email = 'testclient
   await page.getByPlaceholder('Enter your email to continue').fill(email)
   await page.getByRole('button', { name: 'View Gallery' }).click()
   await expect(page).toHaveURL(`/g/${shareToken}/view`, { timeout: 10000 })
+  // Dismiss the GalleryGuide modal if it appears (show_guide may be true on fixture galleries).
+  // The guide has a 400ms mount delay + animation before the close button appears.
+  // We use the close button (aria-label="Close guide") — specific and safe.
+  try {
+    const closeBtn = page.getByRole('button', { name: 'Close guide' })
+    await closeBtn.waitFor({ state: 'visible', timeout: 2500 })
+    await closeBtn.click()
+    // Wait for guide dismiss animation (250ms)
+    await page.waitForTimeout(350)
+  } catch {
+    // Guide didn't appear — that's fine
+  }
 }
 
 // Enter the fixture gallery as a client, cleaning up the viewer session after
