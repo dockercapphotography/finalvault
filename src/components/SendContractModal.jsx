@@ -220,7 +220,7 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
       <>
         <div style={overlayStyle} onClick={onClose} />
         <div style={{ ...modalStyle, maxWidth: 680 }}>
-          <div style={{ ...innerStyle, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...innerStyle, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
             <div className="px-6 py-4 flex items-center gap-3 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
               <button onClick={() => setStep('pick')}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
@@ -255,7 +255,7 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="flex-1 px-6 py-4">
               {editing ? (
                 <textarea
                   value={editedBody}
@@ -281,11 +281,11 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
               )}
             </div>
 
-            <div className="px-6 py-4 flex items-center justify-between gap-3 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+            <div className="px-6 py-4 flex flex-col gap-2 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Variables have been filled in. Review before sending.
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2">
                 <Button variant="secondary" onClick={() => setStep('pick')}>Back</Button>
                 <Button onClick={() => setStep('send')} disabled={!contractTitle.trim()}>
                   Continue <ChevronRight size={14} />
