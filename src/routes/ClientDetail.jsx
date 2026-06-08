@@ -234,6 +234,12 @@ function ContractRow({ contract, onDelete, onResend }) {
 
       {expanded && (
         <div className="px-4 pt-3 pb-3 flex items-center gap-2 flex-wrap" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+          <a
+            href={`/contracts/${contract.id}`}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium"
+            style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+            View contract
+          </a>
           {(contract.status === 'sent' || contract.status === 'draft') && (
             <button
               onClick={handleResend}

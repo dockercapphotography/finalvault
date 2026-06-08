@@ -11,6 +11,7 @@ import Account from './routes/Account.jsx'
 import Bookmarked from './routes/Bookmarked.jsx'
 import Clients from './routes/Clients.jsx'
 import ClientDetail from './routes/ClientDetail.jsx'
+import ContractDetail from './routes/ContractDetail.jsx'
 import Admin from './routes/Admin.jsx'
 import ClientGallery from './routes/ClientGallery.jsx'
 import ClientGalleryView from './routes/ClientGalleryView.jsx'
@@ -128,6 +129,11 @@ export default function App() {
       <Route path="/clients/:id" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><ClientDetail /></PageWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/contracts/:id" element={
+        <ProtectedRoute session={session}>
+          <PageWrapper session={session}><ContractDetail /></PageWrapper>
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />

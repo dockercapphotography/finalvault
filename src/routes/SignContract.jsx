@@ -265,7 +265,6 @@ export default function SignContract() {
                 color: '#111',
                 outline: 'none',
                 boxSizing: 'border-box',
-                fontFamily: 'Georgia, serif',
                 letterSpacing: '0.02em',
               }}
               onFocus={e => e.target.style.borderColor = '#6366f1'}
