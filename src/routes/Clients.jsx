@@ -162,6 +162,30 @@ function ClientFormModal({ onClose, onSaved }) {
   )
 }
 
+
+function ClientAvatar({ client, size = 10 }) {
+  const [url, setUrl] = useState(null)
+  useEffect(() => {
+    if (!client.avatar_r2_key) return
+    import('../utils/crmApi.js').then(({ getClientAvatarUrl }) => {
+      import('../supabaseClient.js').then(({ supabase }) => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          getClientAvatarUrl(client.avatar_r2_key, session?.access_token).then(setUrl)
+        })
+      })
+    })
+  }, [client.avatar_r2_key])
+
+  const sizeClass = `w-${size} h-${size}`
+  if (url) return <img src={url} alt={client.first_name} className={`${sizeClass} rounded-full object-cover flex-shrink-0`} />
+  return (
+    <div className={`${sizeClass} rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0`}
+      style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff' }}>
+      {(client.first_name?.[0] || "").toUpperCase()}{(client.last_name?.[0] || "").toUpperCase()}
+    </div>
+  )
+}
+
 export default function Clients() {
   const navigate = useNavigate()
   const [clients, setClients] = useState([])
@@ -334,10 +358,7 @@ export default function Clients() {
               onMouseLeave={e => e.currentTarget.style.background = 'var(--surface)'}
             >
               {/* Avatar */}
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-sm font-semibold"
-                style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>
-                {client.first_name[0]}{client.last_name[0]}
-              </div>
+              <ClientAvatar client={client} size={9} />
 
               {/* Name + meta */}
               <div className="flex-1 min-w-0">

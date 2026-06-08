@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import Cropper from 'react-easy-crop'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ExternalLink,
+  ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ExternalLink, Camera,
   Pencil, Trash2, X, Plus, FilePlus, Clock, CheckCircle,
   AlertCircle, Ban, Send
 } from 'lucide-react'
-import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract } from '../utils/crmApi.js'
+import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
 import Button from '../components/ui/Button.jsx'
@@ -24,7 +25,79 @@ const CONTRACT_STATUS_CONFIG = {
   void:                 { label: 'Void',               variant: 'danger',   Icon: Ban },
 }
 
-function EditClientModal({ client, onClose, onSaved }) {
+
+async function getCroppedImg(imageSrc, croppedAreaPixels) {
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = imageSrc
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = 400
+  canvas.height = 400
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(
+    image,
+    croppedAreaPixels.x, croppedAreaPixels.y,
+    croppedAreaPixels.width, croppedAreaPixels.height,
+    0, 0, 400, 400
+  )
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92))
+}
+
+function ClientAvatarCropModal({ imageSrc, onSave, onCancel, saving }) {
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
+  const onCropComplete = useCallback((_, cap) => setCroppedAreaPixels(cap), [])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgba(0,0,0,0.75)' }}>
+      <div className="w-full max-w-sm rounded-2xl overflow-hidden"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Crop client photo</h2>
+          <button onClick={onCancel}
+            style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none' }}>
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ position: 'relative', width: '100%', height: 300, background: '#000' }}>
+          <Cropper image={imageSrc} crop={crop} zoom={zoom} aspect={1} cropShape="round"
+            showGrid={false} onCropChange={setCrop} onZoomChange={setZoom}
+            onCropComplete={onCropComplete} />
+          <p style={{ position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center',
+            fontSize: 12, color: 'rgba(255,255,255,0.6)', pointerEvents: 'none' }}>
+            Drag to reposition
+          </p>
+        </div>
+        <div className="px-5 py-3 space-y-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+          <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Zoom</p>
+          <input type="range" min={1} max={3} step={0.01} value={zoom}
+            onChange={e => setZoom(Number(e.target.value))}
+            style={{ width: '100%', cursor: 'pointer' }} />
+        </div>
+        <div className="flex gap-2 px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+          <button onClick={onCancel} disabled={saving}
+            className="flex-1 py-2 rounded-lg text-sm font-medium"
+            style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={() => onSave(croppedAreaPixels)} disabled={saving || !croppedAreaPixels}
+            className="flex-1 py-2 rounded-lg text-sm font-medium"
+            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Saving...' : 'Save photo'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onClose, onSaved }) {
   const [form, setForm] = useState({
     firstName: client.first_name,
     lastName: client.last_name,
@@ -85,6 +158,23 @@ function EditClientModal({ client, onClose, onSaved }) {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
+                {/* Avatar upload */}
+                <div className="flex items-center gap-4 pb-1">
+                  <div className="w-12 h-12 rounded-full flex-shrink-0 overflow-hidden"
+                    style={{ background: 'var(--accent)' }}>
+                    {avatarUrl
+                      ? <img src={avatarUrl} alt="" className="w-12 h-12 object-cover" />
+                      : <div className="w-12 h-12 flex items-center justify-center text-base font-bold" style={{ color: 'var(--accent-fg)' }}>
+                          {client.first_name[0]}{client.last_name[0]}
+                        </div>}
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg cursor-pointer"
+                    style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                    <input type="file" accept="image/*" className="hidden" onChange={onAvatarUpload} disabled={uploadingAvatar} />
+                    {uploadingAvatar ? 'Uploading...' : 'Change photo'}
+                  </label>
+                </div>
+
                 <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>First name <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
@@ -288,6 +378,9 @@ export default function ClientDetail() {
   const [error, setError] = useState(null)
   const [showEdit, setShowEdit] = useState(false)
   const [showSendContract, setShowSendContract] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [cropSrc, setCropSrc] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState(null)
@@ -308,10 +401,42 @@ export default function ClientDetail() {
       setClient(c)
       setGalleries(g)
       setContracts(cx)
+      if (c?.avatar_r2_key) {
+        const { data: { session } } = await supabase.auth.getSession()
+        getClientAvatarUrl(c.avatar_r2_key, session?.access_token).then(setAvatarUrl)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+
+  function handleAvatarUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file || !client) return
+    const reader = new FileReader()
+    reader.onload = () => setCropSrc(reader.result)
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  async function handleCropSave(croppedAreaPixels) {
+    setUploadingAvatar(true)
+    try {
+      const croppedBlob = await getCroppedImg(cropSrc, croppedAreaPixels)
+      const { data: { user } } = await supabase.auth.getUser()
+      const croppedFile = new File([croppedBlob], 'avatar.jpg', { type: 'image/jpeg' })
+      const updated = await uploadClientAvatar(client.id, user.id, croppedFile)
+      setClient(prev => ({ ...prev, avatar_r2_key: updated.avatar_r2_key }))
+      setAvatarUrl(URL.createObjectURL(croppedBlob))
+      setCropSrc(null)
+      setToast({ message: 'Photo updated', type: 'success' })
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' })
+    } finally {
+      setUploadingAvatar(false)
     }
   }
 
@@ -376,10 +501,23 @@ export default function ClientDetail() {
         <div className="px-6 py-5">
           <div className="flex items-start gap-4">
             {/* Avatar */}
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-xl font-bold"
-              style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>
-              {client.first_name[0]}{client.last_name[0]}
-            </div>
+            <label className="relative w-14 h-14 rounded-full flex-shrink-0 cursor-pointer group" style={{ display: 'block' }}>
+              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={client.first_name} className="w-14 h-14 rounded-full object-cover" />
+              ) : (
+                <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold"
+                  style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>
+                  {client.first_name[0]}{client.last_name[0]}
+                </div>
+              )}
+              <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ background: 'rgba(0,0,0,0.45)' }}>
+                {uploadingAvatar
+                  ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Camera size={14} style={{ color: '#fff' }} />}
+              </div>
+            </label>
 
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>{fullName}</h1>
@@ -549,6 +687,9 @@ export default function ClientDetail() {
       {showEdit && (
         <EditClientModal
           client={client}
+          avatarUrl={avatarUrl}
+          uploadingAvatar={uploadingAvatar}
+          onAvatarUpload={handleAvatarUpload}
           onClose={() => setShowEdit(false)}
           onSaved={updated => {
             setClient(updated)
@@ -568,6 +709,15 @@ export default function ClientDetail() {
             setShowSendContract(false)
             setToast({ message: 'Contract sent for signature', type: 'success' })
           }}
+        />
+      )}
+
+      {cropSrc && (
+        <ClientAvatarCropModal
+          imageSrc={cropSrc}
+          onSave={handleCropSave}
+          onCancel={() => setCropSrc(null)}
+          saving={uploadingAvatar}
         />
       )}
 

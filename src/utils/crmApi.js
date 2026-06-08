@@ -297,3 +297,59 @@ export function clientFullName(client) {
   if (!client) return ''
   return `${client.first_name} ${client.last_name}`.trim()
 }
+
+// ── Client avatar ─────────────────────────────────────────────────────────────
+
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+
+/**
+ * Upload a client avatar image to R2 and update the client record.
+ */
+export async function uploadClientAvatar(clientId, photographerId, file) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not authenticated')
+
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+  const key = `photographers/${photographerId}/clients/${clientId}.${ext}`
+
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('key', key)
+
+  const resp = await fetch(`${WORKER_URL}/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.access_token}` },
+    body: formData,
+  })
+  const result = await resp.json()
+  if (!result.ok) throw new Error(result.error || 'Upload failed')
+
+  // Save key to client record
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ avatar_r2_key: key, updated_at: new Date().toISOString() })
+    .eq('id', clientId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * Fetch a client avatar as an object URL for use in <img src>.
+ * Returns null if no avatar is set.
+ */
+export async function getClientAvatarUrl(avatarR2Key, sessionToken) {
+  if (!avatarR2Key) return null
+  try {
+    const resp = await fetch(
+      `${WORKER_URL}/original/${encodeURIComponent(avatarR2Key)}`,
+      { headers: { Authorization: `Bearer ${sessionToken}` } }
+    )
+    if (!resp.ok) return null
+    const blob = await resp.blob()
+    return URL.createObjectURL(blob)
+  } catch {
+    return null
+  }
+}

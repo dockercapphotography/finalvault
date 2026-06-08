@@ -189,10 +189,10 @@ export default function NotificationBell({ mobile = false }) {
     return (
       <div className="flex-1 h-full">
         <button onClick={handleOpen}
-          className="flex flex-col items-center justify-center gap-1 w-full h-full text-xs transition-colors"
+          className="flex flex-col items-center justify-center w-full h-full transition-colors"
           style={{ color: open ? 'var(--text)' : 'var(--text-muted)', fontWeight: open ? '500' : '400', background: 'none', border: 'none', cursor: 'pointer' }}>
           <div className="relative">
-            <Bell size={20} />
+            <Bell size={18} />
             {totalUnread > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
                 style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
@@ -200,7 +200,7 @@ export default function NotificationBell({ mobile = false }) {
               </span>
             )}
           </div>
-          Alerts
+          <span style={{ fontSize: 10 }}>Alerts</span>
         </button>
 
 
@@ -219,7 +219,7 @@ export default function NotificationBell({ mobile = false }) {
         onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
         onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
         <Bell size={16} />
-        {unreadCount > 0 && (
+        {totalUnread > 0 && (
           <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white flex items-center justify-center"
             style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
             {totalUnread > 9 ? '9+' : totalUnread}
