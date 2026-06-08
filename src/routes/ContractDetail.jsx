@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, AlertCircle, FileText,
-  User, Clock, Shield, Trash2
+  User, Clock, Shield, Trash2, Download
 } from 'lucide-react'
 import { getContract, updateContract, voidContract, deleteContract } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
@@ -11,6 +11,8 @@ import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
+
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 const STATUS_CONFIG = {
   draft:                { label: 'Draft',              variant: 'default' },
@@ -67,6 +69,27 @@ export default function ContractDetail() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (!contract.pdf_r2_key) return
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(
+        `${WORKER_URL}/original/${encodeURIComponent(contract.pdf_r2_key)}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      )
+      if (!resp.ok) throw new Error('Download failed')
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${contract.title.replace(/[^a-z0-9]/gi, '_')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setToast({ message: 'Could not download PDF: ' + err.message, type: 'error' })
     }
   }
 
@@ -236,6 +259,15 @@ export default function ContractDetail() {
               {countersigning ? 'Signing...' : 'Counter-Sign'}
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* PDF download button */}
+      {contract.pdf_r2_key && (
+        <div className="flex justify-end">
+          <Button variant="secondary" size="sm" onClick={handleDownloadPdf}>
+            <Download size={13} />Download PDF
+          </Button>
         </div>
       )}
 
