@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import {CheckCircle, Copy, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
+import {CheckCircle, Copy, Eye, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { supabase } from '../supabaseClient.js'
 import {
@@ -334,6 +334,7 @@ function ContractTemplatesTab({ onSaveState }) {
   const [loaded, setLoaded] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [showVars, setShowVars] = useState(false)
+  const [previewContract, setPreviewContract] = useState(false)
   const bodyRef = useRef(null)
 
   useEffect(() => {
@@ -399,37 +400,49 @@ function ContractTemplatesTab({ onSaveState }) {
         <div className="px-5 py-5 space-y-4" style={{ background: 'var(--surface)' }}>
           <Input label="Template name" value={editName} onChange={setEditName}
             placeholder="e.g. Portrait Session Agreement" required />
-          <div>
-            <button onClick={() => setShowVars(v => !v)}
-              className="text-xs flex items-center gap-1 mb-2"
-              style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-              {showVars ? '▾' : '▸'} {showVars ? 'Hide' : 'Show'} available variables
-            </button>
-            {showVars && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {CONTRACT_TEMPLATE_VARIABLES.map(v => (
-                  <button key={v.tag} onClick={() => insertVariable(v.tag)} title={v.desc}
-                    className="text-xs px-2 py-1 rounded-md font-mono"
-                    style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
-                    {v.tag}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+
           <div className="space-y-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-              Contract body <span style={{ color: 'var(--danger)' }}>*</span>
-            </label>
-            <textarea ref={bodyRef} value={editBody} onChange={e => setEditBody(e.target.value)}
-              placeholder="Enter your contract text. Use {{variable}} placeholders where values should be filled automatically."
-              rows={20}
-              style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
-                color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none',
-                resize: 'vertical', fontFamily: 'ui-monospace, monospace', lineHeight: 1.6 }}
-              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                Contract body <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <button onClick={() => setPreviewContract(p => !p)}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
+                style={{ background: previewContract ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', color: previewContract ? '#6366f1' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                {previewContract ? <Pencil size={11} /> : <Eye size={11} />}
+                {previewContract ? 'Edit' : 'Preview'}
+              </button>
+            </div>
+            {previewContract ? (
+              <div style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13,
+                fontFamily: 'inherit', lineHeight: 1.6, whiteSpace: 'pre-wrap', minHeight: 300 }}>
+                {fillPreview(editBody) || <span style={{ color: 'var(--text-muted)' }}>(empty)</span>}
+              </div>
+            ) : (
+              <textarea ref={bodyRef} value={editBody} onChange={e => setEditBody(e.target.value)}
+                placeholder="Enter your contract text. Use {{variable}} placeholders where values should be filled automatically."
+                rows={20}
+                style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                  color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none',
+                  resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
+                onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            )}
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Plain text. Use blank lines to separate paragraphs.</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
+            <div className="flex flex-wrap gap-1.5">
+              {CONTRACT_TEMPLATE_VARIABLES.map(v => (
+                <button key={v.tag} onClick={() => insertVariable(v.tag)} title={v.desc}
+                  className="text-xs px-2.5 py-1 rounded-lg font-mono"
+                  style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
+                  {v.tag}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Click a variable to insert it at your cursor position.</p>
           </div>
           <div className="flex items-center gap-3 pt-1">
             <Button onClick={handleSave} disabled={saving || !editName.trim() || !editBody.trim()}>
@@ -1071,6 +1084,37 @@ function GalleryTemplatesTab({ onSaveState }) {
   )
 }
 
+
+// ── Template preview helpers ──────────────────────────────────────────────────
+
+const PREVIEW_DATA = {
+  '{{client_name}}':       'Jane Smith',
+  '{{client_first_name}}': 'Jane',
+  '{{client_email}}':      'jane.smith@example.com',
+  '{{gallery_name}}':      'Spring Portrait Session',
+  '{{gallery_title}}':     'Spring Portrait Session',
+  '{{gallery_url}}':       'https://finalvault.dockercapphotography.com/g/example',
+  '{{photographer_name}}': 'Nick Porterfield',
+  '{{my_name}}':           'Nick Porterfield',
+  '{{business_name}}':     'Docker Cap Photography',
+  '{{studio_name}}':       'Docker Cap Photography',
+  '{{event_name}}':        'Spring Portrait Session',
+  '{{event_date}}':        'June 15, 2026',
+  '{{today_date}}':        new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  '{{sign_date}}':         new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  '{{password}}':          'gallery123',
+  '{{download_pin}}':      '1234',
+  '{{expiry_date}}':       'December 31, 2026',
+}
+
+function fillPreview(text) {
+  if (!text) return ''
+  return Object.entries(PREVIEW_DATA).reduce(
+    (t, [key, val]) => t.replaceAll(key, val),
+    text
+  )
+}
+
 // ── Email Templates Tab ───────────────────────────────────────────────────────
 
 function EmailTemplatesTab({ onSaveState }) {
@@ -1082,6 +1126,7 @@ function EmailTemplatesTab({ onSaveState }) {
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [previewEmail, setPreviewEmail] = useState(false)
   const bodyRef = useRef(null)
 
   useEffect(() => {
@@ -1127,20 +1172,37 @@ function EmailTemplatesTab({ onSaveState }) {
   if (editing !== null) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div>
           <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>{editing?.id ? 'Edit Template' : 'New Email Template'}</h3>
-          <button onClick={cancelEdit} className="text-sm" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>Cancel</button>
         </div>
         <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
           <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
             <Input label="Template Name" value={name} onChange={setName} placeholder="e.g. Wedding Delivery" />
             <Input label="Subject" value={subject} onChange={setSubject} placeholder="Your photos are ready!" />
             <div>
-              <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Message Body</label>
-              <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)} rows={8}
-                placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}
-                className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
-                style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Message Body</label>
+                <button onClick={() => setPreviewEmail(p => !p)}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
+                  style={{ background: previewEmail ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', color: previewEmail ? '#6366f1' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                  {previewEmail ? <Pencil size={11} /> : <Eye size={11} />}
+                  {previewEmail ? 'Edit' : 'Preview'}
+                </button>
+              </div>
+              {previewEmail ? (
+                <div className="w-full text-sm rounded-xl px-3 py-2.5 min-h-[160px]"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                  <p className="text-xs font-medium mb-2 pb-2" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+                    Subject: {fillPreview(subject) || '(no subject)'}
+                  </p>
+                  {fillPreview(body) || <span style={{ color: 'var(--text-muted)' }}>(empty)</span>}
+                </div>
+              ) : (
+                <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)} rows={8}
+                  placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}
+                  className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
+              )}
             </div>
             <div>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
@@ -1154,10 +1216,12 @@ function EmailTemplatesTab({ onSaveState }) {
               </div>
               <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Click a variable to insert it at your cursor position.</p>
             </div>
-            <button onClick={handleSave} disabled={!name.trim() || !subject.trim() || saving} className="w-full py-2.5 rounded-xl text-sm font-medium"
-              style={{ background: '#6366f1', color: '#fff', opacity: !name.trim() || saving ? 0.5 : 1, cursor: !name.trim() || saving ? 'not-allowed' : 'pointer' }}>
-              {saving ? 'Saving…' : 'Save Template'}
-            </button>
+            <div className="flex items-center gap-3 pt-1">
+              <Button onClick={handleSave} disabled={!name.trim() || !subject.trim() || saving}>
+                {saving ? 'Saving…' : 'Save Template'}
+              </Button>
+              <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
+            </div>
           </div>
         </div>
       </div>
