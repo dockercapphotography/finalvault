@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, Send, FileText, Eye, Pencil } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Send, FileText, Eye, Pencil, Search } from 'lucide-react'
 import {
   getContractTemplates, createContractDraft, updateContract,
   resolveTemplateVariables, sha256
@@ -19,7 +19,8 @@ const STEPS = ['pick', 'preview', 'send']
  *   onSent    : (contract) => void — called after successful send
  */
 export default function SendContractModal({ client, gallery = null, onClose, onSent }) {
-  const [step, setStep] = useState('pick')    // pick | preview | send
+  const [step, setStep] = useState('pick')
+  const [templateSearch, setTemplateSearch] = useState('')    // pick | preview | send
   const [templates, setTemplates] = useState([])
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [photographer, setPhotographer] = useState(null)
@@ -160,52 +161,59 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
               </button>
             </div>
 
-            <div className="px-6 py-5 space-y-3">
-              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Select a template</p>
+            {/* Search */}
+            <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}>
+                <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <input
+                  value={templateSearch}
+                  onChange={e => setTemplateSearch(e.target.value)}
+                  placeholder="Search templates..."
+                  style={{ border: 'none', background: 'transparent', outline: 'none',
+                    fontSize: 13, color: 'var(--text)', width: '100%' }}
+                />
+              </div>
+            </div>
 
+            {/* Template list */}
+            <div>
               {!client.email && (
-                <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid var(--warning)' }}>
+                <div className="mx-4 mt-3 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid var(--warning)' }}>
                   This client has no email address. Please add one before sending a contract.
                 </div>
               )}
-
               {templates.length === 0 ? (
-                <div className="py-8 text-center">
+                <div className="py-8 text-center px-6">
                   <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No contract templates yet.</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                    Create templates in Account → Templates first.
-                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Create templates in Account → Templates first.</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {templates.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => handleSelectTemplate(t)}
-                      disabled={!client.email}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors"
-                      style={{
-                        background: 'var(--surface-raised)', border: '1px solid var(--border)',
-                        cursor: client.email ? 'pointer' : 'not-allowed',
-                        opacity: client.email ? 1 : 0.5,
-                      }}
-                      onMouseEnter={e => { if (client.email) e.currentTarget.style.borderColor = '#6366f1' }}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                    >
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: 'rgba(99,102,241,0.1)' }}>
-                        <FileText size={14} style={{ color: '#6366f1' }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{t.name}</p>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                          {t.body.split('\n').filter(Boolean).length} lines
-                        </p>
-                      </div>
-                      <ChevronRight size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                    </button>
-                  ))}
-                </div>
+                <>
+                  {templates
+                    .filter(t => t.name.toLowerCase().includes(templateSearch.toLowerCase()))
+                    .map((t, i, arr) => (
+                      <button key={t.id} onClick={() => handleSelectTemplate(t)}
+                        disabled={!client.email}
+                        className="w-full flex items-center gap-3 px-5 py-3 text-left"
+                        style={{
+                          background: 'transparent', border: 'none',
+                          borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+                          cursor: client.email ? 'pointer' : 'not-allowed',
+                          opacity: client.email ? 1 : 0.5,
+                          display: 'flex',
+                        }}
+                        onMouseEnter={e => { if (client.email) e.currentTarget.style.background = 'var(--surface-raised)' }}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <FileText size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <p className="flex-1 text-sm min-w-0 truncate" style={{ color: 'var(--text)', margin: 0 }}>{t.name}</p>
+                        <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      </button>
+                    ))}
+                  {templateSearch && templates.filter(t => t.name.toLowerCase().includes(templateSearch.toLowerCase())).length === 0 && (
+                    <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No templates match "{templateSearch}"</p>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -213,6 +221,7 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
       </>
     )
   }
+
 
   // ── Step 2: Preview / Edit ────────────────────────────────────────────────
   if (step === 'preview') {
