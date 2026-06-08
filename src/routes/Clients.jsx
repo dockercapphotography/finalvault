@@ -346,7 +346,7 @@ export default function Clients() {
             <button
               key={client.id}
               onClick={() => navigate(`/clients/${client.id}`)}
-              className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
               style={{
                 background: 'var(--surface)',
                 borderTop: i > 0 ? '1px solid var(--border)' : 'none',
@@ -365,17 +365,13 @@ export default function Clients() {
                 <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>
                   {client.first_name} {client.last_name}
                 </p>
-                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                <div className="flex items-center gap-2 mt-0.5 min-w-0">
                   {client.email && (
                     <span className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
                       <Mail size={11} />{client.email}
                     </span>
                   )}
-                  {client.phone && (
-                    <span className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                      <Phone size={11} />{formatPhone(client.phone)}
-                    </span>
-                  )}
+
                 </div>
               </div>
 
