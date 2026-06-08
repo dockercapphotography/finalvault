@@ -6,7 +6,8 @@ import {
   Pencil, Trash2, X, Plus, FilePlus, Clock, CheckCircle,
   AlertCircle, Ban, Send
 } from 'lucide-react'
-import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl } from '../utils/crmApi.js'
+import TagInput from '../components/ui/TagInput.jsx'
+import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
 import Button from '../components/ui/Button.jsx'
@@ -176,7 +177,7 @@ function AddressAutocomplete({ value, onChange, onSelect, style, onFocus, onBlur
   )
 }
 
-function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onClose, onSaved }) {
+function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onClose, onSaved, allTags = [] }) {
   const [form, setForm] = useState({
     firstName: client.first_name,
     lastName: client.last_name,
@@ -200,7 +201,7 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
     setSaving(true)
     setError(null)
     try {
-      const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+      const tags = Array.isArray(form.tags) ? form.tags : form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
       const updated = await updateClient(client.id, { ...form, tags })
       onSaved(updated)
     } catch (err) {
@@ -314,8 +315,11 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
             {/* Tags */}
             <div className="space-y-1">
               <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>Tags</label>
-              <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
-                placeholder="wedding, portrait (comma-separated)" style={inputStyle} onFocus={focus} onBlur={blur} />
+              <TagInput
+                value={Array.isArray(form.tags) ? form.tags : form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []}
+                onChange={tags => setForm(f => ({ ...f, tags }))}
+                allTags={allTags}
+              />
             </div>
 
             {/* Notes */}
@@ -417,6 +421,7 @@ export default function ClientDetail() {
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [cropSrc, setCropSrc] = useState(null)
+  const [allTags, setAllTags] = useState([])
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState(null)
@@ -437,6 +442,7 @@ export default function ClientDetail() {
       setClient(c)
       setGalleries(g)
       setContracts(cx)
+      supabase.auth.getUser().then(({ data: { user: u } }) => { if (u) getAllTags(u.id).then(tags => setAllTags(tags || [])).catch(() => {}) })
       if (c?.avatar_r2_key) {
         const { data: { session } } = await supabase.auth.getSession()
         getClientAvatarUrl(c.avatar_r2_key, session?.access_token).then(setAvatarUrl)
@@ -725,6 +731,7 @@ export default function ClientDetail() {
           uploadingAvatar={uploadingAvatar}
           onAvatarUpload={handleAvatarUpload}
           onClose={() => setShowEdit(false)}
+          allTags={allTags}
           onSaved={updated => {
             setClient(updated)
             setShowEdit(false)

@@ -353,3 +353,13 @@ export async function getClientAvatarUrl(avatarR2Key, sessionToken) {
     return null
   }
 }
+
+export async function getAllTags(photographerId) {
+  const { data, error } = await supabase
+    .from('clients')
+    .select('tags')
+    .eq('photographer_id', photographerId)
+  if (error) throw error
+  const all = (data || []).flatMap(r => r.tags || [])
+  return [...new Set(all)].sort()
+}

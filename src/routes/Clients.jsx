@@ -31,7 +31,7 @@ function ClientFormModal({ onClose, onSaved }) {
     setSaving(true)
     setError(null)
     try {
-      const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+      const tags = Array.isArray(form.tags) ? form.tags : form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
       const client = await createClient({ ...form, tags })
       onSaved(client)
     } catch (err) {
@@ -133,11 +133,11 @@ function ClientFormModal({ onClose, onSaved }) {
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Tags</label>
-              <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
-                placeholder="wedding, portrait, commercial (comma-separated)" style={inputStyle}
-                onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Separate multiple tags with commas</p>
+              <TagInput
+                value={Array.isArray(form.tags) ? form.tags : form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []}
+                onChange={tags => setForm(f => ({ ...f, tags }))}
+                allTags={existingTags}
+              />
             </div>
 
             <div className="space-y-1.5">
