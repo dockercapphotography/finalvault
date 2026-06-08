@@ -350,9 +350,8 @@ export default function Clients() {
               style={{
                 background: 'var(--surface)',
                 borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                cursor: 'pointer',
-                border: i > 0 ? '1px solid var(--border)' : 'none',
                 borderLeft: 'none', borderRight: 'none', borderBottom: 'none',
+                cursor: 'pointer',
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
               onMouseLeave={e => e.currentTarget.style.background = 'var(--surface)'}

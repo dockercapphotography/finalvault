@@ -138,7 +138,7 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
   }
   const innerStyle = {
     background: 'var(--surface)', border: '1px solid var(--border)',
-    borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+    borderRadius: 16, overflowX: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
   }
 
   // ── Step 1: Pick template ─────────────────────────────────────────────────
