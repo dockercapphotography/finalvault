@@ -7,6 +7,7 @@ import {
   AlertCircle, Ban, Send
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
+import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
@@ -99,83 +100,6 @@ function ClientAvatarCropModal({ imageSrc, onSave, onCancel, saving }) {
 }
 
 
-// ── Google Places Address Autocomplete ───────────────────────────────────────
-
-function AddressAutocomplete({ value, onChange, onSelect, style, onFocus, onBlur }) {
-  const inputRef = useRef(null)
-  const autocompleteRef = useRef(null)
-
-  useEffect(() => {
-    if (!window.google || !inputRef.current) return
-    if (autocompleteRef.current) return
-
-    autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
-      types: ['address'],
-      componentRestrictions: { country: 'us' },
-      fields: ['address_components', 'formatted_address'],
-    })
-
-    autocompleteRef.current.addListener('place_changed', () => {
-      const place = autocompleteRef.current.getPlace()
-      if (!place.address_components) return
-
-      let street_number = '', route = '', city = '', state = '', zip = ''
-      for (const c of place.address_components) {
-        if (c.types.includes('street_number')) street_number = c.long_name
-        if (c.types.includes('route')) route = c.long_name
-        if (c.types.includes('locality')) city = c.long_name
-        if (c.types.includes('administrative_area_level_1')) state = c.short_name
-        if (c.types.includes('postal_code')) zip = c.long_name
-      }
-      onSelect({ address: `${street_number} ${route}`.trim(), city, state, zip })
-    })
-  }, [])
-
-  // Load Google Maps script if not already loaded
-  useEffect(() => {
-    const key = import.meta.env.VITE_GOOGLE_PLACES_KEY
-    if (!key || window.google) return
-    const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`
-    script.async = true
-    script.onload = () => {
-      if (inputRef.current && !autocompleteRef.current) {
-        autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
-          types: ['address'],
-          componentRestrictions: { country: 'us' },
-          fields: ['address_components'],
-        })
-        autocompleteRef.current.addListener('place_changed', () => {
-          const place = autocompleteRef.current.getPlace()
-          if (!place.address_components) return
-          let street_number = '', route = '', city = '', state = '', zip = ''
-          for (const c of place.address_components) {
-            if (c.types.includes('street_number')) street_number = c.long_name
-            if (c.types.includes('route')) route = c.long_name
-            if (c.types.includes('locality')) city = c.long_name
-            if (c.types.includes('administrative_area_level_1')) state = c.short_name
-            if (c.types.includes('postal_code')) zip = c.long_name
-          }
-          onSelect({ address: `${street_number} ${route}`.trim(), city, state, zip })
-        })
-      }
-    }
-    document.head.appendChild(script)
-  }, [])
-
-  return (
-    <input
-      ref={inputRef}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder="Start typing an address..."
-      style={style}
-      onFocus={onFocus}
-      onBlur={onBlur}
-      autoComplete="off"
-    />
-  )
-}
 
 function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onClose, onSaved, allTags = [] }) {
   const [form, setForm] = useState({
@@ -188,7 +112,8 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
     state: client.state || '',
     zip: client.zip || '',
     notes: client.notes || '',
-    tags: (client.tags ?? []).join(', '),
+    tags: client.tags ?? [],
+    pronouns: client.pronouns || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -202,7 +127,7 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
     setError(null)
     try {
       const tags = Array.isArray(form.tags) ? form.tags : form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
-      const updated = await updateClient(client.id, { ...form, tags })
+      const updated = await updateClient(client.id, { ...form, tags, pronouns: form.pronouns || null })
       onSaved(updated)
     } catch (err) {
       setError(err.message)
@@ -263,6 +188,23 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
                 <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>Last name <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
+            </div>
+
+            {/* Pronouns */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium" style={{ color: "var(--text)" }}>Pronouns</label>
+              <select value={form.pronouns || ""} onChange={e => setForm(f => ({ ...f, pronouns: e.target.value }))}
+                style={{ ...inputStyle, cursor: "pointer" }}>
+                <option value="">Select pronouns (optional)</option>
+                <option value="she/her">she/her</option>
+                <option value="he/him">he/him</option>
+                <option value="they/them">they/them</option>
+                <option value="she/they">she/they</option>
+                <option value="he/they">he/they</option>
+                <option value="ze/hir">ze/hir</option>
+                <option value="xe/xem">xe/xem</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+              </select>
             </div>
 
             {/* Email + Phone */}
@@ -328,6 +270,7 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 rows={2} style={{ ...inputStyle, resize: 'vertical' }} onFocus={focus} onBlur={blur} />
             </div>
+
           </div>
 
           <div className="px-6 py-4 flex items-center justify-end gap-3" style={{ borderTop: '1px solid var(--border)' }}>
@@ -561,7 +504,12 @@ export default function ClientDetail() {
           </label>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-base font-semibold" style={{ color: 'var(--text)' }}>{fullName}</h1>
+              {client.pronouns && client.pronouns !== 'Prefer not to say' && (
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{client.pronouns}</span>
+              )}
+            </div>
               <button onClick={() => setShowEdit(true)}
                 className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium flex-shrink-0"
                 style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>

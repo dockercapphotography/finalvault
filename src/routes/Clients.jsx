@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, User, Mail, Phone, Tag, X, ChevronRight } from 'lucide-react'
-import { getClients, createClient, deleteClient } from '../utils/crmApi.js'
+import { getClients, createClient, deleteClient, getAllTags as fetchAllTags } from '../utils/crmApi.js'
+import TagInput from '../components/ui/TagInput.jsx'
+import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { formatPhone } from '../utils/formatters.js'
@@ -15,10 +17,10 @@ const CONTRACT_STATUS_BADGE = {
   void:                  { label: 'Void',              bg: 'var(--danger-subtle)',  color: 'var(--danger)' },
 }
 
-function ClientFormModal({ onClose, onSaved }) {
+function ClientFormModal({ onClose, onSaved, existingTags = [] }) {
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', phone: '',
-    address: '', city: '', state: '', zip: '', notes: '', tags: '',
+    address: '', city: '', state: '', zip: '', notes: '', tags: '', pronouns: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -32,7 +34,7 @@ function ClientFormModal({ onClose, onSaved }) {
     setError(null)
     try {
       const tags = Array.isArray(form.tags) ? form.tags : form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
-      const client = await createClient({ ...form, tags })
+      const client = await createClient({ ...form, tags, pronouns: form.pronouns || null })
       onSaved(client)
     } catch (err) {
       setError(err.message)
@@ -82,6 +84,22 @@ function ClientFormModal({ onClose, onSaved }) {
               </div>
             </div>
 
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" style={{ color: "var(--text)" }}>Pronouns</label>
+              <select value={form.pronouns || ""} onChange={e => setForm(f => ({ ...f, pronouns: e.target.value }))}
+                style={{ ...inputStyle, cursor: "pointer" }}>
+                <option value="">Select pronouns (optional)</option>
+                <option value="she/her">she/her</option>
+                <option value="he/him">he/him</option>
+                <option value="they/them">they/them</option>
+                <option value="she/they">she/they</option>
+                <option value="he/they">he/they</option>
+                <option value="ze/hir">ze/hir</option>
+                <option value="xe/xem">xe/xem</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Email</label>
@@ -101,8 +119,13 @@ function ClientFormModal({ onClose, onSaved }) {
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Address</label>
-              <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
-                placeholder="123 Main St" style={inputStyle}
+              <AddressAutocomplete
+                value={form.address}
+                onChange={val => setForm(f => ({ ...f, address: val }))}
+                onSelect={({ address, city, state, zip }) => setForm(f => ({
+                  ...f, address, city: city || f.city, state: state || f.state, zip: zip || f.zip,
+                }))}
+                style={inputStyle}
                 onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
                 onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
@@ -189,6 +212,7 @@ function ClientAvatar({ client, size = 10 }) {
 export default function Clients() {
   const navigate = useNavigate()
   const [clients, setClients] = useState([])
+  const [existingTags, setExistingTags] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
@@ -361,16 +385,25 @@ export default function Clients() {
 
               {/* Name + meta */}
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>
-                  {client.first_name} {client.last_name}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>
+                    {client.first_name} {client.last_name}
+                  </p>
+                  {client.pronouns && client.pronouns !== 'Prefer not to say' && (
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{client.pronouns}</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-0.5 min-w-0">
                   {client.email && (
                     <span className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
                       <Mail size={11} />{client.email}
                     </span>
                   )}
-
+                  {client.phone && (
+                    <span className="hidden md:flex text-xs items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                      <Phone size={11} />{formatPhone(client.phone)}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -397,6 +430,7 @@ export default function Clients() {
 
       {showNewModal && (
         <ClientFormModal
+          existingTags={allTags}
           onClose={() => setShowNewModal(false)}
           onSaved={handleClientSaved}
         />

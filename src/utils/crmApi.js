@@ -24,7 +24,7 @@ export async function getClient(id) {
   return data
 }
 
-export async function createClient({ firstName, lastName, email, phone, address, city, state, zip, notes, tags }) {
+export async function createClient({ firstName, lastName, email, phone, address, city, state, zip, notes, tags, pronouns }) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
     .from('clients')
@@ -40,6 +40,7 @@ export async function createClient({ firstName, lastName, email, phone, address,
       zip: zip?.trim() || null,
       notes: notes?.trim() || null,
       tags: tags?.length ? tags : null,
+      pronouns: pronouns || null,
       updated_at: new Date().toISOString(),
     })
     .select()
@@ -49,7 +50,7 @@ export async function createClient({ firstName, lastName, email, phone, address,
   return data
 }
 
-export async function updateClient(id, { firstName, lastName, email, phone, address, city, state, zip, notes, tags }) {
+export async function updateClient(id, { firstName, lastName, email, phone, address, city, state, zip, notes, tags, pronouns }) {
   const updates = { updated_at: new Date().toISOString() }
   if (firstName !== undefined) updates.first_name = firstName.trim()
   if (lastName !== undefined) updates.last_name = lastName.trim()
@@ -61,6 +62,7 @@ export async function updateClient(id, { firstName, lastName, email, phone, addr
   if (zip !== undefined) updates.zip = zip?.trim() || null
   if (notes !== undefined) updates.notes = notes?.trim() || null
   if (tags !== undefined) updates.tags = tags?.length ? tags : null
+  if (pronouns !== undefined) updates.pronouns = pronouns || null
 
   const { data, error } = await supabase
     .from('clients')
