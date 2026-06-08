@@ -81,7 +81,24 @@ export default function ContractDetail() {
         photographer_signed_name: counterSignName.trim(),
       })
       setContract(prev => ({ ...prev, ...updated }))
-      setToast({ message: 'Contract fully signed', type: 'success' })
+
+      // Generate PDF in background — don't block the UI on success/failure
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-contract-pdf`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ contractId: id }),
+          }
+        ).catch(err => console.warn('PDF generation failed (non-blocking):', err))
+      })
+
+      setToast({ message: 'Contract fully signed — generating PDF', type: 'success' })
     } catch (err) {
       setToast({ message: err.message, type: 'error' })
     } finally {

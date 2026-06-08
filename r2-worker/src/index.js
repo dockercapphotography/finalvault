@@ -5,6 +5,7 @@ import { handleDownload } from './handlers/download.js'
 import { handleDelete } from './handlers/delete.js'
 import { handleZip } from './handlers/zip.js'
 import { handleWatermarkUpload, handleWatermarkServe } from './handlers/watermark.js'
+import { handlePdfUpload } from './handlers/upload-pdf.js'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
