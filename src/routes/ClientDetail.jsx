@@ -11,6 +11,7 @@ import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
+import SendContractModal from '../components/SendContractModal.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
@@ -218,6 +219,7 @@ export default function ClientDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showEdit, setShowEdit] = useState(false)
+  const [showSendContract, setShowSendContract] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState(null)
@@ -412,7 +414,7 @@ export default function ClientDetail() {
               {contracts.length} {contracts.length === 1 ? 'contract' : 'contracts'}
             </p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => navigate(`/clients/${id}/contracts/new`)}>
+          <Button variant="secondary" size="sm" onClick={() => setShowSendContract(true)}>
             <FilePlus size={13} />Send Contract
           </Button>
         </div>
@@ -479,6 +481,19 @@ export default function ClientDetail() {
             setClient(updated)
             setShowEdit(false)
             setToast({ message: 'Client updated', type: 'success' })
+          }}
+        />
+      )}
+
+      {showSendContract && client && (
+        <SendContractModal
+          client={client}
+          gallery={galleries[0] || null}
+          onClose={() => setShowSendContract(false)}
+          onSent={contract => {
+            setContracts(prev => [contract, ...prev])
+            setShowSendContract(false)
+            setToast({ message: 'Contract sent for signature', type: 'success' })
           }}
         />
       )}
