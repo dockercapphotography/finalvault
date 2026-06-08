@@ -413,7 +413,7 @@ export default function ClientDetail() {
   const location = [client.city, client.state].filter(Boolean).join(', ')
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-4">
       {/* Breadcrumb — desktop */}
       <div className="hidden md:block">
         <PageBreadcrumb crumbs={[
@@ -431,83 +431,89 @@ export default function ClientDetail() {
 
       {/* Header card */}
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-        <div className="px-6 py-5">
-          <div className="flex items-start gap-4">
-            {/* Avatar */}
-            <label className="relative w-14 h-14 rounded-full flex-shrink-0 cursor-pointer group" style={{ display: 'block' }}>
-              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
-              {avatarUrl ? (
-                <img src={avatarUrl} alt={client.first_name} className="w-14 h-14 rounded-full object-cover" />
-              ) : (
-                <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold"
-                  style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>
-                  {client.first_name[0]}{client.last_name[0]}
-                </div>
-              )}
-              <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ background: 'rgba(0,0,0,0.45)' }}>
-                {uploadingAvatar
-                  ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <Camera size={14} style={{ color: '#fff' }} />}
+        {/* Name + avatar + edit */}
+        <div className="px-4 py-3 flex items-center gap-3">
+          <label className="relative w-10 h-10 rounded-full flex-shrink-0 cursor-pointer group" style={{ display: 'block' }}>
+            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={client.first_name} className="w-10 h-10 rounded-full object-cover" />
+            ) : (
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
+                style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>
+                {client.first_name[0]}{client.last_name[0]}
               </div>
-            </label>
-
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>{fullName}</h1>
-              <div className="flex items-center gap-4 mt-1 flex-wrap">
-                {client.email && (
-                  <a href={`mailto:${client.email}`} className="text-sm flex items-center gap-1.5"
-                    style={{ color: '#6366f1', textDecoration: 'none' }}>
-                    <Mail size={13} />{client.email}
-                  </a>
-                )}
-                {client.phone && (
-                  <a href={`tel:${formatPhone(client.phone)}`} className="text-sm flex items-center gap-1.5"
-                    style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-                    <Phone size={13} />{formatPhone(client.phone)}
-                  </a>
-                )}
-                {location && (
-                  <span className="text-sm flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-                    <MapPin size={13} />{location}
+            )}
+            <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ background: 'rgba(0,0,0,0.45)' }}>
+              {uploadingAvatar
+                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <Camera size={14} style={{ color: '#fff' }} />}
+            </div>
+          </label>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <h1 className="text-base font-semibold" style={{ color: 'var(--text)' }}>{fullName}</h1>
+              <button onClick={() => setShowEdit(true)}
+                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium flex-shrink-0"
+                style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                <Pencil size={12} />Edit
+              </button>
+            </div>
+            {client.tags?.length > 0 && (
+              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                {client.tags.map(tag => (
+                  <span key={tag} className="px-2 py-0.5 rounded-md text-xs"
+                    style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                    {tag}
                   </span>
-                )}
+                ))}
               </div>
-              {client.tags?.length > 0 && (
-                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                  <Tag size={12} style={{ color: 'var(--text-muted)' }} />
-                  {client.tags.map(tag => (
-                    <span key={tag} className="px-2 py-0.5 rounded-md text-xs"
-                      style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)' }}>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="secondary" size="sm" onClick={() => setShowEdit(true)}>
-                <Pencil size={13} />Edit
-              </Button>
-            </div>
+            )}
           </div>
-
-          {/* Address */}
-          {(client.address || client.zip) && (
-            <div className="mt-4 pt-4 text-sm" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-              {[client.address, client.city && client.state ? `${client.city}, ${client.state}` : client.city || client.state, client.zip]
-                .filter(Boolean).join(' · ')}
-            </div>
-          )}
         </div>
 
-        {/* Notes */}
-        {client.notes && (
-          <div className="px-6 py-4" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-            <p className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>Notes</p>
-            <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text)' }}>{client.notes}</p>
+        {/* Contact detail rows */}
+        {(client.email || client.phone || client.address || client.city || client.notes) && (
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            {client.email && (
+              <a href={`mailto:${client.email}`}
+                className="flex items-center gap-3 px-4 py-2.5"
+                style={{ borderBottom: '1px solid var(--border)', textDecoration: 'none', display: 'flex' }}>
+                <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Mail size={11} />Email
+                </span>
+                <span className="text-xs truncate" style={{ color: '#6366f1' }}>{client.email}</span>
+              </a>
+            )}
+            {client.phone && (
+              <a href={`tel:${client.phone}`}
+                className="flex items-center gap-3 px-4 py-2.5"
+                style={{ borderBottom: (client.address || client.city || client.notes) ? '1px solid var(--border)' : 'none', textDecoration: 'none', display: 'flex' }}>
+                <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Phone size={11} />Phone
+                </span>
+                <span className="text-xs" style={{ color: 'var(--text)' }}>{formatPhone(client.phone)}</span>
+              </a>
+            )}
+            {(client.address || client.city) && (
+              <div className="flex items-start gap-3 px-4 py-2.5"
+                style={{ borderBottom: client.notes ? '1px solid var(--border)' : 'none' }}>
+                <span className="text-xs flex-shrink-0 pt-px" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <MapPin size={11} />Address
+                </span>
+                <span className="text-xs" style={{ color: 'var(--text)', lineHeight: 1.5 }}>
+                  {[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')}
+                </span>
+              </div>
+            )}
+            {client.notes && (
+              <div className="flex items-start gap-3 px-4 py-2.5">
+                <span className="text-xs flex-shrink-0 pt-px" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <FileText size={11} />Notes
+                </span>
+                <span className="text-xs" style={{ color: 'var(--text)', lineHeight: 1.5 }}>{client.notes}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
