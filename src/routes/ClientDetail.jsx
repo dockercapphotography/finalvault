@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Cropper from 'react-easy-crop'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -97,6 +97,85 @@ function ClientAvatarCropModal({ imageSrc, onSave, onCancel, saving }) {
   )
 }
 
+
+// ── Google Places Address Autocomplete ───────────────────────────────────────
+
+function AddressAutocomplete({ value, onChange, onSelect, style, onFocus, onBlur }) {
+  const inputRef = useRef(null)
+  const autocompleteRef = useRef(null)
+
+  useEffect(() => {
+    if (!window.google || !inputRef.current) return
+    if (autocompleteRef.current) return
+
+    autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
+      types: ['address'],
+      componentRestrictions: { country: 'us' },
+      fields: ['address_components', 'formatted_address'],
+    })
+
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current.getPlace()
+      if (!place.address_components) return
+
+      let street_number = '', route = '', city = '', state = '', zip = ''
+      for (const c of place.address_components) {
+        if (c.types.includes('street_number')) street_number = c.long_name
+        if (c.types.includes('route')) route = c.long_name
+        if (c.types.includes('locality')) city = c.long_name
+        if (c.types.includes('administrative_area_level_1')) state = c.short_name
+        if (c.types.includes('postal_code')) zip = c.long_name
+      }
+      onSelect({ address: `${street_number} ${route}`.trim(), city, state, zip })
+    })
+  }, [])
+
+  // Load Google Maps script if not already loaded
+  useEffect(() => {
+    const key = import.meta.env.VITE_GOOGLE_PLACES_KEY
+    if (!key || window.google) return
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`
+    script.async = true
+    script.onload = () => {
+      if (inputRef.current && !autocompleteRef.current) {
+        autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
+          types: ['address'],
+          componentRestrictions: { country: 'us' },
+          fields: ['address_components'],
+        })
+        autocompleteRef.current.addListener('place_changed', () => {
+          const place = autocompleteRef.current.getPlace()
+          if (!place.address_components) return
+          let street_number = '', route = '', city = '', state = '', zip = ''
+          for (const c of place.address_components) {
+            if (c.types.includes('street_number')) street_number = c.long_name
+            if (c.types.includes('route')) route = c.long_name
+            if (c.types.includes('locality')) city = c.long_name
+            if (c.types.includes('administrative_area_level_1')) state = c.short_name
+            if (c.types.includes('postal_code')) zip = c.long_name
+          }
+          onSelect({ address: `${street_number} ${route}`.trim(), city, state, zip })
+        })
+      }
+    }
+    document.head.appendChild(script)
+  }, [])
+
+  return (
+    <input
+      ref={inputRef}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder="Start typing an address..."
+      style={style}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      autoComplete="off"
+    />
+  )
+}
+
 function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onClose, onSaved }) {
   const [form, setForm] = useState({
     firstName: client.first_name,
@@ -150,76 +229,100 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
             </button>
           </div>
 
-          <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: '70vh' }}>
+          <div className="px-4 py-4 space-y-3 overflow-y-auto" style={{ maxHeight: '75vh' }}>
             {error && (
-              <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
+              <div className="px-3 py-2 rounded-xl text-sm" style={{ background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
                 {error}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                {/* Avatar upload */}
-                <div className="flex items-center gap-4 pb-1">
-                  <div className="w-12 h-12 rounded-full flex-shrink-0 overflow-hidden"
-                    style={{ background: 'var(--accent)' }}>
-                    {avatarUrl
-                      ? <img src={avatarUrl} alt="" className="w-12 h-12 object-cover" />
-                      : <div className="w-12 h-12 flex items-center justify-center text-base font-bold" style={{ color: 'var(--accent-fg)' }}>
-                          {client.first_name[0]}{client.last_name[0]}
-                        </div>}
-                  </div>
-                  <label className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg cursor-pointer"
-                    style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)' }}>
-                    <input type="file" accept="image/*" className="hidden" onChange={onAvatarUpload} disabled={uploadingAvatar} />
-                    {uploadingAvatar ? 'Uploading...' : 'Change photo'}
-                  </label>
-                </div>
 
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>First name <span style={{ color: 'var(--danger)' }}>*</span></label>
+            {/* Avatar + name row */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden" style={{ background: 'var(--accent)' }}>
+                {avatarUrl
+                  ? <img src={avatarUrl} alt="" className="w-10 h-10 object-cover" />
+                  : <div className="w-10 h-10 flex items-center justify-center text-sm font-bold" style={{ color: 'var(--accent-fg)' }}>
+                      {client.first_name[0]}{client.last_name[0]}
+                    </div>}
+              </div>
+              <label className="text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer flex-shrink-0"
+                style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                <input type="file" accept="image/*" className="hidden" onChange={onAvatarUpload} disabled={uploadingAvatar} />
+                {uploadingAvatar ? 'Uploading...' : 'Change photo'}
+              </label>
+            </div>
+
+            {/* First + Last name */}
+            <div className="flex flex-col gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>First name <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Last name <span style={{ color: 'var(--danger)' }}>*</span></label>
+              <div className="space-y-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>Last name <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Email</label>
+
+            {/* Email + Phone */}
+            <div className="flex flex-col gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>Email</label>
                 <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} type="email" style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Phone</label>
+              <div className="space-y-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>Phone</label>
                 <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Address</label>
-              <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} style={inputStyle} onFocus={focus} onBlur={blur} />
+
+            {/* Address */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>Address</label>
+              <AddressAutocomplete
+                value={form.address}
+                onChange={val => setForm(f => ({ ...f, address: val }))}
+                onSelect={({ address, city, state, zip }) => setForm(f => ({
+                  ...f,
+                  address,
+                  city: city || f.city,
+                  state: state || f.state,
+                  zip: zip || f.zip,
+                }))}
+                style={inputStyle}
+                onFocus={focus}
+                onBlur={blur}
+              />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5 col-span-1">
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>City</label>
+
+            {/* City + State + ZIP */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1 col-span-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>City</label>
                 <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>State</label>
+              <div className="space-y-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>State</label>
                 <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} maxLength={2} style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>ZIP</label>
+              <div className="space-y-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>ZIP</label>
                 <input value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))} style={inputStyle} onFocus={focus} onBlur={blur} />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Tags</label>
+
+            {/* Tags */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>Tags</label>
               <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
                 placeholder="wedding, portrait (comma-separated)" style={inputStyle} onFocus={focus} onBlur={blur} />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Notes</label>
+
+            {/* Notes */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>Notes</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                rows={3} style={{ ...inputStyle, resize: 'vertical' }} onFocus={focus} onBlur={blur} />
+                rows={2} style={{ ...inputStyle, resize: 'vertical' }} onFocus={focus} onBlur={blur} />
             </div>
           </div>
 
