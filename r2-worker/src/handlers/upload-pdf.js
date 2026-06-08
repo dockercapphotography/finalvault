@@ -20,7 +20,7 @@ export async function handlePdfUpload(request, env, corsHeaders) {
   const authHeader = request.headers.get('Authorization') || ''
   const token = authHeader.replace('Bearer ', '').trim()
 
-  if (!token || token !== env.SUPABASE_SERVICE_KEY) {
+  if (!token || (token !== env.SUPABASE_SERVICE_KEY && token !== env.SUPABASE_SERVICE_ROLE_KEY)) {
     return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, corsHeaders)
   }
 

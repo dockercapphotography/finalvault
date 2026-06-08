@@ -95,7 +95,14 @@ export default function ContractDetail() {
             },
             body: JSON.stringify({ contractId: id }),
           }
-        ).catch(err => console.warn('PDF generation failed (non-blocking):', err))
+        ).then(async r => {
+          if (!r.ok) {
+            const body = await r.json().catch(() => ({}))
+            console.warn('PDF generation failed:', r.status, body)
+          } else {
+            console.log('PDF generated OK')
+          }
+        }).catch(err => console.warn('PDF generation network error:', err))
       })
 
       setToast({ message: 'Contract fully signed — generating PDF', type: 'success' })

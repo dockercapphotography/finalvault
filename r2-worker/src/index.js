@@ -76,6 +76,11 @@ export default {
         return await handleWatermarkServe(request, env, CORS_HEADERS)
       }
 
+      // ── PDF upload (internal — service role key auth) ──
+      if (request.method === 'POST' && pathname === '/upload-pdf') {
+        return await handlePdfUpload(request, env, CORS_HEADERS)
+      }
+
       return new Response(JSON.stringify({ ok: false, error: 'Not found' }), {
         status: 404,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }

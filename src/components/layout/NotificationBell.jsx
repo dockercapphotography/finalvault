@@ -167,6 +167,8 @@ export default function NotificationBell({ mobile = false }) {
   async function handleOpen() {
     setOpen(prev => !prev)
     if (!open && userId) {
+      // Refresh pending contracts on open so badge is always current
+      loadPendingContracts(userId)
       const now = new Date().toISOString()
       await supabase
         .from('photographers')
@@ -174,7 +176,6 @@ export default function NotificationBell({ mobile = false }) {
         .eq('id', userId)
       setLastRead(now)
       setUnreadCount(0)
-      // Notify the other bell instance (desktop ↔ mobile) to also clear its badge
       window.dispatchEvent(new CustomEvent('fv-notifications-read'))
     }
   }
