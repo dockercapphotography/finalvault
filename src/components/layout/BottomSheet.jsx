@@ -40,6 +40,8 @@ export default function BottomSheet({ open, onClose, maxHeight = '85vh', childre
   useEffect(() => {
     if (!open || !sheetRef.current) return
     function blockTouch(e) {
+      // Only block if it's actually a move (not a tap)
+      if (e.cancelable === false) return
       let el = e.target
       while (el && el !== sheetRef.current) {
         const style = window.getComputedStyle(el)
@@ -54,7 +56,7 @@ export default function BottomSheet({ open, onClose, maxHeight = '85vh', childre
   }, [open])
 
   function handleClose() {
-    setVisible(false)
+setVisible(false)
     setTimeout(onClose, 300)
   }
 
@@ -76,6 +78,7 @@ export default function BottomSheet({ open, onClose, maxHeight = '85vh', childre
       <div
         ref={sheetRef}
         className="fixed left-0 right-0 bottom-0 z-50 flex flex-col rounded-t-2xl"
+        onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--surface)',
           border: '1px solid var(--border)',
@@ -116,7 +119,7 @@ export default function BottomSheet({ open, onClose, maxHeight = '85vh', childre
         </div>
 
         {/* Scrollable content area */}
-        <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
+        <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }} onTouchStart={e => e.stopPropagation()}>
           {children}
         </div>
       </div>

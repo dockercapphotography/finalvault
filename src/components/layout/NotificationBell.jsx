@@ -81,13 +81,13 @@ export default function NotificationBell({ mobile = false }) {
   }, [])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || mobile) return
     const handler = (e) => {
       if (!panelRef.current?.contains(e.target)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+  }, [open, mobile])
 
   async function loadLastRead(uid) {
     const { data } = await supabase
@@ -205,7 +205,7 @@ export default function NotificationBell({ mobile = false }) {
 
 
         <BottomSheet open={open} onClose={() => setOpen(false)} maxHeight="75vh">
-          <NotificationPanel groups={groups} loading={loading} items={items} onClose={() => setOpen(false)} />
+          <NotificationPanel groups={groups} loading={loading} items={items} onClose={() => setOpen(false)} pendingContracts={pendingContracts} />
         </BottomSheet>
       </div>
     )
@@ -270,9 +270,9 @@ function NotificationPanel({ groups, loading, items, onClose, pendingContracts =
               Needs your signature
             </div>
             {pendingContracts.map(c => (
-              <a key={c.id} href={`/contracts/${c.id}`}
-                className="px-4 py-3 flex items-start gap-3"
-                style={{ borderBottom: '1px solid var(--border)', textDecoration: 'none', display: 'flex', background: 'transparent' }}
+              <button key={c.id} onClick={() => { window.location.href = `/contracts/${c.id}` }}
+                className="px-4 py-3 flex items-start gap-3 w-full text-left"
+                style={{ borderBottom: '1px solid var(--border)', textDecoration: 'none', display: 'flex', background: 'transparent', border: 'none', cursor: 'pointer' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                 <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
@@ -290,7 +290,7 @@ function NotificationPanel({ groups, loading, items, onClose, pendingContracts =
                     {c.title} · {c.signed_at ? new Date(c.signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
                   </p>
                 </div>
-              </a>
+              </button>
             ))}
           </div>
         )}

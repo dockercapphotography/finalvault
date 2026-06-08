@@ -274,97 +274,30 @@ function GalleryRow({ gallery }) {
   )
 }
 
-function ContractRow({ contract, onDelete, onResend }) {
+function ContractRow({ contract }) {
   const cfg = CONTRACT_STATUS_CONFIG[contract.status] || CONTRACT_STATUS_CONFIG.draft
   const { Icon } = cfg
-  const [expanded, setExpanded] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [resending, setResending] = useState(false)
-
-  async function handleResend() {
-    setResending(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contract`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-          body: JSON.stringify({ contractId: contract.id }),
-        }
-      )
-      const result = await resp.json()
-      if (result.ok) onResend && onResend(contract.id)
-    } catch {}
-    finally { setResending(false); setExpanded(false) }
-  }
-
   return (
-    <div>
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
-        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-      >
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: 'var(--surface-raised)' }}>
-          <Icon size={14} style={{ color: 'var(--text-muted)' }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{contract.title}</p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {contract.sent_at ? `Sent ${formatDate(contract.sent_at)}` : `Created ${formatDate(contract.created_at)}`}
-            {contract.galleries?.title && ` · ${contract.galleries.title}`}
-          </p>
-        </div>
-        <Badge variant={cfg.variant}>{cfg.label}</Badge>
-      </button>
-
-      {expanded && (
-        <div className="px-4 pt-3 pb-3 flex items-center gap-2 flex-wrap" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-          <a
-            href={`/contracts/${contract.id}`}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium"
-            style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
-            View contract
-          </a>
-          {(contract.status === 'sent' || contract.status === 'draft') && (
-            <button
-              onClick={handleResend}
-              disabled={resending}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-              {resending ? 'Resending...' : 'Resend email'}
-            </button>
-          )}
-          {!confirmDelete ? (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-              style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', border: '1px solid var(--danger)', cursor: 'pointer' }}>
-              Delete
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => onDelete && onDelete(contract.id)}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                style={{ background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer' }}>
-                Confirm delete
-              </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                Cancel
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
+    <a
+      href={`/contracts/${contract.id}`}
+      className="flex items-center gap-3 px-4 py-3 transition-colors"
+      style={{ textDecoration: 'none', display: 'flex' }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ background: 'var(--surface-raised)' }}>
+        <Icon size={14} style={{ color: 'var(--text-muted)' }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{contract.title}</p>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {contract.sent_at ? `Sent ${formatDate(contract.sent_at)}` : `Created ${formatDate(contract.created_at)}`}
+          {contract.galleries?.title && ` · ${contract.galleries.title}`}
+        </p>
+      </div>
+      <Badge variant={cfg.variant}>{cfg.label}</Badge>
+    </a>
   )
 }
 
@@ -636,15 +569,7 @@ export default function ClientDetail() {
           <div style={{ background: 'var(--surface)' }}>
             {contracts.map((c, i) => (
               <div key={c.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                <ContractRow
-                  contract={c}
-                  onDelete={async (id) => {
-                    await deleteContract(id)
-                    setContracts(prev => prev.filter(x => x.id !== id))
-                    setToast({ message: 'Contract deleted', type: 'success' })
-                  }}
-                  onResend={(id) => setToast({ message: 'Contract resent', type: 'success' })}
-                />
+                <ContractRow contract={c} />
               </div>
             ))}
           </div>

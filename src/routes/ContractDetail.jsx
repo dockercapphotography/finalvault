@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, AlertCircle, FileText,
-  User, Clock, Shield, Trash2, Download
+  User, Clock, Shield, Trash2, Download, Send
 } from 'lucide-react'
 import { getContract, updateContract, voidContract, deleteContract } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
@@ -40,6 +40,7 @@ export default function ContractDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [voidReason, setVoidReason] = useState('')
   const [actioning, setActioning] = useState(false)
+  const [resending, setResending] = useState(false)
 
   useEffect(() => {
     load()
@@ -90,6 +91,32 @@ export default function ContractDetail() {
       URL.revokeObjectURL(url)
     } catch (err) {
       setToast({ message: 'Could not download PDF: ' + err.message, type: 'error' })
+    }
+  }
+
+  async function handleResend() {
+    setResending(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contract`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ contractId: id }),
+        }
+      )
+      const result = await resp.json()
+      if (result.ok) {
+        setContract(prev => ({ ...prev, status: 'sent' }))
+        setToast({ message: 'Contract resent', type: 'success' })
+      } else {
+        throw new Error(result.error || 'Resend failed')
+      }
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' })
+    } finally {
+      setResending(false)
     }
   }
 
@@ -328,6 +355,16 @@ export default function ContractDetail() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Resend button — for sent/draft contracts */}
+      {(contract.status === 'sent' || contract.status === 'draft') && (
+        <div className="flex justify-end">
+          <Button variant="secondary" size="sm" onClick={handleResend} disabled={resending}>
+            <Send size={13} />
+            {resending ? 'Resending...' : 'Resend email'}
+          </Button>
         </div>
       )}
 
