@@ -12,6 +12,10 @@ import {
   deleteGalleryTemplate, duplicateGalleryTemplate
 } from '../utils/galleryTemplateApi.js'
 import { getTags, createTag, updateTag, deleteTag } from '../utils/galleryApi.js'
+import {
+  getContractTemplates, createContractTemplate, updateContractTemplate,
+  deleteContractTemplate, duplicateContractTemplate
+} from '../utils/crmApi.js'
 import { THEMES, getTheme } from '../utils/themes.js'
 import Toggle from '../components/ui/Toggle.jsx'
 import WatermarkCard from '../components/watermarks/WatermarkCard.jsx'
@@ -302,6 +306,200 @@ function TagsTab({ onSaveState }) {
         )}
       </SettingsSection>
     </div>
+  )
+}
+
+
+// ── Contract Templates Tab ────────────────────────────────────────────────────
+
+const CONTRACT_TEMPLATE_VARIABLES = [
+  { tag: '{{client_name}}',       desc: 'Full client name' },
+  { tag: '{{client_first_name}}', desc: 'Client first name' },
+  { tag: '{{client_email}}',      desc: 'Client email address' },
+  { tag: '{{photographer_name}}', desc: 'Your display name' },
+  { tag: '{{studio_name}}',       desc: 'Your business name' },
+  { tag: '{{gallery_title}}',     desc: 'Gallery title' },
+  { tag: '{{event_name}}',        desc: 'Event name' },
+  { tag: '{{event_date}}',        desc: 'Event date' },
+  { tag: '{{today_date}}',        desc: 'Date contract is sent' },
+  { tag: '{{sign_date}}',         desc: 'Date client signs' },
+]
+
+function ContractTemplatesTab({ onSaveState }) {
+  const [templates, setTemplates] = useState([])
+  const [editing, setEditing] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editBody, setEditBody] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [showVars, setShowVars] = useState(false)
+  const bodyRef = useRef(null)
+
+  useEffect(() => {
+    getContractTemplates()
+      .then(data => { setTemplates(data); setLoaded(true) })
+      .catch(() => setLoaded(true))
+  }, [])
+
+  function startNew() { setEditing({}); setEditName(''); setEditBody(''); setShowVars(false) }
+  function startEdit(t) { setEditing(t); setEditName(t.name); setEditBody(t.body); setShowVars(false) }
+  function cancelEdit() { setEditing(null) }
+
+  function insertVariable(tag) {
+    const el = bodyRef.current
+    if (!el) { setEditBody(b => b + tag); return }
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const newBody = editBody.slice(0, start) + tag + editBody.slice(end)
+    setEditBody(newBody)
+    setTimeout(() => { el.selectionStart = el.selectionEnd = start + tag.length; el.focus() }, 0)
+  }
+
+  async function handleSave() {
+    if (!editName.trim() || !editBody.trim()) return
+    setSaving(true)
+    try {
+      if (editing?.id) {
+        const updated = await updateContractTemplate(editing.id, { name: editName.trim(), body: editBody.trim() })
+        setTemplates(prev => prev.map(t => t.id === editing.id ? updated : t))
+      } else {
+        const created = await createContractTemplate({ name: editName.trim(), body: editBody.trim() })
+        setTemplates(prev => [...prev, created])
+      }
+      setEditing(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+    finally { setSaving(false) }
+  }
+
+  async function handleDuplicate(t) {
+    try {
+      const copy = await duplicateContractTemplate(t)
+      setTemplates(prev => [...prev, copy])
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await deleteContractTemplate(id)
+      setTemplates(prev => prev.filter(t => t.id !== id))
+      setConfirmDeleteId(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  if (editing !== null) {
+    return (
+      <SettingsSection
+        title={editing?.id ? 'Edit Contract Template' : 'New Contract Template'}
+        description="Use {{variable}} placeholders — they are filled in automatically when sending."
+      >
+        <div className="px-5 py-5 space-y-4" style={{ background: 'var(--surface)' }}>
+          <Input label="Template name" value={editName} onChange={setEditName}
+            placeholder="e.g. Portrait Session Agreement" required />
+          <div>
+            <button onClick={() => setShowVars(v => !v)}
+              className="text-xs flex items-center gap-1 mb-2"
+              style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              {showVars ? '▾' : '▸'} {showVars ? 'Hide' : 'Show'} available variables
+            </button>
+            {showVars && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {CONTRACT_TEMPLATE_VARIABLES.map(v => (
+                  <button key={v.tag} onClick={() => insertVariable(v.tag)} title={v.desc}
+                    className="text-xs px-2 py-1 rounded-md font-mono"
+                    style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
+                    {v.tag}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+              Contract body <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <textarea ref={bodyRef} value={editBody} onChange={e => setEditBody(e.target.value)}
+              placeholder="Enter your contract text. Use {{variable}} placeholders where values should be filled automatically."
+              rows={20}
+              style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none',
+                resize: 'vertical', fontFamily: 'ui-monospace, monospace', lineHeight: 1.6 }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Plain text. Use blank lines to separate paragraphs.</p>
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <Button onClick={handleSave} disabled={saving || !editName.trim() || !editBody.trim()}>
+              {saving ? 'Saving...' : 'Save Template'}
+            </Button>
+            <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
+          </div>
+        </div>
+      </SettingsSection>
+    )
+  }
+
+  return (
+    <SettingsSection
+      title="Contract Templates"
+      description="Reusable contract templates with auto-filled variables. Sent to clients for digital signature."
+      action={
+        <button onClick={startNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+          style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+          <Plus size={14} />New Template
+        </button>
+      }>
+      {!loaded ? null : templates.length === 0 ? (
+        <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
+          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No contract templates yet</p>
+          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Create templates to quickly send contracts to clients for signature.</p>
+          <button onClick={startNew} className="text-sm font-medium px-4 py-2 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            Create your first template
+          </button>
+        </div>
+      ) : (
+        <div style={{ background: 'var(--surface)' }}>
+          {templates.map((t, i) => (
+            <div key={t.id}>
+              <div className="flex items-center justify-between px-5 py-4"
+                style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {t.body.split('\n').filter(Boolean).length} lines
+                    {' · '}Updated {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-4 shrink-0">
+                  <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg"
+                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                  <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg"
+                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                  <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete"
+                    className="p-1.5 rounded-lg"
+                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                  </button>
+                </div>
+              </div>
+              {confirmDeleteId === t.id && (
+                <div className="px-5 pb-4" style={{ borderTop: '1px solid var(--border)' }}>
+                  <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </SettingsSection>
   )
 }
 
@@ -1223,6 +1421,7 @@ export default function Account() {
         <div className="space-y-6">
           <GalleryTemplatesTab onSaveState={setSaveState} />
           <EmailTemplatesTab onSaveState={setSaveState} />
+          <ContractTemplatesTab onSaveState={setSaveState} />
         </div>
       )}
       {activeTab === 'social' && (
