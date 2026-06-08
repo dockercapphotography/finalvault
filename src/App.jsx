@@ -16,6 +16,7 @@ import ClientGallery from './routes/ClientGallery.jsx'
 import ClientGalleryView from './routes/ClientGalleryView.jsx'
 import Login from './routes/Login.jsx'
 import PrivacyPolicy from './routes/PrivacyPolicy.jsx'
+import SignContract from './routes/SignContract.jsx'
 import TermsOfService from './routes/TermsOfService.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
 
@@ -113,12 +114,12 @@ export default function App() {
           <PageWrapper session={session}><Admin /></PageWrapper>
         </ProtectedRoute>
       } />
-
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/g/:token" element={<ClientGallery />} />
       <Route path="/g/:token/view" element={<ClientGalleryView />} />
 
+      <Route path="/sign/:token" element={<SignContract />} />
       <Route path="/clients" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><Clients /></PageWrapper>
