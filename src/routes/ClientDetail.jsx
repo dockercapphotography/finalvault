@@ -691,7 +691,7 @@ export default function ClientDetail() {
       {showSendContract && client && (
         <SendContractModal
           client={client}
-          gallery={galleries[0] || null}
+          galleries={galleries}
           onClose={() => setShowSendContract(false)}
           onSent={contract => {
             setContracts(prev => [contract, ...prev])

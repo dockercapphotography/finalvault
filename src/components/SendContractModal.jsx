@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, Send, FileText, Eye, Pencil, Search } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Send, FileText, Eye, Pencil } from 'lucide-react'
+import GalleryPicker from './ui/GalleryPicker.jsx'
+import TemplatePicker from './ui/TemplatePicker.jsx'
 import {
   getContractTemplates, createContractDraft, updateContract,
   resolveTemplateVariables, sha256
@@ -18,9 +20,11 @@ const STEPS = ['pick', 'preview', 'send']
  *   onClose   : () => void
  *   onSent    : (contract) => void — called after successful send
  */
-export default function SendContractModal({ client, gallery = null, onClose, onSent }) {
+export default function SendContractModal({ client, galleries = [], onClose, onSent }) {
+  const [selectedGallery, setSelectedGallery] = useState(
+    galleries.length === 1 ? galleries[0] : null
+  )
   const [step, setStep] = useState('pick')
-  const [templateSearch, setTemplateSearch] = useState('')    // pick | preview | send
   const [templates, setTemplates] = useState([])
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [photographer, setPhotographer] = useState(null)
@@ -71,7 +75,7 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
 
   function handleSelectTemplate(template) {
     setSelectedTemplate(template)
-    const resolved = resolveTemplateVariables(template.body, { photographer, client, gallery })
+    const resolved = resolveTemplateVariables(template.body, { photographer, client, gallery: selectedGallery })
     setResolvedBody(resolved)
     setEditedBody(resolved)
     setContractTitle(template.name)
@@ -94,7 +98,7 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
       // Create the contract record
       const contract = await createContractDraft({
         clientId: client.id,
-        galleryId: gallery?.id || null,
+        galleryId: selectedGallery?.id || null,
         templateId: selectedTemplate?.id || null,
         title: contractTitle,
         body: finalBody,
@@ -142,13 +146,14 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
     borderRadius: 16, overflowX: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
   }
 
-  // ── Step 1: Pick template ─────────────────────────────────────────────────
+  // ── Step 1: Pick gallery + template ─────────────────────────────────────────
   if (step === 'pick') {
     return (
       <>
         <div style={overlayStyle} onClick={onClose} />
         <div style={modalStyle}>
           <div style={innerStyle}>
+            {/* Header */}
             <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
               <div>
                 <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Send Contract</h2>
@@ -161,67 +166,71 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
               </button>
             </div>
 
-            {/* Search */}
-            <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
-                style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}>
-                <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                <input
-                  value={templateSearch}
-                  onChange={e => setTemplateSearch(e.target.value)}
-                  placeholder="Search templates..."
-                  style={{ border: 'none', background: 'transparent', outline: 'none',
-                    fontSize: 13, color: 'var(--text)', width: '100%' }}
-                />
-              </div>
-            </div>
-
-            {/* Template list */}
-            <div>
+            {/* Form */}
+            <div className="px-6 py-5 space-y-4">
               {!client.email && (
-                <div className="mx-4 mt-3 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid var(--warning)' }}>
+                <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--warning-subtle)', color: 'var(--warning)', border: '1px solid var(--warning)' }}>
                   This client has no email address. Please add one before sending a contract.
                 </div>
               )}
-              {templates.length === 0 ? (
-                <div className="py-8 text-center px-6">
-                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No contract templates yet.</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Create templates in Account → Templates first.</p>
+
+              {/* Gallery picker — only shown when client has galleries */}
+              {galleries.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Gallery (optional)</p>
+                  <GalleryPicker
+                    galleries={galleries}
+                    value={selectedGallery?.id ?? null}
+                    onChange={id => setSelectedGallery(galleries.find(g => g.id === id) || null)}
+                    placeholder="No specific gallery"
+                    allowNone={true}
+                  />
                 </div>
-              ) : (
-                <>
-                  {templates
-                    .filter(t => t.name.toLowerCase().includes(templateSearch.toLowerCase()))
-                    .map((t, i, arr) => (
-                      <button key={t.id} onClick={() => handleSelectTemplate(t)}
-                        disabled={!client.email}
-                        className="w-full flex items-center gap-3 px-5 py-3 text-left"
-                        style={{
-                          background: 'transparent', border: 'none',
-                          borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
-                          cursor: client.email ? 'pointer' : 'not-allowed',
-                          opacity: client.email ? 1 : 0.5,
-                          display: 'flex',
-                        }}
-                        onMouseEnter={e => { if (client.email) e.currentTarget.style.background = 'var(--surface-raised)' }}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <FileText size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        <p className="flex-1 text-sm min-w-0 truncate" style={{ color: 'var(--text)', margin: 0 }}>{t.name}</p>
-                        <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                      </button>
-                    ))}
-                  {templateSearch && templates.filter(t => t.name.toLowerCase().includes(templateSearch.toLowerCase())).length === 0 && (
-                    <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No templates match "{templateSearch}"</p>
-                  )}
-                </>
               )}
+
+              {/* Template picker */}
+              <div>
+                <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Contract template</p>
+                {templates.length === 0 ? (
+                  <p className="text-sm py-2" style={{ color: 'var(--text-muted)' }}>
+                    No templates yet — create one in Account → Templates.
+                  </p>
+                ) : (
+                  <TemplatePicker
+                    templates={templates}
+                    value={selectedTemplate?.id ?? null}
+                    onChange={template => {
+                      setSelectedTemplate(template)
+                    }}
+                    disabled={!client.email}
+                    placeholder="Select a template..."
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 flex items-center justify-end gap-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <Button variant="secondary" onClick={onClose}>Cancel</Button>
+              <Button
+                disabled={!selectedTemplate || !client.email}
+                onClick={() => {
+                  if (!selectedTemplate) return
+                  const resolved = resolveTemplateVariables(selectedTemplate.body, { photographer, client, gallery: selectedGallery })
+                  setResolvedBody(resolved)
+                  setEditedBody(resolved)
+                  setContractTitle(selectedTemplate.name)
+                  setEditing(false)
+                  setStep('preview')
+                }}>
+                Continue <ChevronRight size={14} />
+              </Button>
             </div>
           </div>
         </div>
       </>
     )
   }
-
 
   // ── Step 2: Preview / Edit ────────────────────────────────────────────────
   if (step === 'preview') {
@@ -291,9 +300,15 @@ export default function SendContractModal({ client, gallery = null, onClose, onS
             </div>
 
             <div className="px-6 py-4 flex flex-col gap-2 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Variables have been filled in. Review before sending.
-              </p>
+              {resolvedBody.match(/\{\{(?!sign_date)[^}]+\}\}/) ? (
+                <p className="text-xs" style={{ color: 'var(--warning)' }}>
+                  ⚠ Some variables couldn't be filled in — check the contract above.
+                </p>
+              ) : (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Variables have been filled in. Review before sending.
+                </p>
+              )}
               <div className="flex items-center justify-end gap-2">
                 <Button variant="secondary" onClick={() => setStep('pick')}>Back</Button>
                 <Button onClick={() => setStep('send')} disabled={!contractTitle.trim()}>
