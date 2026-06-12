@@ -9,11 +9,15 @@ import GallerySettings from './routes/GallerySettings.jsx'
 import GalleryActivity from './routes/GalleryActivity.jsx'
 import Account from './routes/Account.jsx'
 import Bookmarked from './routes/Bookmarked.jsx'
+import Clients from './routes/Clients.jsx'
+import ClientDetail from './routes/ClientDetail.jsx'
+import ContractDetail from './routes/ContractDetail.jsx'
 import Admin from './routes/Admin.jsx'
 import ClientGallery from './routes/ClientGallery.jsx'
 import ClientGalleryView from './routes/ClientGalleryView.jsx'
 import Login from './routes/Login.jsx'
 import PrivacyPolicy from './routes/PrivacyPolicy.jsx'
+import SignContract from './routes/SignContract.jsx'
 import TermsOfService from './routes/TermsOfService.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
 
@@ -111,11 +115,27 @@ export default function App() {
           <PageWrapper session={session}><Admin /></PageWrapper>
         </ProtectedRoute>
       } />
-
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/g/:token" element={<ClientGallery />} />
       <Route path="/g/:token/view" element={<ClientGalleryView />} />
+
+      <Route path="/sign/:token" element={<SignContract />} />
+      <Route path="/clients" element={
+        <ProtectedRoute session={session}>
+          <PageWrapper session={session}><Clients /></PageWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/clients/:id" element={
+        <ProtectedRoute session={session}>
+          <PageWrapper session={session}><ClientDetail /></PageWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/contracts/:id" element={
+        <ProtectedRoute session={session}>
+          <PageWrapper session={session}><ContractDetail /></PageWrapper>
+        </ProtectedRoute>
+      } />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

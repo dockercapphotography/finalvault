@@ -1,7 +1,7 @@
 import BottomSheet from './BottomSheet.jsx'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { useState, useEffect, useRef } from 'react'
-import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle } from 'lucide-react'
+import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle, FileText } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import { formatDate } from '../../utils/formatters.js'
 
@@ -57,6 +57,7 @@ export default function NotificationBell({ mobile = false }) {
   const [lastRead, setLastRead] = useState(null)
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [pendingContracts, setPendingContracts] = useState([])
   const panelRef = useRef(null)
 
 
@@ -65,6 +66,7 @@ export default function NotificationBell({ mobile = false }) {
       if (!user) return
       setUserId(user.id)
       loadLastRead(user.id).then(ts => loadActivity(user.id, ts))
+      loadPendingContracts(user.id)
     })
   }, [])
 
@@ -79,13 +81,13 @@ export default function NotificationBell({ mobile = false }) {
   }, [])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || mobile) return
     const handler = (e) => {
       if (!panelRef.current?.contains(e.target)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+  }, [open, mobile])
 
   async function loadLastRead(uid) {
     const { data } = await supabase
@@ -96,6 +98,16 @@ export default function NotificationBell({ mobile = false }) {
     const ts = data?.notifications_last_read_at || null
     setLastRead(ts)
     return ts
+  }
+
+  async function loadPendingContracts(uid) {
+    const { data } = await supabase
+      .from('contracts')
+      .select('id, title, signed_at, signed_name, clients(first_name, last_name)')
+      .eq('photographer_id', uid)
+      .eq('status', 'pending_photographer')
+      .order('signed_at', { ascending: false })
+    setPendingContracts(data ?? [])
   }
 
   async function loadActivity(uid, knownLastRead) {
@@ -144,11 +156,10 @@ export default function NotificationBell({ mobile = false }) {
 
     setItems(enriched)
 
-    if (knownLastRead) {
-      setUnreadCount(enriched.filter(i => new Date(i.occurred_at) > new Date(knownLastRead)).length)
-    } else {
-      setUnreadCount(enriched.length)
-    }
+    const activityUnread = knownLastRead
+      ? enriched.filter(i => new Date(i.occurred_at) > new Date(knownLastRead)).length
+      : enriched.length
+    setUnreadCount(activityUnread)
 
     setLoading(false)
   }
@@ -156,6 +167,8 @@ export default function NotificationBell({ mobile = false }) {
   async function handleOpen() {
     setOpen(prev => !prev)
     if (!open && userId) {
+      // Refresh pending contracts on open so badge is always current
+      loadPendingContracts(userId)
       const now = new Date().toISOString()
       await supabase
         .from('photographers')
@@ -163,7 +176,6 @@ export default function NotificationBell({ mobile = false }) {
         .eq('id', userId)
       setLastRead(now)
       setUnreadCount(0)
-      // Notify the other bell instance (desktop ↔ mobile) to also clear its badge
       window.dispatchEvent(new CustomEvent('fv-notifications-read'))
     }
   }
@@ -171,28 +183,29 @@ export default function NotificationBell({ mobile = false }) {
   useScrollLock(open && mobile)
 
   const groups = groupByDay(items)
+  const totalUnread = unreadCount + pendingContracts.length
 
   if (mobile) {
     return (
       <div className="flex-1 h-full">
         <button onClick={handleOpen}
-          className="flex flex-col items-center justify-center gap-1 w-full h-full text-xs transition-colors"
+          className="flex flex-col items-center justify-center w-full h-full transition-colors"
           style={{ color: open ? 'var(--text)' : 'var(--text-muted)', fontWeight: open ? '500' : '400', background: 'none', border: 'none', cursor: 'pointer' }}>
           <div className="relative">
-            <Bell size={20} />
-            {unreadCount > 0 && (
+            <Bell size={18} />
+            {totalUnread > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
                 style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
-                {unreadCount > 9 ? '9+' : unreadCount}
+                {totalUnread > 9 ? '9+' : totalUnread}
               </span>
             )}
           </div>
-          Alerts
+          <span style={{ fontSize: 10 }}>Alerts</span>
         </button>
 
 
         <BottomSheet open={open} onClose={() => setOpen(false)} maxHeight="75vh">
-          <NotificationPanel groups={groups} loading={loading} items={items} onClose={() => setOpen(false)} />
+          <NotificationPanel groups={groups} loading={loading} items={items} onClose={() => setOpen(false)} pendingContracts={pendingContracts} />
         </BottomSheet>
       </div>
     )
@@ -206,10 +219,10 @@ export default function NotificationBell({ mobile = false }) {
         onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
         onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
         <Bell size={16} />
-        {unreadCount > 0 && (
+        {totalUnread > 0 && (
           <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white flex items-center justify-center"
             style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {totalUnread > 9 ? '9+' : totalUnread}
           </span>
         )}
       </button>
@@ -217,14 +230,14 @@ export default function NotificationBell({ mobile = false }) {
       {open && (
         <div className="absolute top-full left-0 mt-2 rounded-2xl shadow-2xl z-50 overflow-hidden"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: 320, maxHeight: '70vh' }}>
-          <NotificationPanel groups={groups} loading={loading} items={items} />
+          <NotificationPanel groups={groups} loading={loading} items={items} pendingContracts={pendingContracts} />
         </div>
       )}
     </div>
   )
 }
 
-function NotificationPanel({ groups, loading, items, onClose }) {
+function NotificationPanel({ groups, loading, items, onClose, pendingContracts = [] }) {
   return (
     <div className="flex flex-col" style={{ maxHeight: '70vh' }}>
       <div className="px-4 py-3 flex items-center justify-between shrink-0"
@@ -250,7 +263,39 @@ function NotificationPanel({ groups, loading, items, onClose }) {
           </div>
         )}
 
-        {!loading && items.length === 0 && (
+        {pendingContracts.length > 0 && (
+          <div>
+            <div className="px-4 py-2 text-xs font-semibold sticky top-0"
+              style={{ color: '#6366f1', background: 'rgba(99,102,241,0.06)', borderBottom: '1px solid var(--border)' }}>
+              Needs your signature
+            </div>
+            {pendingContracts.map(c => (
+              <button key={c.id} onClick={() => { window.location.href = `/contracts/${c.id}` }}
+                className="px-4 py-3 flex items-start gap-3 w-full text-left"
+                style={{ borderBottom: '1px solid var(--border)', textDecoration: 'none', display: 'flex', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(99,102,241,0.12)' }}>
+                  <FileText size={14} style={{ color: '#6366f1' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm leading-snug" style={{ color: 'var(--text)' }}>
+                    <span className="font-medium">
+                      {c.clients ? `${c.clients.first_name} ${c.clients.last_name}` : 'Client'}
+                    </span>
+                    {' '}signed a contract
+                  </p>
+                  <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
+                    {c.title} · {c.signed_at ? new Date(c.signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!loading && items.length === 0 && pendingContracts.length === 0 && (
           <div className="py-10 text-center">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No activity in the last 7 days</p>
           </div>

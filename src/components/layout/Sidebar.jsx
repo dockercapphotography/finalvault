@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Images, Settings, Bookmark } from 'lucide-react'
+import { Images, Settings, Bookmark, Users } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import NotificationBell from './NotificationBell.jsx'
 
 const baseNavItems = [
   { to: '/', label: 'Galleries', icon: Images, end: true },
   { to: '/bookmarked', label: 'Bookmarked', icon: Bookmark },
+  { to: '/clients', label: 'Clients', icon: Users },
   { to: '/account', label: 'Account', icon: Settings },
 ]
 
@@ -73,34 +74,36 @@ export default function Sidebar() {
         {[
           { to: '/', label: 'Galleries', icon: baseNavItems[0].icon, end: true },
           { to: '/bookmarked', label: 'Bookmarked', icon: baseNavItems[1].icon },
+          { to: '/clients', label: 'Clients', icon: Users },
         ].map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
-            className="flex flex-col items-center justify-center gap-1 flex-1 h-full text-xs transition-colors"
+            className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
             style={({ isActive }) => ({
               color: isActive ? 'var(--text)' : 'var(--text-muted)',
               fontWeight: isActive ? '500' : '400',
+              gap: 3,
             })}
           >
-            <Icon size={20} />
-            {label}
+            <Icon size={18} />
+            <span style={{ fontSize: 10 }}>{label}</span>
           </NavLink>
         ))}
         <NotificationBell mobile />
         <NavLink
           to="/account"
-          className="flex flex-col items-center justify-center gap-1 flex-1 h-full text-xs transition-colors"
+          className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
           style={({ isActive }) => ({
             color: isActive ? 'var(--text)' : 'var(--text-muted)',
             fontWeight: isActive ? '500' : '400',
+            gap: 3,
           })}
         >
-          <Settings size={20} />
-          Account
+          <Settings size={18} />
+          <span style={{ fontSize: 10 }}>Account</span>
         </NavLink>
-
       </nav>
     </>
   )

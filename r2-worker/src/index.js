@@ -5,6 +5,7 @@ import { handleDownload } from './handlers/download.js'
 import { handleDelete } from './handlers/delete.js'
 import { handleZip } from './handlers/zip.js'
 import { handleWatermarkUpload, handleWatermarkServe } from './handlers/watermark.js'
+import { handlePdfUpload } from './handlers/upload-pdf.js'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -73,6 +74,11 @@ export default {
       }
       if (request.method === 'GET' && pathname.startsWith('/watermark/')) {
         return await handleWatermarkServe(request, env, CORS_HEADERS)
+      }
+
+      // ── PDF upload (internal — service role key auth) ──
+      if (request.method === 'POST' && pathname === '/upload-pdf') {
+        return await handlePdfUpload(request, env, CORS_HEADERS)
       }
 
       return new Response(JSON.stringify({ ok: false, error: 'Not found' }), {

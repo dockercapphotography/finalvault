@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import {CheckCircle, Copy, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
+import {CheckCircle, Copy, Eye, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { supabase } from '../supabaseClient.js'
 import {
@@ -12,6 +12,10 @@ import {
   deleteGalleryTemplate, duplicateGalleryTemplate
 } from '../utils/galleryTemplateApi.js'
 import { getTags, createTag, updateTag, deleteTag } from '../utils/galleryApi.js'
+import {
+  getContractTemplates, createContractTemplate, updateContractTemplate,
+  deleteContractTemplate, duplicateContractTemplate
+} from '../utils/crmApi.js'
 import { THEMES, getTheme } from '../utils/themes.js'
 import Toggle from '../components/ui/Toggle.jsx'
 import WatermarkCard from '../components/watermarks/WatermarkCard.jsx'
@@ -305,6 +309,223 @@ function TagsTab({ onSaveState }) {
   )
 }
 
+
+// ── Contract Templates Tab ────────────────────────────────────────────────────
+
+const CONTRACT_TEMPLATE_VARIABLES = [
+  { tag: '{{client_name}}',          desc: 'Full client name' },
+  { tag: '{{client_first_name}}',    desc: 'Client first name' },
+  { tag: '{{client_email}}',         desc: 'Client email address' },
+  { tag: '{{client_address}}',       desc: 'Client full address' },
+  { tag: '{{photographer_name}}',    desc: 'Your display name' },
+  { tag: '{{studio_name}}',          desc: 'Your business name' },
+  { tag: '{{photographer_email}}',   desc: 'Your business email' },
+  { tag: '{{photographer_phone}}',   desc: 'Your business phone' },
+  { tag: '{{photographer_address}}', desc: 'Your full business address' },
+  { tag: '{{governing_state}}',      desc: 'Governing state for contracts' },
+  { tag: '{{gallery_title}}',        desc: 'Gallery title' },
+  { tag: '{{event_name}}',           desc: 'Event name' },
+  { tag: '{{event_date}}',           desc: 'Event date' },
+  { tag: '{{today_date}}',           desc: 'Date contract is sent' },
+  { tag: '{{sign_date}}',            desc: 'Date client signs' },
+  { tag: '{{session_fee}}',          desc: 'Total session fee' },
+  { tag: '{{retainer_amount}}',      desc: 'Retainer due on signing' },
+  { tag: '{{balance_due}}',          desc: 'Remaining balance' },
+  { tag: '{{balance_due_date}}',     desc: 'Date balance is due' },
+  { tag: '{{cancellation_days}}',    desc: 'Days notice required for cancellation' },
+]
+
+function ContractTemplatesTab({ onSaveState }) {
+  const [templates, setTemplates] = useState([])
+  const [editing, setEditing] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editBody, setEditBody] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [showVars, setShowVars] = useState(false)
+  const [previewContract, setPreviewContract] = useState(false)
+  const bodyRef = useRef(null)
+
+  useEffect(() => {
+    getContractTemplates()
+      .then(data => { setTemplates(data); setLoaded(true) })
+      .catch(() => setLoaded(true))
+  }, [])
+
+  function startNew() { setEditing({}); setEditName(''); setEditBody(''); setShowVars(false) }
+  function startEdit(t) { setEditing(t); setEditName(t.name); setEditBody(t.body); setShowVars(false) }
+  function cancelEdit() { setEditing(null) }
+
+  function insertVariable(tag) {
+    const el = bodyRef.current
+    if (!el) { setEditBody(b => b + tag); return }
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const newBody = editBody.slice(0, start) + tag + editBody.slice(end)
+    setEditBody(newBody)
+    setTimeout(() => { el.selectionStart = el.selectionEnd = start + tag.length; el.focus() }, 0)
+  }
+
+  async function handleSave() {
+    if (!editName.trim() || !editBody.trim()) return
+    setSaving(true)
+    try {
+      if (editing?.id) {
+        const updated = await updateContractTemplate(editing.id, { name: editName.trim(), body: editBody.trim() })
+        setTemplates(prev => prev.map(t => t.id === editing.id ? updated : t))
+      } else {
+        const created = await createContractTemplate({ name: editName.trim(), body: editBody.trim() })
+        setTemplates(prev => [...prev, created])
+      }
+      setEditing(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+    finally { setSaving(false) }
+  }
+
+  async function handleDuplicate(t) {
+    try {
+      const copy = await duplicateContractTemplate(t)
+      setTemplates(prev => [...prev, copy])
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await deleteContractTemplate(id)
+      setTemplates(prev => prev.filter(t => t.id !== id))
+      setConfirmDeleteId(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  if (editing !== null) {
+    return (
+      <SettingsSection
+        title={editing?.id ? 'Edit Contract Template' : 'New Contract Template'}
+        description="Use {{variable}} placeholders — they are filled in automatically when sending."
+      >
+        <div className="px-5 py-5 space-y-4" style={{ background: 'var(--surface)' }}>
+          <Input label="Template name" value={editName} onChange={setEditName}
+            placeholder="e.g. Portrait Session Agreement" required />
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                Contract body <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <button onClick={() => setPreviewContract(p => !p)}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
+                style={{ background: previewContract ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', color: previewContract ? '#6366f1' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                {previewContract ? <Pencil size={11} /> : <Eye size={11} />}
+                {previewContract ? 'Edit' : 'Preview'}
+              </button>
+            </div>
+            {previewContract ? (
+              <div style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13,
+                fontFamily: 'inherit', lineHeight: 1.6, whiteSpace: 'pre-wrap', minHeight: 300 }}>
+                {fillPreview(editBody) || <span style={{ color: 'var(--text-muted)' }}>(empty)</span>}
+              </div>
+            ) : (
+              <textarea ref={bodyRef} value={editBody} onChange={e => setEditBody(e.target.value)}
+                placeholder="Enter your contract text. Use {{variable}} placeholders where values should be filled automatically."
+                rows={20}
+                style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                  color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none',
+                  resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
+                onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            )}
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Plain text. Use blank lines to separate paragraphs.</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
+            <div className="flex flex-wrap gap-1.5">
+              {CONTRACT_TEMPLATE_VARIABLES.map(v => (
+                <button key={v.tag} onClick={() => insertVariable(v.tag)} title={v.desc}
+                  className="text-xs px-2.5 py-1 rounded-lg font-mono"
+                  style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
+                  {v.tag}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Click a variable to insert it at your cursor position.</p>
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <Button onClick={handleSave} disabled={saving || !editName.trim() || !editBody.trim()}>
+              {saving ? 'Saving...' : 'Save Template'}
+            </Button>
+            <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
+          </div>
+        </div>
+      </SettingsSection>
+    )
+  }
+
+  return (
+    <SettingsSection
+      title="Contract Templates"
+      description="Reusable contract templates with auto-filled variables. Sent to clients for digital signature."
+      action={
+        <button onClick={startNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+          style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+          <Plus size={14} />New Template
+        </button>
+      }>
+      {!loaded ? null : templates.length === 0 ? (
+        <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
+          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No contract templates yet</p>
+          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Create templates to quickly send contracts to clients for signature.</p>
+          <button onClick={startNew} className="text-sm font-medium px-4 py-2 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            Create your first template
+          </button>
+        </div>
+      ) : (
+        <div style={{ background: 'var(--surface)' }}>
+          {templates.map((t, i) => (
+            <div key={t.id}>
+              <div className="flex items-center justify-between px-5 py-4"
+                style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {t.body.split('\n').filter(Boolean).length} lines
+                    {' · '}Updated {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-4 shrink-0">
+                  <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg"
+                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                  <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg"
+                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                  <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete"
+                    className="p-1.5 rounded-lg"
+                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                  </button>
+                </div>
+              </div>
+              {confirmDeleteId === t.id && (
+                <div className="px-5 pb-4" style={{ borderTop: '1px solid var(--border)' }}>
+                  <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </SettingsSection>
+  )
+}
+
 const BASE_ACCOUNT_TABS = [
   { id: 'profile',       label: 'Profile' },
   { id: 'watermarks',    label: 'Watermarks' },
@@ -358,6 +579,13 @@ function DeleteConfirmRow({ label, onConfirm, onCancel }) {
 function ProfileTab({ user, onSaveState }) {
   const [displayName, setDisplayName] = useState('')
   const [businessName, setBusinessName] = useState('')
+  const [businessAddress, setBusinessAddress] = useState('')
+  const [businessCity, setBusinessCity] = useState('')
+  const [businessState, setBusinessState] = useState('')
+  const [businessZip, setBusinessZip] = useState('')
+  const [businessEmail, setBusinessEmail] = useState('')
+  const [businessPhone, setBusinessPhone] = useState('')
+  const [governingState, setGoverningState] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -374,7 +602,7 @@ function ProfileTab({ user, onSaveState }) {
   useEffect(() => {
     if (!user) return
     Promise.all([
-      supabase.from('photographers').select('display_name, business_name, avatar_r2_key').eq('id', user.id).single(),
+      supabase.from('photographers').select('display_name, business_name, business_address, business_city, business_state, business_zip, business_email, business_phone, governing_state, avatar_r2_key').eq('id', user.id).single(),
       supabase.from('photographer_storage').select('*, storage_tiers(name, storage_gb)').eq('photographer_id', user.id).single(),
       supabase.from('galleries').select('id').eq('photographer_id', user.id),
     ]).then(async ([{ data }, { data: storageRow }, { data: galleries }]) => {
@@ -390,6 +618,13 @@ function ProfileTab({ user, onSaveState }) {
       }
         setDisplayName(data?.display_name || '')
         setBusinessName(data?.business_name || '')
+        setBusinessAddress(data?.business_address || '')
+        setBusinessCity(data?.business_city || '')
+        setBusinessState(data?.business_state || '')
+        setBusinessZip(data?.business_zip || '')
+        setBusinessEmail(data?.business_email || '')
+        setBusinessPhone(data?.business_phone || '')
+        setGoverningState(data?.governing_state || '')
         if (data?.avatar_r2_key) {
           const { data: { session } } = await supabase.auth.getSession()
           const resp = await fetch(`${WORKER_URL}/watermark/${encodeURIComponent(data.avatar_r2_key)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
@@ -442,7 +677,18 @@ function ProfileTab({ user, onSaveState }) {
 
   async function save() {
     try {
-      const { error } = await supabase.from('photographers').update({ display_name: displayName, business_name: businessName, updated_at: new Date().toISOString() }).eq('id', user.id)
+      const { error } = await supabase.from('photographers').update({
+          display_name: displayName,
+          business_name: businessName,
+          business_address: businessAddress || null,
+          business_city: businessCity || null,
+          business_state: businessState || null,
+          business_zip: businessZip || null,
+          business_email: businessEmail || null,
+          business_phone: businessPhone || null,
+          governing_state: governingState || null,
+          updated_at: new Date().toISOString()
+        }).eq('id', user.id)
       if (error) throw error
       onSaveState('saved')
     } catch { onSaveState('error') }
@@ -502,8 +748,19 @@ function ProfileTab({ user, onSaveState }) {
           {cropSrc && <AvatarCropModal imageSrc={cropSrc} onSave={handleCropSave} onCancel={() => setCropSrc(null)} saving={uploadingAvatar} />}
           <Input label="Display name" value={displayName} onChange={setDisplayName} onBlur={save} placeholder="Your name" />
           <Input label="Business / Studio name" value={businessName} onChange={setBusinessName} onBlur={save} placeholder="e.g. Docker Cap Photography" hint="Used in gallery emails and client-facing communications" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Business email" value={businessEmail} onChange={setBusinessEmail} onBlur={save} placeholder="contact@yourstudio.com" type="email" />
+            <Input label="Business phone" value={businessPhone} onChange={setBusinessPhone} onBlur={save} placeholder="(555) 000-0000" />
+          </div>
+          <Input label="Street address" value={businessAddress} onChange={setBusinessAddress} onBlur={save} placeholder="123 Main St" />
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="City" value={businessCity} onChange={setBusinessCity} onBlur={save} placeholder="Columbus" />
+            <Input label="State" value={businessState} onChange={setBusinessState} onBlur={save} placeholder="OH" />
+            <Input label="ZIP" value={businessZip} onChange={setBusinessZip} onBlur={save} placeholder="43215" />
+          </div>
+          <Input label="Governing state (for contracts)" value={governingState} onChange={setGoverningState} onBlur={save} placeholder="e.g. Ohio" hint="The state whose laws govern your contracts." />
           <div>
-            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Email</label>
+            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Account Email</label>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
           </div>
         </div>
@@ -873,6 +1130,47 @@ function GalleryTemplatesTab({ onSaveState }) {
   )
 }
 
+
+// ── Template preview helpers ──────────────────────────────────────────────────
+
+const PREVIEW_DATA = {
+  '{{client_name}}':       'Jane Smith',
+  '{{client_first_name}}': 'Jane',
+  '{{client_email}}':      'jane.smith@example.com',
+  '{{gallery_name}}':      'Spring Portrait Session',
+  '{{gallery_title}}':     'Spring Portrait Session',
+  '{{gallery_url}}':       'https://finalvault.dockercapphotography.com/g/example',
+  '{{photographer_name}}': 'Nick Porterfield',
+  '{{my_name}}':           'Nick Porterfield',
+  '{{business_name}}':        'Docker Cap Photography',
+  '{{photographer_email}}':   'contact@dockercapphotography.com',
+  '{{photographer_phone}}':   '(614) 555-0123',
+  '{{photographer_address}}': '123 Main St, Canal Winchester, OH 43110',
+  '{{governing_state}}':      'Ohio',
+  '{{client_address}}':       '456 Oak Ave, Columbus, OH 43201',
+  '{{session_fee}}':          '$500',
+  '{{retainer_amount}}':      '$250',
+  '{{balance_due}}':          '$250',
+  '{{balance_due_date}}':     'June 15, 2026',
+  '{{cancellation_days}}':    '14',
+  '{{studio_name}}':       'Docker Cap Photography',
+  '{{event_name}}':        'Spring Portrait Session',
+  '{{event_date}}':        'June 15, 2026',
+  '{{today_date}}':        new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  '{{sign_date}}':         new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  '{{password}}':          'gallery123',
+  '{{download_pin}}':      '1234',
+  '{{expiry_date}}':       'December 31, 2026',
+}
+
+function fillPreview(text) {
+  if (!text) return ''
+  return Object.entries(PREVIEW_DATA).reduce(
+    (t, [key, val]) => t.replaceAll(key, val),
+    text
+  )
+}
+
 // ── Email Templates Tab ───────────────────────────────────────────────────────
 
 function EmailTemplatesTab({ onSaveState }) {
@@ -884,6 +1182,7 @@ function EmailTemplatesTab({ onSaveState }) {
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [previewEmail, setPreviewEmail] = useState(false)
   const bodyRef = useRef(null)
 
   useEffect(() => {
@@ -929,20 +1228,37 @@ function EmailTemplatesTab({ onSaveState }) {
   if (editing !== null) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div>
           <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>{editing?.id ? 'Edit Template' : 'New Email Template'}</h3>
-          <button onClick={cancelEdit} className="text-sm" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>Cancel</button>
         </div>
         <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
           <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
             <Input label="Template Name" value={name} onChange={setName} placeholder="e.g. Wedding Delivery" />
             <Input label="Subject" value={subject} onChange={setSubject} placeholder="Your photos are ready!" />
             <div>
-              <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Message Body</label>
-              <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)} rows={8}
-                placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}
-                className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
-                style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Message Body</label>
+                <button onClick={() => setPreviewEmail(p => !p)}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
+                  style={{ background: previewEmail ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', color: previewEmail ? '#6366f1' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                  {previewEmail ? <Pencil size={11} /> : <Eye size={11} />}
+                  {previewEmail ? 'Edit' : 'Preview'}
+                </button>
+              </div>
+              {previewEmail ? (
+                <div className="w-full text-sm rounded-xl px-3 py-2.5 min-h-[160px]"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                  <p className="text-xs font-medium mb-2 pb-2" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+                    Subject: {fillPreview(subject) || '(no subject)'}
+                  </p>
+                  {fillPreview(body) || <span style={{ color: 'var(--text-muted)' }}>(empty)</span>}
+                </div>
+              ) : (
+                <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)} rows={8}
+                  placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}
+                  className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
+              )}
             </div>
             <div>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
@@ -956,10 +1272,12 @@ function EmailTemplatesTab({ onSaveState }) {
               </div>
               <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Click a variable to insert it at your cursor position.</p>
             </div>
-            <button onClick={handleSave} disabled={!name.trim() || !subject.trim() || saving} className="w-full py-2.5 rounded-xl text-sm font-medium"
-              style={{ background: '#6366f1', color: '#fff', opacity: !name.trim() || saving ? 0.5 : 1, cursor: !name.trim() || saving ? 'not-allowed' : 'pointer' }}>
-              {saving ? 'Saving…' : 'Save Template'}
-            </button>
+            <div className="flex items-center gap-3 pt-1">
+              <Button onClick={handleSave} disabled={!name.trim() || !subject.trim() || saving}>
+                {saving ? 'Saving…' : 'Save Template'}
+              </Button>
+              <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
+            </div>
           </div>
         </div>
       </div>
@@ -1223,6 +1541,7 @@ export default function Account() {
         <div className="space-y-6">
           <GalleryTemplatesTab onSaveState={setSaveState} />
           <EmailTemplatesTab onSaveState={setSaveState} />
+          <ContractTemplatesTab onSaveState={setSaveState} />
         </div>
       )}
       {activeTab === 'social' && (
