@@ -313,16 +313,26 @@ function TagsTab({ onSaveState }) {
 // ── Contract Templates Tab ────────────────────────────────────────────────────
 
 const CONTRACT_TEMPLATE_VARIABLES = [
-  { tag: '{{client_name}}',       desc: 'Full client name' },
-  { tag: '{{client_first_name}}', desc: 'Client first name' },
-  { tag: '{{client_email}}',      desc: 'Client email address' },
-  { tag: '{{photographer_name}}', desc: 'Your display name' },
-  { tag: '{{studio_name}}',       desc: 'Your business name' },
-  { tag: '{{gallery_title}}',     desc: 'Gallery title' },
-  { tag: '{{event_name}}',        desc: 'Event name' },
-  { tag: '{{event_date}}',        desc: 'Event date' },
-  { tag: '{{today_date}}',        desc: 'Date contract is sent' },
-  { tag: '{{sign_date}}',         desc: 'Date client signs' },
+  { tag: '{{client_name}}',          desc: 'Full client name' },
+  { tag: '{{client_first_name}}',    desc: 'Client first name' },
+  { tag: '{{client_email}}',         desc: 'Client email address' },
+  { tag: '{{client_address}}',       desc: 'Client full address' },
+  { tag: '{{photographer_name}}',    desc: 'Your display name' },
+  { tag: '{{studio_name}}',          desc: 'Your business name' },
+  { tag: '{{photographer_email}}',   desc: 'Your business email' },
+  { tag: '{{photographer_phone}}',   desc: 'Your business phone' },
+  { tag: '{{photographer_address}}', desc: 'Your full business address' },
+  { tag: '{{governing_state}}',      desc: 'Governing state for contracts' },
+  { tag: '{{gallery_title}}',        desc: 'Gallery title' },
+  { tag: '{{event_name}}',           desc: 'Event name' },
+  { tag: '{{event_date}}',           desc: 'Event date' },
+  { tag: '{{today_date}}',           desc: 'Date contract is sent' },
+  { tag: '{{sign_date}}',            desc: 'Date client signs' },
+  { tag: '{{session_fee}}',          desc: 'Total session fee' },
+  { tag: '{{retainer_amount}}',      desc: 'Retainer due on signing' },
+  { tag: '{{balance_due}}',          desc: 'Remaining balance' },
+  { tag: '{{balance_due_date}}',     desc: 'Date balance is due' },
+  { tag: '{{cancellation_days}}',    desc: 'Days notice required for cancellation' },
 ]
 
 function ContractTemplatesTab({ onSaveState }) {
@@ -569,6 +579,13 @@ function DeleteConfirmRow({ label, onConfirm, onCancel }) {
 function ProfileTab({ user, onSaveState }) {
   const [displayName, setDisplayName] = useState('')
   const [businessName, setBusinessName] = useState('')
+  const [businessAddress, setBusinessAddress] = useState('')
+  const [businessCity, setBusinessCity] = useState('')
+  const [businessState, setBusinessState] = useState('')
+  const [businessZip, setBusinessZip] = useState('')
+  const [businessEmail, setBusinessEmail] = useState('')
+  const [businessPhone, setBusinessPhone] = useState('')
+  const [governingState, setGoverningState] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -585,7 +602,7 @@ function ProfileTab({ user, onSaveState }) {
   useEffect(() => {
     if (!user) return
     Promise.all([
-      supabase.from('photographers').select('display_name, business_name, avatar_r2_key').eq('id', user.id).single(),
+      supabase.from('photographers').select('display_name, business_name, business_address, business_city, business_state, business_zip, business_email, business_phone, governing_state, avatar_r2_key').eq('id', user.id).single(),
       supabase.from('photographer_storage').select('*, storage_tiers(name, storage_gb)').eq('photographer_id', user.id).single(),
       supabase.from('galleries').select('id').eq('photographer_id', user.id),
     ]).then(async ([{ data }, { data: storageRow }, { data: galleries }]) => {
@@ -601,6 +618,13 @@ function ProfileTab({ user, onSaveState }) {
       }
         setDisplayName(data?.display_name || '')
         setBusinessName(data?.business_name || '')
+        setBusinessAddress(data?.business_address || '')
+        setBusinessCity(data?.business_city || '')
+        setBusinessState(data?.business_state || '')
+        setBusinessZip(data?.business_zip || '')
+        setBusinessEmail(data?.business_email || '')
+        setBusinessPhone(data?.business_phone || '')
+        setGoverningState(data?.governing_state || '')
         if (data?.avatar_r2_key) {
           const { data: { session } } = await supabase.auth.getSession()
           const resp = await fetch(`${WORKER_URL}/watermark/${encodeURIComponent(data.avatar_r2_key)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
@@ -653,7 +677,18 @@ function ProfileTab({ user, onSaveState }) {
 
   async function save() {
     try {
-      const { error } = await supabase.from('photographers').update({ display_name: displayName, business_name: businessName, updated_at: new Date().toISOString() }).eq('id', user.id)
+      const { error } = await supabase.from('photographers').update({
+          display_name: displayName,
+          business_name: businessName,
+          business_address: businessAddress || null,
+          business_city: businessCity || null,
+          business_state: businessState || null,
+          business_zip: businessZip || null,
+          business_email: businessEmail || null,
+          business_phone: businessPhone || null,
+          governing_state: governingState || null,
+          updated_at: new Date().toISOString()
+        }).eq('id', user.id)
       if (error) throw error
       onSaveState('saved')
     } catch { onSaveState('error') }
@@ -713,8 +748,19 @@ function ProfileTab({ user, onSaveState }) {
           {cropSrc && <AvatarCropModal imageSrc={cropSrc} onSave={handleCropSave} onCancel={() => setCropSrc(null)} saving={uploadingAvatar} />}
           <Input label="Display name" value={displayName} onChange={setDisplayName} onBlur={save} placeholder="Your name" />
           <Input label="Business / Studio name" value={businessName} onChange={setBusinessName} onBlur={save} placeholder="e.g. Docker Cap Photography" hint="Used in gallery emails and client-facing communications" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Business email" value={businessEmail} onChange={setBusinessEmail} onBlur={save} placeholder="contact@yourstudio.com" type="email" />
+            <Input label="Business phone" value={businessPhone} onChange={setBusinessPhone} onBlur={save} placeholder="(555) 000-0000" />
+          </div>
+          <Input label="Street address" value={businessAddress} onChange={setBusinessAddress} onBlur={save} placeholder="123 Main St" />
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="City" value={businessCity} onChange={setBusinessCity} onBlur={save} placeholder="Columbus" />
+            <Input label="State" value={businessState} onChange={setBusinessState} onBlur={save} placeholder="OH" />
+            <Input label="ZIP" value={businessZip} onChange={setBusinessZip} onBlur={save} placeholder="43215" />
+          </div>
+          <Input label="Governing state (for contracts)" value={governingState} onChange={setGoverningState} onBlur={save} placeholder="e.g. Ohio" hint="The state whose laws govern your contracts." />
           <div>
-            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Email</label>
+            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Account Email</label>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
           </div>
         </div>
@@ -1096,7 +1142,17 @@ const PREVIEW_DATA = {
   '{{gallery_url}}':       'https://finalvault.dockercapphotography.com/g/example',
   '{{photographer_name}}': 'Nick Porterfield',
   '{{my_name}}':           'Nick Porterfield',
-  '{{business_name}}':     'Docker Cap Photography',
+  '{{business_name}}':        'Docker Cap Photography',
+  '{{photographer_email}}':   'contact@dockercapphotography.com',
+  '{{photographer_phone}}':   '(614) 555-0123',
+  '{{photographer_address}}': '123 Main St, Canal Winchester, OH 43110',
+  '{{governing_state}}':      'Ohio',
+  '{{client_address}}':       '456 Oak Ave, Columbus, OH 43201',
+  '{{session_fee}}':          '$500',
+  '{{retainer_amount}}':      '$250',
+  '{{balance_due}}':          '$250',
+  '{{balance_due_date}}':     'June 15, 2026',
+  '{{cancellation_days}}':    '14',
   '{{studio_name}}':       'Docker Cap Photography',
   '{{event_name}}':        'Spring Portrait Session',
   '{{event_date}}':        'June 15, 2026',
