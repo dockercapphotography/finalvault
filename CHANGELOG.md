@@ -4,6 +4,54 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.2.0 — June 12, 2026
+
+### New Features
+
+**Client CRM**
+- New Clients section — create and manage client records with full contact info (name, email, phone, address, city, state, ZIP)
+- Client detail page showing all client info, linked galleries, contracts, and notes
+- Client list with search, tag filter, avatar initials, pronouns display, phone on desktop
+- Client avatars — upload, crop, and zoom a profile photo per client using react-easy-crop
+- Pronouns field — dropdown (she/her, he/him, they/them, and more) shown inline next to client name on both list and detail views
+- Google Places address autocomplete in both New Client and Edit Client modals
+- Tag management — chip+typeahead tag input with autocomplete from existing client tags; create new tags on the fly; backspace to remove
+
+**Contract Management**
+- Send contracts to clients directly from Client Detail — searchable template picker, gallery picker, contract preview with edit/preview toggle, and confirm-and-send step
+- Contract templates — create, edit, duplicate, and delete templates in Account → Templates with live preview and variable fill
+- Contract variables — `{{client_name}}`, `{{client_address}}`, `{{photographer_name}}`, `{{studio_name}}`, `{{photographer_email}}`, `{{photographer_phone}}`, `{{photographer_address}}`, `{{governing_state}}`, `{{gallery_title}}`, `{{event_name}}`, `{{event_date}}`, `{{session_fee}}`, `{{retainer_amount}}`, `{{balance_due}}`, `{{balance_due_date}}`, `{{cancellation_days}}`, `{{today_date}}`, `{{sign_date}}`
+- Gallery picker in Send Contract modal — auto-selects when client has one gallery; shows searchable picker when multiple galleries exist; "No specific gallery" option
+- Three default contract templates included: General Photography Services Agreement, Print Release, Photo Licensing Agreement — all marked as templates with a disclaimer notice
+- Client signing flow — typed digital signature, legally binding under US ESIGN/UETA, SHA-256 body hash, IP/timestamp audit trail, signed PDF stored in R2
+- Photographer counter-sign from Contract Detail
+- Resend button on Contract Detail for sent/draft contracts
+
+**Account — Business Information**
+- New Business Information fields in Account → Profile: business email, business phone, street address, city, state, ZIP, and governing state
+- All fields save on blur, consistent with existing profile fields
+- Business info auto-fills contract variables when sending contracts
+
+**UI Components**
+- `GalleryPicker` — searchable combobox for selecting a gallery, modeled after ClientPicker
+- `TemplatePicker` — searchable combobox for selecting a contract template, modeled after ClientPicker
+- `SearchSelect` — reusable inline searchable list component
+- `TagInput` — chip+typeahead tag input with autocomplete and create-on-the-fly
+- `AddressAutocomplete` — shared Google Places address autocomplete component
+
+### Bug Fixes
+- Fixed border shorthand conflicts in Clients row (React console warnings)
+- Fixed overflow shorthand conflicts in SendContractModal (React console warnings)
+- Fixed SendContractModal scroll behavior on mobile
+- Fixed mobile footer layout in contract review step
+- Fixed tags not saving when TagInput array was passed as string to createClient/updateClient
+- Fixed pronouns not saving — added pronouns field to updateClient and createClient in crmApi.js
+
+### Tests
+- Added Playwright E2E test suite for all v1.2.0 CRM flows (38 tests): client list, new client modal, client detail, send contract modal, contract detail, account business info
+
+---
+
 ## v1.1.6 — June 6, 2026
 
 ### New Features

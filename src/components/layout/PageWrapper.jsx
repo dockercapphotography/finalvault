@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.1.6'
+const VERSION = '1.2.0'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,25 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.2.0 — June 12, 2026">
+                  <Group label="Client CRM">
+                    <Item>New Clients section — create and manage client records with contact info, avatars, tags, and pronouns</Item>
+                    <Item>Client detail page with linked galleries, contracts, and notes</Item>
+                    <Item>Google Places address autocomplete in client modals</Item>
+                    <Item>Tag management — chip+typeahead input with autocomplete from existing tags</Item>
+                    <Item>Pronouns field shown inline next to client name throughout the app</Item>
+                  </Group>
+                  <Group label="Contract management">
+                    <Item>Send contracts to clients from Client Detail with gallery picker, template picker, and preview step</Item>
+                    <Item>Client signs with typed digital signature — legally binding under US ESIGN/UETA</Item>
+                    <Item>Three default templates: General Photography Services Agreement, Print Release, Photo Licensing Agreement</Item>
+                    <Item>New contract variables for business info, client address, fees, and cancellation policy</Item>
+                  </Group>
+                  <Group label="Account — Business Information">
+                    <Item>New business info fields in Profile: email, phone, address, and governing state</Item>
+                    <Item>Business info auto-fills contract variables when sending contracts</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.1.6 — June 6, 2026">
                   <Group label="Dashboard sort &amp; display">
                     <Item>Sort galleries by Created, Event Date, Last Updated, or Name</Item>
