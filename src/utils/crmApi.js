@@ -272,17 +272,41 @@ export function resolveTemplateVariables(body, { photographer, client, gallery }
     ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : ''
 
+  const photographerAddress = [
+    photographer?.business_address,
+    photographer?.business_city,
+    photographer?.business_state,
+    photographer?.business_zip,
+  ].filter(Boolean).join(', ')
+
+  const clientAddress = [
+    client?.address,
+    client?.city,
+    client?.state,
+    client?.zip,
+  ].filter(Boolean).join(', ')
+
   const vars = {
     client_name: client ? `${client.first_name} ${client.last_name}` : '',
     client_first_name: client?.first_name ?? '',
     client_email: client?.email ?? '',
+    client_address: clientAddress,
     photographer_name: photographer?.display_name ?? '',
     studio_name: photographer?.business_name ?? photographer?.display_name ?? '',
+    photographer_email: photographer?.business_email ?? '',
+    photographer_phone: photographer?.business_phone ?? '',
+    photographer_address: photographerAddress,
+    governing_state: photographer?.governing_state ?? '',
     gallery_title: gallery?.title ?? '',
     event_name: gallery?.event_name ?? '',
     event_date: eventDate,
     today_date: today,
     sign_date: '{{sign_date}}',
+    session_fee: '',
+    retainer_amount: '',
+    balance_due: '',
+    balance_due_date: '',
+    cancellation_days: '',
   }
 
   return body.replace(/\{\{(\w+)\}\}/g, (match, key) => {
