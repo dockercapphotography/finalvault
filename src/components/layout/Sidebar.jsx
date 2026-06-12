@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Images, Settings, Bookmark, Users } from 'lucide-react'
-import { supabase } from '../../supabaseClient.js'
+import { Images, Settings, Bookmark, Users, CalendarDays } from 'lucide-react'
 import NotificationBell from './NotificationBell.jsx'
 
 const baseNavItems = [
   { to: '/', label: 'Galleries', icon: Images, end: true },
   { to: '/bookmarked', label: 'Bookmarked', icon: Bookmark },
   { to: '/clients', label: 'Clients', icon: Users },
+  { to: '/sessions', label: 'Sessions', icon: CalendarDays },
   { to: '/account', label: 'Account', icon: Settings },
 ]
 
@@ -72,9 +71,11 @@ export default function Sidebar() {
         }}
       >
         {[
-          { to: '/', label: 'Galleries', icon: baseNavItems[0].icon, end: true },
-          { to: '/bookmarked', label: 'Bookmarked', icon: baseNavItems[1].icon },
+          { to: '/', label: 'Galleries', icon: Images, end: true },
           { to: '/clients', label: 'Clients', icon: Users },
+          { to: '/sessions', label: 'Sessions', icon: CalendarDays },
+          { to: '/bookmarked', label: 'Bookmarked', icon: Bookmark },
+          { to: '/account', label: 'Account', icon: Settings },
         ].map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
@@ -91,19 +92,6 @@ export default function Sidebar() {
             <span style={{ fontSize: 10 }}>{label}</span>
           </NavLink>
         ))}
-        <NotificationBell mobile />
-        <NavLink
-          to="/account"
-          className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
-          style={({ isActive }) => ({
-            color: isActive ? 'var(--text)' : 'var(--text-muted)',
-            fontWeight: isActive ? '500' : '400',
-            gap: 3,
-          })}
-        >
-          <Settings size={18} />
-          <span style={{ fontSize: 10 }}>Account</span>
-        </NavLink>
       </nav>
     </>
   )

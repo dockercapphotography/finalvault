@@ -187,22 +187,20 @@ export default function NotificationBell({ mobile = false }) {
 
   if (mobile) {
     return (
-      <div className="flex-1 h-full">
+      <div className="relative">
         <button onClick={handleOpen}
-          className="flex flex-col items-center justify-center w-full h-full transition-colors"
-          style={{ color: open ? 'var(--text)' : 'var(--text-muted)', fontWeight: open ? '500' : '400', background: 'none', border: 'none', cursor: 'pointer' }}>
-          <div className="relative">
-            <Bell size={18} />
-            {totalUnread > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
-                style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
-                {totalUnread > 9 ? '9+' : totalUnread}
-              </span>
-            )}
-          </div>
-          <span style={{ fontSize: 10 }}>Alerts</span>
+          className="relative p-2 rounded-lg transition-colors"
+          style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+          <Bell size={18} />
+          {totalUnread > 0 && (
+            <span className="absolute top-1 right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
+              style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
+              {totalUnread > 9 ? '9+' : totalUnread}
+            </span>
+          )}
         </button>
-
 
         <BottomSheet open={open} onClose={() => setOpen(false)} maxHeight="75vh">
           <NotificationPanel groups={groups} loading={loading} items={items} onClose={() => setOpen(false)} pendingContracts={pendingContracts} />
