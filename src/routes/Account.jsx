@@ -24,6 +24,22 @@ import Tabs from '../components/ui/Tabs.jsx'
 import Input from '../components/ui/Input.jsx'
 import Button from '../components/ui/Button.jsx'
 import Admin from './Admin.jsx'
+import MarkdownToolbar from '../components/ui/MarkdownToolbar.jsx'
+import {
+  getQuestionnaireTemplates, createQuestionnaireTemplate, updateQuestionnaireTemplate,
+  deleteQuestionnaireTemplate, duplicateQuestionnaireTemplate,
+  createQuestion, updateQuestion, deleteQuestion, reorderQuestions,
+  getQuestionnaireTemplate,
+} from '../utils/questionnaireApi.js'
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core'
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { GripVertical } from 'lucide-react'
 
 async function getCroppedImg(imageSrc, croppedAreaPixels) {
   const image = await new Promise((resolve, reject) => {
@@ -527,13 +543,14 @@ function ContractTemplatesTab({ onSaveState }) {
 }
 
 const BASE_ACCOUNT_TABS = [
-  { id: 'profile',       label: 'Profile' },
-  { id: 'watermarks',    label: 'Watermarks' },
-  { id: 'templates',     label: 'Templates' },
-  { id: 'social',        label: 'Social' },
-  { id: 'payment',       label: 'Payment' },
-  { id: 'notifications', label: 'Notifications' },
-  { id: 'tags',          label: 'Tags' },
+  { id: 'profile',         label: 'Profile' },
+  { id: 'watermarks',      label: 'Watermarks' },
+  { id: 'templates',       label: 'Templates' },
+  { id: 'questionnaires',  label: 'Questionnaires' },
+  { id: 'social',          label: 'Social' },
+  { id: 'payment',         label: 'Payment' },
+  { id: 'notifications',   label: 'Notifications' },
+  { id: 'tags',            label: 'Tags' },
 ]
 
 const TEMPLATE_VARIABLES = [
@@ -1483,6 +1500,464 @@ function NotificationsTab({ user, onSaveState }) {
   )
 }
 
+
+// ── Questionnaires Tab ────────────────────────────────────────────────────────
+
+const QUESTION_TYPES = [
+  { value: 'short_text',    label: 'Short text' },
+  { value: 'long_text',     label: 'Long text' },
+  { value: 'yes_no',        label: 'Yes / No' },
+  { value: 'single_choice', label: 'Single choice' },
+  { value: 'multi_choice',  label: 'Multiple choice' },
+  { value: 'date',          label: 'Date' },
+]
+
+function SortableQuestionCard({ question, onEdit, onDelete, editingId, editData, setEditData, onSaveEdit, onCancelEdit }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: question.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+  const isEditing = editingId === question.id
+  const typeLabel = QUESTION_TYPES.find(t => t.value === question.type)?.label || question.type
+
+  return (
+    <div ref={setNodeRef} style={style}
+      className="rounded-xl overflow-hidden"
+      style2={{ border: '1px solid var(--border)', background: 'var(--surface)', ...style }}>
+      <div className="flex items-start gap-3 px-4 py-3"
+        style={{ border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: isEditing ? '12px 12px 0 0' : 12 }}>
+        <button {...attributes} {...listeners} style={{ cursor: 'grab', color: 'var(--text-muted)', background: 'none', border: 'none', padding: '2px 0', marginTop: 1, flexShrink: 0 }}>
+          <GripVertical size={14} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{question.label}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)' }}>{typeLabel}</span>
+            {question.required && <span className="text-xs" style={{ color: 'var(--danger)' }}>Required</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={() => onEdit(question)} className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', border: 'none', cursor: 'pointer' }}>
+            <Pencil size={12} style={{ color: 'var(--text-muted)' }} />
+          </button>
+          <button onClick={() => onDelete(question.id)} className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', border: 'none', cursor: 'pointer' }}>
+            <Trash2 size={12} style={{ color: 'var(--text-muted)' }} />
+          </button>
+        </div>
+      </div>
+
+      {isEditing && (
+        <div className="px-4 py-3 space-y-3" style={{ border: '1px solid var(--border)', borderTop: 'none', borderRadius: '0 0 12px 12px', background: 'var(--bg-subtle)' }}>
+          <div>
+            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Question type</label>
+            <select value={editData.type} onChange={e => setEditData(d => ({ ...d, type: e.target.value, options: ['single_choice','multi_choice'].includes(e.target.value) ? (d.options?.length ? d.options : ['']) : null }))}
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+              {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Question label</label>
+            <input type="text" value={editData.label} onChange={e => setEditData(d => ({ ...d, label: e.target.value }))}
+              autoFocus
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          </div>
+          {['single_choice', 'multi_choice'].includes(editData.type) && (
+            <div>
+              <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>Options</label>
+              <div className="space-y-1.5">
+                {(editData.options || ['']).map((opt, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input type="text" value={opt} onChange={e => setEditData(d => { const opts = [...(d.options || [''])]; opts[i] = e.target.value; return { ...d, options: opts } })}
+                      placeholder={`Option ${i + 1}`}
+                      style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none' }} />
+                    <button onClick={() => setEditData(d => { const opts = (d.options || ['']).filter((_, idx) => idx !== i); return { ...d, options: opts.length ? opts : [''] } })}
+                      disabled={(editData.options || []).length <= 1}
+                      style={{ color: (editData.options || []).length <= 1 ? 'var(--border)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: (editData.options || []).length <= 1 ? 'not-allowed' : 'pointer' }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setEditData(d => ({ ...d, options: [...(d.options || ['']), ''] }))}
+                className="flex items-center gap-1 text-xs font-medium mt-2"
+                style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>
+                <Plus size={12} />Add option
+              </button>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id={`req-${question.id}`} checked={editData.required} onChange={e => setEditData(d => ({ ...d, required: e.target.checked }))} style={{ cursor: 'pointer' }} />
+            <label htmlFor={`req-${question.id}`} className="text-xs" style={{ color: 'var(--text)', cursor: 'pointer' }}>Required</label>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={onSaveEdit} disabled={!editData.label.trim()}>Save</Button>
+            <Button variant="secondary" onClick={onCancelEdit}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AddQuestionForm({ onAdd, onCancel }) {
+  const [type, setType] = useState('short_text')
+  const [label, setLabel] = useState('')
+  const [options, setOptions] = useState(['', ''])
+  const [required, setRequired] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const needsOptions = ['single_choice', 'multi_choice'].includes(type)
+
+  async function handleAdd() {
+    if (!label.trim()) return
+    setSaving(true)
+    await onAdd({ type, label: label.trim(), options: needsOptions ? options.filter(o => o.trim()) : null, required })
+    setSaving(false)
+  }
+
+  return (
+    <div className="rounded-xl p-4 space-y-3" style={{ border: '1px solid #6366f1', background: 'rgba(99,102,241,0.03)' }}>
+      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#6366f1' }}>New Question</p>
+      <div>
+        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Type</label>
+        <select value={type} onChange={e => { setType(e.target.value); setOptions(['', '']) }}
+          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+          {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Question label</label>
+        <input type="text" value={label} onChange={e => setLabel(e.target.value)} autoFocus
+          placeholder="e.g. What cosplay are you wearing?"
+          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+          onKeyDown={e => { if (e.key === 'Enter' && !needsOptions) handleAdd() }}
+          onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+          onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+      </div>
+      {needsOptions && (
+        <div>
+          <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>Options</label>
+          <div className="space-y-1.5">
+            {options.map((opt, i) => (
+              <div key={i} className="flex gap-2">
+                <input type="text" value={opt} onChange={e => setOptions(prev => prev.map((v, idx) => idx === i ? e.target.value : v))}
+                  placeholder={`Option ${i + 1}`}
+                  style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none' }} />
+                <button onClick={() => setOptions(prev => prev.filter((_, idx) => idx !== i))}
+                  disabled={options.length <= 2}
+                  style={{ color: options.length <= 2 ? 'var(--border)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: options.length <= 2 ? 'not-allowed' : 'pointer' }}>
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setOptions(prev => [...prev, ''])}
+            className="flex items-center gap-1 text-xs font-medium mt-2"
+            style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>
+            <Plus size={12} />Add option
+          </button>
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id="new-q-required" checked={required} onChange={e => setRequired(e.target.checked)} style={{ cursor: 'pointer' }} />
+        <label htmlFor="new-q-required" className="text-xs" style={{ color: 'var(--text)', cursor: 'pointer' }}>Required</label>
+      </div>
+      <div className="flex gap-2">
+        <Button onClick={handleAdd} disabled={saving || !label.trim()}>{saving ? 'Adding...' : 'Add Question'}</Button>
+        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  )
+}
+
+function QuestionnaireEditor({ template, onBack, onSaveState }) {
+  const [name, setName] = useState(template?.name || '')
+  const [headerText, setHeaderText] = useState(template?.header_text || '')
+  const [requireAgreement, setRequireAgreement] = useState(template?.require_agreement || false)
+  const [agreementLabel, setAgreementLabel] = useState(template?.agreement_label || 'I have read and agree to the terms above.')
+  const [questions, setQuestions] = useState([])
+  const [loadingQuestions, setLoadingQuestions] = useState(!!template?.id)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editData, setEditData] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [templateId, setTemplateId] = useState(template?.id || null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  useEffect(() => {
+    if (!template?.id) return
+    getQuestionnaireTemplate(template.id).then(data => {
+      setQuestions(data?.questionnaire_questions || [])
+      setLoadingQuestions(false)
+    }).catch(() => setLoadingQuestions(false))
+  }, [template?.id])
+
+  async function handleSaveHeader() {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      if (templateId) {
+        await updateQuestionnaireTemplate(templateId, { name, headerText, requireAgreement, agreementLabel })
+      } else {
+        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel })
+        setTemplateId(created.id)
+      }
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+    finally { setSaving(false) }
+  }
+
+  async function handleAddQuestion(data) {
+    if (!templateId) {
+      // Save template first so we have an ID
+      try {
+        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel })
+        setTemplateId(created.id)
+        const q = await createQuestion(created.id, { ...data, sortOrder: questions.length })
+        setQuestions(prev => [...prev, q])
+        setShowAddForm(false)
+        onSaveState('saved')
+      } catch { onSaveState('error') }
+      return
+    }
+    try {
+      const q = await createQuestion(templateId, { ...data, sortOrder: questions.length })
+      setQuestions(prev => [...prev, q])
+      setShowAddForm(false)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  function handleEditQuestion(question) {
+    setEditingId(question.id)
+    setEditData({ type: question.type, label: question.label, options: question.options ? [...question.options] : null, required: question.required })
+    setShowAddForm(false)
+  }
+
+  async function handleSaveEdit() {
+    try {
+      const updated = await updateQuestion(editingId, editData)
+      setQuestions(prev => prev.map(q => q.id === editingId ? { ...q, ...updated } : q))
+      setEditingId(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  async function handleDeleteQuestion(id) {
+    try {
+      await deleteQuestion(id)
+      setQuestions(prev => prev.filter(q => q.id !== id))
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  async function handleDragEnd(event) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = questions.findIndex(q => q.id === active.id)
+    const newIndex = questions.findIndex(q => q.id === over.id)
+    const reordered = arrayMove(questions, oldIndex, newIndex).map((q, i) => ({ ...q, sort_order: i }))
+    setQuestions(reordered)
+    try {
+      await reorderQuestions(reordered.map(q => ({ id: q.id, sort_order: q.sort_order })))
+    } catch { onSaveState('error') }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="text-sm" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>← Back</button>
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{template?.id ? 'Edit Template' : 'New Template'}</h3>
+      </div>
+
+      <SettingsSection title="Template Details" description="Name and optional header text shown at the top of the form.">
+        <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
+          <Input label="Template name" value={name} onChange={setName} placeholder="e.g. Convention Walk-up Form" required />
+          <div>
+            <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Header text <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional, supports Markdown)</span></label>
+            <MarkdownToolbar value={headerText} onChange={setHeaderText} placeholder="Welcome! Please fill out this form..." rows={6} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Require agreement</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Show a checkbox at the bottom of the form</p>
+              </div>
+              <Toggle checked={requireAgreement} onChange={setRequireAgreement} />
+            </div>
+            {requireAgreement && (
+              <Input label="Agreement label" value={agreementLabel} onChange={setAgreementLabel}
+                placeholder="I have read and agree to the terms above." />
+            )}
+          </div>
+          <Button onClick={handleSaveHeader} disabled={saving || !name.trim()}>
+            {saving ? 'Saving...' : 'Save Details'}
+          </Button>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Questions"
+        description="Drag to reorder. Questions are shown in order on the submission form."
+        action={
+          !showAddForm && (
+            <button onClick={() => { setShowAddForm(true); setEditingId(null) }}
+              className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+              style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+              <Plus size={14} />Add Question
+            </button>
+          )
+        }>
+        <div className="px-5 py-4 space-y-3" style={{ background: 'var(--surface)' }}>
+          {loadingQuestions ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+                style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+            </div>
+          ) : (
+            <>
+              {questions.length === 0 && !showAddForm && (
+                <div className="py-6 text-center">
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No questions yet. Add your first question above.</p>
+                </div>
+              )}
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {questions.map(q => (
+                      <SortableQuestionCard
+                        key={q.id}
+                        question={q}
+                        onEdit={handleEditQuestion}
+                        onDelete={handleDeleteQuestion}
+                        editingId={editingId}
+                        editData={editData}
+                        setEditData={setEditData}
+                        onSaveEdit={handleSaveEdit}
+                        onCancelEdit={() => setEditingId(null)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+              {showAddForm && (
+                <AddQuestionForm onAdd={handleAddQuestion} onCancel={() => setShowAddForm(false)} />
+              )}
+            </>
+          )}
+        </div>
+      </SettingsSection>
+    </div>
+  )
+}
+
+function QuestionnairesTab({ onSaveState }) {
+  const [templates, setTemplates] = useState([])
+  const [loaded, setLoaded] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    try {
+      const data = await getQuestionnaireTemplates()
+      setTemplates(data)
+    } catch (err) { console.error(err) }
+    finally { setLoaded(true) }
+  }
+
+  async function handleDuplicate(t) {
+    try {
+      const copy = await duplicateQuestionnaireTemplate(t)
+      setTemplates(prev => [copy, ...prev])
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await deleteQuestionnaireTemplate(id)
+      setTemplates(prev => prev.filter(t => t.id !== id))
+      setConfirmDeleteId(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  function handleBack() {
+    setEditing(null)
+    load()
+  }
+
+  if (editing !== null) {
+    return <QuestionnaireEditor template={editing} onBack={handleBack} onSaveState={onSaveState} />
+  }
+
+  return (
+    <SettingsSection
+      title="Questionnaire Templates"
+      description="Build forms for client sessions and walk-up submissions. Attach a template to a session to collect responses."
+      action={
+        <button onClick={() => setEditing({})}
+          className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+          style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+          <Plus size={14} />New Template
+        </button>
+      }>
+      {!loaded ? null : templates.length === 0 ? (
+        <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
+          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No questionnaire templates yet</p>
+          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Create templates to attach to sessions and collect client responses.</p>
+          <button onClick={() => setEditing({})} className="text-sm font-medium px-4 py-2 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            Create your first template
+          </button>
+        </div>
+      ) : (
+        <div style={{ background: 'var(--surface)' }}>
+          {templates.map((t, i) => (
+            <div key={t.id}>
+              <div className="flex items-center justify-between px-5 py-4"
+                style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {t.require_agreement ? 'Agreement required · ' : ''}
+                    Updated {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-4 shrink-0">
+                  <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg"
+                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                  <button onClick={() => setEditing(t)} title="Edit" className="p-1.5 rounded-lg"
+                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                  <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete" className="p-1.5 rounded-lg"
+                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                    <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                  </button>
+                </div>
+              </div>
+              {confirmDeleteId === t.id && (
+                <div className="px-5 pb-4" style={{ borderTop: '1px solid var(--border)' }}>
+                  <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </SettingsSection>
+  )
+}
+
 // ── Main Account ──────────────────────────────────────────────────────────────
 
 export default function Account() {
@@ -1559,6 +2034,7 @@ export default function Account() {
         </SettingsSection>
       )}
       {activeTab === 'notifications' && <NotificationsTab user={user} onSaveState={setSaveState} />}
+      {activeTab === 'questionnaires'  && <QuestionnairesTab onSaveState={setSaveState} />}
       {activeTab === 'tags'          && <TagsTab onSaveState={setSaveState} />}
       {activeTab === 'admin'         && isAdmin && <Admin />}
 
