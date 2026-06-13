@@ -1675,6 +1675,7 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
   const [headerText, setHeaderText] = useState(template?.header_text || '')
   const [requireAgreement, setRequireAgreement] = useState(template?.require_agreement || false)
   const [agreementLabel, setAgreementLabel] = useState(template?.agreement_label || 'I have read and agree to the terms above.')
+  const [confirmationMessage, setConfirmationMessage] = useState(template?.confirmation_message || '')
   const [questions, setQuestions] = useState([])
   const [loadingQuestions, setLoadingQuestions] = useState(!!template?.id)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -1701,9 +1702,9 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
     setSaving(true)
     try {
       if (templateId) {
-        await updateQuestionnaireTemplate(templateId, { name, headerText, requireAgreement, agreementLabel })
+        await updateQuestionnaireTemplate(templateId, { name, headerText, requireAgreement, agreementLabel, confirmationMessage })
       } else {
-        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel })
+        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage })
         setTemplateId(created.id)
       }
       onSaveState('saved')
@@ -1715,7 +1716,7 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
     if (!templateId) {
       // Save template first so we have an ID
       try {
-        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel })
+        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage })
         setTemplateId(created.id)
         const q = await createQuestion(created.id, { ...data, sortOrder: questions.length })
         setQuestions(prev => [...prev, q])
@@ -1793,6 +1794,21 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
               <Input label="Agreement label" value={agreementLabel} onChange={setAgreementLabel}
                 placeholder="I have read and agree to the terms above." />
             )}
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>
+              Confirmation message <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
+            </label>
+            <textarea
+              value={confirmationMessage}
+              onChange={e => setConfirmationMessage(e.target.value)}
+              placeholder="Thanks! Your photos will be delivered to your email soon."
+              rows={3}
+              style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box' }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Shown on the confirmation screen after the form is submitted.</p>
           </div>
           <Button onClick={handleSaveHeader} disabled={saving || !name.trim()}>
             {saving ? 'Saving...' : 'Save Details'}

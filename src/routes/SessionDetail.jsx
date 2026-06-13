@@ -378,6 +378,7 @@ export default function SessionDetail() {
   const [showEdit, setShowEdit] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -624,13 +625,19 @@ export default function SessionDetail() {
               <span className="text-sm" style={{ color: 'var(--text)' }}>{session.questionnaire_templates.name}</span>
             </div>
             {session.mode === 'walkup' && session.submit_token && (
-              <button onClick={() => {
+              <button onClick={async () => {
                 const url = `${window.location.origin}/submit/${session.submit_token}`
-                navigator.clipboard.writeText(url)
+                try {
+                  await navigator.clipboard.writeText(url)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                } catch {
+                  window.prompt('Copy this link:', url)
+                }
               }}
                 className="text-xs px-2.5 py-1 rounded-lg"
-                style={{ background: 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                Copy form link
+                style={{ background: copied ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: copied ? '#10b981' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+                {copied ? '✓ Copied!' : 'Copy form link'}
               </button>
             )}
           </div>
