@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   CalendarDays, MapPin, Clock, User, ChevronRight,
   FileText, ClipboardList, Edit2, Trash2, Check, X,
-  Download, Users, ChevronDown, UserPlus,
+  Download, Users, ChevronDown, UserPlus, Mail,
 } from 'lucide-react'
 import {
   getSession, updateSession, deleteSession,
@@ -15,6 +15,7 @@ import { getContracts, createClient } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
 import { getClients } from '../utils/crmApi.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
+import { supabase } from '../supabaseClient.js'
 import SendContractModal from '../components/SendContractModal.jsx'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
@@ -639,6 +640,8 @@ export default function SessionDetail() {
   const [copied, setCopied] = useState(false)
   const [sessionQuestionnaires, setSessionQuestionnaires] = useState([])
   const [showSendContract, setShowSendContract] = useState(false)
+  const [sendingForm, setSendingForm] = useState(false)
+  const [formSent, setFormSent] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -683,6 +686,33 @@ export default function SessionDetail() {
   async function handlePaymentStatusChange(newStatus) {
     const updated = await updateSession(id, { paymentStatus: newStatus })
     setSession(prev => ({ ...prev, ...updated }))
+  }
+
+  async function handleSendForm() {
+    if (!session.clients?.email) return
+    setSendingForm(true)
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession()
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-questionnaire-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authSession.access_token}`,
+          },
+          body: JSON.stringify({ sessionId: id }),
+        }
+      )
+      const result = await resp.json()
+      if (!result.ok) throw new Error(result.error || 'Send failed')
+      setFormSent(true)
+      setTimeout(() => setFormSent(false), 3000)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSendingForm(false)
+    }
   }
 
   if (loading) return (
@@ -853,7 +883,9 @@ export default function SessionDetail() {
             style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
             <FileText size={12} />Send Contract
           </button>
-        )}>
+            )}
+          </div>
+        }>
         {contracts.length === 0 ? (
           <div className="px-5 py-5 text-center">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No contracts yet.</p>
@@ -883,7 +915,17 @@ export default function SessionDetail() {
 
       {/* Questionnaire */}
       <SectionCard title="Questionnaires"
-        action={session.mode === 'walkup' && session.submit_token && (
+        action={
+          <div className="flex items-center gap-2">
+            {session.mode === 'private' && session.clients?.email && sessionQuestionnaires.length > 0 && session.submit_token && (
+              <button onClick={handleSendForm} disabled={sendingForm}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                style={{ background: formSent ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', color: formSent ? '#10b981' : 'var(--text-muted)', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}>
+                <Mail size={12} />
+                {formSent ? '✓ Sent!' : sendingForm ? 'Sending...' : 'Send Form'}
+              </button>
+            )}
+            {session.mode === 'walkup' && session.submit_token && (
           <button onClick={async () => {
             const url = `${window.location.origin}/submit/${session.submit_token}`
             try {
