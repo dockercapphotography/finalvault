@@ -10,17 +10,32 @@ async function getSessionByToken(token) {
     .from('sessions')
     .select(`
       id, name, description, mode, submit_token,
-      questionnaire_id,
-      questionnaire_templates (
-        id, name, header_text, require_agreement, agreement_label, confirmation_message, collect_email, collect_name,
-        questionnaire_questions ( id, type, label, options, required, sort_order )
-      ),
-      photographers ( display_name, business_name )
+      photographers ( display_name, business_name ),
+      session_questionnaires (
+        sort_order,
+        questionnaire_templates (
+          id, name, header_text, require_agreement, agreement_label, confirmation_message, collect_email, collect_name,
+          questionnaire_questions ( id, type, label, options, required, sort_order )
+        )
+      )
     `)
     .eq('submit_token', token)
     .single()
   if (error) return null
-  return data
+
+  // Sort session_questionnaires by sort_order and build a merged template view
+  const sqs = (data.session_questionnaires || []).sort((a, b) => a.sort_order - b.sort_order)
+  const templates = sqs.map(sq => sq.questionnaire_templates).filter(Boolean)
+
+  // Merge: use first template's header/agreement/confirmation settings, merge all questions
+  const merged = templates.length === 0 ? null : {
+    ...templates[0],
+    questionnaire_questions: templates.flatMap(t =>
+      (t.questionnaire_questions || []).sort((a, b) => a.sort_order - b.sort_order)
+    ),
+  }
+
+  return { ...data, questionnaire_templates: merged, _templates: templates }
 }
 
 async function submitForm({ sessionId, email, creditHandle, questions, answers, agreedToTerms }) {

@@ -9,7 +9,7 @@ import {
   getSession, updateSession, deleteSession,
   SESSION_TYPES, SESSION_STATUSES, PAYMENT_STATUSES,
   getStatusConfig, getPaymentConfig, formatSessionDate,
-  getSubmissions,
+  getSubmissions, getSessionQuestionnaires, setSessionQuestionnaires,
 } from '../utils/sessionApi.js'
 import { getContracts, createClient } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
@@ -173,7 +173,8 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
   const [description, setDescription] = useState(session.description || '')
   const [internalNotes, setInternalNotes] = useState(session.internal_notes || '')
   const [clientId, setClientId] = useState(session.client_id || '')
-  const [questionnaireId, setQuestionnaireId] = useState(session.questionnaire_id || '')
+  const [questionnaireIds, setQuestionnaireIds] = useState([])
+  const [loadingQIds, setLoadingQIds] = useState(true)
   const [sessionFee, setSessionFee] = useState(session.session_fee ?? '')
   const [retainerAmount, setRetainerAmount] = useState(session.retainer_amount ?? '')
   const [retainerPaid, setRetainerPaid] = useState(session.retainer_paid || false)
@@ -181,6 +182,13 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
   const [balanceDueDate, setBalanceDueDate] = useState(session.balance_due_date || '')
   const [paymentStatus, setPaymentStatus] = useState(session.payment_status || 'unpaid')
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    getSessionQuestionnaires(session.id).then(rows => {
+      setQuestionnaireIds(rows.map(r => r.questionnaire_id))
+      setLoadingQIds(false)
+    }).catch(() => setLoadingQIds(false))
+  }, [session.id])
 
   useEffect(() => {
     const fee = parseFloat(sessionFee) || 0
@@ -201,7 +209,7 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
         description: description || null,
         internalNotes: internalNotes || null,
         clientId: clientId || null,
-        questionnaireId: questionnaireId || null,
+        questionnaireId: null,
         sessionFee: sessionFee !== '' ? parseFloat(sessionFee) : null,
         retainerAmount: retainerAmount !== '' ? parseFloat(retainerAmount) : null,
         retainerPaid,
@@ -209,6 +217,7 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
         balanceDueDate: balanceDueDate || null,
         paymentStatus,
       })
+      await setSessionQuestionnaires(session.id, questionnaireIds)
       onSaved(updated)
     } catch (err) {
       console.error(err)
@@ -287,12 +296,36 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
           )}
 
           <div>
-            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Questionnaire</label>
-            <select value={questionnaireId} onChange={e => setQuestionnaireId(e.target.value)}
-              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
-              <option value="">No questionnaire</option>
-              {questionnaires.map(q => <option key={q.id} value={q.id}>{q.name}</option>)}
-            </select>
+            <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Questionnaires</label>
+            {loadingQIds ? (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Loading...</p>
+            ) : questionnaires.length === 0 ? (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No questionnaire templates yet.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {questionnaires.map(q => {
+                  const selected = questionnaireIds.includes(q.id)
+                  return (
+                    <button key={q.id} type="button"
+                      onClick={() => setQuestionnaireIds(prev =>
+                        selected ? prev.filter(id => id !== q.id) : [...prev, q.id]
+                      )}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"
+                      style={{
+                        border: selected ? '2px solid #6366f1' : '2px solid var(--border)',
+                        background: selected ? 'rgba(99,102,241,0.05)' : 'var(--surface)',
+                        cursor: 'pointer',
+                      }}>
+                      <div className="w-4 h-4 rounded flex items-center justify-center shrink-0"
+                        style={{ background: selected ? '#6366f1' : 'var(--surface-raised)', border: selected ? 'none' : '1.5px solid var(--border)' }}>
+                        {selected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </div>
+                      <span className="text-sm" style={{ color: selected ? '#6366f1' : 'var(--text)', fontWeight: selected ? '500' : '400' }}>{q.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {session.mode === 'private' && (
@@ -603,20 +636,23 @@ export default function SessionDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [sessionQuestionnaires, setSessionQuestionnaires] = useState([])
 
   useEffect(() => { load() }, [id])
 
   async function load() {
     setLoading(true)
     try {
-      const [s, cs, qs] = await Promise.all([
+      const [s, cs, qs, sq] = await Promise.all([
         getSession(id),
         getClients(),
         getQuestionnaireTemplates(),
+        getSessionQuestionnaires(id),
       ])
       setSession(s)
       setClients(cs)
       setQuestionnaires(qs)
+      setSessionQuestionnaires(sq)
       // Load contracts linked to this session's client
       if (s?.client_id) {
         getContracts({ clientId: s.client_id }).then(setContracts).catch(() => {})
@@ -841,34 +877,37 @@ export default function SessionDetail() {
       </SectionCard>
 
       {/* Questionnaire */}
-      <SectionCard title="Questionnaire">
-        {session.questionnaire_templates ? (
-          <div className="px-5 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ClipboardList size={14} style={{ color: 'var(--text-muted)' }} />
-              <span className="text-sm" style={{ color: 'var(--text)' }}>{session.questionnaire_templates.name}</span>
-            </div>
-            {session.mode === 'walkup' && session.submit_token && (
-              <button onClick={async () => {
-                const url = `${window.location.origin}/submit/${session.submit_token}`
-                try {
-                  await navigator.clipboard.writeText(url)
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 2000)
-                } catch {
-                  window.prompt('Copy this link:', url)
-                }
-              }}
-                className="text-xs px-2.5 py-1 rounded-lg"
-                style={{ background: copied ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: copied ? '#10b981' : 'var(--text-muted)', transition: 'all 0.15s' }}>
-                {copied ? '✓ Copied!' : 'Copy form link'}
-              </button>
-            )}
+      <SectionCard title="Questionnaires"
+        action={session.mode === 'walkup' && session.submit_token && (
+          <button onClick={async () => {
+            const url = `${window.location.origin}/submit/${session.submit_token}`
+            try {
+              await navigator.clipboard.writeText(url)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            } catch {
+              window.prompt('Copy this link:', url)
+            }
+          }}
+            className="text-xs px-2.5 py-1.5 rounded-lg"
+            style={{ background: copied ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: copied ? '#10b981' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+            {copied ? '✓ Copied!' : 'Copy form link'}
+          </button>
+        )}>
+        {sessionQuestionnaires.length === 0 ? (
+          <div className="px-5 py-5 text-center">
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No questionnaires attached. Edit the session to add one.</p>
           </div>
         ) : (
-          <div className="px-5 py-5 text-center">
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No questionnaire attached. Edit the session to add one.</p>
-          </div>
+          sessionQuestionnaires.map((sq, i) => (
+            <div key={sq.id} className="flex items-center gap-2 px-5 py-3.5"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+              <ClipboardList size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <span className="text-sm" style={{ color: 'var(--text)' }}>
+                {sq.questionnaire_templates?.name || 'Unknown template'}
+              </span>
+            </div>
+          ))
         )}
       </SectionCard>
 
@@ -913,7 +952,7 @@ export default function SessionDetail() {
           clients={clients}
           questionnaires={questionnaires}
           onClose={() => setShowEdit(false)}
-          onSaved={updated => { setSession(prev => ({ ...prev, ...updated })); setShowEdit(false) }}
+          onSaved={async updated => { setSession(prev => ({ ...prev, ...updated })); const sq = await getSessionQuestionnaires(id); setSessionQuestionnaires(sq); setShowEdit(false) }}
         />
       )}
     </div>

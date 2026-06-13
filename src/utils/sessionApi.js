@@ -187,3 +187,52 @@ export function formatSessionDate(date, startTime, endTime) {
   }
   return `${d} · ${fmt(startTime)}${endTime ? ` – ${fmt(endTime)}` : ''}`
 }
+
+// ── Session Questionnaires (junction table) ───────────────────────────────────
+
+export async function getSessionQuestionnaires(sessionId) {
+  const { supabase } = await import('../supabaseClient.js')
+  const { data, error } = await supabase
+    .from('session_questionnaires')
+    .select('id, questionnaire_id, sort_order, questionnaire_templates(id, name)')
+    .eq('session_id', sessionId)
+    .order('sort_order')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function addSessionQuestionnaire(sessionId, questionnaireId, sortOrder = 0) {
+  const { supabase } = await import('../supabaseClient.js')
+  const { data, error } = await supabase
+    .from('session_questionnaires')
+    .insert({ session_id: sessionId, questionnaire_id: questionnaireId, sort_order: sortOrder })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function removeSessionQuestionnaire(sessionId, questionnaireId) {
+  const { supabase } = await import('../supabaseClient.js')
+  const { error } = await supabase
+    .from('session_questionnaires')
+    .delete()
+    .eq('session_id', sessionId)
+    .eq('questionnaire_id', questionnaireId)
+  if (error) throw error
+}
+
+export async function setSessionQuestionnaires(sessionId, questionnaireIds) {
+  // Replace all questionnaires for a session with the given list
+  const { supabase } = await import('../supabaseClient.js')
+  await supabase.from('session_questionnaires').delete().eq('session_id', sessionId)
+  if (!questionnaireIds.length) return
+  const { error } = await supabase
+    .from('session_questionnaires')
+    .insert(questionnaireIds.map((qid, i) => ({
+      session_id: sessionId,
+      questionnaire_id: qid,
+      sort_order: i,
+    })))
+  if (error) throw error
+}

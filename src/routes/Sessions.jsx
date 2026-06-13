@@ -8,6 +8,7 @@ import {
 } from '../utils/sessionApi.js'
 import { getClients } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
+import { setSessionQuestionnaires } from '../utils/sessionApi.js'
 import PlaceAutocomplete from '../components/ui/PlaceAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
@@ -150,7 +151,7 @@ function NewSessionModal({ onClose, onCreated }) {
   const [description, setDescription] = useState('')
   const [internalNotes, setInternalNotes] = useState('')
   const [clientId, setClientId] = useState('')
-  const [questionnaireId, setQuestionnaireId] = useState('')
+  const [questionnaireIds, setQuestionnaireIds] = useState([])
   const [clients, setClients] = useState([])
   const [questionnaires, setQuestionnaires] = useState([])
 
@@ -187,7 +188,7 @@ function NewSessionModal({ onClose, onCreated }) {
         description: description || null,
         internalNotes: internalNotes || null,
         clientId: clientId || null,
-        questionnaireId: questionnaireId || null,
+        questionnaireId: null,
         sessionFee: sessionFee ? parseFloat(sessionFee) : null,
         retainerAmount: retainerAmount ? parseFloat(retainerAmount) : null,
         retainerPaid,
@@ -195,6 +196,9 @@ function NewSessionModal({ onClose, onCreated }) {
         balanceDueDate: balanceDueDate || null,
         paymentStatus,
       })
+      if (questionnaireIds.length) {
+        await setSessionQuestionnaires(session.id, questionnaireIds)
+      }
       onCreated(session)
     } catch (err) {
       console.error(err)
@@ -328,14 +332,36 @@ function NewSessionModal({ onClose, onCreated }) {
             )}
 
             <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Questionnaire template <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
-              <select value={questionnaireId} onChange={e => setQuestionnaireId(e.target.value)}
-                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
-                <option value="">No questionnaire</option>
-                {questionnaires.map(q => (
-                  <option key={q.id} value={q.id}>{q.name}</option>
-                ))}
-              </select>
+              <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>
+                Questionnaires <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
+              </label>
+              {questionnaires.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No questionnaire templates yet. Create one in Account → Questionnaires.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {questionnaires.map(q => {
+                    const selected = questionnaireIds.includes(q.id)
+                    return (
+                      <button key={q.id} type="button"
+                        onClick={() => setQuestionnaireIds(prev =>
+                          selected ? prev.filter(id => id !== q.id) : [...prev, q.id]
+                        )}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"
+                        style={{
+                          border: selected ? '2px solid #6366f1' : '2px solid var(--border)',
+                          background: selected ? 'rgba(99,102,241,0.05)' : 'var(--surface)',
+                          cursor: 'pointer',
+                        }}>
+                        <div className="w-4 h-4 rounded flex items-center justify-center shrink-0"
+                          style={{ background: selected ? '#6366f1' : 'var(--surface-raised)', border: selected ? 'none' : '1.5px solid var(--border)' }}>
+                          {selected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                        </div>
+                        <span className="text-sm" style={{ color: selected ? '#6366f1' : 'var(--text)', fontWeight: selected ? '500' : '400' }}>{q.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </>
         )}
