@@ -408,7 +408,7 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
 
 const PAGE_SIZE = 50
 
-function SubmissionsSection({ sessionId, session }) {
+function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
   const [submissions, setSubmissions] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -540,84 +540,123 @@ function SubmissionsSection({ sessionId, session }) {
             <div className="px-5 py-5 text-center">
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No submissions match your search.</p>
             </div>
-          ) : (
-            <>
-              {paginated.map((submission, i) => {
-                const isExpanded = expandedId === submission.id
-                const questions = submission.questions || []
-                const answers = submission.answers || {}
-                const { name, email: subEmail, fallback } = getContactParts(submission)
-                const time = new Date(submission.submitted_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                return (
-                  <div key={submission.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : submission.id)}
-                      className="w-full flex items-center justify-between px-5 py-3 text-left"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="flex-1 min-w-0 flex items-baseline gap-2">
-                          {fallback ? (
-                            <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{fallback}</span>
-                          ) : (
-                            <>
-                              {name && <span className="text-sm font-medium shrink-0" style={{ color: 'var(--text)' }}>{name}</span>}
-                              {subEmail && <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{subEmail}</span>}
-                            </>
-                          )}
-                        </div>
-                        <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{time}</span>
-                        {submission.client_id && (
-                          <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>Client</span>
-                        )}
-                      </div>
-                      <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, marginLeft: 8 }} />
-                    </button>
-                    {isExpanded && (
-                      <div className="px-5 pb-4 space-y-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-                        <div className="pt-3 space-y-2">
-                          {questions.map(q => (
-                            <div key={q.id}>
-                              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{q.label}</p>
-                              <p className="text-sm mt-0.5" style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{formatAnswer(answers[q.id])}</p>
-                            </div>
-                          ))}
-                        </div>
-                        {!submission.client_id && (
-                          <button onClick={() => handleCreateClient(submission)} disabled={creatingClientId === submission.id}
-                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
-                            style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
-                            <UserPlus size={12} />
-                            {creatingClientId === submission.id ? 'Creating...' : 'Create client record'}
-                          </button>
-                        )}
+          ) : (() => {
+            // Group by questionnaire_id
+            const groups = []
+            const seen = new Set()
+
+            // First pass: add groups in questionnaire order
+            questionnaires.forEach(sq => {
+              const qid = sq.questionnaire_id
+              const qname = sq.questionnaire_templates?.name || 'Questionnaire'
+              const groupSubs = paginated.filter(s => s.questionnaire_id === qid)
+              if (groupSubs.length > 0) {
+                groups.push({ qid, qname, subs: groupSubs })
+                seen.add(qid)
+              }
+            })
+
+            // Second pass: add ungrouped (no questionnaire_id or unknown)
+            const ungrouped = paginated.filter(s => !s.questionnaire_id || !seen.has(s.questionnaire_id))
+            if (ungrouped.length > 0) {
+              groups.push({ qid: null, qname: 'Other', subs: ungrouped })
+            }
+
+            return (
+              <>
+                {groups.map((group, gi) => (
+                  <div key={group.qid || 'other'}>
+                    {(groups.length > 1) && (
+                      <div className="px-5 py-2 text-xs font-semibold sticky top-0"
+                        style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', borderTop: gi > 0 ? '1px solid var(--border)' : 'none', borderBottom: '1px solid var(--border)' }}>
+                        {group.qname} · {group.subs.length} {group.subs.length === 1 ? 'response' : 'responses'}
                       </div>
                     )}
+                    {group.subs.map((submission, i) => {
+                      const isExpanded = expandedId === submission.id
+                      const questions = submission.questions || []
+                      const answers = submission.answers || {}
+                      const { name, email: subEmail, fallback } = getContactParts(submission)
+                      const time = new Date(submission.submitted_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                      const qLabel = questionnaires.find(sq => sq.questionnaire_id === submission.questionnaire_id)?.questionnaire_templates?.name || null
+                      return (
+                        <div key={submission.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : submission.id)}
+                            className="w-full flex items-center justify-between px-5 py-3 text-left"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-2">
+                                  {fallback ? (
+                                    <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{fallback}</span>
+                                  ) : (
+                                    <>
+                                      {name && <span className="text-sm font-medium shrink-0" style={{ color: 'var(--text)' }}>{name}</span>}
+                                      {subEmail && <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{subEmail}</span>}
+                                    </>
+                                  )}
+                                </div>
+                                {qLabel && (
+                                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{qLabel}</p>
+                                )}
+                              </div>
+                              <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{time}</span>
+                              {submission.client_id && (
+                                <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>Client</span>
+                              )}
+                            </div>
+                            <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, marginLeft: 8 }} />
+                          </button>
+                          {isExpanded && (
+                            <div className="px-5 pb-4 space-y-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                              <div className="pt-3 space-y-2">
+                                {questions.map(q => (
+                                  <div key={q.id}>
+                                    <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{q.label}</p>
+                                    <p className="text-sm mt-0.5" style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{formatAnswer(answers[q.id])}</p>
+                                  </div>
+                                ))}
+                              </div>
+                              {!submission.client_id && (
+                                <button onClick={() => handleCreateClient(submission)} disabled={creatingClientId === submission.id}
+                                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
+                                  style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
+                                  <UserPlus size={12} />
+                                  {creatingClientId === submission.id ? 'Creating...' : 'Create client record'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
-                  </span>
-                  <div className="flex gap-2">
-                    <button onClick={() => setPage(p => p - 1)} disabled={page === 0}
-                      className="text-xs px-3 py-1.5 rounded-lg"
-                      style={{ background: 'var(--surface-raised)', border: 'none', cursor: page === 0 ? 'not-allowed' : 'pointer', color: 'var(--text)', opacity: page === 0 ? 0.4 : 1 }}>
-                      ← Prev
-                    </button>
-                    <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}
-                      className="text-xs px-3 py-1.5 rounded-lg"
-                      style={{ background: 'var(--surface-raised)', border: 'none', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', color: 'var(--text)', opacity: page >= totalPages - 1 ? 0.4 : 1 }}>
-                      Next →
-                    </button>
+                ))}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                    </span>
+                    <div className="flex gap-2">
+                      <button onClick={() => setPage(p => p - 1)} disabled={page === 0}
+                        className="text-xs px-3 py-1.5 rounded-lg"
+                        style={{ background: 'var(--surface-raised)', border: 'none', cursor: page === 0 ? 'not-allowed' : 'pointer', color: 'var(--text)', opacity: page === 0 ? 0.4 : 1 }}>
+                        ← Prev
+                      </button>
+                      <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}
+                        className="text-xs px-3 py-1.5 rounded-lg"
+                        style={{ background: 'var(--surface-raised)', border: 'none', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', color: 'var(--text)', opacity: page >= totalPages - 1 ? 0.4 : 1 }}>
+                        Next →
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </>
-          )}
+                )}
+              </>
+            )
+          })()}
         </>
       )}
     </SectionCard>
@@ -983,10 +1022,8 @@ export default function SessionDetail() {
         )}
       </SectionCard>
 
-      {/* Submissions — walk-up only */}
-      {session.mode === 'walkup' && (
-        <SubmissionsSection sessionId={id} session={session} />
-      )}
+      {/* Submissions */}
+      <SubmissionsSection sessionId={id} session={session} questionnaires={sessionQuestionnaires} />
 
       {/* Danger zone */}
       <div className="rounded-2xl px-5 py-4" style={{ border: '1px solid var(--danger)', background: 'var(--danger-subtle)' }}>
