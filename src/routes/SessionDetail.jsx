@@ -703,7 +703,7 @@ export default function SessionDetail() {
 
   return (
     <div className="max-w-2xl space-y-5">
-      <PageBreadcrumb items={[{ label: 'Sessions', to: '/sessions' }, { label: session.name }]} />
+      <PageBreadcrumb crumbs={[{ label: 'Sessions', to: '/sessions' }, { label: session.name }]} />
 
       {/* Header card */}
       <div className="rounded-2xl px-5 py-5 space-y-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>

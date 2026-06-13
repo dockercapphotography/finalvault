@@ -2,14 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Cropper from 'react-easy-crop'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ExternalLink, Camera,
+  ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, Camera,
   Pencil, Trash2, X, Plus, Clock, CheckCircle,
-  AlertCircle, Ban
+  AlertCircle, Ban, CalendarDays
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
+import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
 import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
@@ -318,7 +319,7 @@ function GalleryRow({ gallery }) {
         </p>
       </div>
       <Badge variant={isActive ? 'success' : 'default'}>{isActive ? 'Active' : 'Inactive'}</Badge>
-      <ExternalLink size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+      <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
     </Link>
   )
 }
@@ -355,6 +356,7 @@ export default function ClientDetail() {
   const navigate = useNavigate()
   const [client, setClient] = useState(null)
   const [galleries, setGalleries] = useState([])
+  const [sessions, setSessions] = useState([])
   const [contracts, setContracts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -375,13 +377,15 @@ export default function ClientDetail() {
     setLoading(true)
     setError(null)
     try {
-      const [c, g, cx] = await Promise.all([
+      const [c, g, sx, cx] = await Promise.all([
         getClient(id),
         getClientGalleries(id),
+        getSessions({ clientId: id }).catch(() => []),
         getContracts({ clientId: id }),
       ])
       setClient(c)
       setGalleries(g)
+      setSessions(sx)
       setContracts(cx)
       supabase.auth.getUser().then(({ data: { user: u } }) => { if (u) getAllTags(u.id).then(tags => setAllTags(tags || [])).catch(() => {}) })
       if (c?.avatar_r2_key) {
@@ -601,6 +605,60 @@ export default function ClientDetail() {
                 <GalleryRow gallery={g} />
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+
+      {/* Sessions */}
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+          <div>
+            <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Sessions</h3>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'}
+            </p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => navigate('/sessions')}>
+            <CalendarDays size={13} />View All
+          </Button>
+        </div>
+        {sessions.length === 0 ? (
+          <div className="px-5 py-8 text-center" style={{ background: 'var(--surface)' }}>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No sessions linked yet.</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Link this client from a session to see it here.</p>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)' }}>
+            {sessions.map((s, i) => {
+              const cfg = getStatusConfig(s.status)
+              return (
+                <button key={s.id} onClick={() => navigate(`/sessions/${s.id}`)}
+                  className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'none', border: 'none', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: 'rgba(99,102,241,0.1)' }}>
+                    <CalendarDays size={14} style={{ color: '#6366f1' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{s.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {s.type}
+                      {s.session_date ? ` · ${new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: cfg.color + '18', color: cfg.color }}>
+                      {cfg.label}
+                    </span>
+                    <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
