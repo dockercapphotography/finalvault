@@ -55,9 +55,7 @@ export async function createSession({
 }) {
   const { data: { user } } = await supabase.auth.getUser()
 
-  const submitToken = mode === 'walkup'
-    ? crypto.randomUUID().replace(/-/g, '')
-    : null
+  const submitToken = crypto.randomUUID().replace(/-/g, '')
 
   const { data, error } = await supabase
     .from('sessions')

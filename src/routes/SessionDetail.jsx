@@ -640,8 +640,10 @@ export default function SessionDetail() {
   const [copied, setCopied] = useState(false)
   const [sessionQuestionnaires, setSessionQuestionnaires] = useState([])
   const [showSendContract, setShowSendContract] = useState(false)
-  const [sendingForm, setSendingForm] = useState(false)
-  const [formSent, setFormSent] = useState(false)
+  const [sendingForm, setSendingForm] = useState(null)
+  const [sentForm, setSentForm] = useState(null)
+  const [submissionCounts, setSubmissionCounts] = useState({})
+  const [copiedQ, setCopiedQ] = useState(null)
 
   useEffect(() => { load() }, [id])
 
@@ -660,6 +662,20 @@ export default function SessionDetail() {
       setSessionQuestionnaires(sq)
       // Load contracts linked to this session
       getContracts({ sessionId: id }).then(setContracts).catch(() => {})
+      // Load submission counts per questionnaire
+      const { supabase: sb } = await import('../supabaseClient.js').catch(() => ({ supabase }))
+      supabase.from('session_submissions')
+        .select('questionnaire_id')
+        .eq('session_id', id)
+        .then(({ data }) => {
+          if (!data) return
+          const counts = {}
+          data.forEach(r => {
+            const qid = r.questionnaire_id || '__none__'
+            counts[qid] = (counts[qid] || 0) + 1
+          })
+          setSubmissionCounts(counts)
+        }).catch(() => {})
     } catch (err) {
       console.error(err)
     } finally {
@@ -688,9 +704,9 @@ export default function SessionDetail() {
     setSession(prev => ({ ...prev, ...updated }))
   }
 
-  async function handleSendForm() {
+  async function handleSendQuestionnaire(questionnaireId) {
     if (!session.clients?.email) return
-    setSendingForm(true)
+    setSendingForm(questionnaireId)
     try {
       const { data: { session: authSession } } = await supabase.auth.getSession()
       const resp = await fetch(
@@ -701,17 +717,17 @@ export default function SessionDetail() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${authSession.access_token}`,
           },
-          body: JSON.stringify({ sessionId: id }),
+          body: JSON.stringify({ sessionId: id, questionnaireId }),
         }
       )
       const result = await resp.json()
       if (!result.ok) throw new Error(result.error || 'Send failed')
-      setFormSent(true)
-      setTimeout(() => setFormSent(false), 3000)
+      setSentForm(questionnaireId)
+      setTimeout(() => setSentForm(null), 3000)
     } catch (err) {
       console.error(err)
     } finally {
-      setSendingForm(false)
+      setSendingForm(null)
     }
   }
 
@@ -883,9 +899,7 @@ export default function SessionDetail() {
             style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
             <FileText size={12} />Send Contract
           </button>
-            )}
-          </div>
-        }>
+        )}>
         {contracts.length === 0 ? (
           <div className="px-5 py-5 text-center">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No contracts yet.</p>
@@ -914,47 +928,58 @@ export default function SessionDetail() {
       </SectionCard>
 
       {/* Questionnaire */}
-      <SectionCard title="Questionnaires"
-        action={
-          <div className="flex items-center gap-2">
-            {session.mode === 'private' && session.clients?.email && sessionQuestionnaires.length > 0 && session.submit_token && (
-              <button onClick={handleSendForm} disabled={sendingForm}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium"
-                style={{ background: formSent ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', color: formSent ? '#10b981' : 'var(--text-muted)', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}>
-                <Mail size={12} />
-                {formSent ? '✓ Sent!' : sendingForm ? 'Sending...' : 'Send Form'}
-              </button>
-            )}
-            {session.mode === 'walkup' && session.submit_token && (
-          <button onClick={async () => {
-            const url = `${window.location.origin}/submit/${session.submit_token}`
-            try {
-              await navigator.clipboard.writeText(url)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 2000)
-            } catch {
-              window.prompt('Copy this link:', url)
-            }
-          }}
-            className="text-xs px-2.5 py-1.5 rounded-lg"
-            style={{ background: copied ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: copied ? '#10b981' : 'var(--text-muted)', transition: 'all 0.15s' }}>
-            {copied ? '✓ Copied!' : 'Copy form link'}
-          </button>
-        )}>
+      <SectionCard title="Questionnaires">
         {sessionQuestionnaires.length === 0 ? (
           <div className="px-5 py-5 text-center">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No questionnaires attached. Edit the session to add one.</p>
           </div>
         ) : (
-          sessionQuestionnaires.map((sq, i) => (
-            <div key={sq.id} className="flex items-center gap-2 px-5 py-3.5"
-              style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-              <ClipboardList size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-              <span className="text-sm" style={{ color: 'var(--text)' }}>
-                {sq.questionnaire_templates?.name || 'Unknown template'}
-              </span>
-            </div>
-          ))
+          sessionQuestionnaires.map((sq, i) => {
+            const qid = sq.questionnaire_id
+            const qname = sq.questionnaire_templates?.name || 'Unknown template'
+            const count = submissionCounts[qid] || 0
+            const formUrl = `${window.location.origin}/submit/${session.submit_token}?q=${qid}`
+            const isSending = sendingForm === qid
+            const isSent = sentForm === qid
+            const isCopied = copiedQ === qid
+            return (
+              <div key={sq.id} className="px-5 py-3.5 flex items-center gap-3"
+                style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                <ClipboardList size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{qname}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {count} {count === 1 ? 'response' : 'responses'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Copy link */}
+                  <button onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(formUrl)
+                      setCopiedQ(qid)
+                      setTimeout(() => setCopiedQ(null), 2000)
+                    } catch {
+                      window.prompt('Copy this link:', formUrl)
+                    }
+                  }}
+                    className="text-xs px-2.5 py-1.5 rounded-lg"
+                    style={{ background: isCopied ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: isCopied ? '#10b981' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+                    {isCopied ? '✓ Copied' : 'Copy link'}
+                  </button>
+                  {/* Send to client — private sessions with linked client email only */}
+                  {session.mode === 'private' && session.clients?.email && session.submit_token && (
+                    <button onClick={() => handleSendQuestionnaire(qid)} disabled={!!sendingForm}
+                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                      style={{ background: isSent ? 'rgba(16,185,129,0.1)' : 'rgba(99,102,241,0.1)', color: isSent ? '#10b981' : '#6366f1', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}>
+                      <Mail size={11} />
+                      {isSent ? '✓ Sent!' : isSending ? 'Sending...' : 'Send'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })
         )}
       </SectionCard>
 

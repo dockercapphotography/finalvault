@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId } = await req.json()
+    const { sessionId, questionnaireId } = await req.json()
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -67,7 +67,7 @@ serve(async (req) => {
     const photographer = session.photographers as { display_name: string; business_name: string } | null
     const senderName = photographer?.business_name || photographer?.display_name || 'Your Photographer'
     const clientName = `${client.first_name} ${client.last_name}`
-    const formUrl = `https://finalvault.dockercapphotography.com/submit/${session.submit_token}`
+    const formUrl = 'https://finalvault.dockercapphotography.com/submit/' + session.submit_token + (questionnaireId ? '?q=' + questionnaireId : '')
 
     // Format session date if present
     let sessionDateStr = ''

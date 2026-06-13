@@ -1,44 +1,44 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient.js'
 import { CheckCircle, AlertCircle, Loader } from 'lucide-react'
 
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
-async function getSessionByToken(token) {
+async function getSessionByToken(token, questionnaireId) {
   const { data, error } = await supabase
     .from('sessions')
     .select(`
       id, name, description, mode, submit_token,
-      photographers ( display_name, business_name ),
-      session_questionnaires (
-        sort_order,
-        questionnaire_templates (
-          id, name, header_text, require_agreement, agreement_label, confirmation_message, collect_email, collect_name,
-          questionnaire_questions ( id, type, label, options, required, sort_order )
-        )
-      )
+      photographers ( display_name, business_name )
     `)
     .eq('submit_token', token)
     .single()
   if (error) return null
 
-  // Sort session_questionnaires by sort_order and build a merged template view
-  const sqs = (data.session_questionnaires || []).sort((a, b) => a.sort_order - b.sort_order)
-  const templates = sqs.map(sq => sq.questionnaire_templates).filter(Boolean)
-
-  // Merge: use first template's header/agreement/confirmation settings, merge all questions
-  const merged = templates.length === 0 ? null : {
-    ...templates[0],
-    questionnaire_questions: templates.flatMap(t =>
-      (t.questionnaire_questions || []).sort((a, b) => a.sort_order - b.sort_order)
-    ),
+  // Load the specific questionnaire if provided
+  let tmpl = null
+  if (questionnaireId) {
+    const { data: qData } = await supabase
+      .from('questionnaire_templates')
+      .select(`
+        id, name, header_text, require_agreement, agreement_label,
+        confirmation_message, collect_email, collect_name,
+        questionnaire_questions ( id, type, label, options, required, sort_order )
+      `)
+      .eq('id', questionnaireId)
+      .single()
+    if (qData) {
+      qData.questionnaire_questions = (qData.questionnaire_questions || [])
+        .sort((a, b) => a.sort_order - b.sort_order)
+      tmpl = qData
+    }
   }
 
-  return { ...data, questionnaire_templates: merged, _templates: templates }
+  return { ...data, questionnaire_templates: tmpl, _questionnaireId: questionnaireId }
 }
 
-async function submitForm({ sessionId, email, creditHandle, questions, answers, agreedToTerms }) {
+async function submitForm({ sessionId, email, creditHandle, questions, answers, agreedToTerms, questionnaireId }) {
   const { error } = await supabase
     .from('session_submissions')
     .insert({
@@ -50,6 +50,7 @@ async function submitForm({ sessionId, email, creditHandle, questions, answers, 
       agreed_to_terms: agreedToTerms,
       agreed_at: agreedToTerms ? new Date().toISOString() : null,
       submitted_at: new Date().toISOString(),
+      questionnaire_id: questionnaireId || null,
     })
   if (error) throw error
 }
@@ -219,6 +220,8 @@ function QuestionField({ question, value, onChange }) {
 
 export default function SubmitForm() {
   const { token } = useParams()
+  const [searchParams] = useSearchParams()
+  const questionnaireId = searchParams.get('q')
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitted, setSubmitted] = useState(false)
@@ -233,7 +236,7 @@ export default function SubmitForm() {
   const [agreed, setAgreed] = useState(false)
 
   useEffect(() => {
-    getSessionByToken(token).then(data => {
+    getSessionByToken(token, questionnaireId).then(data => {
       setSession(data)
       setLoading(false)
     })
@@ -277,6 +280,7 @@ export default function SubmitForm() {
         questions,
         answers,
         agreedToTerms: agreed,
+        questionnaireId: session._questionnaireId || null,
       })
       setSubmitted(true)
     } catch (err) {
@@ -289,6 +293,7 @@ export default function SubmitForm() {
 
   if (loading) return <LoadingScreen />
   if (!session) return <ErrorScreen message="This form link is invalid or has expired." />
+  if (!session.questionnaire_templates) return <ErrorScreen message="No questionnaire found. Please use the link provided by your photographer." />
   if (submitted) return <ConfirmScreen session={session} confirmationMessage={session.questionnaire_templates?.confirmation_message} />
 
   const studioName = session.photographers?.business_name || session.photographers?.display_name || 'Your Photographer'
