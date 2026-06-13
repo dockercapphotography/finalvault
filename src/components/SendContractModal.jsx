@@ -20,7 +20,7 @@ const STEPS = ['pick', 'preview', 'send']
  *   onClose   : () => void
  *   onSent    : (contract) => void — called after successful send
  */
-export default function SendContractModal({ client, galleries = [], onClose, onSent }) {
+export default function SendContractModal({ client, galleries = [], sessionData = null, sessionId = null, onClose, onSent }) {
   const [selectedGallery, setSelectedGallery] = useState(
     galleries.length === 1 ? galleries[0] : null
   )
@@ -75,7 +75,7 @@ export default function SendContractModal({ client, galleries = [], onClose, onS
 
   function handleSelectTemplate(template) {
     setSelectedTemplate(template)
-    const resolved = resolveTemplateVariables(template.body, { photographer, client, gallery: selectedGallery })
+    const resolved = resolveTemplateVariables(template.body, { photographer, client, gallery: selectedGallery, session: sessionData })
     setResolvedBody(resolved)
     setEditedBody(resolved)
     setContractTitle(template.name)
@@ -99,6 +99,7 @@ export default function SendContractModal({ client, galleries = [], onClose, onS
       const contract = await createContractDraft({
         clientId: client.id,
         galleryId: selectedGallery?.id || null,
+        sessionId: sessionId || sessionData?.id || null,
         templateId: selectedTemplate?.id || null,
         title: contractTitle,
         body: finalBody,
@@ -216,7 +217,7 @@ export default function SendContractModal({ client, galleries = [], onClose, onS
                 disabled={!selectedTemplate || !client.email}
                 onClick={() => {
                   if (!selectedTemplate) return
-                  const resolved = resolveTemplateVariables(selectedTemplate.body, { photographer, client, gallery: selectedGallery })
+                  const resolved = resolveTemplateVariables(selectedTemplate.body, { photographer, client, gallery: selectedGallery, session: sessionData })
                   setResolvedBody(resolved)
                   setEditedBody(resolved)
                   setContractTitle(selectedTemplate.name)

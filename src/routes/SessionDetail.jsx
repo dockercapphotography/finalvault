@@ -15,6 +15,7 @@ import { getContracts, createClient } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
 import { getClients } from '../utils/crmApi.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
+import SendContractModal from '../components/SendContractModal.jsx'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
@@ -637,6 +638,7 @@ export default function SessionDetail() {
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [sessionQuestionnaires, setSessionQuestionnaires] = useState([])
+  const [showSendContract, setShowSendContract] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -653,10 +655,8 @@ export default function SessionDetail() {
       setClients(cs)
       setQuestionnaires(qs)
       setSessionQuestionnaires(sq)
-      // Load contracts linked to this session's client
-      if (s?.client_id) {
-        getContracts({ clientId: s.client_id }).then(setContracts).catch(() => {})
-      }
+      // Load contracts linked to this session
+      getContracts({ sessionId: id }).then(setContracts).catch(() => {})
     } catch (err) {
       console.error(err)
     } finally {
@@ -846,14 +846,19 @@ export default function SessionDetail() {
       )}
 
       {/* Contracts */}
-      <SectionCard title="Contracts">
+      <SectionCard title="Contracts"
+        action={session.clients && (
+          <button onClick={() => setShowSendContract(true)}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            <FileText size={12} />Send Contract
+          </button>
+        )}>
         {contracts.length === 0 ? (
           <div className="px-5 py-5 text-center">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No contracts yet.</p>
-            {session.clients && (
-              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                Send a contract from the <Link to={`/clients/${session.client_id}`} style={{ color: '#6366f1' }}>client detail page</Link>.
-              </p>
+            {!session.clients && (
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Link a client to this session to send contracts.</p>
             )}
           </div>
         ) : (
@@ -945,6 +950,19 @@ export default function SessionDetail() {
           )}
         </div>
       </div>
+
+      {showSendContract && session.clients && (
+        <SendContractModal
+          client={session.clients}
+          galleries={session.galleries ? [session.galleries] : []}
+          sessionData={session}
+          onClose={() => setShowSendContract(false)}
+          onSent={contract => {
+            setContracts(prev => [contract, ...prev])
+            setShowSendContract(false)
+          }}
+        />
+      )}
 
       {showEdit && (
         <EditSessionModal

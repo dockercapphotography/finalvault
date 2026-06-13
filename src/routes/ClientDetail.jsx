@@ -3,8 +3,8 @@ import Cropper from 'react-easy-crop'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ExternalLink, Camera,
-  Pencil, Trash2, X, Plus, FilePlus, Clock, CheckCircle,
-  AlertCircle, Ban, Send
+  Pencil, Trash2, X, Plus, Clock, CheckCircle,
+  AlertCircle, Ban
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
@@ -15,13 +15,12 @@ import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
-import SendContractModal from '../components/SendContractModal.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 const CONTRACT_STATUS_CONFIG = {
   draft:                { label: 'Draft',              variant: 'default',  Icon: FileText },
-  sent:                 { label: 'Awaiting Signature', variant: 'warning',  Icon: Send },
+  sent:                 { label: 'Awaiting Signature', variant: 'warning',  Icon: Clock },
   pending_photographer: { label: 'Needs Counter-Sign', variant: 'warning',  Icon: AlertCircle },
   signed:               { label: 'Signed',             variant: 'success',  Icon: CheckCircle },
   void:                 { label: 'Void',               variant: 'danger',   Icon: Ban },
@@ -360,7 +359,6 @@ export default function ClientDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showEdit, setShowEdit] = useState(false)
-  const [showSendContract, setShowSendContract] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [cropSrc, setCropSrc] = useState(null)
@@ -616,9 +614,7 @@ export default function ClientDetail() {
               {contracts.length} {contracts.length === 1 ? 'contract' : 'contracts'}
             </p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setShowSendContract(true)}>
-            <FilePlus size={13} />Send Contract
-          </Button>
+
         </div>
 
         {contracts.length === 0 ? (
@@ -688,18 +684,7 @@ export default function ClientDetail() {
         />
       )}
 
-      {showSendContract && client && (
-        <SendContractModal
-          client={client}
-          galleries={galleries}
-          onClose={() => setShowSendContract(false)}
-          onSent={contract => {
-            setContracts(prev => [contract, ...prev])
-            setShowSendContract(false)
-            setToast({ message: 'Contract sent for signature', type: 'success' })
-          }}
-        />
-      )}
+
 
       {cropSrc && (
         <ClientAvatarCropModal
