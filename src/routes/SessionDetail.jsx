@@ -3,13 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   CalendarDays, MapPin, Clock, User, ChevronRight,
   FileText, ClipboardList, Edit2, Trash2, Check, X,
+  Download, Users, ChevronDown, UserPlus,
 } from 'lucide-react'
 import {
   getSession, updateSession, deleteSession,
   SESSION_TYPES, SESSION_STATUSES, PAYMENT_STATUSES,
   getStatusConfig, getPaymentConfig, formatSessionDate,
+  getSubmissions,
 } from '../utils/sessionApi.js'
-import { getContracts } from '../utils/crmApi.js'
+import { getContracts, createClient } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
 import { getClients } from '../utils/crmApi.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
@@ -17,6 +19,7 @@ import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
 import PlaceAutocomplete from '../components/ui/PlaceAutocomplete.jsx'
+import * as XLSX from 'xlsx'
 
 // ── Time options (15-min increments) ─────────────────────────────────────────
 const TIME_OPTIONS = (() => {
@@ -365,6 +368,227 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
   )
 }
 
+
+// ── Submissions Section ───────────────────────────────────────────────────────
+
+const PAGE_SIZE = 50
+
+function SubmissionsSection({ sessionId, session }) {
+  const [submissions, setSubmissions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
+  const [expandedId, setExpandedId] = useState(null)
+  const [creatingClientId, setCreatingClientId] = useState(null)
+
+  useEffect(() => {
+    getSubmissions(sessionId).then(data => {
+      setSubmissions(data)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [sessionId])
+
+  function formatAnswer(value) {
+    if (!value) return '—'
+    if (Array.isArray(value)) return value.join(', ')
+    return String(value)
+  }
+
+  function getContactParts(submission) {
+    // Returns { name, email, fallback }
+    const name = submission.credit_handle || ''
+    const email = submission.email || ''
+    if (name || email) return { name, email, fallback: false }
+    const firstVal = Object.values(submission.answers || {}).find(v => v && String(v).trim())
+    return { name: '', email: '', fallback: firstVal ? formatAnswer(firstVal) : '—' }
+  }
+
+  const filtered = submissions.filter(s => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    const answerText = Object.values(s.answers || {}).map(v => formatAnswer(v)).join(' ').toLowerCase()
+    return answerText.includes(q)
+  })
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  useEffect(() => { setPage(0) }, [search])
+
+  async function handleExportCSV() {
+    if (!submissions.length) return
+    const questions = submissions[0].questions || []
+    const headers = ['Submitted At', 'Name', 'Email', 'Agreed to Terms', ...questions.map(q => q.label)]
+    const rows = submissions.map(s => {
+      const base = [
+        new Date(s.submitted_at).toLocaleString('en-US'),
+        s.credit_handle || '',
+        s.email || '',
+        s.agreed_to_terms ? 'Yes' : 'No',
+      ]
+      const answers = questions.map(q => formatAnswer(s.answers?.[q.id]))
+      return [...base, ...answers]
+    })
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Submissions')
+    XLSX.writeFile(wb, `${session.name} Submissions.xlsx`)
+  }
+
+  async function handleCreateClient(submission) {
+    setCreatingClientId(submission.id)
+    try {
+      const questions = submission.questions || []
+      const answers = submission.answers || {}
+      let email = '', firstName = '', lastName = ''
+      for (const q of questions) {
+        const val = answers[q.id] || ''
+        const label = q.label.toLowerCase()
+        if (label.includes('email') && !email) email = val
+        if ((label.includes('name') || label.includes('credit') || label.includes('handle')) && !firstName) {
+          const parts = val.split(' ')
+          firstName = parts[0] || val
+          lastName = parts.slice(1).join(' ') || ''
+        }
+      }
+      if (!firstName) firstName = email.split('@')[0] || 'Unknown'
+      const client = await createClient({
+        firstName, lastName, email: email || null,
+        phone: null, address: null, city: null, state: null, zip: null,
+        notes: `Created from walk-up submission for ${session.name}`,
+        tags: null, pronouns: null,
+      })
+      const { supabase } = await import('../supabaseClient.js')
+      await supabase.from('session_submissions').update({ client_id: client.id }).eq('id', submission.id)
+      setSubmissions(prev => prev.map(s => s.id === submission.id ? { ...s, client_id: client.id } : s))
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setCreatingClientId(null)
+    }
+  }
+
+  return (
+    <SectionCard
+      title={`Submissions${submissions.length > 0 ? ` (${submissions.length})` : ''}`}
+      action={
+        submissions.length > 0 && (
+          <button onClick={handleExportCSV}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+            style={{ background: 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+            <Download size={12} />Export CSV
+          </button>
+        )
+      }>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+            style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+        </div>
+      ) : submissions.length === 0 ? (
+        <div className="px-5 py-6 text-center">
+          <Users size={24} className="mx-auto mb-2" style={{ color: 'var(--text-muted)' }} />
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No submissions yet.</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Share the form link to start collecting responses.</p>
+        </div>
+      ) : (
+        <>
+          <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <input
+              value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={`Search ${submissions.length} submissions...`}
+              style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 12px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          </div>
+          {filtered.length === 0 ? (
+            <div className="px-5 py-5 text-center">
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No submissions match your search.</p>
+            </div>
+          ) : (
+            <>
+              {paginated.map((submission, i) => {
+                const isExpanded = expandedId === submission.id
+                const questions = submission.questions || []
+                const answers = submission.answers || {}
+                const { name, email: subEmail, fallback } = getContactParts(submission)
+                const time = new Date(submission.submitted_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                return (
+                  <div key={submission.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : submission.id)}
+                      className="w-full flex items-center justify-between px-5 py-3 text-left"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 flex items-baseline gap-2">
+                          {fallback ? (
+                            <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{fallback}</span>
+                          ) : (
+                            <>
+                              {name && <span className="text-sm font-medium shrink-0" style={{ color: 'var(--text)' }}>{name}</span>}
+                              {subEmail && <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{subEmail}</span>}
+                            </>
+                          )}
+                        </div>
+                        <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{time}</span>
+                        {submission.client_id && (
+                          <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>Client</span>
+                        )}
+                      </div>
+                      <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, marginLeft: 8 }} />
+                    </button>
+                    {isExpanded && (
+                      <div className="px-5 pb-4 space-y-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                        <div className="pt-3 space-y-2">
+                          {questions.map(q => (
+                            <div key={q.id}>
+                              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{q.label}</p>
+                              <p className="text-sm mt-0.5" style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{formatAnswer(answers[q.id])}</p>
+                            </div>
+                          ))}
+                        </div>
+                        {!submission.client_id && (
+                          <button onClick={() => handleCreateClient(submission)} disabled={creatingClientId === submission.id}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
+                            style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
+                            <UserPlus size={12} />
+                            {creatingClientId === submission.id ? 'Creating...' : 'Create client record'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                  </span>
+                  <div className="flex gap-2">
+                    <button onClick={() => setPage(p => p - 1)} disabled={page === 0}
+                      className="text-xs px-3 py-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', border: 'none', cursor: page === 0 ? 'not-allowed' : 'pointer', color: 'var(--text)', opacity: page === 0 ? 0.4 : 1 }}>
+                      ← Prev
+                    </button>
+                    <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}
+                      className="text-xs px-3 py-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', border: 'none', cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', color: 'var(--text)', opacity: page >= totalPages - 1 ? 0.4 : 1 }}>
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </SectionCard>
+  )
+}
+
 // ── Session Detail ────────────────────────────────────────────────────────────
 
 export default function SessionDetail() {
@@ -647,6 +871,11 @@ export default function SessionDetail() {
           </div>
         )}
       </SectionCard>
+
+      {/* Submissions — walk-up only */}
+      {session.mode === 'walkup' && (
+        <SubmissionsSection sessionId={id} session={session} />
+      )}
 
       {/* Danger zone */}
       <div className="rounded-2xl px-5 py-4" style={{ border: '1px solid var(--danger)', background: 'var(--danger-subtle)' }}>

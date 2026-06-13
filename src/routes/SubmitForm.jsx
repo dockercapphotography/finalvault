@@ -12,7 +12,7 @@ async function getSessionByToken(token) {
       id, name, description, mode, submit_token,
       questionnaire_id,
       questionnaire_templates (
-        id, name, header_text, require_agreement, agreement_label, confirmation_message,
+        id, name, header_text, require_agreement, agreement_label, confirmation_message, collect_email, collect_name,
         questionnaire_questions ( id, type, label, options, required, sort_order )
       ),
       photographers ( display_name, business_name )
@@ -211,6 +211,9 @@ export default function SubmitForm() {
   const [submitError, setSubmitError] = useState(null)
 
   // Form state
+  const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [creditHandle, setCreditHandle] = useState('')
   const [answers, setAnswers] = useState({})
   const [agreed, setAgreed] = useState(false)
 
@@ -226,13 +229,18 @@ export default function SubmitForm() {
   }
 
   function validate() {
-    const questions = session?.questionnaire_templates?.questionnaire_questions || []
+    const tmpl = session?.questionnaire_templates
+    if (tmpl?.collect_email) {
+      if (!email.trim()) return false
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return false
+    }
+    if (tmpl?.collect_name && !creditHandle.trim()) return false
+    const questions = tmpl?.questionnaire_questions || []
     for (const q of questions) {
       if (!q.required) continue
       const a = answers[q.id]
       if (!a || (Array.isArray(a) && a.length === 0) || String(a).trim() === '') return false
     }
-    const tmpl = session?.questionnaire_templates
     if (tmpl?.require_agreement && !agreed) return false
     return true
   }
@@ -249,8 +257,8 @@ export default function SubmitForm() {
 
       await submitForm({
         sessionId: session.id,
-        email: answers['__email__'] || '',
-        creditHandle: answers['__credit__'] || null,
+        email: email.trim(),
+        creditHandle: creditHandle.trim() || null,
         questions,
         answers,
         agreedToTerms: agreed,
@@ -304,6 +312,41 @@ export default function SubmitForm() {
 
         {/* Form card */}
         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 28, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+
+          {/* Built-in: email */}
+          {tmpl?.collect_email && (
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 6 }}>
+                Email address <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input type="email" value={email} onChange={e => { setEmail(e.target.value); setEmailError('') }}
+                onBlur={() => {
+                  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+                    setEmailError('Please enter a valid email address')
+                  }
+                }}
+                placeholder="your@email.com"
+                style={{ width: '100%', padding: '13px 16px', border: `1.5px solid ${emailError ? '#ef4444' : '#e5e7eb'}`, borderRadius: 10, fontSize: 16, color: '#111', outline: 'none', boxSizing: 'border-box', background: '#fafafa' }}
+                onFocus={e => e.target.style.borderColor = '#6366f1'}
+              />
+              {emailError && <p style={{ fontSize: 12, color: '#ef4444', margin: '4px 0 0' }}>{emailError}</p>}
+              <p style={{ fontSize: 12, color: '#9ca3af', margin: '5px 0 0' }}>Your photos will be delivered to this address.</p>
+            </div>
+          )}
+
+          {/* Built-in: name / handle */}
+          {tmpl?.collect_name && (
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 6 }}>
+                Name <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input type="text" value={creditHandle} onChange={e => setCreditHandle(e.target.value)}
+                placeholder="Please enter your name"
+                style={{ width: '100%', padding: '13px 16px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 16, color: '#111', outline: 'none', boxSizing: 'border-box', background: '#fafafa' }}
+                onFocus={e => e.target.style.borderColor = '#6366f1'}
+                onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+            </div>
+          )}
 
           {/* Questionnaire questions */}
           {questions.map(q => (

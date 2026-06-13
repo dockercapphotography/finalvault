@@ -27,7 +27,7 @@ export async function getQuestionnaireTemplate(id) {
   return data
 }
 
-export async function createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage }) {
+export async function createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName }) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
     .from('questionnaire_templates')
@@ -38,6 +38,8 @@ export async function createQuestionnaireTemplate({ name, headerText, requireAgr
       require_agreement: requireAgreement || false,
       agreement_label: agreementLabel || 'I have read and agree to the terms above.',
       confirmation_message: confirmationMessage || null,
+      collect_email: collectEmail || false,
+      collect_name: collectName || false,
       updated_at: new Date().toISOString(),
     })
     .select()
@@ -46,7 +48,7 @@ export async function createQuestionnaireTemplate({ name, headerText, requireAgr
   return data
 }
 
-export async function updateQuestionnaireTemplate(id, { name, headerText, requireAgreement, agreementLabel, confirmationMessage }) {
+export async function updateQuestionnaireTemplate(id, { name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName }) {
   const { data, error } = await supabase
     .from('questionnaire_templates')
     .update({
@@ -55,6 +57,8 @@ export async function updateQuestionnaireTemplate(id, { name, headerText, requir
       require_agreement: requireAgreement || false,
       agreement_label: agreementLabel || 'I have read and agree to the terms above.',
       confirmation_message: confirmationMessage || null,
+      collect_email: collectEmail || false,
+      collect_name: collectName || false,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

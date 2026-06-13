@@ -1676,6 +1676,8 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
   const [requireAgreement, setRequireAgreement] = useState(template?.require_agreement || false)
   const [agreementLabel, setAgreementLabel] = useState(template?.agreement_label || 'I have read and agree to the terms above.')
   const [confirmationMessage, setConfirmationMessage] = useState(template?.confirmation_message || '')
+  const [collectEmail, setCollectEmail] = useState(template?.collect_email || false)
+  const [collectName, setCollectName] = useState(template?.collect_name || false)
   const [questions, setQuestions] = useState([])
   const [loadingQuestions, setLoadingQuestions] = useState(!!template?.id)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -1702,9 +1704,9 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
     setSaving(true)
     try {
       if (templateId) {
-        await updateQuestionnaireTemplate(templateId, { name, headerText, requireAgreement, agreementLabel, confirmationMessage })
+        await updateQuestionnaireTemplate(templateId, { name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName })
       } else {
-        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage })
+        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName })
         setTemplateId(created.id)
       }
       onSaveState('saved')
@@ -1716,7 +1718,7 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
     if (!templateId) {
       // Save template first so we have an ID
       try {
-        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage })
+        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName })
         setTemplateId(created.id)
         const q = await createQuestion(created.id, { ...data, sortOrder: questions.length })
         setQuestions(prev => [...prev, q])
@@ -1794,6 +1796,25 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
               <Input label="Agreement label" value={agreementLabel} onChange={setAgreementLabel}
                 placeholder="I have read and agree to the terms above." />
             )}
+          </div>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Built-in fields</p>
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between px-4 py-3" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Collect email address</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Shows a validated email field at the top of the form</p>
+                </div>
+                <Toggle checked={collectEmail} onChange={setCollectEmail} />
+              </div>
+              <div className="flex items-center justify-between px-4 py-3" style={{ background: 'var(--surface)' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Collect name</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Shows a name field after the email field</p>
+                </div>
+                <Toggle checked={collectName} onChange={setCollectName} />
+              </div>
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>
