@@ -432,30 +432,14 @@ function ContractTemplatesTab({ onSaveState }) {
               <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
                 Contract body <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
-              <button onClick={() => setPreviewContract(p => !p)}
-                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
-                style={{ background: previewContract ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', color: previewContract ? '#6366f1' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-                {previewContract ? <Pencil size={11} /> : <Eye size={11} />}
-                {previewContract ? 'Edit' : 'Preview'}
-              </button>
             </div>
-            {previewContract ? (
-              <div style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
-                color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13,
-                fontFamily: 'inherit', lineHeight: 1.6, whiteSpace: 'pre-wrap', minHeight: 300 }}>
-                {fillPreview(editBody) || <span style={{ color: 'var(--text-muted)' }}>(empty)</span>}
-              </div>
-            ) : (
-              <textarea ref={bodyRef} value={editBody} onChange={e => setEditBody(e.target.value)}
-                placeholder="Enter your contract text. Use {{variable}} placeholders where values should be filled automatically."
-                rows={20}
-                style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
-                  color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none',
-                  resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
-                onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-            )}
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Plain text. Use blank lines to separate paragraphs.</p>
+            <MarkdownToolbar
+              value={editBody}
+              onChange={setEditBody}
+              placeholder="Enter your contract text. Use {{variable}} placeholders where values should be filled automatically."
+              rows={20}
+            />
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Supports Markdown. Use blank lines to separate paragraphs.</p>
           </div>
           <div>
             <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
@@ -1253,29 +1237,13 @@ function EmailTemplatesTab({ onSaveState }) {
             <Input label="Template Name" value={name} onChange={setName} placeholder="e.g. Wedding Delivery" />
             <Input label="Subject" value={subject} onChange={setSubject} placeholder="Your photos are ready!" />
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Message Body</label>
-                <button onClick={() => setPreviewEmail(p => !p)}
-                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
-                  style={{ background: previewEmail ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', color: previewEmail ? '#6366f1' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-                  {previewEmail ? <Pencil size={11} /> : <Eye size={11} />}
-                  {previewEmail ? 'Edit' : 'Preview'}
-                </button>
-              </div>
-              {previewEmail ? (
-                <div className="w-full text-sm rounded-xl px-3 py-2.5 min-h-[160px]"
-                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                  <p className="text-xs font-medium mb-2 pb-2" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
-                    Subject: {fillPreview(subject) || '(no subject)'}
-                  </p>
-                  {fillPreview(body) || <span style={{ color: 'var(--text-muted)' }}>(empty)</span>}
-                </div>
-              ) : (
-                <textarea ref={bodyRef} value={body} onChange={e => setBody(e.target.value)} rows={8}
-                  placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}
-                  className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
-                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }} />
-              )}
+              <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Message Body</label>
+              <MarkdownToolbar
+                value={body}
+                onChange={setBody}
+                placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}
+                rows={8}
+              />
             </div>
             <div>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
