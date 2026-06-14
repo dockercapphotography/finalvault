@@ -4,6 +4,7 @@ import {
   CalendarDays, MapPin, Clock, User, ChevronRight,
   FileText, ClipboardList, Edit2, Trash2, Check, X,
   Download, Users, ChevronDown, UserPlus, Mail,
+  Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, Trophy, Heart, BookHeart, SquareUser,
 } from 'lucide-react'
 import {
   getSession, updateSession, deleteSession,
@@ -118,6 +119,17 @@ function TimeSelect({ label, value, onChange }) {
 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const SESSION_ICON_MAP_DETAIL = {
+  BookHeart, SquareUser, Users, Briefcase, Ticket, Home, GraduationCap,
+  ScanFace, Baby, User, Trophy, Heart, CalendarDays,
+}
+
+function SessionTypeIconDetail({ type, size = 22, color }) {
+  const iconName = SESSION_TYPE_ICON[type] || 'CalendarDays'
+  const Icon = SESSION_ICON_MAP_DETAIL[iconName] || CalendarDays
+  return <Icon size={size} style={{ color }} />
+}
 
 function StatusBadge({ status, large }) {
   const cfg = getStatusConfig(status)
@@ -791,54 +803,86 @@ export default function SessionDetail() {
       <PageBreadcrumb crumbs={[{ label: 'Sessions', to: '/sessions' }, { label: session.name }]} />
 
       {/* Header card */}
-      <div className="rounded-2xl px-5 py-5 space-y-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>{session.name}</h1>
-              <StatusBadge status={session.status} large />
-              {session.mode === 'walkup' && (
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>Walk-up</span>
-              )}
+      <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        {/* Top section — icon + name + edit + pills */}
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: getStatusConfig(session.status).color + '18' }}>
+              <SessionTypeIconDetail type={session.type} size={18} color={getStatusConfig(session.status).color} />
             </div>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{session.type}</p>
+            <h1 className="text-base font-semibold flex-1 min-w-0 leading-snug" style={{ color: 'var(--text)' }}>{session.name}</h1>
+            <button onClick={() => setShowEdit(true)}
+              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium flex-shrink-0"
+              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+              <Edit2 size={12} />Edit
+            </button>
           </div>
-          <button onClick={() => setShowEdit(true)}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg shrink-0"
-            style={{ background: 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-            <Edit2 size={13} />Edit
-          </button>
+          {/* Status pills — horizontal scroll */}
+          <div style={{ overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: 2 }}>
+            <div style={{ display: 'inline-flex', gap: 6 }}>
+              {SESSION_STATUSES.map(s => (
+                <button key={s.value} onClick={() => handleStatusChange(s.value)}
+                  className="text-xs px-2.5 py-1 rounded-full font-medium"
+                  style={{
+                    background: session.status === s.value ? s.color + '20' : 'var(--surface-raised)',
+                    color: session.status === s.value ? s.color : 'var(--text-muted)',
+                    border: session.status === s.value ? `1px solid ${s.color}40` : '1px solid transparent',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {dateString && (
-          <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
-            <Clock size={13} />
-            <span>{dateString}</span>
+        {/* Info rows */}
+        <div style={{ borderTop: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <FileText size={11} />Type
+            </span>
+            <span className="text-xs" style={{ color: 'var(--text)' }}>{session.type}</span>
           </div>
-        )}
-
-        {session.location && (
-          <div className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
-            <MapPin size={13} style={{ marginTop: 2, flexShrink: 0 }} />
-            <span>{session.location}</span>
-          </div>
-        )}
-
-        {/* Status quick-change */}
-        <div className="flex flex-wrap gap-1.5 pt-1">
-          {SESSION_STATUSES.map(s => (
-            <button key={s.value} onClick={() => handleStatusChange(s.value)}
-              className="text-xs px-2.5 py-1 rounded-full font-medium transition-all"
-              style={{
-                background: session.status === s.value ? s.color + '20' : 'var(--surface-raised)',
-                color: session.status === s.value ? s.color : 'var(--text-muted)',
-                border: session.status === s.value ? `1px solid ${s.color}40` : '1px solid transparent',
-                cursor: 'pointer',
-              }}>
-              {s.label}
-            </button>
-          ))}
+          {dateString && (
+            <div className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={11} />Date
+              </span>
+              <span className="text-xs" style={{ color: 'var(--text)' }}>{dateString}</span>
+            </div>
+          )}
+          {session.location && (
+            <div className="flex items-start gap-3 px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="text-xs flex-shrink-0 mt-0.5" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <MapPin size={11} />Location
+              </span>
+              <span className="text-xs" style={{ color: 'var(--text)' }}>{session.location}</span>
+            </div>
+          )}
+          {clientName && (
+            <div className="flex items-center gap-3 px-4 py-2.5"
+              style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', textDecoration: 'none', display: 'flex' }}
+              onClick={() => navigate(`/clients/${session.client_id}`)}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <User size={11} />Client
+              </span>
+              <span className="text-xs truncate" style={{ color: '#6366f1' }}>{clientName}</span>
+              <ChevronRight size={11} style={{ color: 'var(--text-muted)', marginLeft: 'auto', flexShrink: 0 }} />
+            </div>
+          )}
+          {session.mode === 'walkup' && (
+            <div className="flex items-center gap-3 px-4 py-2.5">
+              <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Users size={11} />Mode
+              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>Walk-up</span>
+            </div>
+          )}
         </div>
       </div>
 
