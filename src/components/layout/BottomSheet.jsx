@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 
 /**
@@ -62,7 +63,7 @@ setVisible(false)
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -123,6 +124,7 @@ setVisible(false)
           {children}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }
