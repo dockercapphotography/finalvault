@@ -1,9 +1,25 @@
 import { supabase } from '../supabaseClient.js'
 
 const SESSION_TYPES = [
-  'Convention', 'Corporate', 'Event', 'Family', 'Graduation',
-  'Maternity', 'Newborn', 'Portrait', 'Wedding', 'Other',
+  'Boudoir', 'Convention', 'Corporate', 'Event', 'Family', 'Graduation',
+  'Headshot', 'Maternity', 'Newborn', 'Portrait', 'Sports', 'Wedding', 'Other',
 ]
+
+export const SESSION_TYPE_ICON = {
+  Boudoir:    'BookHeart',
+  Convention: 'Users',
+  Corporate:  'Briefcase',
+  Event:      'Ticket',
+  Family:     'Home',
+  Graduation: 'GraduationCap',
+  Headshot:   'SquareUser',
+  Maternity:  'Baby',
+  Newborn:    'Baby',
+  Portrait:   'User',
+  Sports:     'Trophy',
+  Wedding:    'Heart',
+  Other:      'CalendarDays',
+}
 
 export { SESSION_TYPES }
 

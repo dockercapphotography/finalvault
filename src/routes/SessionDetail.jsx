@@ -8,7 +8,7 @@ import {
 import {
   getSession, updateSession, deleteSession,
   SESSION_TYPES, SESSION_STATUSES, PAYMENT_STATUSES,
-  getStatusConfig, getPaymentConfig, formatSessionDate,
+  getStatusConfig, getPaymentConfig, formatSessionDate, SESSION_TYPE_ICON,
   getSubmissions, getSessionQuestionnaires, setSessionQuestionnaires,
 } from '../utils/sessionApi.js'
 import { getContracts, createClient } from '../utils/crmApi.js'

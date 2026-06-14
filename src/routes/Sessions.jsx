@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, CalendarDays, X, LayoutList, Columns, SlidersHorizontal } from 'lucide-react'
+import { Plus, Search, CalendarDays, X, LayoutList, Columns, SlidersHorizontal,
+  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser } from 'lucide-react'
 import FilterSheet from '../components/ui/FilterSheet.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
   getSessions, createSession, updateSession, SESSION_TYPES, SESSION_STATUSES,
-  getStatusConfig, getPaymentConfig, formatSessionDate,
+  getStatusConfig, getPaymentConfig, formatSessionDate, SESSION_TYPE_ICON,
 } from '../utils/sessionApi.js'
 import { getClients } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
@@ -16,6 +17,18 @@ import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import KanbanBoard from '../components/ui/KanbanBoard.jsx'
+
+
+const SESSION_ICON_MAP = {
+  BookHeart, SquareUser, Users, Briefcase, Ticket, Home, GraduationCap,
+  ScanFace, Baby, User, Trophy, Heart, CalendarDays,
+}
+
+function SessionTypeIcon({ type, size = 18, color }) {
+  const iconName = SESSION_TYPE_ICON[type] || 'CalendarDays'
+  const Icon = SESSION_ICON_MAP[iconName] || CalendarDays
+  return <Icon size={size} style={{ color }} />
+}
 
 const TIME_OPTIONS = (() => {
   const opts = []
@@ -333,12 +346,19 @@ function SessionCard({ session, onClick }) {
     ? { label: session.payment_status === 'paid' ? 'Paid' : 'Partial', color: session.payment_status === 'paid' ? '#10b981' : '#f97316' }
     : null
 
+  const statusCfg = getStatusConfig(session.status)
   return (
     <div onClick={onClick} className="rounded-xl p-3 space-y-2"
       style={{ background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer', userSelect: 'none' }}
       onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
       onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-      <p className="text-sm font-medium leading-snug" style={{ color: 'var(--text)' }}>{session.name}</p>
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: statusCfg.color + '18' }}>
+          <SessionTypeIcon type={session.type} size={14} color={statusCfg.color} />
+        </div>
+        <p className="text-sm font-medium leading-snug" style={{ color: 'var(--text)' }}>{session.name}</p>
+      </div>
       {session.clients && (
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{session.clients.first_name} {session.clients.last_name}</p>
       )}
@@ -536,31 +556,40 @@ export default function Sessions() {
             </div>
           ) : (
             <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-              {filtered.map((session, i) => (
-                <button key={session.id} onClick={() => navigate(`/sessions/${session.id}`)}
-                  className="w-full flex items-center gap-4 px-5 py-4 text-left"
-                  style={{ background: 'var(--surface)', borderTop: i > 0 ? '1px solid var(--border)' : 'none', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'var(--surface)'}>
-                  <div className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                    style={{ background: session.mode === 'walkup' ? 'rgba(16,185,129,0.1)' : 'rgba(99,102,241,0.1)' }}>
-                    <CalendarDays size={16} style={{ color: session.mode === 'walkup' ? '#10b981' : '#6366f1' }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+              {filtered.map((session, i) => {
+                const cfg = getStatusConfig(session.status)
+                return (
+                  <button key={session.id} onClick={() => navigate(`/sessions/${session.id}`)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+                    style={{ background: 'var(--surface)', borderTop: i > 0 ? '1px solid var(--border)' : 'none', borderRight: 'none', borderBottom: 'none', borderLeft: 'none', cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'var(--surface)'}>
+                    <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
+                      style={{ background: cfg.color + '18' }}>
+                      <SessionTypeIcon type={session.type} size={18} color={cfg.color} />
+                    </div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{session.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {[
+                            session.clients ? `${session.clients.first_name} ${session.clients.last_name}` : null,
+                            session.type,
+                            session.session_date ? new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null,
+                            session.mode === 'walkup' ? 'Walk-up' : null,
+                          ].filter(Boolean).join(' · ')}
+                        </p>
+                        <div className="md:hidden"><StatusBadge status={session.status} /></div>
+                      </div>
+                    </div>
+                    <div className="hidden md:flex items-center gap-2 shrink-0">
                       <StatusBadge status={session.status} />
                       <PaymentBadge status={session.payment_status} />
                     </div>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      {session.clients ? `${session.clients.first_name} ${session.clients.last_name} · ` : ''}
-                      {session.type}
-                      {session.session_date ? ` · ${new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
-                      {session.mode === 'walkup' ? ' · Walk-up' : ''}
-                    </p>
-                  </div>
-                </button>
-              ))}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-muted)', flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
