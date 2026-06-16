@@ -55,7 +55,7 @@ function ClientFormWrapper({ onClose, children, footer }) {
 function ClientFormModal({ onClose, onSaved, existingTags = [] }) {
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', phone: '',
-    address: '', city: '', state: '', zip: '', notes: '', tags: '', pronouns: '',
+    address: '', city: '', state: '', zip: '', notes: '', tags: [], pronouns: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
