@@ -22,6 +22,8 @@ import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
 import PlaceAutocomplete from '../components/ui/PlaceAutocomplete.jsx'
+import BottomSheet from '../components/layout/BottomSheet.jsx'
+import ClientPicker from '../components/ui/ClientPicker.jsx'
 import * as XLSX from 'xlsx'
 
 // ── Time options (15-min increments) ─────────────────────────────────────────
@@ -176,6 +178,38 @@ function InfoRow({ label, value, mono }) {
 
 // ── Edit Session Modal ────────────────────────────────────────────────────────
 
+function EditSessionWrapper({ onClose, footer, children }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  if (isMobile) {
+    return (
+      <BottomSheet open onClose={onClose} maxHeight="92vh">
+        <div className="flex items-center px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-base" style={{ color: 'var(--text)' }}>Edit Session</h2>
+        </div>
+        <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </BottomSheet>
+    )
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg flex flex-col rounded-2xl shadow-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '90vh' }}>
+        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Edit Session</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </div>
+    </div>
+  )
+}
+
 function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }) {
   const [name, setName] = useState(session.name)
   const [type, setType] = useState(session.type)
@@ -240,16 +274,30 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}>
-      <div className="w-full rounded-2xl overflow-hidden flex flex-col" style={{ maxWidth: 560, maxHeight: '90vh', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Edit Session</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={16} /></button>
-        </div>
+  const footerEl = (
+    <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+      <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg"
+        style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+        Cancel
+      </button>
+      <Button onClick={handleSave} disabled={saving || !name.trim()}>
+        {saving ? 'Saving...' : 'Save Changes'}
+      </Button>
+    </div>
+  )
 
-        <div className="overflow-y-auto px-6 py-5 space-y-4">
+  return (
+    <EditSessionWrapper onClose={onClose} footer={footerEl}>
+      <div className="space-y-4">
           <Input label="Session name" value={name} onChange={setName} required />
+
+          <div>
+            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)}
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
+              {SESSION_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -259,22 +307,12 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
                 {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <div>
-              <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Status</label>
-              <select value={status} onChange={e => setStatus(e.target.value)}
-                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
-                {SESSION_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            </div>
+            <Input label="Date" value={sessionDate} onChange={setSessionDate} type="date" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Date" value={sessionDate} onChange={setSessionDate} type="date" />
-            <div />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <TimeSelect label="Start time" value={startTime} onChange={setStartTime} />
-            <TimeSelect label="End time" value={endTime} onChange={setEndTime} />
+            <TimeSelect label={<>End time <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(opt.)</span></>} value={endTime} onChange={setEndTime} />
           </div>
 
           <div>
@@ -301,11 +339,7 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
           {session.mode === 'private' && (
             <div>
               <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Client</label>
-              <select value={clientId} onChange={e => setClientId(e.target.value)}
-                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
-                <option value="">No client linked</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-              </select>
+              <ClientPicker clients={clients} value={clientId} onChange={setClientId} placeholder="Link to a client..." />
             </div>
           )}
 
@@ -324,9 +358,9 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
                       onClick={() => setQuestionnaireIds(prev =>
                         selected ? prev.filter(id => id !== q.id) : [...prev, q.id]
                       )}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left"
                       style={{
-                        border: selected ? '2px solid #6366f1' : '2px solid var(--border)',
+                        border: `1.5px solid ${selected ? '#6366f1' : 'var(--border)'}`,
                         background: selected ? 'rgba(99,102,241,0.05)' : 'var(--surface)',
                         cursor: 'pointer',
                       }}>
@@ -334,7 +368,7 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
                         style={{ background: selected ? '#6366f1' : 'var(--surface-raised)', border: selected ? 'none' : '1.5px solid var(--border)' }}>
                         {selected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                       </div>
-                      <span className="text-sm" style={{ color: selected ? '#6366f1' : 'var(--text)', fontWeight: selected ? '500' : '400' }}>{q.name}</span>
+                      <span className="text-sm truncate" style={{ color: selected ? '#6366f1' : 'var(--text)', fontWeight: selected ? '500' : '400' }}>{q.name}</span>
                     </button>
                   )
                 })}
@@ -381,7 +415,12 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
                       style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px 9px 24px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
                   </div>
                 </div>
-                <Input label="Balance due date" value={balanceDueDate} onChange={setBalanceDueDate} type="date" />
+                <div>
+                  <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Due date <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(opt.)</span></label>
+                  <input type="date" value={balanceDueDate} onChange={e => setBalanceDueDate(e.target.value)}
+                    style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Payment status</label>
@@ -403,15 +442,7 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
             </>
           )}
         </div>
-
-        <div className="flex gap-3 px-6 py-4 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-          <Button onClick={handleSave} disabled={saving || !name.trim()}>
-            {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        </div>
-      </div>
-    </div>
+    </EditSessionWrapper>
   )
 }
 
