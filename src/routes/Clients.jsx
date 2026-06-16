@@ -286,7 +286,7 @@ export default function Clients() {
   })
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-2">
         <div className="min-w-0">

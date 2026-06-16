@@ -530,7 +530,6 @@ const BASE_ACCOUNT_TABS = [
   { id: 'profile',         label: 'Profile' },
   { id: 'watermarks',      label: 'Watermarks' },
   { id: 'templates',       label: 'Templates' },
-  { id: 'questionnaires',  label: 'Questionnaires' },
   { id: 'social',          label: 'Social' },
   { id: 'payment',         label: 'Payment' },
   { id: 'notifications',   label: 'Notifications' },
@@ -2022,6 +2021,7 @@ export default function Account() {
           <GalleryTemplatesTab onSaveState={setSaveState} />
           <EmailTemplatesTab onSaveState={setSaveState} />
           <ContractTemplatesTab onSaveState={setSaveState} />
+          <QuestionnairesTab onSaveState={setSaveState} />
         </div>
       )}
       {activeTab === 'social' && (
@@ -2039,7 +2039,6 @@ export default function Account() {
         </SettingsSection>
       )}
       {activeTab === 'notifications' && <NotificationsTab user={user} onSaveState={setSaveState} />}
-      {activeTab === 'questionnaires'  && <QuestionnairesTab onSaveState={setSaveState} />}
       {activeTab === 'tags'          && <TagsTab onSaveState={setSaveState} />}
       {activeTab === 'admin'         && isAdmin && <Admin />}
 
