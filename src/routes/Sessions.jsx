@@ -15,8 +15,10 @@ import PlaceAutocomplete from '../components/ui/PlaceAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
-import Modal from '../components/ui/Modal.jsx'
 import KanbanBoard from '../components/ui/KanbanBoard.jsx'
+import BottomSheet from '../components/layout/BottomSheet.jsx'
+import Modal from '../components/ui/Modal.jsx'
+import ClientPicker from '../components/ui/ClientPicker.jsx'
 
 
 const SESSION_ICON_MAP = {
@@ -108,6 +110,40 @@ function PaymentBadge({ status }) {
   )
 }
 
+function NewSessionWrapper({ onClose, stepper, children, footer }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  if (isMobile) {
+    return (
+      <BottomSheet open onClose={onClose} maxHeight="92vh">
+        <div className="flex items-center px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-base" style={{ color: 'var(--text)' }}>New Session</h2>
+        </div>
+        {stepper && <div className="shrink-0">{stepper}</div>}
+        <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </BottomSheet>
+    )
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg flex flex-col rounded-2xl shadow-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '90vh' }}>
+        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>New Session</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <X size={16} />
+          </button>
+        </div>
+        {stepper && <div className="shrink-0">{stepper}</div>}
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </div>
+    </div>
+  )
+}
+
 function NewSessionModal({ onClose, onCreated }) {
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
@@ -162,36 +198,56 @@ function NewSessionModal({ onClose, onCreated }) {
     finally { setSaving(false) }
   }
 
-  const stepTitles = ['Basic Info', 'Details', mode === 'private' ? 'Financials' : null].filter(Boolean)
+  const stepTitles = ['Basics', 'Details', mode === 'private' ? 'Financials' : null].filter(Boolean)
   const totalSteps = mode === 'private' ? 3 : 2
 
-  return (
-    <Modal onClose={onClose} title="New Session" maxWidth={540}>
-      <div className="flex items-center gap-2 px-6 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-        {stepTitles.map((label, i) => (
-          <div key={label} className="flex items-center gap-2">
-            {i > 0 && <div className="w-8 h-px" style={{ background: 'var(--border)' }} />}
-            <div className="flex items-center gap-1.5">
-              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold"
-                style={{ background: step === i + 1 ? '#6366f1' : step > i + 1 ? '#10b981' : 'var(--surface-raised)', color: step >= i + 1 ? '#fff' : 'var(--text-muted)' }}>
-                {step > i + 1 ? '✓' : i + 1}
-              </div>
-              <span className="text-xs font-medium hidden sm:block" style={{ color: step === i + 1 ? 'var(--text)' : 'var(--text-muted)' }}>{label}</span>
+  const stepperEl = (
+    <div className="flex items-center px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+      {stepTitles.map((label, i) => (
+        <div key={label} className="flex items-center" style={{ flex: i < stepTitles.length - 1 ? 1 : 'none' }}>
+          <div className="flex flex-col items-center" style={{ flexShrink: 0 }}>
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold"
+              style={{ background: step === i + 1 ? '#6366f1' : step > i + 1 ? '#10b981' : 'var(--surface-raised)', color: step >= i + 1 ? '#fff' : 'var(--text-muted)' }}>
+              {step > i + 1 ? '✓' : i + 1}
             </div>
+            <span className="text-xs font-medium mt-0.5" style={{ color: step === i + 1 ? 'var(--text)' : 'var(--text-muted)' }}>{label}</span>
           </div>
-        ))}
-      </div>
+          {i < stepTitles.length - 1 && (
+            <div style={{ flex: 1, height: 1, background: step > i + 1 ? '#10b981' : 'var(--border)', opacity: step > i + 1 ? 0.4 : 1, margin: '0 8px', alignSelf: 'flex-start', marginTop: 12 }} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
 
-      <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: '60vh' }}>
+  const footerEl = (
+    <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+      <button onClick={step === 1 ? onClose : () => setStep(s => s - 1)} className="text-sm px-4 py-2 rounded-lg"
+        style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+        {step === 1 ? 'Cancel' : '← Back'}
+      </button>
+      {step < totalSteps
+        ? <Button onClick={() => setStep(s => s + 1)} disabled={step === 1 && !name.trim()}>Next →</Button>
+        : <Button onClick={handleCreate} disabled={saving || !name.trim()}>{saving ? 'Creating...' : 'Create Session'}</Button>
+      }
+    </div>
+  )
+
+  return (
+    <NewSessionWrapper onClose={onClose} stepper={stepperEl} footer={footerEl}>
+      <div className="space-y-4">
         {step === 1 && (
           <>
             <Input label="Session name" value={name} onChange={setName} placeholder="e.g. Smith Family Portrait" required />
-            <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Session type</label>
-              <select value={type} onChange={e => setType(e.target.value)}
-                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
-                {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Type</label>
+                <select value={type} onChange={e => setType(e.target.value)}
+                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
+                  {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <Input label="Date" value={sessionDate} onChange={setSessionDate} type="date" />
             </div>
             <div>
               <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Mode</label>
@@ -206,12 +262,8 @@ function NewSessionModal({ onClose, onCreated }) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Date" value={sessionDate} onChange={setSessionDate} type="date" />
-              <div />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
               <TimeSelect label="Start time" value={startTime} onChange={setStartTime} />
-              <TimeSelect label="End time (optional)" value={endTime} onChange={setEndTime} />
+              <TimeSelect label={<>End time <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(opt.)</span></>} value={endTime} onChange={setEndTime} />
             </div>
             <div>
               <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Location <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
@@ -222,28 +274,26 @@ function NewSessionModal({ onClose, onCreated }) {
 
         {step === 2 && (
           <>
+            {mode === 'private' && (
+              <div>
+                <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Link client <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
+                <ClientPicker clients={clients} value={clientId} onChange={setClientId} placeholder="Link to a client..." />
+              </div>
+            )}
+            <div style={{ height: 1, background: 'var(--border)' }} />
             <div>
               <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Description <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(client-facing, optional)</span></label>
-              <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Shown in emails and submission forms..." rows={4}
+              <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Shown in emails and submission forms..." rows={2}
                 style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box' }}
                 onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div>
               <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Internal notes <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(private)</span></label>
-              <textarea value={internalNotes} onChange={e => setInternalNotes(e.target.value)} placeholder="Notes visible only to you..." rows={3}
+              <textarea value={internalNotes} onChange={e => setInternalNotes(e.target.value)} placeholder="Notes visible only to you..." rows={2}
                 style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box' }}
                 onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
-            {mode === 'private' && (
-              <div>
-                <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Link client <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
-                <select value={clientId} onChange={e => setClientId(e.target.value)}
-                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
-                  <option value="">No client linked</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-                </select>
-              </div>
-            )}
+            <div style={{ height: 1, background: 'var(--border)' }} />
             <div>
               <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Questionnaires <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
               {questionnaires.length === 0 ? (
@@ -255,13 +305,13 @@ function NewSessionModal({ onClose, onCreated }) {
                     return (
                       <button key={q.id} type="button"
                         onClick={() => setQuestionnaireIds(prev => selected ? prev.filter(id => id !== q.id) : [...prev, q.id])}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"
-                        style={{ border: selected ? '2px solid #6366f1' : '2px solid var(--border)', background: selected ? 'rgba(99,102,241,0.05)' : 'var(--surface)', cursor: 'pointer' }}>
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left"
+                        style={{ border: `1.5px solid ${selected ? '#6366f1' : 'var(--border)'}`, background: selected ? 'rgba(99,102,241,0.05)' : 'var(--surface)', cursor: 'pointer' }}>
                         <div className="w-4 h-4 rounded flex items-center justify-center shrink-0"
                           style={{ background: selected ? '#6366f1' : 'var(--surface-raised)', border: selected ? 'none' : '1.5px solid var(--border)' }}>
                           {selected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                         </div>
-                        <span className="text-sm" style={{ color: selected ? '#6366f1' : 'var(--text)', fontWeight: selected ? '500' : '400' }}>{q.name}</span>
+                        <span className="text-sm truncate" style={{ color: selected ? '#6366f1' : 'var(--text)', fontWeight: selected ? '500' : '400' }}>{q.name}</span>
                       </button>
                     )
                   })}
@@ -300,6 +350,7 @@ function NewSessionModal({ onClose, onCreated }) {
               </div>
               <Toggle checked={retainerPaid} onChange={setRetainerPaid} />
             </div>
+            <div style={{ height: 1, background: 'var(--border)' }} />
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Balance due</label>
@@ -310,7 +361,12 @@ function NewSessionModal({ onClose, onCreated }) {
                     onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
                 </div>
               </div>
-              <Input label="Balance due date" value={balanceDueDate} onChange={setBalanceDueDate} type="date" />
+              <div>
+                <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Due date <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(opt.)</span></label>
+                <input type="date" value={balanceDueDate} onChange={e => setBalanceDueDate(e.target.value)}
+                  style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Payment status</label>
@@ -326,18 +382,9 @@ function NewSessionModal({ onClose, onCreated }) {
           </>
         )}
       </div>
-
-      <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid var(--border)' }}>
-        <button onClick={step === 1 ? onClose : () => setStep(s => s - 1)} className="text-sm px-4 py-2 rounded-lg"
-          style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-          {step === 1 ? 'Cancel' : '← Back'}
-        </button>
-        {step < totalSteps
-          ? <Button onClick={() => setStep(s => s + 1)} disabled={step === 1 && !name.trim()}>Next →</Button>
-          : <Button onClick={handleCreate} disabled={saving || !name.trim()}>{saving ? 'Creating...' : 'Create Session'}</Button>
-        }
+      <div style={{display:'none'}}>
       </div>
-    </Modal>
+    </NewSessionWrapper>
   )
 }
 

@@ -9,6 +9,8 @@ import Button from '../components/ui/Button.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { formatPhone } from '../utils/formatters.js'
 import Input from '../components/ui/Input.jsx'
+import BottomSheet from '../components/layout/BottomSheet.jsx'
+import Modal from '../components/ui/Modal.jsx'
 
 const CONTRACT_STATUS_BADGE = {
   draft:                 { label: 'Draft',            bg: 'var(--surface-raised)',  color: 'var(--text-muted)' },
@@ -16,6 +18,38 @@ const CONTRACT_STATUS_BADGE = {
   pending_photographer:  { label: 'Needs Counter-Sign', bg: '#fef3c7',               color: '#d97706' },
   signed:                { label: 'Signed',            bg: 'var(--success-subtle)', color: 'var(--success)' },
   void:                  { label: 'Void',              bg: 'var(--danger-subtle)',  color: 'var(--danger)' },
+}
+
+function ClientFormWrapper({ onClose, children, footer }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  if (isMobile) {
+    return (
+      <BottomSheet open onClose={onClose} maxHeight="92vh">
+        <div className="flex items-center px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-base" style={{ color: 'var(--text)' }}>New Client</h2>
+        </div>
+        <div className="px-5 py-4 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </BottomSheet>
+    )
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg flex flex-col rounded-2xl shadow-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '90vh' }}>
+        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>New Client</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </div>
+    </div>
+  )
 }
 
 function ClientFormModal({ onClose, onSaved, existingTags = [] }) {
@@ -50,18 +84,18 @@ function ClientFormModal({ onClose, onSaved, existingTags = [] }) {
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }} onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full" style={{ transform: 'translate(-50%, -50%)', maxWidth: 520, padding: '0 16px' }}>
-        <div className="rounded-2xl shadow-xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-            <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>New Client</h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: '70vh' }}>
+    <ClientFormWrapper onClose={onClose} footer={
+      <div className="px-6 py-4 flex items-center justify-between" style={{ borderTop: '1px solid var(--border)' }}>
+        <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg"
+          style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+          Cancel
+        </button>
+        <Button onClick={handleSubmit} disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>
+          {saving ? 'Saving...' : 'Create Client'}
+        </Button>
+      </div>
+    }>
+          <div className="space-y-4">
             {error && (
               <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
                 {error}
@@ -173,16 +207,7 @@ function ClientFormModal({ onClose, onSaved, existingTags = [] }) {
                 onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
           </div>
-
-          <div className="px-6 py-4 flex items-center justify-end gap-3" style={{ borderTop: '1px solid var(--border)' }}>
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>
-              {saving ? 'Saving...' : 'Create Client'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </>
+    </ClientFormWrapper>
   )
 }
 
