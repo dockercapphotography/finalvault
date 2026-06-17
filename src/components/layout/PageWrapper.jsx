@@ -90,6 +90,30 @@ export default function PageWrapper({ session, children }) {
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
                 <Section title="v1.3.0 — June 16, 2026">
+                  <Group label="Sessions">
+                    <Item>New Sessions section — create and manage photography sessions with Private and Walk-up modes</Item>
+                    <Item>Kanban board view with drag-to-update status, plus list view</Item>
+                    <Item>Financial tracking per session — fee, retainer, balance due, payment status</Item>
+                    <Item>Session detail page with status pills, client link, and financials</Item>
+                    <Item>Sessions card on Client Detail</Item>
+                  </Group>
+                  <Group label="Questionnaires">
+                    <Item>Questionnaire template builder in Account → Templates</Item>
+                    <Item>Attach questionnaires to sessions and send per-questionnaire links</Item>
+                    <Item>Walk-up public submission form at /submit/:token</Item>
+                    <Item>Submissions viewer with CSV export and Create Client action</Item>
+                  </Group>
+                  <Group label="Contracts">
+                    <Item>Contracts now live exclusively under Sessions</Item>
+                    <Item>New session variables: session name, date, time, location, fee, and balance</Item>
+                  </Group>
+                  <Group label="Mobile UX">
+                    <Item>New/Edit Session and New/Edit Client modals use slide-up sheet on mobile</Item>
+                    <Item>ClientPicker searchable combobox in New Session and Edit Session</Item>
+                    <Item>Questionnaires consolidated under Account → Templates tab</Item>
+                  </Group>
+                </Section>
+                <Section title="v1.2.0 — June 12, 2026">
                   <Group label="Client CRM">
                     <Item>New Clients section — create and manage client records with contact info, avatars, tags, and pronouns</Item>
                     <Item>Client detail page with linked galleries, contracts, and notes</Item>
