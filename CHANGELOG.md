@@ -4,6 +4,16 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.4 — June 16, 2026
+
+### New Features
+- Submissions can now be deleted directly from the Session Detail submissions list — previously only possible via direct database access
+
+### Bug Fixes
+- Added missing `VITE_GOOGLE_PLACES_KEY` production environment variable to Cloudflare Pages — address autocomplete in Session and Gallery location fields was silently non-functional in production
+
+---
+
 ## v1.3.3 — June 16, 2026
 
 ### Bug Fixes

@@ -11,6 +11,7 @@ import {
   SESSION_TYPES, SESSION_STATUSES, PAYMENT_STATUSES,
   getStatusConfig, getPaymentConfig, formatSessionDate, SESSION_TYPE_ICON,
   getSubmissions, getSessionQuestionnaires, setSessionQuestionnaires,
+  deleteSubmission,
 } from '../utils/sessionApi.js'
 import { getContracts, createClient } from '../utils/crmApi.js'
 import { getGalleries } from '../utils/galleryApi.js'
@@ -455,6 +456,8 @@ const PAGE_SIZE = 50
 
 function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
   const [submissions, setSubmissions] = useState([])
+  const [deletingSubmissionId, setDeletingSubmissionId] = useState(null)
+  const [confirmDeleteSubmissionId, setConfirmDeleteSubmissionId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
@@ -517,6 +520,20 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Submissions')
     XLSX.writeFile(wb, `${session.name} Submissions.xlsx`)
+  }
+
+  async function handleDeleteSubmission(submissionId) {
+    setDeletingSubmissionId(submissionId)
+    try {
+      await deleteSubmission(submissionId)
+      setSubmissions(prev => prev.filter(s => s.id !== submissionId))
+      setConfirmDeleteSubmissionId(null)
+      if (expandedId === submissionId) setExpandedId(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeletingSubmissionId(null)
+    }
   }
 
   async function handleCreateClient(submission) {
@@ -669,14 +686,38 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
                                   </div>
                                 ))}
                               </div>
-                              {!submission.client_id && (
-                                <button onClick={() => handleCreateClient(submission)} disabled={creatingClientId === submission.id}
-                                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
-                                  style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
-                                  <UserPlus size={12} />
-                                  {creatingClientId === submission.id ? 'Creating...' : 'Create client record'}
-                                </button>
-                              )}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {!submission.client_id && (
+                                  <button onClick={() => handleCreateClient(submission)} disabled={creatingClientId === submission.id}
+                                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
+                                    style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
+                                    <UserPlus size={12} />
+                                    {creatingClientId === submission.id ? 'Creating...' : 'Create client record'}
+                                  </button>
+                                )}
+                                {confirmDeleteSubmissionId === submission.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Delete this submission?</span>
+                                    <button onClick={() => handleDeleteSubmission(submission.id)} disabled={deletingSubmissionId === submission.id}
+                                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                                      style={{ background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                                      {deletingSubmissionId === submission.id ? 'Deleting...' : 'Confirm'}
+                                    </button>
+                                    <button onClick={() => setConfirmDeleteSubmissionId(null)}
+                                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                                      style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: 'none', cursor: 'pointer' }}>
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => setConfirmDeleteSubmissionId(submission.id)}
+                                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
+                                    style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none', cursor: 'pointer' }}>
+                                    <Trash2 size={12} />
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>

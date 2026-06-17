@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.3'
+const VERSION = '1.3.4'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,14 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.3.4 — June 16, 2026">
+                  <Group label="New Features">
+                    <Item>Submissions can now be deleted directly from the Session Detail submissions list</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed address autocomplete not working in production due to a missing environment variable</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.3 — June 16, 2026">
                   <Group label="Bug Fixes">
                     <Item>Client Favorites detail panel no longer renders duplicate mobile and desktop versions at once</Item>

@@ -340,6 +340,81 @@ test.describe('Session detail', () => {
   })
 })
 
+// ── Session Submissions — Delete ────────────────────────────────────────────
+
+test.describe('Session Submissions — Delete', () => {
+  let session
+
+  test.beforeEach(async () => {
+    session = await createTestSession({
+      name: 'Submission Delete Test Session',
+      type: 'Convention',
+      mode: 'walk-up',
+      status: 'booked',
+    })
+  })
+
+  test.afterEach(async () => {
+    await deleteTestSession(session.id)
+  })
+
+  async function createTestSubmission(overrides = {}) {
+    const uid = crypto.randomUUID().slice(0, 8)
+    const { data, error } = await sb().from('session_submissions').insert({
+      session_id: session.id,
+      email: `submission-${uid}@example.com`,
+      credit_handle: `Handle-${uid}`,
+      questions: [],
+      answers: {},
+      submitted_at: new Date().toISOString(),
+      ...overrides,
+    }).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  }
+
+  test('Delete button appears when a submission row is expanded', async ({ page }) => {
+    const submission = await createTestSubmission()
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.credit_handle).first().click()
+    await expect(page.getByRole('button', { name: /^Delete$/ }).first()).toBeVisible()
+  })
+
+  test('clicking Delete shows confirm/cancel', async ({ page }) => {
+    const submission = await createTestSubmission()
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.credit_handle).first().click()
+    await page.getByRole('button', { name: /^Delete$/ }).first().click()
+    await expect(page.getByText('Delete this submission?')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Confirm' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
+  })
+
+  test('Cancel dismisses the confirm without deleting', async ({ page }) => {
+    const submission = await createTestSubmission()
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.credit_handle).first().click()
+    await page.getByRole('button', { name: /^Delete$/ }).first().click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByText(submission.credit_handle).first()).toBeVisible()
+
+    const { data } = await sb().from('session_submissions').select('id').eq('id', submission.id).maybeSingle()
+    expect(data).not.toBeNull()
+  })
+
+  test('Confirm removes the submission from the list and database', async ({ page }) => {
+    const submission = await createTestSubmission()
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.credit_handle).first().click()
+    await page.getByRole('button', { name: /^Delete$/ }).first().click()
+    await page.getByRole('button', { name: 'Confirm' }).click()
+    await expect(page.getByText(submission.credit_handle)).not.toBeVisible({ timeout: 5000 })
+
+    const { data } = await sb().from('session_submissions').select('id').eq('id', submission.id).maybeSingle()
+    expect(data).toBeNull()
+  })
+})
+
 // ── Session — Client Detail Card ──────────────────────────────────────────────
 
 test.describe('Sessions card on Client Detail', () => {

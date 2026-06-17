@@ -156,6 +156,14 @@ export async function deleteSession(id) {
 
 // ── Submissions ───────────────────────────────────────────────────────────────
 
+export async function deleteSubmission(submissionId) {
+  const { error } = await supabase
+    .from('session_submissions')
+    .delete()
+    .eq('id', submissionId)
+  if (error) throw error
+}
+
 export async function getSubmissions(sessionId) {
   const { data, error } = await supabase
     .from('session_submissions')
