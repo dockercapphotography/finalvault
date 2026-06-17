@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.0'
+const VERSION = '1.3.1'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,17 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.3.1 — June 16, 2026">
+                  <Group label="Studio Logo">
+                    <Item>Upload a studio logo under Account — PNG, JPG, WebP, or SVG (SVGs auto-converted to PNG)</Item>
+                    <Item>Logo shown on the client gallery gate screen and questionnaire submission form</Item>
+                    <Item>Logo shown in gallery and questionnaire emails, falls back to business name if not set</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Submissions search now matches against submitter email and credit handle</Item>
+                    <Item>SubmitForm footer now shows FinalVault logo mark</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.0 — June 16, 2026">
                   <Group label="Sessions">
                     <Item>New Sessions section — create and manage photography sessions with Private and Walk-up modes</Item>

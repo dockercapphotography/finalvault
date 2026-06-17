@@ -4,6 +4,23 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.1 — June 16, 2026
+
+### New Features
+
+**Studio Logo**
+- Upload a studio logo under Account → Profile — accepts PNG, JPG, WebP, and SVG (SVGs are automatically converted to PNG on upload)
+- Logo appears in the client gallery gate screen (replacing plain studio name text)
+- Logo appears in the questionnaire submission form header
+- Logo appears in gallery notification emails and questionnaire emails — falls back to business name text if no logo is set
+- New public `/logo/` Worker endpoint serves logo files without authentication
+
+### Bug Fixes
+- Submissions search now correctly matches against submitter email and credit handle (previously only searched answer text)
+- SubmitForm footer now shows FinalVault logo mark instead of plain text
+
+---
+
 ## v1.3.0 — June 16, 2026
 
 ### New Features
