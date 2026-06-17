@@ -35,7 +35,7 @@ export default function Bookmarked() {
           const urls = {}
           await Promise.all(i.map(async img => {
             if (!img.preview_r2_key) return
-            try { urls[img.id] = await fetchPreviewObjectUrl({ key: img.preview_r2_key, token }) } catch {}
+            try { urls[img.id] = await fetchPreviewObjectUrl({ key: img.preview_r2_key, token, cacheBust: img.updated_at || null }) } catch {}
           }))
           setPreviewUrls(urls)
         }

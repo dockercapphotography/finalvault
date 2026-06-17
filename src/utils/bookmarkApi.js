@@ -50,7 +50,7 @@ export async function getBookmarkedImages() {
     .select(`
       image_id, created_at,
       gallery_images (
-        id, file_name, preview_r2_key, original_r2_key, watermark_id,
+        id, file_name, preview_r2_key, original_r2_key, watermark_id, updated_at,
         galleries!gallery_images_gallery_id_fkey ( id, title )
       )
     `)

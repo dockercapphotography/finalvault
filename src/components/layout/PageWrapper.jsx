@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.4'
+const VERSION = '1.3.5'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,12 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.3.5 — June 16, 2026">
+                  <Group label="Bug Fixes">
+                    <Item>Bookmark state now stays in sync when switching between gallery sets</Item>
+                    <Item>Bookmarked page now shows the current version of an image after re-watermarking</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.4 — June 16, 2026">
                   <Group label="New Features">
                     <Item>Submissions can now be deleted directly from the Session Detail submissions list</Item>

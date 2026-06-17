@@ -10,6 +10,7 @@ export default function ImageCard({
   isBookmarked: initialBookmarked = false,
   simplified = false,
   onUnbookmark,
+  onBookmark,
 }) {
   const [hovered, setHovered] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -50,10 +51,11 @@ export default function ImageCard({
       if (bookmarked) {
         await unbookmarkImage(image.id)
         setBookmarked(false)
-        onUnbookmark?.()
+        onUnbookmark?.(image.id)
       } else {
         await bookmarkImage(image.id)
         setBookmarked(true)
+        onBookmark?.(image.id)
       }
     } catch (err) { console.error(err) }
   }
@@ -200,6 +202,7 @@ export default function ImageCard({
       {/* Bookmark toggle */}
       <button
         onClick={e => { e.stopPropagation(); handleToggleBookmark() }}
+        aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark image'}
         className="absolute bottom-2 right-2"
         style={{
           zIndex: 10,

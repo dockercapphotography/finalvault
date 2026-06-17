@@ -4,6 +4,14 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.5 — June 16, 2026
+
+### Bug Fixes
+- Bookmarking an image in a gallery now correctly reflects its bookmarked state after switching sets and back — previously the bookmark icon would silently reset even though the bookmark was saved
+- The Bookmarked page now displays the current version of an image, including watermark changes — previously it could serve a stale cached preview that ignored re-watermarking
+
+---
+
 ## v1.3.4 — June 16, 2026
 
 ### New Features

@@ -64,6 +64,17 @@ export default function GalleryDetail() {
   const [watermarkProgress, setWatermarkProgress] = useState({ current: 0, total: 0 })
   const [cacheBusts, setCacheBusts] = useState({})
   const [bookmarkedImageIds, setBookmarkedImageIds] = useState(new Set())
+
+  function handleBookmarkImage(imageId) {
+    setBookmarkedImageIds(prev => new Set(prev).add(imageId))
+  }
+  function handleUnbookmarkImage(imageId) {
+    setBookmarkedImageIds(prev => {
+      const next = new Set(prev)
+      next.delete(imageId)
+      return next
+    })
+  }
   const [viewSize, setViewSize] = useState('small')
   const [showFilename, setShowFilename] = useState(false)
   const [showGridMenu, setShowGridMenu] = useState(false)
@@ -1078,6 +1089,8 @@ export default function GalleryDetail() {
               onReplace={handleReplace}
               onOpen={img => { const idx = activeSetImages.findIndex(i => i.id === img.id); setLightboxIndex(idx >= 0 ? idx : 0) }}
               bookmarkedImageIds={bookmarkedImageIds}
+              onBookmark={handleBookmarkImage}
+              onUnbookmark={handleUnbookmarkImage}
             />
           )}
 
