@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import {CheckCircle, Copy, Eye, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
+import {CheckCircle, Copy, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { supabase } from '../supabaseClient.js'
 import {
@@ -597,12 +597,15 @@ function ProfileTab({ user, onSaveState }) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [cropSrc, setCropSrc] = useState(null)
   const avatarInputRef = useRef(null)
+  const logoInputRef = useRef(null)
+  const [logoUrl, setLogoUrl] = useState(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
   useEffect(() => {
     if (!user) return
     Promise.all([
-      supabase.from('photographers').select('display_name, business_name, business_address, business_city, business_state, business_zip, business_email, business_phone, governing_state, avatar_r2_key').eq('id', user.id).single(),
+      supabase.from('photographers').select('display_name, business_name, business_address, business_city, business_state, business_zip, business_email, business_phone, governing_state, avatar_r2_key, logo_r2_key').eq('id', user.id).single(),
       supabase.from('photographer_storage').select('*, storage_tiers(name, storage_gb)').eq('photographer_id', user.id).single(),
       supabase.from('galleries').select('id').eq('photographer_id', user.id),
     ]).then(async ([{ data }, { data: storageRow }, { data: galleries }]) => {
@@ -629,6 +632,11 @@ function ProfileTab({ user, onSaveState }) {
           const { data: { session } } = await supabase.auth.getSession()
           const resp = await fetch(`${WORKER_URL}/watermark/${encodeURIComponent(data.avatar_r2_key)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
           if (resp.ok) { const blob = await resp.blob(); setAvatarUrl(URL.createObjectURL(blob)) }
+        }
+        if (data?.logo_r2_key) {
+          const { data: { session } } = await supabase.auth.getSession()
+          const resp = await fetch(`${WORKER_URL}/watermark/${encodeURIComponent(data.logo_r2_key)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+          if (resp.ok) { const blob = await resp.blob(); setLogoUrl(URL.createObjectURL(blob)) }
         }
         setLoaded(true)
     })
@@ -673,6 +681,82 @@ function ProfileTab({ user, onSaveState }) {
       onSaveState('saved')
     } catch { onSaveState('error') }
     finally { setUploadingAvatar(false) }
+  }
+
+  async function convertSvgToPng(svgFile) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(svgFile)
+      const img = new Image()
+      img.onload = () => {
+        const w = img.naturalWidth || 800
+        const h = img.naturalHeight || 400
+        const scale = Math.min(1, 1600 / Math.max(w, h))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(w * scale)
+        canvas.height = Math.round(h * scale)
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        URL.revokeObjectURL(url)
+        canvas.toBlob(blob => {
+          if (!blob || blob.size < 100) reject(new Error('SVG conversion produced blank image'))
+          else resolve(blob)
+        }, 'image/png')
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load SVG')) }
+      img.src = url
+    })
+  }
+
+  async function handleLogoSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploadingLogo(true)
+    try {
+      let uploadFile = file
+      if (file.type === 'image/svg+xml' || file.name.endsWith('.svg')) {
+        const pngBlob = await convertSvgToPng(file)
+        uploadFile = new File([pngBlob], file.name.replace(/\.svg$/i, '.png'), { type: 'image/png' })
+      }
+      const { data: { session } } = await supabase.auth.getSession()
+      const { data: existing } = await supabase.from('photographers').select('logo_r2_key').eq('id', user.id).single()
+      if (existing?.logo_r2_key) {
+        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(existing.logo_r2_key)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
+        }).catch(() => {})
+      }
+      const ext = uploadFile.name.split('.').pop()
+      const r2Key = `photographers/${user.id}/logos/logo-${crypto.randomUUID()}.${ext}`
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+      formData.append('key', r2Key)
+      const resp = await fetch(`${WORKER_URL}/watermark-upload`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, body: formData })
+      const result = await resp.json()
+      if (!result.ok) throw new Error(result.error || 'Upload failed')
+      await supabase.from('photographers').update({ logo_r2_key: r2Key, updated_at: new Date().toISOString() }).eq('id', user.id)
+      setLogoUrl(URL.createObjectURL(uploadFile))
+      onSaveState('saved')
+    } catch (err) {
+      console.error('Logo upload error:', err)
+      onSaveState('error')
+    } finally { setUploadingLogo(false) }
+  }
+
+  async function handleLogoRemove() {
+    setUploadingLogo(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const { data: existing } = await supabase.from('photographers').select('logo_r2_key').eq('id', user.id).single()
+      if (existing?.logo_r2_key) {
+        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(existing.logo_r2_key)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
+        }).catch(() => {})
+      }
+      await supabase.from('photographers').update({ logo_r2_key: null, updated_at: new Date().toISOString() }).eq('id', user.id)
+      setLogoUrl(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+    finally { setUploadingLogo(false) }
   }
 
   async function save() {
@@ -748,6 +832,41 @@ function ProfileTab({ user, onSaveState }) {
           {cropSrc && <AvatarCropModal imageSrc={cropSrc} onSave={handleCropSave} onCancel={() => setCropSrc(null)} saving={uploadingAvatar} />}
           <Input label="Display name" value={displayName} onChange={setDisplayName} onBlur={save} placeholder="Your name" />
           <Input label="Business / Studio name" value={businessName} onChange={setBusinessName} onBlur={save} placeholder="e.g. Docker Cap Photography" hint="Used in gallery emails and client-facing communications" />
+
+          {/* Logo upload */}
+          <div>
+            <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Studio logo</label>
+            <div className="flex items-center gap-4">
+              <button onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo} title="Upload logo" style={{ width: 120, height: 56, flexShrink: 0, background: 'var(--surface-raised)', border: '1px dashed var(--border)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, position: 'relative', overflow: 'hidden', transition: 'border-color 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                {logoUrl
+                  ? <img src={logoUrl} alt="Studio logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', padding: 8 }} />
+                  : <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <ImageIcon size={18} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.7 }}>Click to upload</span>
+                    </div>}
+                {uploadingLogo && (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 12 }}>
+                    <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />
+                  </div>
+                )}
+              </button>
+              <div className="space-y-1">
+                <button onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo} className="text-sm font-medium block" style={{ color: 'var(--accent)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
+                  {logoUrl ? 'Replace logo' : 'Upload logo'}
+                </button>
+                {logoUrl && (
+                  <button onClick={handleLogoRemove} disabled={uploadingLogo} className="text-sm block" style={{ color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
+                    Remove
+                  </button>
+                )}
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>PNG, JPG, or SVG · Shown in galleries and emails</p>
+              </div>
+            </div>
+            <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style={{ display: 'none' }} onChange={handleLogoSelect} />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <Input label="Business email" value={businessEmail} onChange={setBusinessEmail} onBlur={save} placeholder="contact@yourstudio.com" type="email" />
             <Input label="Business phone" value={businessPhone} onChange={setBusinessPhone} onBlur={save} placeholder="(555) 000-0000" />

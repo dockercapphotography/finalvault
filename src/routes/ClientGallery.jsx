@@ -3,13 +3,13 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Lock, ArrowRight } from 'lucide-react'
 import {
   getGalleryByToken, verifyGalleryPassword, getPhotographerName,
-  getOrCreateViewer, getViewerFromSession
+  getPhotographerBranding, getOrCreateViewer, getViewerFromSession
 } from '../utils/clientApi.js'
 import { supabaseAnon } from '../supabaseClientAnon.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
-function GateWrapper({ gallery, photographerName, children }) {
+function GateWrapper({ gallery, photographerName, logoUrl, children }) {
   const [coverBlobUrl, setCoverBlobUrl] = useState(null)
 
   useEffect(() => {
@@ -67,9 +67,12 @@ function GateWrapper({ gallery, photographerName, children }) {
       <div className="relative z-10 w-full max-w-sm space-y-6 pb-12">
         {gallery && (
           <div className="text-center space-y-1">
-            <p className="text-xs uppercase tracking-widest font-medium text-white/60">
-              {photographerName || 'Your photographer'}
-            </p>
+            {logoUrl
+              ? <img src={logoUrl} alt={photographerName || 'Studio logo'} style={{ maxHeight: 36, maxWidth: 180, objectFit: 'contain', margin: '0 auto 12px', display: 'block', filter: 'brightness(0) invert(1)', opacity: 0.85 }} />
+              : <p className="text-xs uppercase tracking-widest font-medium text-white/60">
+                  {photographerName || 'Your photographer'}
+                </p>
+            }
             <h1 className="text-3xl font-bold text-white tracking-tight">{gallery.title}</h1>
             {gallery.client_name && (
               <p className="text-sm text-white/60">For {gallery.client_name}</p>
@@ -147,6 +150,7 @@ export default function ClientGallery() {
   const [error, setError] = useState(null)
   const [stage, setStage] = useState('loading')
   const [photographerName, setPhotographerName] = useState('')
+  const [logoUrl, setLogoUrl] = useState(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -173,7 +177,10 @@ export default function ClientGallery() {
       setGallery(g)
 
       if (g.photographer_id) {
-        getPhotographerName(g.photographer_id).then(n => { if (n) setPhotographerName(n) })
+        getPhotographerBranding(g.photographer_id).then(({ name, logoR2Key }) => {
+          if (name) setPhotographerName(name)
+          if (logoR2Key) setLogoUrl(`${WORKER_URL}/logo/${encodeURIComponent(logoR2Key)}`)
+        })
       }
 
       const existingViewer = getViewerFromSession(g.id)
@@ -247,7 +254,7 @@ export default function ClientGallery() {
   )
 
   if (error) return (
-    <GateWrapper gallery={gallery} photographerName={photographerName}>
+    <GateWrapper gallery={gallery} photographerName={photographerName} logoUrl={logoUrl}>
       <div className="text-center space-y-2 rounded-2xl p-6"
         style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
         <p className="text-lg font-semibold text-white">Gallery unavailable</p>
@@ -257,7 +264,7 @@ export default function ClientGallery() {
   )
 
   if (stage === 'name') return (
-    <GateWrapper gallery={gallery} photographerName={photographerName}>
+    <GateWrapper gallery={gallery} photographerName={photographerName} logoUrl={logoUrl}>
       <div className="space-y-3">
         <InputField
           value={email}
@@ -274,7 +281,7 @@ export default function ClientGallery() {
   )
 
   if (stage === 'password') return (
-    <GateWrapper gallery={gallery} photographerName={photographerName}>
+    <GateWrapper gallery={gallery} photographerName={photographerName} logoUrl={logoUrl}>
       <form className="space-y-3" onSubmit={e => { e.preventDefault(); handlePasswordSubmit() }}>
         <div className="flex items-center gap-2 justify-center text-white/70 text-sm">
           <Lock size={14} />

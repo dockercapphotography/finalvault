@@ -111,7 +111,7 @@ serve(async (req) => {
 
     const { data: photographer } = await supabase
       .from('photographers')
-      .select('display_name, business_name, social_links, payment_links')
+      .select('display_name, business_name, social_links, payment_links, logo_r2_key')
       .eq('id', user.id)
       .single()
 
@@ -132,6 +132,9 @@ serve(async (req) => {
     }
 
     const senderName = photographer?.business_name || photographer?.display_name || 'Your Photographer'
+    const logoUrl = photographer?.logo_r2_key
+      ? `${workerUrl}/logo/${encodeURIComponent(photographer.logo_r2_key)}`
+      : null
     const galleryUrl = `https://finalvault.dockercapphotography.com/g/${gallery.share_token}`
 
     const expiryDateStr = gallery.expires_at
@@ -166,6 +169,7 @@ serve(async (req) => {
 
       const html = buildEmailHtml({
         senderName,
+        logoUrl,
         galleryTitle: gallery.title,
         clientName,
         eventName: gallery.event_name || '',
@@ -229,8 +233,9 @@ const SOCIAL_META: Record<string, { label: string; color: string; icon: string }
   cashapp:   { label: 'Cash App',  color: '#00D632', icon: '<path d="M23.59 3.474A11.967 11.967 0 0 0 20.526.41C18.59-.125 12 0 12 0S5.41-.125 3.474.41A11.967 11.967 0 0 0 .41 3.474C-.125 5.41 0 12 0 12s-.125 6.59.41 8.526a11.967 11.967 0 0 0 3.064 3.064C5.41 24.125 12 24 12 24s6.59.125 8.526-.41a11.967 11.967 0 0 0 3.064-3.064C24.125 18.59 24 12 24 12s.125-5.41-.41-7.526zm-6.55 10.03c-.206 1.37-1.24 2.424-2.605 2.64-.448.07-.883.103-1.306.103-.609 0-1.196-.066-1.744-.195l-.55 2.138a.43.43 0 0 1-.416.32h-1.69a.214.214 0 0 1-.207-.267l.562-2.183a4.654 4.654 0 0 1-2.3-1.88.214.214 0 0 1 .06-.286l1.394-.985a.43.43 0 0 1 .574.083c.45.558 1.045.899 1.743.996l.804-3.124c-1.427-.44-2.986-1.125-2.668-3.077.197-1.222 1.128-2.198 2.46-2.46.386-.074.78-.111 1.172-.111.553 0 1.093.072 1.604.21l.49-1.9a.43.43 0 0 1 .416-.321h1.69c.139 0 .232.136.196.27l-.5 1.94a4.787 4.787 0 0 1 2.017 1.666.214.214 0 0 1-.053.29l-1.38 1.003a.43.43 0 0 1-.578-.074 2.404 2.404 0 0 0-1.514-.872l-.78 3.032c1.485.462 3.09 1.2 2.757 3.063z"/>' },
 }
 
-function buildEmailHtml({ senderName, galleryTitle, clientName, eventName, eventDate, galleryUrl, coverImageUrl, password, downloadPin, expiryDate, customMessage, socialLinks, paymentLinks }: {
+function buildEmailHtml({ senderName, logoUrl, galleryTitle, clientName, eventName, eventDate, galleryUrl, coverImageUrl, password, downloadPin, expiryDate, customMessage, socialLinks, paymentLinks }: {
   senderName: string
+  logoUrl: string | null
   galleryTitle: string
   clientName: string
   eventName: string
@@ -269,8 +274,11 @@ function buildEmailHtml({ senderName, galleryTitle, clientName, eventName, event
 
         <!-- Header -->
         <tr>
-          <td style="background:#111111;padding:28px 40px;text-align:center;">
-            <p style="margin:0;color:#ffffff;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;">${senderName}</p>
+          <td style="background:#111111;padding:24px 40px;text-align:center;">
+            ${logoUrl
+              ? `<img src="${logoUrl}" alt="${senderName}" height="40" style="display:inline-block;max-width:200px;max-height:40px;object-fit:contain;border:0;" />`
+              : `<p style="margin:0;color:#ffffff;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;">${senderName}</p>`
+            }
           </td>
         </tr>
 

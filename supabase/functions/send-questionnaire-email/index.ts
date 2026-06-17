@@ -39,7 +39,7 @@ serve(async (req) => {
       .select(`
         id, name, description, submit_token, session_date, start_time, location,
         clients ( first_name, last_name, email ),
-        photographers ( display_name, business_name )
+        photographers ( display_name, business_name, logo_r2_key )
       `)
       .eq('id', sessionId)
       .eq('photographer_id', user.id)
@@ -66,6 +66,10 @@ serve(async (req) => {
 
     const photographer = session.photographers as { display_name: string; business_name: string } | null
     const senderName = photographer?.business_name || photographer?.display_name || 'Your Photographer'
+    const workerUrl = Deno.env.get('R2_WORKER_URL') || 'https://finalvault-worker.sitranephotography.workers.dev'
+    const logoUrl = photographer?.logo_r2_key
+      ? `${workerUrl}/logo/${encodeURIComponent(photographer.logo_r2_key)}`
+      : null
     const clientName = `${client.first_name} ${client.last_name}`
     const formUrl = 'https://finalvault.dockercapphotography.com/submit/' + session.submit_token + (questionnaireId ? '?q=' + questionnaireId : '')
 
@@ -84,6 +88,7 @@ serve(async (req) => {
 
     const html = buildEmailHtml({
       senderName,
+      logoUrl,
       sessionName: session.name,
       clientName,
       formUrl,
@@ -122,8 +127,9 @@ serve(async (req) => {
   }
 })
 
-function buildEmailHtml({ senderName, sessionName, clientName, formUrl, sessionDate, location, description }: {
+function buildEmailHtml({ senderName, logoUrl, sessionName, clientName, formUrl, sessionDate, location, description }: {
   senderName: string
+  logoUrl: string | null
   sessionName: string
   clientName: string
   formUrl: string
@@ -146,7 +152,10 @@ function buildEmailHtml({ senderName, sessionName, clientName, formUrl, sessionD
         <!-- Header -->
         <tr>
           <td style="background:#111111;padding:28px 40px;text-align:center;">
-            <p style="margin:0;color:#ffffff;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;">${senderName}</p>
+            ${logoUrl
+              ? `<img src="${logoUrl}" alt="${senderName}" height="40" style="display:inline-block;max-width:200px;max-height:40px;object-fit:contain;border:0;" />`
+              : `<p style="margin:0;color:#ffffff;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;">${senderName}</p>`
+            }
           </td>
         </tr>
 

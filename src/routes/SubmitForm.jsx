@@ -3,6 +3,8 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient.js'
 import { CheckCircle, AlertCircle, Loader } from 'lucide-react'
 
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
 async function getSessionByToken(token, questionnaireId) {
@@ -10,7 +12,7 @@ async function getSessionByToken(token, questionnaireId) {
     .from('sessions')
     .select(`
       id, name, description, mode, submit_token,
-      photographers ( display_name, business_name )
+      photographers ( display_name, business_name, logo_r2_key )
     `)
     .eq('submit_token', token)
     .single()
@@ -304,10 +306,17 @@ export default function SubmitForm() {
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Header */}
-      <div style={{ background: '#111', padding: '22px 24px', textAlign: 'center' }}>
-        <p style={{ margin: 0, color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-          {studioName}
-        </p>
+      <div style={{ background: '#111', padding: '16px 24px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {session.photographers?.logo_r2_key
+          ? <img
+              src={`${WORKER_URL}/logo/${encodeURIComponent(session.photographers.logo_r2_key)}`}
+              alt={studioName}
+              style={{ maxHeight: 40, maxWidth: 200, objectFit: 'contain' }}
+            />
+          : <p style={{ margin: 0, color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+              {studioName}
+            </p>
+        }
       </div>
 
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 24px 80px' }}>

@@ -32,8 +32,8 @@ export async function handleWatermarkUpload(request, env, corsHeaders) {
   if (!key.startsWith(`photographers/${auth.userId}/`)) {
     return jsonResponse({ ok: false, error: 'Access denied: invalid key prefix' }, 403, corsHeaders)
   }
-  if (!key.includes('/watermarks/')) {
-    return jsonResponse({ ok: false, error: 'Invalid key: must contain /watermarks/' }, 400, corsHeaders)
+  if (!key.includes('/watermarks/') && !key.includes('/logos/')) {
+    return jsonResponse({ ok: false, error: 'Invalid key: must contain /watermarks/ or /logos/' }, 400, corsHeaders)
   }
 
   const fileType = file.type || 'image/png'
@@ -116,7 +116,7 @@ export async function handleWatermarkServe(request, env, corsHeaders) {
   }
 
   // Security: watermark key must belong to this photographer
-  if (!key.startsWith(`photographers/${photographerId}/watermarks/`)) {
+  if (!key.startsWith(`photographers/${photographerId}/watermarks/`) && !key.startsWith(`photographers/${photographerId}/logos/`)) {
     return jsonResponse({ ok: false, error: 'Access denied' }, 403, corsHeaders)
   }
 
@@ -137,6 +137,45 @@ export async function handleWatermarkServe(request, env, corsHeaders) {
   } catch (err) {
     console.error('R2 watermark serve error:', err)
     return jsonResponse({ ok: false, error: 'Failed to serve watermark' }, 500, corsHeaders)
+  }
+}
+
+/**
+ * GET /logo/:key
+ * Publicly serves a studio logo. No auth required.
+ * Key must be under photographers/{id}/logos/ — enforced here.
+ */
+export async function handleLogoServe(request, env, corsHeaders) {
+  const url = new URL(request.url)
+  const key = decodeURIComponent(url.pathname.replace(/^\/logo\//, ''))
+
+  if (!key) {
+    return jsonResponse({ ok: false, error: 'No key provided' }, 400, corsHeaders)
+  }
+
+  // Only serve files stored under /logos/ — prevents this endpoint
+  // from being used to serve watermarks or any other private assets
+  if (!key.includes('/logos/')) {
+    return jsonResponse({ ok: false, error: 'Access denied' }, 403, corsHeaders)
+  }
+
+  try {
+    const obj = await env.BUCKET.get(key)
+    if (!obj) {
+      return jsonResponse({ ok: false, error: 'Not found' }, 404, corsHeaders)
+    }
+
+    return new Response(obj.body, {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': obj.httpMetadata?.contentType || 'image/png',
+        'Cache-Control': 'public, max-age=86400',
+      }
+    })
+  } catch (err) {
+    console.error('R2 logo serve error:', err)
+    return jsonResponse({ ok: false, error: 'Failed to serve logo' }, 500, corsHeaders)
   }
 }
 
