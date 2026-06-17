@@ -97,14 +97,15 @@ export async function getClientGalleries(clientId) {
 
 // ── Contracts ─────────────────────────────────────────────────────────────────
 
-export async function getContracts({ clientId, galleryId } = {}) {
+export async function getContracts({ clientId, galleryId, sessionId } = {}) {
   let query = supabase
     .from('contracts')
-    .select('id, title, status, signed_at, photographer_signed_at, sent_at, created_at, client_id, gallery_id, clients(first_name, last_name), galleries(title)')
+    .select('id, title, status, signed_at, photographer_signed_at, sent_at, created_at, client_id, gallery_id, session_id, clients(first_name, last_name), galleries(title)')
     .order('created_at', { ascending: false })
 
   if (clientId) query = query.eq('client_id', clientId)
   if (galleryId) query = query.eq('gallery_id', galleryId)
+  if (sessionId) query = query.eq('session_id', sessionId)
 
   const { data, error } = await query
   if (error) throw error
@@ -122,7 +123,7 @@ export async function getContract(id) {
   return data
 }
 
-export async function createContractDraft({ clientId, galleryId, templateId, title, body, bodyHash }) {
+export async function createContractDraft({ clientId, galleryId, sessionId, templateId, title, body, bodyHash }) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
     .from('contracts')
@@ -130,6 +131,7 @@ export async function createContractDraft({ clientId, galleryId, templateId, tit
       photographer_id: user.id,
       client_id: clientId || null,
       gallery_id: galleryId || null,
+      session_id: sessionId || null,
       template_id: templateId || null,
       title,
       body,
@@ -266,7 +268,7 @@ export async function deleteContractTemplate(id) {
 
 // ── Variable resolution ───────────────────────────────────────────────────────
 
-export function resolveTemplateVariables(body, { photographer, client, gallery } = {}) {
+export function resolveTemplateVariables(body, { photographer, client, gallery, session } = {}) {
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   const eventDate = gallery?.event_date
     ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -286,6 +288,11 @@ export function resolveTemplateVariables(body, { photographer, client, gallery }
     client?.zip,
   ].filter(Boolean).join(', ')
 
+  const fmtDate = (d) => d
+    ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : ''
+  const fmtMoney = (v) => v != null ? `$${parseFloat(v).toFixed(2)}` : ''
+
   const vars = {
     client_name: client ? `${client.first_name} ${client.last_name}` : '',
     client_first_name: client?.first_name ?? '',
@@ -298,14 +305,24 @@ export function resolveTemplateVariables(body, { photographer, client, gallery }
     photographer_address: photographerAddress,
     governing_state: photographer?.governing_state ?? '',
     gallery_title: gallery?.title ?? '',
-    event_name: gallery?.event_name ?? '',
+    event_name: gallery?.event_name ?? session?.name ?? '',
     event_date: eventDate,
     today_date: today,
     sign_date: '{{sign_date}}',
-    session_fee: '',
-    retainer_amount: '',
-    balance_due: '',
-    balance_due_date: '',
+    session_name: session?.name ?? '',
+    session_type: session?.type ?? '',
+    session_date: session?.session_date ? fmtDate(session.session_date) : '',
+    session_time: session?.start_time
+      ? (() => {
+          const fmt = t => { const [h, m] = t.split(':'); const hour = parseInt(h); return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}` }
+          return fmt(session.start_time) + (session.end_time ? ` – ${fmt(session.end_time)}` : '')
+        })()
+      : '',
+    session_location: session?.location ?? '',
+    session_fee: fmtMoney(session?.session_fee),
+    retainer_amount: fmtMoney(session?.retainer_amount),
+    balance_due: fmtMoney(session?.balance_due),
+    balance_due_date: session?.balance_due_date ? fmtDate(session.balance_due_date) : '',
     cancellation_days: '',
   }
 

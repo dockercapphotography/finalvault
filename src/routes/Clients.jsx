@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, User, Mail, Phone, Tag, X, ChevronRight } from 'lucide-react'
+import { Plus, Search, User, Mail, Phone, Tag, X, ChevronRight, SlidersHorizontal } from 'lucide-react'
+import FilterSheet from '../components/ui/FilterSheet.jsx'
 import { getClients, createClient, deleteClient, getAllTags as fetchAllTags } from '../utils/crmApi.js'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
@@ -8,6 +9,8 @@ import Button from '../components/ui/Button.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { formatPhone } from '../utils/formatters.js'
 import Input from '../components/ui/Input.jsx'
+import BottomSheet from '../components/layout/BottomSheet.jsx'
+import Modal from '../components/ui/Modal.jsx'
 
 const CONTRACT_STATUS_BADGE = {
   draft:                 { label: 'Draft',            bg: 'var(--surface-raised)',  color: 'var(--text-muted)' },
@@ -17,10 +20,42 @@ const CONTRACT_STATUS_BADGE = {
   void:                  { label: 'Void',              bg: 'var(--danger-subtle)',  color: 'var(--danger)' },
 }
 
+function ClientFormWrapper({ onClose, children, footer }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  if (isMobile) {
+    return (
+      <BottomSheet open onClose={onClose} maxHeight="92vh">
+        <div className="flex items-center px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-base" style={{ color: 'var(--text)' }}>New Client</h2>
+        </div>
+        <div className="px-5 py-4 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </BottomSheet>
+    )
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg flex flex-col rounded-2xl shadow-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '90vh' }}>
+        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>New Client</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </div>
+    </div>
+  )
+}
+
 function ClientFormModal({ onClose, onSaved, existingTags = [] }) {
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', phone: '',
-    address: '', city: '', state: '', zip: '', notes: '', tags: '', pronouns: '',
+    address: '', city: '', state: '', zip: '', notes: '', tags: [], pronouns: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -49,18 +84,18 @@ function ClientFormModal({ onClose, onSaved, existingTags = [] }) {
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }} onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full" style={{ transform: 'translate(-50%, -50%)', maxWidth: 520, padding: '0 16px' }}>
-        <div className="rounded-2xl shadow-xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-            <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>New Client</h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: '70vh' }}>
+    <ClientFormWrapper onClose={onClose} footer={
+      <div className="px-6 py-4 flex items-center justify-between" style={{ borderTop: '1px solid var(--border)' }}>
+        <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg"
+          style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+          Cancel
+        </button>
+        <Button onClick={handleSubmit} disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>
+          {saving ? 'Saving...' : 'Create Client'}
+        </Button>
+      </div>
+    }>
+          <div className="space-y-4">
             {error && (
               <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
                 {error}
@@ -172,16 +207,7 @@ function ClientFormModal({ onClose, onSaved, existingTags = [] }) {
                 onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
           </div>
-
-          <div className="px-6 py-4 flex items-center justify-end gap-3" style={{ borderTop: '1px solid var(--border)' }}>
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>
-              {saving ? 'Saving...' : 'Create Client'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </>
+    </ClientFormWrapper>
   )
 }
 
@@ -216,7 +242,8 @@ export default function Clients() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
-  const [tagFilter, setTagFilter] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [tagFilter, setTagFilter] = useState([])
   const [showNewModal, setShowNewModal] = useState(false)
   const [toast, setToast] = useState(null)
 
@@ -254,28 +281,46 @@ export default function Clients() {
       fullName.includes(search.toLowerCase()) ||
       c.email?.toLowerCase().includes(search.toLowerCase()) ||
       c.phone?.includes(search)
-    const matchesTag = !tagFilter || (c.tags ?? []).includes(tagFilter)
+    const matchesTag = !tagFilter.length || tagFilter.every(t => (c.tags ?? []).includes(t))
     return matchesSearch && matchesTag
   })
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
+      <div className="flex items-center gap-2">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Clients</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {clients.length} {clients.length === 1 ? 'client' : 'clients'}
           </p>
         </div>
-        <Button onClick={() => setShowNewModal(true)}>
-          <Plus size={15} />New Client
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          {/* Filter icon — mobile only */}
+          <button onClick={() => setShowFilters(true)}
+            className="flex items-center justify-center rounded-xl md:hidden"
+            style={{ width: 44, height: 44, background: tagFilter.length ? 'rgba(99,102,241,0.1)' : '#ffffff', border: `1px solid ${tagFilter.length ? '#6366f1' : '#e5e7eb'}`, color: tagFilter.length ? '#6366f1' : '#9ca3af', cursor: 'pointer', flexShrink: 0 }}
+            aria-label="Filter clients">
+            <SlidersHorizontal size={18} />
+          </button>
+          {/* New Client — icon+label on desktop, icon-only (#111) on mobile */}
+          <button onClick={() => setShowNewModal(true)}
+            className="hidden md:flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            <Plus size={15} />New Client
+          </button>
+          <button onClick={() => setShowNewModal(true)}
+            className="flex items-center justify-center rounded-xl md:hidden"
+            style={{ width: 44, height: 44, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+            aria-label="New Client">
+            <Plus size={18} />
+          </button>
+        </div>
       </div>
 
-      {/* Search + tag filter */}
+      {/* Search + tag filter — desktop only */}
       {clients.length > 0 && (
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="hidden md:flex items-center gap-3 flex-wrap">
           <div className="relative flex-1" style={{ minWidth: 200 }}>
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
             <input
@@ -293,8 +338,8 @@ export default function Clients() {
             <div className="relative">
               <Tag size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
               <select
-                value={tagFilter}
-                onChange={e => setTagFilter(e.target.value)}
+                value={tagFilter[0] || ''}
+                onChange={e => setTagFilter(e.target.value ? [e.target.value] : [])}
                 className="text-sm pl-8 pr-8 py-2 rounded-lg outline-none appearance-none"
                 style={{
                   background: tagFilter ? '#6366f1' : 'var(--surface)',
@@ -305,8 +350,8 @@ export default function Clients() {
                 <option value="">All tags</option>
                 {allTags.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
-              {tagFilter && (
-                <button onClick={() => setTagFilter('')}
+              {tagFilter.length > 0 && (
+                <button onClick={() => setTagFilter([])}
                   className="absolute right-2 top-1/2 -translate-y-1/2"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', display: 'flex' }}>
                   <X size={12} />
@@ -314,14 +359,47 @@ export default function Clients() {
               )}
             </div>
           )}
-          {(search || tagFilter) && (
-            <button onClick={() => { setSearch(''); setTagFilter('') }}
+          {(search || tagFilter.length > 0) && (
+            <button onClick={() => { setSearch(''); setTagFilter([]) }}
               className="text-xs" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
               Clear
             </button>
           )}
         </div>
       )}
+
+      {/* Mobile search bar */}
+      <div className="relative md:hidden">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search clients..."
+          className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+          onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+          onBlur={e => e.target.style.borderColor = 'var(--border)'}
+        />
+      </div>
+
+      {/* Mobile filter sheet */}
+      <FilterSheet
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        title="Filters"
+        filters={[
+          {
+            key: 'tag',
+            label: 'Tags',
+            placeholder: 'Any',
+            multiple: true,
+            options: allTags.map(t => ({ value: t, label: t })),
+          },
+        ]}
+        values={{ tag: tagFilter }}
+        onChange={(key, val) => { if (key === 'tag') setTagFilter(val) }}
+      />
 
       {/* Loading */}
       {loading && (

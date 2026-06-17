@@ -2,26 +2,27 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Cropper from 'react-easy-crop'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ExternalLink, Camera,
-  Pencil, Trash2, X, Plus, FilePlus, Clock, CheckCircle,
-  AlertCircle, Ban, Send
+  ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, Camera,
+  Pencil, Trash2, X, Plus, Clock, CheckCircle,
+  AlertCircle, Ban, CalendarDays
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
+import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
+import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
 import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
-import SendContractModal from '../components/SendContractModal.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
 const CONTRACT_STATUS_CONFIG = {
   draft:                { label: 'Draft',              variant: 'default',  Icon: FileText },
-  sent:                 { label: 'Awaiting Signature', variant: 'warning',  Icon: Send },
+  sent:                 { label: 'Awaiting Signature', variant: 'warning',  Icon: Clock },
   pending_photographer: { label: 'Needs Counter-Sign', variant: 'warning',  Icon: AlertCircle },
   signed:               { label: 'Signed',             variant: 'success',  Icon: CheckCircle },
   void:                 { label: 'Void',               variant: 'danger',   Icon: Ban },
@@ -101,6 +102,38 @@ function ClientAvatarCropModal({ imageSrc, onSave, onCancel, saving }) {
 
 
 
+function EditClientWrapper({ onClose, footer, children }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  if (isMobile) {
+    return (
+      <BottomSheet open onClose={onClose} maxHeight="92vh">
+        <div className="flex items-center px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-base" style={{ color: 'var(--text)' }}>Edit Client</h2>
+        </div>
+        <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </BottomSheet>
+    )
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg flex flex-col rounded-2xl shadow-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '90vh' }}>
+        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Edit Client</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-3 overflow-y-auto flex-1">{children}</div>
+        {footer && <div className="shrink-0">{footer}</div>}
+      </div>
+    </div>
+  )
+}
+
 function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onClose, onSaved, allTags = [] }) {
   const [form, setForm] = useState({
     firstName: client.first_name,
@@ -143,19 +176,21 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
   const focus = e => e.target.style.borderColor = 'var(--border-strong)'
   const blur  = e => e.target.style.borderColor = 'var(--border)'
 
-  return (
-    <>
-      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }} onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full" style={{ transform: 'translate(-50%, -50%)', maxWidth: 520, padding: '0 16px' }}>
-        <div className="rounded-2xl shadow-xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-            <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Edit Client</h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
-              <X size={18} />
-            </button>
-          </div>
+  const footerEl = (
+    <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+      <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg"
+        style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+        Cancel
+      </button>
+      <Button onClick={handleSubmit} disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>
+        {saving ? 'Saving...' : 'Save Changes'}
+      </Button>
+    </div>
+  )
 
-          <div className="px-4 py-4 space-y-3 overflow-y-auto" style={{ maxHeight: '75vh' }}>
+  return (
+    <EditClientWrapper onClose={onClose} footer={footerEl}>
+      <div>
             {error && (
               <div className="px-3 py-2 rounded-xl text-sm" style={{ background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
                 {error}
@@ -272,16 +307,7 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
             </div>
 
           </div>
-
-          <div className="px-6 py-4 flex items-center justify-end gap-3" style={{ borderTop: '1px solid var(--border)' }}>
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </>
+    </EditClientWrapper>
   )
 }
 
@@ -319,7 +345,7 @@ function GalleryRow({ gallery }) {
         </p>
       </div>
       <Badge variant={isActive ? 'success' : 'default'}>{isActive ? 'Active' : 'Inactive'}</Badge>
-      <ExternalLink size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+      <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
     </Link>
   )
 }
@@ -356,11 +382,11 @@ export default function ClientDetail() {
   const navigate = useNavigate()
   const [client, setClient] = useState(null)
   const [galleries, setGalleries] = useState([])
+  const [sessions, setSessions] = useState([])
   const [contracts, setContracts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showEdit, setShowEdit] = useState(false)
-  const [showSendContract, setShowSendContract] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [cropSrc, setCropSrc] = useState(null)
@@ -377,13 +403,15 @@ export default function ClientDetail() {
     setLoading(true)
     setError(null)
     try {
-      const [c, g, cx] = await Promise.all([
+      const [c, g, sx, cx] = await Promise.all([
         getClient(id),
         getClientGalleries(id),
+        getSessions({ clientId: id }).catch(() => []),
         getContracts({ clientId: id }),
       ])
       setClient(c)
       setGalleries(g)
+      setSessions(sx)
       setContracts(cx)
       supabase.auth.getUser().then(({ data: { user: u } }) => { if (u) getAllTags(u.id).then(tags => setAllTags(tags || [])).catch(() => {}) })
       if (c?.avatar_r2_key) {
@@ -607,6 +635,60 @@ export default function ClientDetail() {
         )}
       </div>
 
+
+      {/* Sessions */}
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+          <div>
+            <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Sessions</h3>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'}
+            </p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => navigate('/sessions')}>
+            <CalendarDays size={13} />View All
+          </Button>
+        </div>
+        {sessions.length === 0 ? (
+          <div className="px-5 py-8 text-center" style={{ background: 'var(--surface)' }}>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No sessions linked yet.</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Link this client from a session to see it here.</p>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)' }}>
+            {sessions.map((s, i) => {
+              const cfg = getStatusConfig(s.status)
+              return (
+                <button key={s.id} onClick={() => navigate(`/sessions/${s.id}`)}
+                  className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'none', border: 'none', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: 'rgba(99,102,241,0.1)' }}>
+                    <CalendarDays size={14} style={{ color: '#6366f1' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{s.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {s.type}
+                      {s.session_date ? ` · ${new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: cfg.color + '18', color: cfg.color }}>
+                      {cfg.label}
+                    </span>
+                    <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Contracts */}
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
         <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
@@ -616,9 +698,7 @@ export default function ClientDetail() {
               {contracts.length} {contracts.length === 1 ? 'contract' : 'contracts'}
             </p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setShowSendContract(true)}>
-            <FilePlus size={13} />Send Contract
-          </Button>
+
         </div>
 
         {contracts.length === 0 ? (
@@ -688,18 +768,7 @@ export default function ClientDetail() {
         />
       )}
 
-      {showSendContract && client && (
-        <SendContractModal
-          client={client}
-          galleries={galleries}
-          onClose={() => setShowSendContract(false)}
-          onSent={contract => {
-            setContracts(prev => [contract, ...prev])
-            setShowSendContract(false)
-            setToast({ message: 'Contract sent for signature', type: 'success' })
-          }}
-        />
-      )}
+
 
       {cropSrc && (
         <ClientAvatarCropModal

@@ -12,6 +12,9 @@ import Bookmarked from './routes/Bookmarked.jsx'
 import Clients from './routes/Clients.jsx'
 import ClientDetail from './routes/ClientDetail.jsx'
 import ContractDetail from './routes/ContractDetail.jsx'
+import Sessions from './routes/Sessions.jsx'
+import SubmitForm from './routes/SubmitForm.jsx'
+import SessionDetail from './routes/SessionDetail.jsx'
 import Admin from './routes/Admin.jsx'
 import ClientGallery from './routes/ClientGallery.jsx'
 import ClientGalleryView from './routes/ClientGalleryView.jsx'
@@ -121,6 +124,7 @@ export default function App() {
       <Route path="/g/:token/view" element={<ClientGalleryView />} />
 
       <Route path="/sign/:token" element={<SignContract />} />
+      <Route path="/submit/:token" element={<SubmitForm />} />
       <Route path="/clients" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><Clients /></PageWrapper>
@@ -134,6 +138,16 @@ export default function App() {
       <Route path="/contracts/:id" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><ContractDetail /></PageWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/sessions" element={
+        <ProtectedRoute session={session}>
+          <PageWrapper session={session}><Sessions /></PageWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/sessions/:id" element={
+        <ProtectedRoute session={session}>
+          <PageWrapper session={session}><SessionDetail /></PageWrapper>
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -77,7 +77,7 @@ test.describe('Clients list', () => {
 
   test('shows search input', async ({ page }) => {
     await page.goto('/clients')
-    await expect(page.locator('input[placeholder="Search clients..."]')).toBeVisible()
+    await expect(page.locator('input[placeholder="Search clients..."]').first()).toBeVisible()
   })
 
   test('existing clients appear in list', async ({ page }) => {
@@ -91,11 +91,15 @@ test.describe('Clients list', () => {
   })
 
   test('search filters clients by name', async ({ page }) => {
-    const client = await createTestClient({ first_name: 'Searchable', last_name: 'Person' })
+    const uid = crypto.randomUUID().slice(0, 8)
+    const client = await createTestClient({ first_name: `Search-${uid}`, last_name: 'Person' })
     try {
       await page.goto('/clients')
-      await page.locator('input[placeholder="Search clients..."]').fill('Searchable')
-      await expect(page.getByText('Searchable').first()).toBeVisible()
+      // Use the visible search input (desktop = first visible one)
+      const search = page.locator('input[placeholder="Search clients..."]').first()
+      await search.waitFor({ state: 'visible' })
+      await search.fill(`Search-${uid}`)
+      await expect(page.getByText(`Search-${uid}`).first()).toBeVisible({ timeout: 5000 })
     } finally {
       await deleteTestClient(client.id)
     }
@@ -277,90 +281,15 @@ test.describe('Client detail', () => {
     expect(data.tags).toContain('cosplay')
   })
 
-  test('shows Send Contract button', async ({ page }) => {
+  test('does not show Send Contract button (moved to Sessions in v1.3.0)', async ({ page }) => {
     await page.goto(`/clients/${client.id}`)
-    await expect(page.getByRole('button', { name: /Send Contract/i }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: /Send Contract/i })).not.toBeVisible()
   })
 })
 
 // ── Send Contract Modal ───────────────────────────────────────────────────────
-
-test.describe('Send Contract modal', () => {
-  let client
-  let template
-
-  test.beforeEach(async () => {
-    client = await createTestClient({
-      first_name: 'Contract',
-      last_name: `Client-${crypto.randomUUID().slice(0, 8)}`,
-      email: `contract-${crypto.randomUUID().slice(0, 8)}@example.com`,
-    })
-    template = await createTestTemplate()
-  })
-
-  test.afterEach(async () => {
-    await deleteTestClient(client.id)
-    await deleteTestTemplate(template.id)
-  })
-
-  test('opens send contract modal', async ({ page }) => {
-    await page.goto(`/clients/${client.id}`)
-    await page.getByRole('button', { name: /Send Contract/i }).first().click()
-    await expect(page.getByRole('heading', { name: 'Send Contract' })).toBeVisible()
-  })
-
-  test('shows template picker', async ({ page }) => {
-    await page.goto(`/clients/${client.id}`)
-    await page.getByRole('button', { name: /Send Contract/i }).first().click()
-    await expect(page.getByText('Contract template')).toBeVisible()
-  })
-
-  test('Continue button disabled without template selection', async ({ page }) => {
-    await page.goto(`/clients/${client.id}`)
-    await page.getByRole('button', { name: /Send Contract/i }).first().click()
-    await expect(page.getByRole('button', { name: /Continue/i })).toBeDisabled()
-  })
-
-  test('selects template and advances to preview', async ({ page }) => {
-    await page.goto(`/clients/${client.id}`)
-    await page.getByRole('button', { name: /Send Contract/i }).first().click()
-    await page.getByText('Select a template...').click()
-    await page.getByText(template.name).first().click()
-    await page.getByRole('button', { name: /Continue/i }).click()
-    await expect(page.getByText('Review Contract')).toBeVisible()
-  })
-
-  test('preview shows resolved client name', async ({ page }) => {
-    await page.goto(`/clients/${client.id}`)
-    await page.getByRole('button', { name: /Send Contract/i }).first().click()
-    await page.getByText('Select a template...').click()
-    await page.getByText(template.name).first().click()
-    await page.getByRole('button', { name: /Continue/i }).click()
-    await expect(page.getByText(`${client.first_name} ${client.last_name}`).first()).toBeVisible()
-  })
-
-  test('preview has Back button that returns to pick step', async ({ page }) => {
-    await page.goto(`/clients/${client.id}`)
-    await page.getByRole('button', { name: /Send Contract/i }).first().click()
-    await page.getByText('Select a template...').click()
-    await page.getByText(template.name).first().click()
-    await page.getByRole('button', { name: /Continue/i }).click()
-    await page.getByRole('button', { name: 'Back' }).click()
-    await expect(page.getByText('Contract template')).toBeVisible()
-  })
-
-  test('preview Edit/Preview toggle works', async ({ page }) => {
-    await page.goto(`/clients/${client.id}`)
-    await page.getByRole('button', { name: /Send Contract/i }).first().click()
-    await page.getByText('Select a template...').click()
-    await page.getByText(template.name).first().click()
-    await page.getByRole('button', { name: /Continue/i }).click()
-    await page.getByRole('button', { name: 'Edit' }).nth(1).click()
-    await expect(page.locator('textarea').first()).toBeVisible()
-    await page.getByRole('button', { name: 'Preview' }).click()
-    await expect(page.locator('textarea').first()).not.toBeVisible()
-  })
-})
+// NOTE: Send Contract was moved from Client Detail to Sessions in v1.3.0.
+// Contract tests now live in sessions.spec.js under Session Detail.
 
 // ── Contract Detail ───────────────────────────────────────────────────────────
 

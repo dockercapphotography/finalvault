@@ -1472,20 +1472,18 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {(galleries.length > 0 || folders.length > 0) && (
-            <button onClick={() => setMobileFilterOpen(true)}
-              className="relative flex items-center justify-center rounded-xl"
-              style={{ width: 44, height: 44, background: hasFilters ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${hasFilters ? '#6366f1' : 'var(--border)'}`, color: hasFilters ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
-              aria-label="Filters">
-              <SlidersHorizontal size={18} />
-              {activeFilterCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
-                  style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          )}
+          <button onClick={() => setMobileFilterOpen(true)}
+            className="relative flex items-center justify-center rounded-xl"
+            style={{ width: 44, height: 44, background: hasFilters ? 'rgba(99,102,241,0.1)' : '#ffffff', border: `1px solid ${hasFilters ? '#6366f1' : '#e5e7eb'}`, color: hasFilters ? '#6366f1' : '#9ca3af', cursor: 'pointer', flexShrink: 0 }}
+            aria-label="Filters">
+            <SlidersHorizontal size={18} />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
+                style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => setNewFolderOpen(true)}
             className="flex items-center justify-center rounded-xl"
@@ -1506,8 +1504,7 @@ export default function Dashboard() {
       </div>
 
       {/* Mobile search */}
-      {(galleries.length > 0 || folders.length > 0) && (
-        <div className="relative md:hidden">
+      <div className="relative md:hidden">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search all galleries..."
@@ -1516,7 +1513,6 @@ export default function Dashboard() {
             onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
             onBlur={e => e.target.style.borderColor = 'var(--border)'} />
         </div>
-      )}
 
       {loading && (
         <div className="flex items-center justify-center py-24">

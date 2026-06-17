@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.2.0'
+const VERSION = '1.3.0'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,7 +89,7 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
-                <Section title="v1.2.0 — June 12, 2026">
+                <Section title="v1.3.0 — June 16, 2026">
                   <Group label="Client CRM">
                     <Item>New Clients section — create and manage client records with contact info, avatars, tags, and pronouns</Item>
                     <Item>Client detail page with linked galleries, contracts, and notes</Item>
