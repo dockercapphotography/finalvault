@@ -282,7 +282,14 @@ function PanelContent({ viewer, color, lastUpdated, sortedFaves, totalImages, au
 function ClientFavoritesPanel({ viewer, favorites, authToken, totalImages, onClose, onDeleted, galleryId }) {
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [visible, setVisible] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const color = avatarColor(viewer.email || viewer.display_name)
+
+  useEffect(() => {
+    function onResize() { setIsMobile(window.innerWidth < 768) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
 
   useScrollLock(true)
@@ -309,25 +316,38 @@ function ClientFavoritesPanel({ viewer, favorites, authToken, totalImages, onClo
 
 
       {/* Mobile: bottom sheet */}
-      <div className="md:hidden">
+      {isMobile && (
         <BottomSheet open={true} onClose={handleClose}>
           <PanelContent {...panelProps} />
         </BottomSheet>
-      </div>
+      )}
 
       {/* Desktop: right slide-in */}
-      <div
-        className="fixed top-0 right-0 bottom-0 z-50 hidden md:flex flex-col"
-        style={{
-          width: 400,
-          background: 'var(--surface)',
-          borderLeft: '1px solid var(--border)',
-          transform: visible ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)',
-          boxShadow: '-8px 0 32px rgba(0,0,0,0.08)',
-        }}>
-        <PanelContent {...panelProps} />
-      </div>
+      {!isMobile && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            style={{
+              background: 'rgba(0,0,0,0.15)',
+              opacity: visible ? 1 : 0,
+              transition: 'opacity 0.28s cubic-bezier(0.32,0.72,0,1)',
+            }}
+            onClick={handleClose}
+          />
+          <div
+            className="fixed top-0 right-0 bottom-0 z-50 flex flex-col"
+            style={{
+              width: 400,
+              background: 'var(--surface)',
+              borderLeft: '1px solid var(--border)',
+              transform: visible ? 'translateX(0)' : 'translateX(100%)',
+              transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)',
+              boxShadow: '-8px 0 32px rgba(0,0,0,0.08)',
+            }}>
+            <PanelContent {...panelProps} />
+          </div>
+        </>
+      )}
 
       {lightboxIndex !== null && (
         <FavoritesLightbox

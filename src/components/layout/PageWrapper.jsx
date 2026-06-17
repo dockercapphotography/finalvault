@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.2'
+const VERSION = '1.3.3'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,13 +89,10 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
-                <Section title="v1.3.2 — June 16, 2026">
+                <Section title="v1.3.3 — June 16, 2026">
                   <Group label="Bug Fixes">
-                    <Item>Sessions now correctly filter by client — previously showed all sessions on every client detail page</Item>
-                    <Item>Gallery linking added to Session Detail — link or unlink a gallery from the Overview section</Item>
-                    <Item>Contract event_date variable now falls back to session date when no gallery is linked</Item>
-                    <Item>Contract photographer email, phone, address, and governing state variables now resolve correctly</Item>
-                    <Item>Removed duplicate client row from Session Detail Overview</Item>
+                    <Item>Client Favorites detail panel no longer renders duplicate mobile and desktop versions at once</Item>
+                    <Item>Desktop favorites panel now closes correctly on backdrop click</Item>
                   </Group>
                 </Section>
                 <Section title="v1.3.2 — June 16, 2026">
