@@ -412,9 +412,10 @@ export default function SubmitForm() {
           </button>
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#9ca3af', marginTop: 20 }}>
-          Powered by FinalVault
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 20 }}>
+          <img src="/finalvault_logo.svg" alt="FinalVault" width="22" height="22" style={{ opacity: 0.7 }} />
+          <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: '13px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9ca3af' }}>FinalVault</span>
+        </div>
       </div>
     </div>
   )

@@ -484,7 +484,11 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
   const filtered = submissions.filter(s => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
-    const answerText = Object.values(s.answers || {}).map(v => formatAnswer(v)).join(' ').toLowerCase()
+    const answerText = [
+      s.credit_handle || '',
+      s.email || '',
+      ...Object.values(s.answers || {}).map(v => formatAnswer(v)),
+    ].join(' ').toLowerCase()
     return answerText.includes(q)
   })
 
