@@ -272,7 +272,9 @@ export function resolveTemplateVariables(body, { photographer, client, gallery, 
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   const eventDate = gallery?.event_date
     ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-    : ''
+    : session?.session_date
+      ? new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : ''
 
   const photographerAddress = [
     photographer?.business_address,

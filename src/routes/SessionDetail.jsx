@@ -13,6 +13,7 @@ import {
   getSubmissions, getSessionQuestionnaires, setSessionQuestionnaires,
 } from '../utils/sessionApi.js'
 import { getContracts, createClient } from '../utils/crmApi.js'
+import { getGalleries } from '../utils/galleryApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
 import { getClients } from '../utils/crmApi.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
@@ -23,6 +24,7 @@ import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
 import PlaceAutocomplete from '../components/ui/PlaceAutocomplete.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
+import GalleryPicker from '../components/ui/GalleryPicker.jsx'
 import ClientPicker from '../components/ui/ClientPicker.jsx'
 import * as XLSX from 'xlsx'
 
@@ -716,6 +718,8 @@ export default function SessionDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [session, setSession] = useState(null)
+  const [allGalleries, setAllGalleries] = useState([])
+  const [linkingGallery, setLinkingGallery] = useState(false)
   const [contracts, setContracts] = useState([])
   const [clients, setClients] = useState([])
   const [questionnaires, setQuestionnaires] = useState([])
@@ -736,12 +740,14 @@ export default function SessionDetail() {
   async function load() {
     setLoading(true)
     try {
-      const [s, cs, qs, sq] = await Promise.all([
+      const [s, cs, qs, sq, gs] = await Promise.all([
         getSession(id),
         getClients(),
         getQuestionnaireTemplates(),
         getSessionQuestionnaires(id),
+        getGalleries(),
       ])
+      setAllGalleries(gs || [])
       setSession(s)
       setClients(cs)
       setQuestionnaires(qs)
@@ -935,31 +941,49 @@ export default function SessionDetail() {
             <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text)', lineHeight: 1.6 }}>{session.internal_notes}</p>
           </div>
         )}
-        {clientName && (
-          <Link to={`/clients/${session.client_id}`}
-            className="flex items-center justify-between px-5 py-3.5 transition-colors"
-            style={{ borderBottom: '1px solid var(--border)', textDecoration: 'none', display: 'flex' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <div className="flex items-center gap-2">
-              <User size={13} style={{ color: 'var(--text-muted)' }} />
-              <span className="text-sm" style={{ color: 'var(--text)' }}>{clientName}</span>
-            </div>
-            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-          </Link>
-        )}
-        {session.galleries && (
-          <Link to={`/galleries/${session.gallery_id}`}
-            className="flex items-center justify-between px-5 py-3.5 transition-colors"
-            style={{ textDecoration: 'none', display: 'flex' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <div className="flex items-center gap-2">
+
+        {session.galleries && !linkingGallery && (
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <Link to={`/galleries/${session.gallery_id}`}
+              className="flex items-center gap-2 flex-1"
+              style={{ textDecoration: 'none' }}>
               <FileText size={13} style={{ color: 'var(--text-muted)' }} />
               <span className="text-sm" style={{ color: 'var(--text)' }}>{session.galleries.title}</span>
-            </div>
-            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-          </Link>
+            </Link>
+            <button onClick={async () => {
+              await updateSession(session.id, { galleryId: null })
+              const refreshed = await getSession(session.id)
+              setSession(refreshed)
+            }} className="text-xs ml-3" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              Unlink
+            </button>
+          </div>
+        )}
+        {!session.galleries && !linkingGallery && (
+          <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <button onClick={() => setLinkingGallery(true)} className="text-sm" style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              + Link gallery
+            </button>
+          </div>
+        )}
+        {linkingGallery && (
+          <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <GalleryPicker
+              galleries={allGalleries}
+              value={session.gallery_id}
+              allowNone={false}
+              placeholder="Search galleries..."
+              onChange={async (galleryId) => {
+                await updateSession(session.id, { galleryId: galleryId || null })
+                const refreshed = await getSession(session.id)
+                setSession(refreshed)
+                setLinkingGallery(false)
+              }}
+            />
+            <button onClick={() => setLinkingGallery(false)} className="text-xs mt-2 block" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              Cancel
+            </button>
+          </div>
         )}
         {!session.description && !session.internal_notes && !clientName && !session.galleries && (
           <div className="px-5 py-6 text-center">

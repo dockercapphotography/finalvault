@@ -25,7 +25,7 @@ export { SESSION_TYPES }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
-export async function getSessions({ status, type, mode } = {}) {
+export async function getSessions({ status, type, mode, clientId } = {}) {
   const { data: { user } } = await supabase.auth.getUser()
   let query = supabase
     .from('sessions')
@@ -41,6 +41,7 @@ export async function getSessions({ status, type, mode } = {}) {
   if (status) query = query.eq('status', status)
   if (type) query = query.eq('type', type)
   if (mode) query = query.eq('mode', mode)
+  if (clientId) query = query.eq('client_id', clientId)
 
   const { data, error } = await query
   if (error) throw error

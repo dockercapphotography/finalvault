@@ -45,7 +45,7 @@ export default function SendContractModal({ client, galleries = [], sessionData 
       if (user) {
         const { data: ph } = await supabase
           .from('photographers')
-          .select('display_name, business_name')
+          .select('display_name, business_name, business_email, business_phone, business_address, business_city, business_state, business_zip, governing_state')
           .eq('id', user.id)
           .single()
         setPhotographer(ph)
