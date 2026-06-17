@@ -4,6 +4,28 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.2 — June 16, 2026
+
+### Bug Fixes
+- Sessions were showing under all clients regardless of link — now correctly filtered by `client_id`
+- Gallery linking added to Session Detail — link or unlink a gallery directly from the Overview section
+- Contract `{{event_date}}` variable now falls back to session date when no gallery is linked
+- Contract `{{photographer_email}}`, `{{photographer_phone}}`, `{{photographer_address}}`, `{{governing_state}}` variables now resolve correctly in the Send Contract preview
+- Removed duplicate client row from Session Detail Overview (client already shown in header)
+
+---
+
+## v1.3.2 — June 16, 2026
+
+### Bug Fixes
+- Sessions were showing under all clients regardless of link — now correctly filtered by `client_id`
+- Gallery linking added to Session Detail — link or unlink a gallery directly from the Overview section
+- Contract `{{event_date}}` variable now falls back to session date when no gallery is linked
+- Contract `{{photographer_email}}`, `{{photographer_phone}}`, `{{photographer_address}}`, `{{governing_state}}` variables now resolve correctly in the Send Contract preview
+- Removed duplicate client row from Session Detail Overview (client already shown in header)
+
+---
+
 ## v1.3.1 — June 16, 2026
 
 ### New Features
