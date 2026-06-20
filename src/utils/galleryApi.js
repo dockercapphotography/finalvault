@@ -14,7 +14,7 @@ export async function getGalleries() {
       id, title, client_name, event_name, event_date, template,
       is_active, share_token, require_password,
       created_at, updated_at, expires_at,
-      cover_image_id, folder_id,
+      cover_image_id, cover_r2_key, folder_id,
       gallery_images!cover_image_id (preview_r2_key),
       image_count:gallery_images!gallery_images_gallery_id_fkey(count),
       tags:gallery_tag_assignments(gallery_tags(id, name, color))
@@ -151,7 +151,7 @@ export async function getGalleriesInFolder(folderId = null) {
       id, title, client_name, event_name, event_date, template,
       is_active, share_token, require_password,
       created_at, updated_at, expires_at,
-      cover_image_id, folder_id,
+      cover_image_id, cover_r2_key, folder_id,
       gallery_images!cover_image_id (preview_r2_key),
       image_count:gallery_images!gallery_images_gallery_id_fkey(count)
     `)

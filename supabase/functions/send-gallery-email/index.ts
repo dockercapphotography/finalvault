@@ -144,7 +144,32 @@ serve(async (req) => {
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
     const results = []
 
-    for (const recipient of recipients) {
+    // Resend enforces a hard 5 requests/second window with no burst allowance and
+    // previously we had no retry — anything past the 5th email in a batch would
+    // silently fail with a 429. We throttle to roughly 3/sec (well under the limit)
+    // and retry once on 429 to absorb any window-edge timing issues.
+    async function sendWithRetry(body: Record<string, unknown>, attempt = 0): Promise<{ res: Response; data: any }> {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (res.status === 429 && attempt < 2) {
+        const retryAfter = Number(res.headers.get('retry-after')) || 1
+        await new Promise(r => setTimeout(r, (retryAfter + 0.5) * 1000))
+        return sendWithRetry(body, attempt + 1)
+      }
+      return { res, data }
+    }
+
+    for (let i = 0; i < recipients.length; i++) {
+      const recipient = recipients[i]
+      // Stay under Resend's 5 req/sec limit — wait ~350ms between sends after the first.
+      if (i > 0) await new Promise(r => setTimeout(r, 350))
       const email = typeof recipient === 'string' ? recipient : recipient.email
       const name = typeof recipient === 'object' ? recipient.name : null
       const clientName = name || gallery.client_name || 'there'
@@ -181,26 +206,18 @@ serve(async (req) => {
         password: includePassword && gallery.require_password ? gallery.plain_password : null,
         downloadPin: includePin && gallery.require_download_pin ? gallery.plain_download_pin : null,
         expiryDate: includeExpiry && expiryDateStr ? expiryDateStr : null,
-        customMessage: finalMessage ? finalMessage.replace(/\n/g, '<br>') : null,
+        customMessage: finalMessage ? renderMarkdownEmail(finalMessage) : null,
         socialLinks: photographer?.social_links || {},
         paymentLinks: photographer?.payment_links || {},
       })
 
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: `${senderName} <noreply@dockercapphotography.com>`,
-          to: [email],
-          subject: finalSubject,
-          html,
-        }),
+      const { res, data } = await sendWithRetry({
+        from: `${senderName} <noreply@dockercapphotography.com>`,
+        to: [email],
+        subject: finalSubject,
+        html,
       })
 
-      const data = await res.json()
       results.push({ email, ok: res.ok, id: data.id, error: data.message })
     }
 
@@ -218,6 +235,67 @@ serve(async (req) => {
 
 function substituteVariables(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
+}
+
+// Mirrors MarkdownToolbar.jsx's renderMarkdown — bold, italic, h2, and lists —
+// but wraps consecutive list items in real <ul>/<ol> tags, since bare <li> elements
+// outside a list container render inconsistently (or not at all) in email clients
+// like Outlook and Gmail.
+function applyInlineEmail(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+}
+
+function renderMarkdownEmail(text: string): string {
+  if (!text) return ''
+  const lines = text.split('\n')
+  const htmlParts: string[] = []
+  let listBuffer: string[] = []
+  let listType: 'ul' | 'ol' | null = null
+
+  function flushList() {
+    if (!listBuffer.length || !listType) return
+    const tag = listType
+    const styleAttr = tag === 'ul'
+      ? 'margin:0 0 12px;padding-left:20px;list-style-type:disc;'
+      : 'margin:0 0 12px;padding-left:20px;list-style-type:decimal;'
+    htmlParts.push(`<${tag} style="${styleAttr}">${listBuffer.join('')}</${tag}>`)
+    listBuffer = []
+    listType = null
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine
+    if (line.startsWith('## ')) {
+      flushList()
+      htmlParts.push(`<h2 style="margin:16px 0 8px;color:#111111;font-size:17px;font-weight:600;">${applyInlineEmail(line.slice(3))}</h2>`)
+      continue
+    }
+    if (line.startsWith('- ')) {
+      if (listType !== 'ul') { flushList(); listType = 'ul' }
+      listBuffer.push(`<li style="margin:0 0 4px;color:#374151;font-size:15px;line-height:1.6;">${applyInlineEmail(line.slice(2))}</li>`)
+      continue
+    }
+    const olMatch = line.match(/^(\d+)\.\s(.*)/)
+    if (olMatch) {
+      if (listType !== 'ol') { flushList(); listType = 'ol' }
+      listBuffer.push(`<li style="margin:0 0 4px;color:#374151;font-size:15px;line-height:1.6;">${applyInlineEmail(olMatch[2])}</li>`)
+      continue
+    }
+    flushList()
+    if (line.trim() === '') {
+      htmlParts.push('<div style="height:12px;"></div>')
+    } else {
+      htmlParts.push(`<p style="margin:0 0 12px;color:#374151;font-size:15px;line-height:1.7;">${applyInlineEmail(line)}</p>`)
+    }
+  }
+  flushList()
+
+  return htmlParts.join('')
 }
 
 const SOCIAL_META: Record<string, { label: string; color: string; icon: string }> = {
@@ -304,7 +382,7 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, clientName, eventNa
 
             <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7;">Hi ${clientName},</p>
 
-            ${customMessage ? `<p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.7;">${customMessage}</p>` : ''}
+            ${customMessage ? `<div style="margin:0 0 24px;">${customMessage}</div>` : ''}
 
             <!-- CTA Button — full width -->
             <table cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 32px;">

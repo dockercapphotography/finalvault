@@ -1028,7 +1028,7 @@ function buildFolderCoverUrls(galleries, authToken) {
     if (!g.folder_id) continue
     if (!map[g.folder_id]) map[g.folder_id] = []
     if (map[g.folder_id].length < 3) {
-      const key = g.gallery_images?.preview_r2_key
+      const key = g.gallery_images?.preview_r2_key || g.cover_r2_key
       if (key) {
         map[g.folder_id].push(`${WORKER_URL}/preview/${encodeURIComponent(key)}?token=${authToken}`)
       }
@@ -1595,7 +1595,7 @@ export default function Dashboard() {
                 key={`gallery-${item.id}`}
                 gallery={item}
                 coverUrl={(() => {
-                  const key = item.gallery_images?.preview_r2_key
+                  const key = item.gallery_images?.preview_r2_key || item.cover_r2_key
                   return key && authToken ? `${import.meta.env.VITE_R2_WORKER_URL}/preview/${encodeURIComponent(key)}?token=${authToken}` : null
                 })()}
                 onCopyLink={handleCopyLink}
@@ -1672,7 +1672,7 @@ export default function Dashboard() {
           <div style={{ opacity: 0.9, transform: 'scale(1.02)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', borderRadius: '0.75rem', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border)', width: '100%' }}>
             <div className="aspect-[4/3] relative overflow-hidden flex items-center justify-center" style={{ background: 'var(--surface-raised)' }}>
               {(() => {
-                const key = activeDragGallery.gallery_images?.preview_r2_key
+                const key = activeDragGallery.gallery_images?.preview_r2_key || activeDragGallery.cover_r2_key
                 const url = key && authToken ? `${import.meta.env.VITE_R2_WORKER_URL}/preview/${encodeURIComponent(key)}?token=${authToken}` : null
                 return url ? <img src={url} alt={activeDragGallery.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null
               })()}

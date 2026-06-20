@@ -4,6 +4,17 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.6 — June 17, 2026
+
+### Bug Fixes
+- A custom-uploaded gallery cover (not part of the gallery's image set) now correctly appears on the Dashboard, in folder thumbnails, and during drag-and-drop — previously it only showed when viewing the gallery directly
+- Clicking a variable in Email and Contract templates now inserts it at the actual cursor position instead of always appending to the end
+- Markdown formatting (bold, italic, headings, lists) now renders correctly in sent gallery emails instead of showing literal asterisks and hashes
+- Sending a gallery email to more than 5 recipients no longer silently fails for recipients past the 5th — emails are now throttled and retried to stay within Resend's rate limit
+- The "Insert template" dropdown in the email composer no longer gets clipped by the modal's scroll area
+
+---
+
 ## v1.3.5 — June 16, 2026
 
 ### Bug Fixes

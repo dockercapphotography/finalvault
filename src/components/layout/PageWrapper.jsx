@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.5'
+const VERSION = '1.3.6'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,15 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.3.6 — June 17, 2026">
+                  <Group label="Bug Fixes">
+                    <Item>Custom-uploaded gallery covers now show correctly on the Dashboard and in folder thumbnails</Item>
+                    <Item>Inserting a variable in Email and Contract templates now respects cursor position</Item>
+                    <Item>Markdown formatting now renders correctly in sent gallery emails</Item>
+                    <Item>Gallery emails to more than 5 recipients no longer silently fail past the 5th send</Item>
+                    <Item>Insert template dropdown no longer gets clipped in the email composer</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.5 — June 16, 2026">
                   <Group label="Bug Fixes">
                     <Item>Bookmark state now stays in sync when switching between gallery sets</Item>

@@ -3,6 +3,7 @@ import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { X, Copy, Mail, Link, QrCode, Check, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import QRCode from 'https://esm.sh/qrcode@1.5.3'
+import PortalMenu from '../ui/PortalMenu.jsx'
 
 function parseEmails(raw) {
   return [...new Set(
@@ -132,7 +133,7 @@ function EmailComposerModal({ gallery, onClose }) {
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const [templates, setTemplates] = useState([])
-  const [showTemplates, setShowTemplates] = useState(false)
+  // Insert-template dropdown is now handled by PortalMenu, which manages its own open state.
   const [showTemplateManager, setShowTemplateManager] = useState(false)
 
   const galleryUrl = `${window.location.origin}/g/${gallery.share_token}`
@@ -232,37 +233,22 @@ function EmailComposerModal({ gallery, onClose }) {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Message</label>
-                  <div className="relative">
-                    <button onClick={() => setShowTemplates(!showTemplates)}
-                      className="flex items-center gap-1 text-xs font-medium"
-                      style={{ color: '#6366f1', cursor: 'pointer' }}>
-                      Insert template <ChevronDown size={12} />
-                    </button>
-                    {showTemplates && (
-                      <div className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-10 w-52"
-                        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                        {templates.length === 0 && (
-                          <p className="px-3 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>No templates yet</p>
-                        )}
-                        {templates.map(t => (
-                          <button key={t.id} onClick={() => applyTemplate(t)}
-                            className="w-full text-left px-3 py-2 text-sm"
-                            style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            {t.name}
-                          </button>
-                        ))}
-                        <div style={{ borderTop: '1px solid var(--border)' }}>
-                          <button onClick={() => { setShowTemplates(false); setShowTemplateManager(true) }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium"
-                            style={{ color: '#6366f1', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                            Manage templates →
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <PortalMenu
+                    trigger={
+                      <button
+                        className="flex items-center gap-1 text-xs font-medium"
+                        style={{ color: '#6366f1', cursor: 'pointer', background: 'none', border: 'none' }}>
+                        Insert template <ChevronDown size={12} />
+                      </button>
+                    }
+                    items={[
+                      ...(templates.length === 0
+                        ? [{ label: 'No templates yet', onClick: () => {} }]
+                        : templates.map(t => ({ label: t.name, onClick: () => applyTemplate(t) }))),
+                      { type: 'divider' },
+                      { label: 'Manage templates →', onClick: () => setShowTemplateManager(true) },
+                    ]}
+                  />
                 </div>
                 <textarea value={message} onChange={e => setMessage(e.target.value)}
                   placeholder="Add a personal message (optional)" rows={5}

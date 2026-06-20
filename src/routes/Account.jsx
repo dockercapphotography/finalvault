@@ -374,13 +374,11 @@ function ContractTemplatesTab({ onSaveState }) {
   function cancelEdit() { setEditing(null) }
 
   function insertVariable(tag) {
-    const el = bodyRef.current
-    if (!el) { setEditBody(b => b + tag); return }
-    const start = el.selectionStart
-    const end = el.selectionEnd
-    const newBody = editBody.slice(0, start) + tag + editBody.slice(end)
-    setEditBody(newBody)
-    setTimeout(() => { el.selectionStart = el.selectionEnd = start + tag.length; el.focus() }, 0)
+    if (bodyRef.current?.insertAtCursor) {
+      bodyRef.current.insertAtCursor(tag)
+    } else {
+      setEditBody(b => b + tag)
+    }
   }
 
   async function handleSave() {
@@ -434,6 +432,7 @@ function ContractTemplatesTab({ onSaveState }) {
               </label>
             </div>
             <MarkdownToolbar
+              ref={bodyRef}
               value={editBody}
               onChange={setEditBody}
               placeholder="Enter your contract text. Use {{variable}} placeholders where values should be filled automatically."
@@ -1313,12 +1312,11 @@ function EmailTemplatesTab({ onSaveState }) {
   function cancelEdit() { setEditing(null) }
 
   function insertVariable(tag) {
-    const el = bodyRef.current
-    if (!el) { setBody(b => b + tag); return }
-    const start = el.selectionStart; const end = el.selectionEnd
-    const newBody = body.slice(0, start) + tag + body.slice(end)
-    setBody(newBody)
-    setTimeout(() => { el.selectionStart = el.selectionEnd = start + tag.length; el.focus() }, 0)
+    if (bodyRef.current?.insertAtCursor) {
+      bodyRef.current.insertAtCursor(tag)
+    } else {
+      setBody(b => b + tag)
+    }
   }
 
   async function handleSave() {
@@ -1357,6 +1355,7 @@ function EmailTemplatesTab({ onSaveState }) {
             <div>
               <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Message Body</label>
               <MarkdownToolbar
+                ref={bodyRef}
                 value={body}
                 onChange={setBody}
                 placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}

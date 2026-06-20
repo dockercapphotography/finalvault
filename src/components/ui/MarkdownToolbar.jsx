@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { Bold, Italic, Heading2, List, ListOrdered, Eye, Pencil } from 'lucide-react'
 
 function renderMarkdown(text) {
@@ -27,9 +27,24 @@ function applyInline(text) {
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
 }
 
-export default function MarkdownToolbar({ value, onChange, placeholder, rows = 8 }) {
+const MarkdownToolbar = forwardRef(function MarkdownToolbar({ value, onChange, placeholder, rows = 8 }, ref) {
   const [preview, setPreview] = useState(false)
   const textareaRef = useRef(null)
+
+  useImperativeHandle(ref, () => ({
+    insertAtCursor(text) {
+      const el = textareaRef.current
+      if (!el) { onChange(value + text); return }
+      const start = el.selectionStart
+      const end = el.selectionEnd
+      const newVal = value.slice(0, start) + text + value.slice(end)
+      onChange(newVal)
+      setTimeout(() => {
+        el.focus()
+        el.selectionStart = el.selectionEnd = start + text.length
+      }, 0)
+    },
+  }))
 
   function wrap(before, after) {
     const el = textareaRef.current
@@ -142,4 +157,6 @@ export default function MarkdownToolbar({ value, onChange, placeholder, rows = 8
       )}
     </div>
   )
-}
+})
+
+export default MarkdownToolbar
