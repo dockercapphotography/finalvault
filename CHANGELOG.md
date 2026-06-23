@@ -4,6 +4,21 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.7 — June 20, 2026
+
+### New Features
+- Sessions can now be linked to multiple galleries instead of just one
+- A new editable review step appears before creating a client from a walk-up submission, with name and email pre-filled from the submission's structured fields
+- Added a copy button next to submitted emails in the Sessions submissions list
+
+### Bug Fixes
+- "Create client record" now reliably pulls name and email from the submission's built-in fields instead of guessing from custom question labels
+- Removed a hardcoded "Hi {name}," greeting from gallery emails — `{{client_name}}` remains available as a template variable for anyone who wants to include their own greeting
+- Fixed a runtime error when selecting an email template after the Insert Template dropdown was converted to use PortalMenu
+- Fixed invalid nested-button markup in the submissions list and increased the copy-email button's tap target for mobile
+
+---
+
 ## v1.3.6 — June 17, 2026
 
 ### Bug Fixes

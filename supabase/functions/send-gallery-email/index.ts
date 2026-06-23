@@ -380,8 +380,6 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, clientName, eventNa
         <tr>
           <td style="padding:28px 40px;">
 
-            <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7;">Hi ${clientName},</p>
-
             ${customMessage ? `<div style="margin:0 0 24px;">${customMessage}</div>` : ''}
 
             <!-- CTA Button — full width -->

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   CalendarDays, MapPin, Clock, User, ChevronRight,
   FileText, ClipboardList, Edit2, Trash2, Check, X,
-  Download, Users, ChevronDown, UserPlus, Mail,
+  Download, Users, ChevronDown, UserPlus, Mail, Copy,
   Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, Trophy, Heart, BookHeart, SquareUser,
 } from 'lucide-react'
 import {
@@ -12,6 +12,7 @@ import {
   getStatusConfig, getPaymentConfig, formatSessionDate, SESSION_TYPE_ICON,
   getSubmissions, getSessionQuestionnaires, setSessionQuestionnaires,
   deleteSubmission,
+  getSessionGalleries, addSessionGallery, removeSessionGallery,
 } from '../utils/sessionApi.js'
 import { getContracts, createClient } from '../utils/crmApi.js'
 import { getGalleries } from '../utils/galleryApi.js'
@@ -463,6 +464,19 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
   const [page, setPage] = useState(0)
   const [expandedId, setExpandedId] = useState(null)
   const [creatingClientId, setCreatingClientId] = useState(null)
+  const [createClientFormId, setCreateClientFormId] = useState(null)
+  const [createClientForm, setCreateClientForm] = useState({ firstName: '', lastName: '', email: '' })
+  const [copiedEmailId, setCopiedEmailId] = useState(null)
+
+  async function handleCopyEmail(submissionId, email) {
+    try {
+      await navigator.clipboard.writeText(email)
+    } catch {
+      window.prompt('Copy this email:', email)
+    }
+    setCopiedEmailId(submissionId)
+    setTimeout(() => setCopiedEmailId(prev => prev === submissionId ? null : prev), 2000)
+  }
 
   useEffect(() => {
     getSubmissions(sessionId).then(data => {
@@ -536,25 +550,51 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
     }
   }
 
+  // Best-effort fallback for older submissions or questionnaires that had the
+  // built-in "Collect email"/"Collect name" fields turned off — guesses from
+  // custom question labels. This is intentionally a last resort: it's unreliable
+  // (e.g. a label containing "handle" usually means a social handle, not a name)
+  // and is only used when the structured email/credit_handle columns are empty.
+  function guessContactFromAnswers(submission) {
+    const questions = submission.questions || []
+    const answers = submission.answers || {}
+    let email = '', name = ''
+    for (const q of questions) {
+      const val = answers[q.id] || ''
+      const label = (q.label || '').toLowerCase()
+      if (!email && label.includes('email')) email = val
+      if (!name && label.includes('name')) name = val
+    }
+    return { email, name }
+  }
+
+  function getClientFormDefaults(submission) {
+    let email = submission.email || ''
+    let name = submission.credit_handle || ''
+    if (!email || !name) {
+      const guess = guessContactFromAnswers(submission)
+      if (!email) email = guess.email
+      if (!name) name = guess.name
+    }
+    const parts = name.trim().split(/\s+/).filter(Boolean)
+    const firstName = parts[0] || (email ? email.split('@')[0] : '')
+    const lastName = parts.slice(1).join(' ')
+    return { firstName, lastName, email }
+  }
+
+  function openCreateClientForm(submission) {
+    setCreateClientFormId(submission.id)
+    setCreateClientForm(getClientFormDefaults(submission))
+  }
+
   async function handleCreateClient(submission) {
     setCreatingClientId(submission.id)
     try {
-      const questions = submission.questions || []
-      const answers = submission.answers || {}
-      let email = '', firstName = '', lastName = ''
-      for (const q of questions) {
-        const val = answers[q.id] || ''
-        const label = q.label.toLowerCase()
-        if (label.includes('email') && !email) email = val
-        if ((label.includes('name') || label.includes('credit') || label.includes('handle')) && !firstName) {
-          const parts = val.split(' ')
-          firstName = parts[0] || val
-          lastName = parts.slice(1).join(' ') || ''
-        }
-      }
-      if (!firstName) firstName = email.split('@')[0] || 'Unknown'
+      const { firstName, lastName, email } = createClientForm
       const client = await createClient({
-        firstName, lastName, email: email || null,
+        firstName: firstName.trim() || 'Unknown',
+        lastName: lastName.trim(),
+        email: email.trim() || null,
         phone: null, address: null, city: null, state: null, zip: null,
         notes: `Created from walk-up submission for ${session.name}`,
         tags: null, pronouns: null,
@@ -562,6 +602,7 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
       const { supabase } = await import('../supabaseClient.js')
       await supabase.from('session_submissions').update({ client_id: client.id }).eq('id', submission.id)
       setSubmissions(prev => prev.map(s => s.id === submission.id ? { ...s, client_id: client.id } : s))
+      setCreateClientFormId(null)
     } catch (err) {
       console.error(err)
     } finally {
@@ -647,8 +688,11 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
                       const qLabel = questionnaires.find(sq => sq.questionnaire_id === submission.questionnaire_id)?.questionnaire_templates?.name || null
                       return (
                         <div key={submission.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                          <button
+                          <div
+                            role="button"
+                            tabIndex={0}
                             onClick={() => setExpandedId(isExpanded ? null : submission.id)}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : submission.id) } }}
                             className="w-full flex items-center justify-between px-5 py-3 text-left"
                             style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
@@ -661,7 +705,18 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
                                   ) : (
                                     <>
                                       {name && <span className="text-sm font-medium shrink-0" style={{ color: 'var(--text)' }}>{name}</span>}
-                                      {subEmail && <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{subEmail}</span>}
+                                      {subEmail && (
+                                        <span className="flex items-center gap-1 min-w-0">
+                                          <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{subEmail}</span>
+                                          <button
+                                            onClick={e => { e.stopPropagation(); handleCopyEmail(submission.id, subEmail) }}
+                                            title="Copy email"
+                                            className="shrink-0 flex items-center justify-center"
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: copiedEmailId === submission.id ? '#10b981' : 'var(--text-muted)', width: 28, height: 28, marginLeft: -4, marginRight: -4 }}>
+                                            {copiedEmailId === submission.id ? <Check size={13} /> : <Copy size={13} />}
+                                          </button>
+                                        </span>
+                                      )}
                                     </>
                                   )}
                                 </div>
@@ -675,7 +730,7 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
                               )}
                             </div>
                             <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, marginLeft: 8 }} />
-                          </button>
+                          </div>
                           {isExpanded && (
                             <div className="px-5 pb-4 space-y-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
                               <div className="pt-3 space-y-2">
@@ -686,13 +741,47 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
                                   </div>
                                 ))}
                               </div>
+                              {!submission.client_id && createClientFormId === submission.id && (
+                                <div className="rounded-lg p-3 mb-2 space-y-2" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+                                  <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Review before creating client</p>
+                                  <div className="flex gap-2">
+                                    <input value={createClientForm.firstName}
+                                      onChange={e => setCreateClientForm(f => ({ ...f, firstName: e.target.value }))}
+                                      placeholder="First name"
+                                      className="text-sm rounded-lg px-2.5 py-1.5 flex-1"
+                                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
+                                    <input value={createClientForm.lastName}
+                                      onChange={e => setCreateClientForm(f => ({ ...f, lastName: e.target.value }))}
+                                      placeholder="Last name"
+                                      className="text-sm rounded-lg px-2.5 py-1.5 flex-1"
+                                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
+                                  </div>
+                                  <input value={createClientForm.email}
+                                    onChange={e => setCreateClientForm(f => ({ ...f, email: e.target.value }))}
+                                    placeholder="Email"
+                                    className="w-full text-sm rounded-lg px-2.5 py-1.5"
+                                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <button onClick={() => handleCreateClient(submission)} disabled={creatingClientId === submission.id}
+                                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                                      style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                                      {creatingClientId === submission.id ? 'Creating...' : 'Confirm & create'}
+                                    </button>
+                                    <button onClick={() => setCreateClientFormId(null)}
+                                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                                      style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: 'none', cursor: 'pointer' }}>
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                               <div className="flex items-center gap-2 flex-wrap">
-                                {!submission.client_id && (
-                                  <button onClick={() => handleCreateClient(submission)} disabled={creatingClientId === submission.id}
+                                {!submission.client_id && createClientFormId !== submission.id && (
+                                  <button onClick={() => openCreateClientForm(submission)}
                                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
                                     style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
                                     <UserPlus size={12} />
-                                    {creatingClientId === submission.id ? 'Creating...' : 'Create client record'}
+                                    Create client record
                                   </button>
                                 )}
                                 {confirmDeleteSubmissionId === submission.id ? (
@@ -761,6 +850,8 @@ export default function SessionDetail() {
   const [session, setSession] = useState(null)
   const [allGalleries, setAllGalleries] = useState([])
   const [linkingGallery, setLinkingGallery] = useState(false)
+  const [sessionGalleries, setSessionGalleries] = useState([])
+  const [addingGalleryId, setAddingGalleryId] = useState(null)
   const [contracts, setContracts] = useState([])
   const [clients, setClients] = useState([])
   const [questionnaires, setQuestionnaires] = useState([])
@@ -781,18 +872,20 @@ export default function SessionDetail() {
   async function load() {
     setLoading(true)
     try {
-      const [s, cs, qs, sq, gs] = await Promise.all([
+      const [s, cs, qs, sq, gs, sgs] = await Promise.all([
         getSession(id),
         getClients(),
         getQuestionnaireTemplates(),
         getSessionQuestionnaires(id),
         getGalleries(),
+        getSessionGalleries(id),
       ])
       setAllGalleries(gs || [])
       setSession(s)
       setClients(cs)
       setQuestionnaires(qs)
       setSessionQuestionnaires(sq)
+      setSessionGalleries(sgs || [])
       // Load contracts linked to this session
       getContracts({ sessionId: id }).then(setContracts).catch(() => {})
       // Load submission counts per questionnaire
@@ -983,24 +1076,23 @@ export default function SessionDetail() {
           </div>
         )}
 
-        {session.galleries && !linkingGallery && (
-          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
-            <Link to={`/galleries/${session.gallery_id}`}
-              className="flex items-center gap-2 flex-1"
+        {sessionGalleries.map(sg => (
+          <div key={sg.id} className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <Link to={`/galleries/${sg.gallery_id}`}
+              className="flex items-center gap-2 flex-1 min-w-0"
               style={{ textDecoration: 'none' }}>
-              <FileText size={13} style={{ color: 'var(--text-muted)' }} />
-              <span className="text-sm" style={{ color: 'var(--text)' }}>{session.galleries.title}</span>
+              <FileText size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <span className="text-sm truncate" style={{ color: 'var(--text)' }}>{sg.galleries?.title || 'Untitled gallery'}</span>
             </Link>
             <button onClick={async () => {
-              await updateSession(session.id, { galleryId: null })
-              const refreshed = await getSession(session.id)
-              setSession(refreshed)
-            }} className="text-xs ml-3" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              await removeSessionGallery(session.id, sg.gallery_id)
+              setSessionGalleries(prev => prev.filter(s => s.id !== sg.id))
+            }} className="text-xs ml-3 shrink-0" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               Unlink
             </button>
           </div>
-        )}
-        {!session.galleries && !linkingGallery && (
+        ))}
+        {!linkingGallery && (
           <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
             <button onClick={() => setLinkingGallery(true)} className="text-sm" style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               + Link gallery
@@ -1010,15 +1102,21 @@ export default function SessionDetail() {
         {linkingGallery && (
           <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
             <GalleryPicker
-              galleries={allGalleries}
-              value={session.gallery_id}
+              galleries={allGalleries.filter(g => !sessionGalleries.some(sg => sg.gallery_id === g.id))}
+              value={null}
               allowNone={false}
               placeholder="Search galleries..."
               onChange={async (galleryId) => {
-                await updateSession(session.id, { galleryId: galleryId || null })
-                const refreshed = await getSession(session.id)
-                setSession(refreshed)
-                setLinkingGallery(false)
+                if (!galleryId) return
+                setAddingGalleryId(galleryId)
+                try {
+                  const added = await addSessionGallery(session.id, galleryId, sessionGalleries.length)
+                  const gallery = allGalleries.find(g => g.id === galleryId)
+                  setSessionGalleries(prev => [...prev, { ...added, galleries: gallery }])
+                  setLinkingGallery(false)
+                } finally {
+                  setAddingGalleryId(null)
+                }
               }}
             />
             <button onClick={() => setLinkingGallery(false)} className="text-xs mt-2 block" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
@@ -1026,7 +1124,7 @@ export default function SessionDetail() {
             </button>
           </div>
         )}
-        {!session.description && !session.internal_notes && !clientName && !session.galleries && (
+        {!session.description && !session.internal_notes && !clientName && sessionGalleries.length === 0 && (
           <div className="px-5 py-6 text-center">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No details yet. Edit the session to add more info.</p>
           </div>

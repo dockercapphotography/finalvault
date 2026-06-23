@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.6'
+const VERSION = '1.3.7'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,19 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.3.7 — June 20, 2026">
+                  <Group label="New Features">
+                    <Item>Sessions can now be linked to multiple galleries instead of just one</Item>
+                    <Item>Creating a client from a submission now shows an editable review step before saving</Item>
+                    <Item>Added a copy button next to submitted emails in the Sessions submissions list</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Create client record now reliably pulls name and email from the submission's structured fields</Item>
+                    <Item>Removed a hardcoded greeting from gallery emails — client_name remains available as a template variable</Item>
+                    <Item>Fixed a runtime error when selecting an email template</Item>
+                    <Item>Fixed invalid markup and a small tap target in the submissions list</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.6 — June 17, 2026">
                   <Group label="Bug Fixes">
                     <Item>Custom-uploaded gallery covers now show correctly on the Dashboard and in folder thumbnails</Item>

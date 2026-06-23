@@ -211,6 +211,55 @@ export function formatSessionDate(date, startTime, endTime) {
   return `${d} · ${fmt(startTime)}${endTime ? ` – ${fmt(endTime)}` : ''}`
 }
 
+// ── Session Galleries (junction table) ─────────────────────────────────────────
+
+export async function getSessionGalleries(sessionId) {
+  const { supabase } = await import('../supabaseClient.js')
+  const { data, error } = await supabase
+    .from('session_galleries')
+    .select('id, gallery_id, sort_order, galleries(id, title, event_name, event_date, share_token)')
+    .eq('session_id', sessionId)
+    .order('sort_order')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function addSessionGallery(sessionId, galleryId, sortOrder = 0) {
+  const { supabase } = await import('../supabaseClient.js')
+  const { data, error } = await supabase
+    .from('session_galleries')
+    .insert({ session_id: sessionId, gallery_id: galleryId, sort_order: sortOrder })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function removeSessionGallery(sessionId, galleryId) {
+  const { supabase } = await import('../supabaseClient.js')
+  const { error } = await supabase
+    .from('session_galleries')
+    .delete()
+    .eq('session_id', sessionId)
+    .eq('gallery_id', galleryId)
+  if (error) throw error
+}
+
+export async function setSessionGalleries(sessionId, galleryIds) {
+  // Replace all galleries for a session with the given list
+  const { supabase } = await import('../supabaseClient.js')
+  await supabase.from('session_galleries').delete().eq('session_id', sessionId)
+  if (!galleryIds.length) return
+  const { error } = await supabase
+    .from('session_galleries')
+    .insert(galleryIds.map((gid, i) => ({
+      session_id: sessionId,
+      gallery_id: gid,
+      sort_order: i,
+    })))
+  if (error) throw error
+}
+
 // ── Session Questionnaires (junction table) ───────────────────────────────────
 
 export async function getSessionQuestionnaires(sessionId) {

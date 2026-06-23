@@ -194,7 +194,7 @@ function EmailComposerModal({ gallery, onClose }) {
     }
   }
 
-  function applyTemplate(t) { setSubject(t.subject); setMessage(t.body); setShowTemplates(false) }
+  function applyTemplate(t) { setSubject(t.subject); setMessage(t.body) }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4"

@@ -64,6 +64,30 @@ async function deleteTestSession(id) {
   await sb().from('sessions').delete().eq('id', id)
 }
 
+async function createTestGallery(overrides = {}) {
+  const photographerId = await getPhotographerId()
+  const uid = crypto.randomUUID().slice(0, 8)
+  const { data, error } = await sb().from('galleries').insert({
+    photographer_id: photographerId,
+    title: `Test Gallery ${uid}`,
+    share_token: `test-gallery-${uid}`,
+    is_active: true,
+    allow_downloads: true,
+    allow_favorites: true,
+    allow_comments: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  }).select().single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+async function deleteTestGallery(galleryId) {
+  await sb().from('session_galleries').delete().eq('gallery_id', galleryId)
+  await sb().from('galleries').delete().eq('id', galleryId)
+}
+
 async function createTestQuestionnaireTemplate(overrides = {}) {
   const photographerId = await getPhotographerId()
   const uid = crypto.randomUUID().slice(0, 8)
@@ -582,5 +606,86 @@ test.describe('Session questionnaire assignment', () => {
       expect(sqData?.map(r => r.questionnaire_id)).toContain(questionnaire.id)
       await deleteTestSession(sessionData.id)
     }
+  })
+})
+
+// ── Session — Multiple Linked Galleries ────────────────────────────────────────
+
+test.describe('Session — Multiple Linked Galleries', () => {
+  let session, galleryA, galleryB
+
+  test.beforeEach(async () => {
+    session = await createTestSession({ name: `Multi Gallery Session ${crypto.randomUUID().slice(0, 8)}` })
+    galleryA = await createTestGallery({ title: `Gallery A ${crypto.randomUUID().slice(0, 8)}` })
+    galleryB = await createTestGallery({ title: `Gallery B ${crypto.randomUUID().slice(0, 8)}` })
+  })
+
+  test.afterEach(async () => {
+    await deleteTestGallery(galleryA.id)
+    await deleteTestGallery(galleryB.id)
+    await deleteTestSession(session.id)
+  })
+
+  test('can link a gallery to a session via Overview', async ({ page }) => {
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText('+ Link gallery').click()
+    await page.getByText('Search galleries...').click()
+    await page.getByText(galleryA.title).click()
+    await expect(page.getByText(galleryA.title).first()).toBeVisible({ timeout: 5000 })
+
+    const { data } = await sb().from('session_galleries').select('gallery_id').eq('session_id', session.id)
+    expect(data?.map(r => r.gallery_id)).toContain(galleryA.id)
+  })
+
+  test('can link a second gallery without removing the first', async ({ page }) => {
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText('+ Link gallery').click()
+    await page.getByText('Search galleries...').click()
+    await page.getByText(galleryA.title).click()
+    await expect(page.getByText(galleryA.title).first()).toBeVisible({ timeout: 5000 })
+
+    await page.getByText('+ Link gallery').click()
+    await page.getByText('Search galleries...').click()
+    await page.getByText(galleryB.title).click()
+    await expect(page.getByText(galleryB.title).first()).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(galleryA.title).first()).toBeVisible()
+
+    const { data } = await sb().from('session_galleries').select('gallery_id').eq('session_id', session.id)
+    const ids = data?.map(r => r.gallery_id)
+    expect(ids).toContain(galleryA.id)
+    expect(ids).toContain(galleryB.id)
+    expect(ids?.length).toBe(2)
+  })
+
+  test('already-linked galleries are excluded from the picker', async ({ page }) => {
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText('+ Link gallery').click()
+    await page.getByText('Search galleries...').click()
+    await page.getByText(galleryA.title).click()
+    await expect(page.getByText(galleryA.title).first()).toBeVisible({ timeout: 5000 })
+
+    await page.getByText('+ Link gallery').click()
+    await page.getByText('Search galleries...').click()
+    // galleryA should no longer appear as an option since it's already linked
+    await expect(page.getByRole('button', { name: new RegExp(galleryA.title) })).not.toBeVisible({ timeout: 2000 }).catch(() => {})
+  })
+
+  test('unlinking one gallery does not remove the other', async ({ page }) => {
+    await sb().from('session_galleries').insert([
+      { session_id: session.id, gallery_id: galleryA.id, sort_order: 0 },
+      { session_id: session.id, gallery_id: galleryB.id, sort_order: 1 },
+    ])
+    await page.goto(`/sessions/${session.id}`)
+    await expect(page.getByText(galleryA.title).first()).toBeVisible({ timeout: 8000 })
+    await expect(page.getByText(galleryB.title).first()).toBeVisible()
+
+    const rowA = page.locator('div', { hasText: galleryA.title }).filter({ hasText: 'Unlink' }).last()
+    await rowA.getByText('Unlink').click()
+
+    await expect(page.getByText(galleryA.title).first()).not.toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(galleryB.title).first()).toBeVisible()
+
+    const { data } = await sb().from('session_galleries').select('gallery_id').eq('session_id', session.id)
+    expect(data?.map(r => r.gallery_id)).toEqual([galleryB.id])
   })
 })
