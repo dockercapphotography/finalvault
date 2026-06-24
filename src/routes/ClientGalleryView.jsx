@@ -368,9 +368,22 @@ function PinGate({ onSubmit, onCancel, error, loading }) {
   )
 }
 
-function ZipProgressModal({ hires, progress, total }) {
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '0 MB'
+  const mb = bytes / (1024 * 1024)
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(0)} MB`
+}
+
+function ZipProgressModal({ hires, progress, total, bytes, totalBytes }) {
   const pct = total > 0 && progress != null ? Math.round((progress / total) * 100) : 0
   const done = progress != null && progress >= total
+
+  // Hi-res tracks real progress in bytes downloaded rather than photo count,
+  // since the archive streams back as one response. Fall back to an
+  // indeterminate bar only if we have no file-size data to estimate against.
+  const hasByteProgress = hires && totalBytes > 0
+  const bytePct = hasByteProgress ? Math.min(100, Math.round((bytes / totalBytes) * 100)) : 0
+  const hiresDone = done || (hasByteProgress && bytePct >= 100)
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center px-4"
@@ -382,7 +395,7 @@ function ZipProgressModal({ hires, progress, total }) {
         <div className="flex flex-col items-center gap-3 pt-1">
           <div className="w-12 h-12 rounded-full flex items-center justify-center"
             style={{ background: done ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)' }}>
-            {hires && !done ? (
+            {(hires ? !hiresDone : !done) ? (
               <div className="w-5 h-5 border-2 rounded-full animate-spin"
                 style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
             ) : (
@@ -391,19 +404,25 @@ function ZipProgressModal({ hires, progress, total }) {
           </div>
           <div className="text-center space-y-1">
             <p className="font-semibold text-sm" style={{ color: '#f0f0f0' }}>
-              {done ? 'Download ready!' : hires ? 'Preparing your download…' : 'Processing photos…'}
+              {hires
+                ? (hiresDone ? 'Download ready!' : 'Packaging your photos…')
+                : (done ? 'Download ready!' : 'Processing photos…')}
             </p>
             <p className="text-xs" style={{ color: '#9ca3af' }}>
-              {done
-                ? 'Your ZIP file is downloading now.'
-                : hires
-                ? `Packaging ${total} photo${total !== 1 ? 's' : ''} — this may take a moment.`
-                : `Processing photo ${Math.min((progress ?? 0) + 1, total)} of ${total}`}
+              {hires
+                ? (hiresDone
+                    ? 'Your ZIP file is downloading now.'
+                    : hasByteProgress
+                      ? `${formatBytes(bytes)} of ~${formatBytes(totalBytes)}`
+                      : `Packaging ${total} photo${total !== 1 ? 's' : ''} — this may take a moment.`)
+                : (done
+                    ? 'Your ZIP file is downloading now.'
+                    : `Processing photo ${Math.min((progress ?? 0) + 1, total)} of ${total}`)}
             </p>
           </div>
         </div>
 
-        {/* Web size — real progress bar */}
+        {/* Web size — real progress bar (photo count based) */}
         {!hires && (
           <div className="space-y-1.5">
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
@@ -417,8 +436,19 @@ function ZipProgressModal({ hires, progress, total }) {
           </div>
         )}
 
-        {/* Hires — indeterminate pulse bar */}
-        {hires && !done && (
+        {/* Hires — real progress bar (byte based) when we have an estimate, otherwise indeterminate pulse */}
+        {hires && !hiresDone && hasByteProgress && (
+          <div className="space-y-1.5">
+            <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
+              <div className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${bytePct}%`, background: '#6366f1' }} />
+            </div>
+            <div className="flex justify-end text-xs" style={{ color: '#6b7280' }}>
+              <span>{bytePct}%</span>
+            </div>
+          </div>
+        )}
+        {hires && !hiresDone && !hasByteProgress && (
           <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
             <div className="h-full rounded-full animate-pulse" style={{ width: '60%', background: '#6366f1' }} />
           </div>
@@ -570,8 +600,15 @@ export default function ClientGalleryView() {
 
   async function doZipDownload(pin = null, hires = false) {
     const total = images.length
+    // For hi-res, track progress in bytes (downloaded so far vs. estimated
+    // total from known file sizes) rather than a photo count, since the
+    // archive streams back as one continuous response rather than
+    // one-request-per-photo like the web-size path.
+    const estimatedTotalBytes = hires
+      ? images.reduce((sum, i) => sum + (i.file_size || 0), 0)
+      : 0
     setDownloadingZip(true)
-    setZipProgress({ current: 0, total, hires })
+    setZipProgress({ current: 0, total, hires, bytes: 0, totalBytes: estimatedTotalBytes })
     try {
       const keys = images.map(i => i.original_r2_key)
       const names = hires ? images.map(i => i.file_name) : images.map(i => i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
@@ -582,11 +619,13 @@ export default function ClientGalleryView() {
         hires ? 'hires' : 'web',
         watermarkIds,
         watermarkConfigs,
-        hires ? null : (current, t) => setZipProgress(prev => ({ ...prev, current }))
+        hires
+          ? (bytes) => setZipProgress(prev => ({ ...prev, bytes }))
+          : (current, t) => setZipProgress(prev => ({ ...prev, current }))
       )
       if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_all')
       // Show completion state briefly before closing
-      setZipProgress(prev => ({ ...prev, current: total }))
+      setZipProgress(prev => ({ ...prev, current: total, bytes: prev.totalBytes || prev.bytes }))
       await new Promise(r => setTimeout(r, 1200))
     } catch (err) { console.error(err) }
     finally { setDownloadingZip(false); setZipProgress(null) }
@@ -756,6 +795,8 @@ export default function ClientGalleryView() {
           hires={zipProgress.hires}
           progress={zipProgress.current}
           total={zipProgress.total}
+          bytes={zipProgress.bytes}
+          totalBytes={zipProgress.totalBytes}
         />
       )}
 

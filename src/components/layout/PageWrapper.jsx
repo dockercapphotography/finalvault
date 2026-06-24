@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.7'
+const VERSION = '1.3.8'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -89,6 +89,12 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.3.8 — June 24, 2026">
+                  <Group label="Bug Fixes">
+                    <Item>Fixed high-resolution ZIP downloads failing on large galleries</Item>
+                    <Item>High-resolution download progress now shows real progress instead of a static message</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.7 — June 20, 2026">
                   <Group label="New Features">
                     <Item>Sessions can now be linked to multiple galleries instead of just one</Item>

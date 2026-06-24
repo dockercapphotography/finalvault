@@ -1,5 +1,5 @@
 /**
- * zip.js — ZIP download handler
+ * zip.js — ZIP download handler (streaming)
  *
  * POST /download-zip
  * Body: { galleryId, imageKeys, fileNames, size, watermarkIds }
@@ -10,6 +10,18 @@
  *
  * size=hires: ZIP raw originals as-is
  * size=web:   resize + watermark each image using its stored watermark_id, ZIP as JPEGs
+ *
+ * Images are fetched and written into the ZIP ONE AT A TIME via a streaming
+ * response. Peak memory is bounded by the size of a single image, not the
+ * size of the whole gallery — this is what lets large hi-res downloads
+ * (hundreds of full-resolution originals) complete without exceeding the
+ * Worker's 128MB memory limit, which a previous Promise.all + in-memory-build
+ * version did not survive.
+ *
+ * Tradeoff: this single Worker invocation still runs for as long as it takes
+ * to stream every image, so it remains bounded by Cloudflare's per-request
+ * wall-clock limit. For galleries large enough to exceed that, a resumable
+ * (checkpointed) or async job-queue approach is needed — tracked separately.
  */
 
 import { verifyShareToken } from '../middleware/shareToken.js'
@@ -100,7 +112,9 @@ export async function handleZip(request, env, corsHeaders) {
     return jsonResponse({ ok: false, error: 'Access denied: invalid image keys' }, 403, corsHeaders)
   }
 
-  // For web ZIPs, pre-fetch unique watermarks to avoid redundant DB/R2 calls
+  // For web ZIPs, pre-fetch unique watermarks to avoid redundant DB/R2 calls.
+  // This is small (one image per unique watermark, not per gallery image) so
+  // it's fine to keep in memory up front.
   const wmCache = {}
   if (size === 'web') {
     const uniqueIds = [...new Set(watermarkIds.filter(Boolean))]
@@ -109,93 +123,93 @@ export async function handleZip(request, env, corsHeaders) {
     }))
   }
 
-  return buildAndSendZip(imageKeys, fileNames, watermarkIds, galleryId, size, wmCache, env, corsHeaders)
+  return streamZipResponse(imageKeys, fileNames, watermarkIds, galleryId, size, wmCache, env, corsHeaders)
 }
 
-async function buildAndSendZip(imageKeys, fileNames, watermarkIds, galleryId, size, wmCache, env, corsHeaders) {
-  try {
-    const fetched = await Promise.all(
-      imageKeys.map(async (key, i) => {
-        try {
-          const obj = await env.BUCKET.get(key)
-          if (!obj) return null
+// ─── Streaming ZIP response ───────────────────────────────────────────────────
 
-          const rawBytes = new Uint8Array(await obj.arrayBuffer())
-          let finalBytes
-          let fileName = fileNames[i] || key.split('/').pop() || `image-${i}`
+function streamZipResponse(imageKeys, fileNames, watermarkIds, galleryId, size, wmCache, env, corsHeaders) {
+  const { readable, writable } = new TransformStream()
+  const writer = writable.getWriter()
 
-          if (size === 'web') {
-            const wmId = watermarkIds[i] || null
-            const wmConfig = wmId ? (wmCache[wmId] || null) : null
-            finalBytes = await processWebImage(rawBytes, wmConfig)
-            if (!fileName.endsWith('_web.jpg')) {
-              fileName = fileName.replace(/\.[^.]+$/, '_web.jpg')
-            }
-          } else {
-            finalBytes = rawBytes
-          }
+  // Run the actual work in the background; the Response below returns
+  // immediately with the readable side, so the client starts receiving
+  // bytes (and can show download progress) right away instead of waiting
+  // for the whole archive to be built first.
+  writeZipEntries(writer, imageKeys, fileNames, watermarkIds, size, wmCache, env)
+    .catch(err => {
+      console.error('ZIP stream error:', err)
+      writer.abort(err).catch(() => {})
+    })
 
-          return { fileName, buffer: finalBytes.buffer || finalBytes }
-        } catch (err) {
-          console.error(`Failed to process image ${key}:`, err)
-          return null
-        }
-      })
-    )
-
-    const files = fetched.filter(Boolean)
-    if (files.length === 0) {
-      return jsonResponse({ ok: false, error: 'No images found' }, 404, corsHeaders)
-    }
-
-    const zipBytes = await buildZip(files)
-    const headers = new Headers(corsHeaders)
-    headers.set('Content-Type', 'application/zip')
-    headers.set('Content-Disposition', `attachment; filename="gallery-${galleryId}.zip"`)
-    headers.set('Content-Length', zipBytes.byteLength.toString())
-    return new Response(zipBytes, { status: 200, headers })
-  } catch (err) {
-    console.error('ZIP error:', err)
-    return jsonResponse({ ok: false, error: 'ZIP generation failed: ' + err.message }, 500, corsHeaders)
-  }
+  const headers = new Headers(corsHeaders)
+  headers.set('Content-Type', 'application/zip')
+  headers.set('Content-Disposition', `attachment; filename="gallery-${galleryId}.zip"`)
+  // No Content-Length — size isn't known up front since we're streaming.
+  return new Response(readable, { status: 200, headers })
 }
 
-// ─── ZIP builder ──────────────────────────────────────────────────────────────
-
-async function buildZip(files) {
-  const encoder = new TextEncoder()
-  const parts = []
+async function writeZipEntries(writer, imageKeys, fileNames, watermarkIds, size, wmCache, env) {
   const centralDirectory = []
   let offset = 0
+  let wroteAny = false
 
-  for (const { fileName, buffer } of files) {
-    const nameBytes = encoder.encode(fileName)
-    const fileData = new Uint8Array(buffer)
-    const crc = await crc32(fileData)
-    const localHeader = buildLocalHeader(nameBytes, fileData.length, crc)
-    parts.push(localHeader)
-    parts.push(fileData)
-    centralDirectory.push({ nameBytes, fileData, localHeader, crc, offset })
-    offset += localHeader.byteLength + fileData.byteLength
+  for (let i = 0; i < imageKeys.length; i++) {
+    const key = imageKeys[i]
+    try {
+      const obj = await env.BUCKET.get(key)
+      if (!obj) continue
+
+      const rawBytes = new Uint8Array(await obj.arrayBuffer())
+      let finalBytes
+      let fileName = fileNames[i] || key.split('/').pop() || `image-${i}`
+
+      if (size === 'web') {
+        const wmId = watermarkIds[i] || null
+        const wmConfig = wmId ? (wmCache[wmId] || null) : null
+        finalBytes = await processWebImage(rawBytes, wmConfig)
+        if (!fileName.endsWith('_web.jpg')) {
+          fileName = fileName.replace(/\.[^.]+$/, '_web.jpg')
+        }
+      } else {
+        finalBytes = rawBytes
+      }
+
+      const fileData = finalBytes instanceof Uint8Array ? finalBytes : new Uint8Array(finalBytes.buffer || finalBytes)
+      const encoder = new TextEncoder()
+      const nameBytes = encoder.encode(fileName)
+      const crc = await crc32(fileData)
+      const localHeader = buildLocalHeader(nameBytes, fileData.length, crc)
+
+      await writer.write(new Uint8Array(localHeader))
+      await writer.write(fileData)
+      wroteAny = true
+
+      centralDirectory.push({ nameBytes, length: fileData.length, crc, offset })
+      offset += localHeader.byteLength + fileData.byteLength
+    } catch (err) {
+      console.error(`Failed to process image ${key}:`, err)
+    }
+  }
+
+  if (!wroteAny) {
+    console.error('ZIP stream: no images were successfully written')
   }
 
   const centralDirStart = offset
   let centralDirSize = 0
   for (const entry of centralDirectory) {
-    const centralEntry = buildCentralDirectoryEntry(entry.nameBytes, entry.fileData.length, entry.crc, entry.offset)
-    parts.push(centralEntry)
+    const centralEntry = buildCentralDirectoryEntry(entry.nameBytes, entry.length, entry.crc, entry.offset)
+    await writer.write(new Uint8Array(centralEntry))
     centralDirSize += centralEntry.byteLength
   }
 
   const eocd = buildEndOfCentralDirectory(centralDirectory.length, centralDirSize, centralDirStart)
-  parts.push(eocd)
-
-  const totalLength = parts.reduce((sum, p) => sum + p.byteLength, 0)
-  const result = new Uint8Array(totalLength)
-  let pos = 0
-  for (const part of parts) { result.set(new Uint8Array(part), pos); pos += part.byteLength }
-  return result.buffer
+  await writer.write(new Uint8Array(eocd))
+  await writer.close()
 }
+
+// ─── ZIP format helpers (unchanged byte-level logic, used incrementally) ─────
 
 function buildLocalHeader(nameBytes, fileSize, crc) {
   const buf = new ArrayBuffer(30 + nameBytes.length)

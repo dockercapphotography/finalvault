@@ -4,6 +4,17 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.8 — June 24, 2026
+
+### Bug Fixes
+- Fixed high-resolution ZIP downloads failing (503 error) on galleries with a large number of full-resolution images — the download is now streamed image-by-image instead of loading the entire archive into the Worker's memory at once, removing the prior size ceiling
+- High-resolution download progress now shows real progress (estimated size downloaded) instead of a static "preparing" message with no movement
+
+### Notes
+- A design spec for a fully asynchronous, queue-based ZIP download system has been added to `docs/tier3-async-zip-queue-spec.md` for a future release — intended to add resilience to network interruptions and support arbitrarily large galleries via email notification when a download is ready
+
+---
+
 ## v1.3.7 — June 20, 2026
 
 ### New Features

@@ -64,7 +64,7 @@ export async function getPhotographerBranding(photographerId) {
 export async function getClientImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')
-    .select('id, preview_r2_key, original_r2_key, web_r2_key, file_name, width, height, sort_order, set_id, watermark_id, updated_at, watermarks(r2_key, opacity, position, scale)')
+    .select('id, preview_r2_key, original_r2_key, web_r2_key, file_name, file_size, width, height, sort_order, set_id, watermark_id, updated_at, watermarks(r2_key, opacity, position, scale)')
     .eq('gallery_id', galleryId)
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })
@@ -276,7 +276,10 @@ export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = 
     return downloadZipClientSide(imageKeys, fileNames, galleryTitle, shareToken, downloadPin, watermarkConfigs, onProgress)
   }
 
-  // Hires: worker handles it — raw originals, no processing
+  // Hires: worker streams the ZIP back one image at a time — raw originals,
+  // no processing. We read the response as a stream (rather than resp.blob())
+  // so we can report real download progress instead of the UI sitting idle
+  // until the entire archive has arrived.
   const headers = {
     'Content-Type': 'application/json',
     'X-Share-Token': shareToken,
@@ -294,7 +297,18 @@ export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = 
     throw new Error(err.error || 'Download failed')
   }
 
-  const blob = await resp.blob()
+  const reader = resp.body.getReader()
+  const chunks = []
+  let bytesReceived = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    bytesReceived += value.byteLength
+    onProgress?.(bytesReceived)
+  }
+
+  const blob = new Blob(chunks, { type: 'application/zip' })
   const safeName = galleryTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()
   triggerBrowserDownload(blob, `${safeName}.zip`)
 }
