@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Eye, Heart, HeartOff, MessageCircle, Download, Package, CheckCircle, X, ChevronLeft, ChevronRight, MoreVertical, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
+import { getFolderAncestors, buildGalleryCrumbs } from '../utils/galleryApi.js'
 import { formatDate } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
@@ -459,7 +460,9 @@ function ClientFavoritesSection({ galleryId, authToken, totalImages }) {
 export default function GalleryActivity() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [gallery, setGallery] = useState(null)
+  const [folderAncestors, setFolderAncestors] = useState([])
   const [activity, setActivity] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -473,7 +476,7 @@ export default function GalleryActivity() {
       const [{ data: { session } }, { data: g }, { data: logs }] = await Promise.all([
         supabase.auth.getSession(),
         supabase.from('galleries')
-          .select('id, title, image_count:gallery_images!gallery_images_gallery_id_fkey(count)')
+          .select('id, title, folder_id, image_count:gallery_images!gallery_images_gallery_id_fkey(count)')
           .eq('id', id).single(),
         supabase
           .from('gallery_activity_log')
@@ -488,6 +491,15 @@ export default function GalleryActivity() {
       ])
       setAuthToken(session?.access_token || null)
       setGallery(g)
+      // Folder context: prefer what GalleryDetail relayed via navigation
+      // state, otherwise fetch fresh from the gallery's folder_id. Fetching
+      // as a fallback keeps the breadcrumb correct even on a direct link
+      // or hard refresh to this page.
+      if (location.state?.folderAncestors) {
+        setFolderAncestors(location.state.folderAncestors)
+      } else if (g?.folder_id !== undefined) {
+        getFolderAncestors(g.folder_id).then(setFolderAncestors).catch(() => setFolderAncestors([]))
+      }
       setActivity((logs || []).map(log => ({
         ...log,
         comment_body: log.metadata?.comment_body || null
@@ -514,11 +526,7 @@ export default function GalleryActivity() {
 
   return (
     <div className="max-w-3xl space-y-5">
-      <PageBreadcrumb crumbs={[
-        { label: 'Galleries', to: '/' },
-        { label: gallery?.title || 'Gallery', to: `/galleries/${id}` },
-        { label: 'Activity' },
-      ]} />
+      <PageBreadcrumb crumbs={gallery ? buildGalleryCrumbs(gallery, folderAncestors, 'Activity') : [{ label: 'Galleries', to: '/' }, { label: 'Activity' }]} />
 
       <div>
         <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Activity</h1>

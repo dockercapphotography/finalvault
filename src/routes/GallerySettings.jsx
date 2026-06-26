@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {ArrowLeft, CheckCircle, Copy, Eye, EyeOff, Plus, RefreshCw, Trash2, X} from 'lucide-react'
-import { getGallery, updateGallery, getTags, getGalleryTags, assignTag, unassignTag, createAndAssignTag, deleteGallery } from '../utils/galleryApi.js'
+import { getGallery, updateGallery, getTags, getGalleryTags, assignTag, unassignTag, createAndAssignTag, deleteGallery, getFolderAncestors, buildGalleryCrumbs } from '../utils/galleryApi.js'
 import { getClients } from '../utils/crmApi.js'
 import { getImages } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
@@ -107,7 +107,9 @@ function SaveIndicator({ state }) {
 export default function GallerySettings() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [gallery, setGallery] = useState(null)
+  const [folderAncestors, setFolderAncestors] = useState([])
   const [loading, setLoading] = useState(true)
   const [saveState, setSaveState] = useState('idle')
   const [activeTab, setActiveTab] = useState('general')
@@ -166,6 +168,15 @@ export default function GallerySettings() {
       setLoading(true)
       const g = await getGallery(id)
       setGallery(g)
+      // Folder context: prefer what GalleryDetail relayed via navigation
+      // state, otherwise fetch fresh from the gallery's folder_id. Fetching
+      // as a fallback (not just trusting relayed state) keeps the breadcrumb
+      // correct even on a direct link or hard refresh to this page.
+      if (location.state?.folderAncestors) {
+        setFolderAncestors(location.state.folderAncestors)
+      } else {
+        getFolderAncestors(g.folder_id).then(setFolderAncestors).catch(() => setFolderAncestors([]))
+      }
       setTitle(g.title || '')
       setEventName(g.event_name || '')
       setClientName(g.client_name || '')
@@ -373,11 +384,7 @@ export default function GallerySettings() {
 
   return (
     <div className="max-w-2xl space-y-5">
-      <PageBreadcrumb crumbs={[
-        { label: 'Galleries', to: '/' },
-        { label: gallery.title, to: `/galleries/${id}` },
-        { label: 'Settings' },
-      ]} />
+      <PageBreadcrumb crumbs={buildGalleryCrumbs(gallery, folderAncestors, 'Settings')} />
 
       <div>
         <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Settings</h1>

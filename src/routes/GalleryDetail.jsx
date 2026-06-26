@@ -3,7 +3,7 @@ import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import {ArrowLeft, BarChart2, Check, ChevronLeft, ChevronRight, Copy, Droplets, ExternalLink, ImageIcon, LayoutGrid, Link as LinkIcon, Mail, MoreVertical, Pencil, Plus, QrCode, Settings, SlidersHorizontal, Trash2, Upload, X} from 'lucide-react'
-import { getGallery, updateGallery } from '../utils/galleryApi.js'
+import { getGallery, updateGallery, getFolderAncestors, buildGalleryCrumbs } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
 import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
 import { deleteFromR2, uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
@@ -31,6 +31,7 @@ export default function GalleryDetail() {
   const navigate = useNavigate()
   const location = useLocation()
   const [gallery, setGallery] = useState(null)
+  const [folderAncestors, setFolderAncestors] = useState([])
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -161,6 +162,15 @@ export default function GalleryDetail() {
       setLoading(true)
       const [g, imgs, setsData] = await Promise.all([getGallery(id), getImages(id), getSets(id)])
       setGallery(g)
+      // Folder context: use what was relayed via navigation state if present
+      // (e.g. coming back from Settings/Activity), otherwise fetch fresh from
+      // the gallery's folder_id. This keeps the breadcrumb correct even on a
+      // direct link or hard refresh, where no state would be relayed.
+      if (location.state?.folderAncestors) {
+        setFolderAncestors(location.state.folderAncestors)
+      } else {
+        getFolderAncestors(g.folder_id).then(setFolderAncestors).catch(() => setFolderAncestors([]))
+      }
       setImages(imgs)
       setCoverId(g.cover_image_id || null)
       setSets(setsData)
@@ -767,7 +777,7 @@ export default function GalleryDetail() {
       <div className="max-w-5xl space-y-6">
         {/* ── Mobile top bar ── */}
         <div className="flex items-center gap-2 md:hidden -mx-0 mb-2">
-          <button onClick={() => navigate('/')} style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
+          <button onClick={() => navigate(-1)} style={{ color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
             <ArrowLeft size={18} style={{ flexShrink: 0 }} />
             <h1 className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
           </button>
@@ -779,15 +789,7 @@ export default function GalleryDetail() {
 
         {/* ── Desktop header ── */}
         <div className="hidden md:block">
-          <PageBreadcrumb crumbs={[
-            { label: 'Galleries', to: '/', toState: { restoreFolderPath: [] } },
-            ...(location.state?.folderPath || []).map((f, i, arr) => ({
-              label: f.name,
-              to: '/',
-              toState: { restoreFolderPath: arr.slice(0, i + 1) },
-            })),
-            { label: gallery.title },
-          ]} />
+          <PageBreadcrumb crumbs={buildGalleryCrumbs(gallery, folderAncestors)} />
         </div>
 
         <div className="hidden md:block">
@@ -831,10 +833,10 @@ export default function GalleryDetail() {
               <Button variant="secondary" onClick={() => window.open(`/g/${gallery.share_token}?preview=1`, '_blank')}>
                 <ExternalLink size={14} />Preview
               </Button>
-              <Link to={`/galleries/${id}/activity`}>
+              <Link to={`/galleries/${id}/activity`} state={{ folderAncestors }}>
                 <Button variant="secondary"><BarChart2 size={14} />Activity</Button>
               </Link>
-              <Link to={`/galleries/${id}/settings`}>
+              <Link to={`/galleries/${id}/settings`} state={{ folderAncestors }}>
                 <Button variant="secondary"><Settings size={14} />Settings</Button>
               </Link>
             </div>
@@ -1395,8 +1397,8 @@ export default function GalleryDetail() {
                 { icon: QrCode, label: 'QR Code', action: () => { closeSheet(); setTimeout(() => setShareModal('qr'), 300) } },
                 { icon: ImageIcon, label: 'Cover', action: () => { closeSheet(); setTimeout(() => setShowCoverPicker(true), 300) } },
                 { icon: ExternalLink, label: 'Preview', action: () => { closeSheet(); window.open(`/g/${gallery.share_token}?preview=1`, '_blank') } },
-                { icon: BarChart2, label: 'Activity', action: () => { closeSheet(); setTimeout(() => navigate(`/galleries/${id}/activity`), 300) } },
-                { icon: Settings, label: 'Settings', action: () => { closeSheet(); setTimeout(() => navigate(`/galleries/${id}/settings`), 300) } },
+                { icon: BarChart2, label: 'Activity', action: () => { closeSheet(); setTimeout(() => navigate(`/galleries/${id}/activity`, { state: { folderAncestors } }), 300) } },
+                { icon: Settings, label: 'Settings', action: () => { closeSheet(); setTimeout(() => navigate(`/galleries/${id}/settings`, { state: { folderAncestors } }), 300) } },
               ].map(({ icon: Icon, label, action }) => (
                 <button key={label} onClick={action}
                   className="flex flex-col items-center gap-2 py-4 rounded-xl"

@@ -1,6 +1,76 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, User, X, ChevronDown } from 'lucide-react'
+import { supabase } from '../../supabaseClient.js'
+import { getClientAvatarUrl } from '../../utils/crmApi.js'
+
+// Same hash-based palette used for avatar colors elsewhere in the app
+// (e.g. GalleryActivity.jsx's client favorites list), so a given client
+// gets a consistent, readable color here too instead of a flat gray that
+// leaves the initials with almost no contrast against their background.
+const AVATAR_COLORS = [
+  { bg: '#6366f1', color: '#fff' },
+  { bg: '#10b981', color: '#fff' },
+  { bg: '#f59e0b', color: '#fff' },
+  { bg: '#ef4444', color: '#fff' },
+  { bg: '#8b5cf6', color: '#fff' },
+  { bg: '#14b8a6', color: '#fff' },
+]
+
+function avatarColor(str) {
+  let hash = 0
+  for (let i = 0; i < (str || '').length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+// Module-level cache so re-opening the dropdown or re-filtering the list
+// doesn't re-fetch photos that have already been loaded this session.
+// Keyed by avatar_r2_key since that uniquely identifies the image.
+const avatarUrlCache = new Map()
+
+// Renders an uploaded client photo if one exists and loads successfully,
+// otherwise falls back to the colored-initials circle. Fetches lazily on
+// mount (only rows actually rendered trigger a fetch) and caches the
+// result so the same client's photo isn't re-fetched on every render.
+function ClientAvatarCircle({ client, sessionToken, size }) {
+  const [url, setUrl] = useState(() => avatarUrlCache.get(client.avatar_r2_key) || null)
+
+  useEffect(() => {
+    if (!client.avatar_r2_key || !sessionToken) return
+    if (avatarUrlCache.has(client.avatar_r2_key)) {
+      setUrl(avatarUrlCache.get(client.avatar_r2_key))
+      return
+    }
+    let cancelled = false
+    getClientAvatarUrl(client.avatar_r2_key, sessionToken).then(result => {
+      if (cancelled) return
+      avatarUrlCache.set(client.avatar_r2_key, result)
+      setUrl(result)
+    })
+    return () => { cancelled = true }
+  }, [client.avatar_r2_key, sessionToken])
+
+  const color = avatarColor(client.email || `${client.first_name} ${client.last_name}`)
+
+  if (url) {
+    return (
+      <span style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, display: 'block' }}>
+        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      </span>
+    )
+  }
+
+  return (
+    <span style={{
+      width: size, height: size, borderRadius: '50%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size <= 20 ? 9 : 10, fontWeight: 700, flexShrink: 0,
+      background: color.bg, color: color.color,
+    }}>
+      {client.first_name[0]}{client.last_name[0]}
+    </span>
+  )
+}
 
 /**
  * ClientPicker — searchable combobox for selecting a client record.
@@ -15,6 +85,11 @@ export default function ClientPicker({ clients = [], value = '', onChange, place
   const dropdownRef = useRef(null)
 
   const selected = clients.find(c => c.id === value) || null
+  const [sessionToken, setSessionToken] = useState(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSessionToken(session?.access_token || null))
+  }, [])
 
   function positionDropdown() {
     if (!triggerRef.current) return
@@ -167,15 +242,7 @@ export default function ClientPicker({ clients = [], value = '', onChange, place
               onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--surface-raised)' }}
               onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
             >
-              <span style={{
-                width: 24, height: 24, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, fontWeight: 600, flexShrink: 0,
-                background: isSelected ? '#6366f1' : 'var(--surface-raised)',
-                color: isSelected ? '#fff' : 'var(--text-muted)',
-              }}>
-                {client.first_name[0]}{client.last_name[0]}
-              </span>
+              <ClientAvatarCircle client={client} sessionToken={sessionToken} size={24} />
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: isSelected ? 500 : 400, display: 'block' }}>
                   {client.first_name} {client.last_name}
@@ -226,14 +293,7 @@ export default function ClientPicker({ clients = [], value = '', onChange, place
       >
         {selected ? (
           <>
-            <span style={{
-              width: 20, height: 20, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 9, fontWeight: 700, flexShrink: 0,
-              background: '#6366f1', color: '#fff',
-            }}>
-              {selected.first_name[0]}{selected.last_name[0]}
-            </span>
+            <ClientAvatarCircle client={selected} sessionToken={sessionToken} size={20} />
             <span style={{ flex: 1, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {selected.first_name} {selected.last_name}
             </span>

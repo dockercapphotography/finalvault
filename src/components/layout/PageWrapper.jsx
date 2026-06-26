@@ -1,20 +1,41 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.8'
+const VERSION = '1.3.9'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
 
 export default function PageWrapper({ session, children }) {
   const [showChangelog, setShowChangelog] = useState(false)
+  const mainRef = useRef(null)
+  const location = useLocation()
+
+  // Reset scroll position on every route change. The scrollable element
+  // here is <main> (overflow-auto), not window -- client-side navigation
+  // otherwise leaves the new page scrolled to wherever the previous page
+  // was left, since there's no full page load to reset it naturally.
+  useEffect(() => {
+    // Reset every plausible scroll owner. Which element actually scrolls
+    // varies by browser/viewport -- desktop browsers typically scroll
+    // <main> (overflow-auto) as intended, but mobile browsers (especially
+    // iOS Safari) commonly scroll the document/viewport itself instead,
+    // particularly with a fixed-position element on screen (the bottom
+    // nav bar). Resetting all three is cheap and covers every case.
+    mainRef.current?.scrollTo(0, 0)
+    window.scrollTo(0, 0)
+    document.documentElement.scrollTop = 0
+    document.body.scrollTop = 0
+  }, [location.key])
+
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header session={session} />
-        <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
+        <main ref={mainRef} className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
           <div className="max-w-7xl w-full">
             {children}
           </div>
@@ -89,6 +110,23 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.3.9 — June 26, 2026">
+                  <Group label="Navigation &amp; Breadcrumbs">
+                    <Item>Gallery breadcrumbs now correctly show the full folder path on Detail, Settings, and Activity pages</Item>
+                    <Item>Long breadcrumb trails collapse with an ellipsis instead of wrapping and clipping</Item>
+                    <Item>Back/Forward now walks folder navigation one level at a time instead of jumping to the dashboard root</Item>
+                    <Item>Mobile gallery back button now returns to the actual previous page instead of always going to root</Item>
+                    <Item>Fixed scroll position carrying over between pages on mobile</Item>
+                  </Group>
+                  <Group label="Clients">
+                    <Item>Added "Attach Gallery" button on Client Detail to link an existing gallery without going through Gallery Settings</Item>
+                    <Item>Client picker now shows uploaded client photos, with readable colored initials as a fallback</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Folder thumbnail grids now show all 4 cover images instead of only 3</Item>
+                    <Item>Fixed daily activity digest and expiry reminder emails failing to send</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.8 — June 24, 2026">
                   <Group label="Bug Fixes">
                     <Item>Fixed high-resolution ZIP downloads failing on large galleries</Item>

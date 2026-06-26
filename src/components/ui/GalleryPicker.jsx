@@ -239,11 +239,14 @@ export default function GalleryPicker({ galleries = [], value = null, onChange, 
             }}>
               <Image size={11} />
             </span>
-            <span style={{ flex: 1, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span title={selected.title} style={{ flex: '2 1 auto', minWidth: 0, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {selected.title}
             </span>
             {(selected.event_name || selected.event_date) && (
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
+              <span
+                title={[selected.event_name, formatDate(selected.event_date)].filter(Boolean).join(' · ')}
+                style={{ flex: '1 1 auto', minWidth: 0, maxWidth: '40%', fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
                 {[selected.event_name, formatDate(selected.event_date)].filter(Boolean).join(' · ')}
               </span>
             )}

@@ -100,6 +100,20 @@ export async function deleteGallery(id) {
   if (error) throw error
 }
 
+// Returns galleries with no client_id set — used by the "Attach Gallery"
+// picker on ClientDetail.jsx so photographers only see galleries that are
+// actually available to link, rather than every gallery in the account.
+export async function getUnlinkedGalleries() {
+  const { data, error } = await supabase
+    .from('galleries')
+    .select('id, title, event_name, event_date, created_at')
+    .is('client_id', null)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
 export async function getGalleryImageCount(galleryId) {
   const { count, error } = await supabase
     .from('gallery_images')
@@ -304,6 +318,39 @@ export async function getFolderAncestors(folderId) {
   return ancestorIds
     .map(id => ancestors.find(a => a.id === id))
     .filter(Boolean)
+}
+
+// Builds a consistent breadcrumb trail for any gallery-adjacent page
+// (GalleryDetail, GallerySettings, GalleryActivity, etc).
+//
+// gallery          — the gallery row (needs .id, .title, .folder_id)
+// folderAncestors  — array of { id, name } from getFolderAncestors(gallery.folder_id),
+//                    root-first order. Pass [] for an ungrouped gallery.
+// currentLabel     — optional. If provided, appended as the final
+//                    non-clickable crumb (e.g. 'Settings', 'Activity').
+//                    If omitted, the gallery title itself is the final crumb.
+//
+// Every folder crumb and the root 'Galleries' crumb carry toState.restoreFolderPath
+// so Dashboard's existing restore-on-mount logic lands back in the exact folder,
+// regardless of how the page was reached (card click, direct link, refresh).
+export function buildGalleryCrumbs(gallery, folderAncestors = [], currentLabel = null) {
+  const crumbs = [
+    { label: 'Galleries', to: '/', toState: { restoreFolderPath: [] } },
+    ...folderAncestors.map((folder, i, arr) => ({
+      label: folder.name,
+      to: '/',
+      toState: { restoreFolderPath: arr.slice(0, i + 1) },
+    })),
+  ]
+
+  if (currentLabel) {
+    crumbs.push({ label: gallery.title, to: `/galleries/${gallery.id}`, toState: { folderAncestors } })
+    crumbs.push({ label: currentLabel })
+  } else {
+    crumbs.push({ label: gallery.title })
+  }
+
+  return crumbs
 }
 
 // ── Dead code — Client Proofing (removed in v1.1.0, kept for reference) ──────

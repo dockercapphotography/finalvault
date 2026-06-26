@@ -37,3 +37,4 @@ cleanup-r2-orphans.mjs
 tests/.auth/
 test-results.txt
 *.bak
+supabase/.temp/

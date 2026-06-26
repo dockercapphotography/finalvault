@@ -1027,7 +1027,7 @@ function buildFolderCoverUrls(galleries, authToken) {
   for (const g of galleries) {
     if (!g.folder_id) continue
     if (!map[g.folder_id]) map[g.folder_id] = []
-    if (map[g.folder_id].length < 3) {
+    if (map[g.folder_id].length < 4) {
       const key = g.gallery_images?.preview_r2_key || g.cover_r2_key
       if (key) {
         map[g.folder_id].push(`${WORKER_URL}/preview/${encodeURIComponent(key)}?token=${authToken}`)
@@ -1183,14 +1183,25 @@ export default function Dashboard() {
   const [newFolderOpen, setNewFolderOpen] = useState(false)
 
   useEffect(() => {
-    loadData().then(() => {
-      const restore = location.state?.restoreFolderPath
-      if (restore?.length) {
-        setFolderPath(restore)
-        setCurrentFolderId(restore[restore.length - 1].id)
-      }
-    })
+    loadData()
   }, [])
+
+  // Single source of truth for folder navigation state. Runs on every
+  // location change — whether that change came from a click (history push,
+  // see handleNavigateToFolder/handleBreadcrumbNavigate below) or the
+  // browser's Back/Forward buttons (history pop). This is what makes
+  // folder navigation participate in browser history correctly: clicks and
+  // history nav both land here and produce the same result.
+  useEffect(() => {
+    const restore = location.state?.restoreFolderPath
+    if (restore?.length) {
+      setFolderPath(restore)
+      setCurrentFolderId(restore[restore.length - 1].id)
+    } else {
+      setFolderPath([])
+      setCurrentFolderId(null)
+    }
+  }, [location.state])
 
   async function loadData() {
     try {
@@ -1228,23 +1239,36 @@ export default function Dashboard() {
     setToast({ message: 'Gallery link copied!', type: 'success' })
   }
 
-  // Navigate into a folder
+  // Navigate into a folder. Pushes a new history entry (so the browser's
+  // Back button steps out one folder level at a time, per the earlier fix)
+  // AND updates folderPath/currentFolderId synchronously in this same call,
+  // so the page title and the folder contents grid always update together
+  // in one render -- avoiding a brief frame where they're out of sync that
+  // a slower navigate()-then-effect path could otherwise produce.
   function handleNavigateToFolder(folder) {
+    const nextPath = [...folderPath, { id: folder.id, name: folder.name }]
+    setFolderPath(nextPath)
     setCurrentFolderId(folder.id)
-    setFolderPath(prev => [...prev, { id: folder.id, name: folder.name }])
+    navigate('/', { state: { restoreFolderPath: nextPath } })
     setSearch('')
   }
 
-  // Navigate to a breadcrumb target (null = root, or a folder ID partway up)
+  // Navigate to a breadcrumb target (null = root, or a folder ID partway up).
+  // Same treatment as handleNavigateToFolder above: pushes a history entry
+  // AND updates state synchronously in this same call, so the title and
+  // grid stay in sync in a single render.
   function handleBreadcrumbNavigate(targetId) {
     if (targetId === null) {
-      setCurrentFolderId(null)
       setFolderPath([])
+      setCurrentFolderId(null)
+      navigate('/', { state: { restoreFolderPath: [] } })
     } else {
       const idx = folderPath.findIndex(f => f.id === targetId)
       if (idx !== -1) {
+        const nextPath = folderPath.slice(0, idx + 1)
+        setFolderPath(nextPath)
         setCurrentFolderId(targetId)
-        setFolderPath(folderPath.slice(0, idx + 1))
+        navigate('/', { state: { restoreFolderPath: nextPath } })
       }
     }
     setSearch('')
@@ -1261,8 +1285,7 @@ export default function Dashboard() {
   // Since the RPC deletes recursively server-side, we reload all data
   // and navigate back to root to avoid showing stale state.
   async function handleFolderDeleted(deletedRootId) {
-    setCurrentFolderId(null)
-    setFolderPath([])
+    navigate('/', { state: { restoreFolderPath: [] } })
     await loadData()
   }
 

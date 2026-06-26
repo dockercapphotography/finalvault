@@ -3,13 +3,15 @@ import Cropper from 'react-easy-crop'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, Camera,
-  Pencil, Trash2, X, Plus, Clock, CheckCircle,
+  Pencil, Trash2, X, Plus, Clock, CheckCircle, Images,
   AlertCircle, Ban, CalendarDays
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
+import GalleryPicker from '../components/ui/GalleryPicker.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags } from '../utils/crmApi.js'
+import { getUnlinkedGalleries, updateGallery } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
 import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
@@ -377,6 +379,96 @@ function ContractRow({ contract }) {
   )
 }
 
+function AttachGalleryModal({ onClose, onAttached }) {
+  const [galleries, setGalleries] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedId, setSelectedId] = useState(null)
+  const [attaching, setAttaching] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    getUnlinkedGalleries()
+      .then(setGalleries)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function handleAttach() {
+    if (!selectedId) return
+    setAttaching(true)
+    setError(null)
+    try {
+      await onAttached(selectedId)
+    } catch (err) {
+      setError(err.message)
+      setAttaching(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+      onClick={() => !attaching && onClose()}>
+      <div className="w-full max-w-sm rounded-2xl overflow-hidden"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Attach Gallery</h2>
+          {!attaching && (
+            <button onClick={onClose}
+              style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none' }}>
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {error && (
+            <div className="px-3 py-2 rounded-xl text-sm" style={{ background: 'var(--danger-subtle)', color: 'var(--danger)' }}>
+              {error}
+            </div>
+          )}
+          {loading ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+                style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+            </div>
+          ) : galleries.length === 0 ? (
+            <div className="text-center py-4">
+              <Images size={20} style={{ color: 'var(--text-muted)', margin: '0 auto 8px' }} />
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No unlinked galleries available.</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Every gallery is already linked to a client, or none exist yet.</p>
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>Select a gallery</label>
+              <GalleryPicker
+                galleries={galleries}
+                value={selectedId}
+                onChange={setSelectedId}
+                placeholder="Select a gallery..."
+                allowNone={false}
+              />
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+          <button onClick={onClose} disabled={attaching}
+            className="flex-1 py-2 rounded-lg text-sm font-medium"
+            style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={handleAttach} disabled={attaching || !selectedId}
+            className="flex-1 py-2 rounded-lg text-sm font-medium"
+            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: (attaching || !selectedId) ? 'not-allowed' : 'pointer', opacity: (attaching || !selectedId) ? 0.6 : 1 }}>
+            {attaching ? 'Attaching...' : 'Attach Gallery'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ClientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -394,6 +486,7 @@ export default function ClientDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState(null)
+  const [showAttachGallery, setShowAttachGallery] = useState(false)
 
   useEffect(() => {
     load()
@@ -463,6 +556,14 @@ export default function ClientDetail() {
       setDeleting(false)
       setConfirmDelete(false)
     }
+  }
+
+  async function handleAttachGallery(galleryId) {
+    await updateGallery(galleryId, { client_id: id })
+    const fresh = await getClientGalleries(id)
+    setGalleries(fresh)
+    setShowAttachGallery(false)
+    setToast({ message: 'Gallery attached', type: 'success' })
   }
 
   if (loading) {
@@ -612,16 +713,21 @@ export default function ClientDetail() {
               {galleries.length} {galleries.length === 1 ? 'gallery' : 'galleries'} linked to this client
             </p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => navigate('/galleries/new')}>
-            <Plus size={13} />New Gallery
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setShowAttachGallery(true)}>
+              <Images size={13} />Attach Gallery
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/galleries/new')}>
+              <Plus size={13} />New Gallery
+            </Button>
+          </div>
         </div>
 
         {galleries.length === 0 ? (
           <div className="px-5 py-8 text-center">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No galleries linked yet.</p>
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              Link this client from Gallery Settings, or create a new gallery.
+              Attach an existing gallery above, or create a new one.
             </p>
           </div>
         ) : (
@@ -776,6 +882,13 @@ export default function ClientDetail() {
           onSave={handleCropSave}
           onCancel={() => setCropSrc(null)}
           saving={uploadingAvatar}
+        />
+      )}
+
+      {showAttachGallery && (
+        <AttachGalleryModal
+          onClose={() => setShowAttachGallery(false)}
+          onAttached={handleAttachGallery}
         />
       )}
 

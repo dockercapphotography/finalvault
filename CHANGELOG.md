@@ -4,6 +4,32 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.9 — June 26, 2026
+
+### Bug Fixes
+
+**Navigation & Breadcrumbs**
+- Gallery breadcrumbs (Detail, Settings, Activity) now correctly show the full folder path instead of losing it when navigating between pages — derived from the gallery's `folder_id` via a new shared `buildGalleryCrumbs()` helper instead of fragile relayed navigation state
+- Breadcrumb trails longer than 5 crumbs now collapse the middle with an ellipsis instead of wrapping and clipping
+- Long folder/gallery names in breadcrumbs now show in full more often (widened from 200px to 320px) and reveal the complete name on hover via tooltip if still truncated
+- Browser Back/Forward now walks folder navigation one level at a time instead of jumping straight to the dashboard root — folder clicks and breadcrumb clicks now push real history entries
+- Mobile gallery back button now returns to the actual previous page/folder (`navigate(-1)`) instead of always returning to the dashboard root
+- Fixed page scroll position carrying over between pages on mobile — navigating to a new page (including into a folder) now correctly resets scroll to the top
+
+**Client ↔ Gallery Linking**
+- Added "Attach Gallery" button on the Client page, letting a photographer link an existing unlinked gallery directly from Client Detail instead of only from Gallery Settings
+- Fixed client avatar initials being nearly unreadable (low-contrast gray-on-gray) in the client picker dropdown — clients now get a distinct, readable color
+- Client picker now shows actual uploaded client photos where available, falling back to colored initials otherwise — consistent with the Clients list
+- Fixed the gallery picker's selected-item display clipping the gallery title down to a few characters when the event name/date didn't leave it enough room
+
+**Dashboard**
+- Fixed folder thumbnail grids only ever showing 3 of 4 possible cover images, leaving the bottom-right cell empty even when a folder had 4 or more galleries
+
+**Infrastructure**
+- Fixed the daily activity digest and expiry reminder cron jobs failing silently every run since `pg_net` (the Postgres extension that lets `pg_cron` make HTTP calls to Edge Functions) was not installed on the database — reinstalled `pg_net` and corrected an incorrect API key type on the activity digest job's auth header
+
+---
+
 ## v1.3.8 — June 24, 2026
 
 ### Bug Fixes
