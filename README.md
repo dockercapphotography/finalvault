@@ -56,7 +56,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Set tabs** — galleries organized into named sections (Previews, Finals, etc.)
 - **Full-screen lightbox** — pinch-to-zoom, double-tap, swipe navigation, body scroll lock
 - **Favorites** — heart individual images; your photographer can see your picks
-- **Comments** — leave notes on specific images, including from inside the lightbox
+- **Comments** — leave notes on specific images, including from inside the lightbox; the photographer can reply, and each client only sees their own comments and the photographer's replies
 - **Downloads** — web-size JPEG or full-resolution original, individual or full-gallery ZIP
 - **iOS native downloads** — save directly to Photos via the system share sheet
 - **Right-click and drag protection** on preview images

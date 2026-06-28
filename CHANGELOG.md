@@ -4,6 +4,27 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.3.10 — June 28, 2026
+
+### New Features
+
+**Client Comments**
+- Photographers can now reply to client comments directly from the Activity feed — replies post into the same comment thread the client sees, attributed with the photographer's name
+
+### Bug Fixes
+
+**Client Comments**
+- Clients viewing a gallery now only see their own comments and the photographer's replies, instead of seeing every other client's comments on the same gallery
+
+### Security
+
+- Hardened row-level security across several client-facing tables (viewer sessions, comments, favorites, proofing selections) to properly scope access per-gallery and per-viewer instead of relying on broader, less-restrictive policies
+- Closed a gap where a database secret key was stored in plaintext in a scheduled job definition — moved to Supabase Vault
+- Removed an unused, empty database schema left over from earlier testing
+- Added a database-level safeguard so storage tier changes can only be performed by admin accounts, closing a gap where the restriction previously existed only in the interface
+
+---
+
 ## v1.3.9 — June 26, 2026
 
 ### Bug Fixes

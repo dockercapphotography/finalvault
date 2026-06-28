@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.9'
+const VERSION = '1.3.10'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -110,6 +110,15 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.3.10 — June 28, 2026">
+                  <Group label="Client Comments">
+                    <Item>Photographers can now reply to client comments from the Activity feed</Item>
+                    <Item>Clients now only see their own comments and the photographer's replies, not other clients' comments</Item>
+                  </Group>
+                  <Group label="Security">
+                    <Item>General security hardening across client-facing data access</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.9 — June 26, 2026">
                   <Group label="Navigation &amp; Breadcrumbs">
                     <Item>Gallery breadcrumbs now correctly show the full folder path on Detail, Settings, and Activity pages</Item>
