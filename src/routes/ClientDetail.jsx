@@ -4,13 +4,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, Camera,
   Pencil, Trash2, X, Plus, Clock, CheckCircle, Images,
-  AlertCircle, Ban, CalendarDays
+  AlertCircle, Ban, CalendarDays, Link2, Copy, RefreshCw, Check
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import GalleryPicker from '../components/ui/GalleryPicker.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
-import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags } from '../utils/crmApi.js'
+import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags, getOrCreatePortalToken, regeneratePortalToken } from '../utils/crmApi.js'
 import { getUnlinkedGalleries, updateGallery } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
 import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
@@ -469,6 +469,100 @@ function AttachGalleryModal({ onClose, onAttached }) {
   )
 }
 
+function PortalLinkCard({ client, onToast, onTokenChange }) {
+  const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [confirmRegen, setConfirmRegen] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+
+  const portalUrl = client.portal_token
+    ? `${window.location.origin}/client/${client.portal_token}`
+    : null
+
+  async function handleGenerate() {
+    setLoading(true)
+    try {
+      const token = await getOrCreatePortalToken(client.id)
+      onTokenChange(token)
+    } catch (err) {
+      onToast({ message: err.message, type: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleCopy() {
+    if (!portalUrl) return
+    await navigator.clipboard.writeText(portalUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function handleRegenerate() {
+    setRegenerating(true)
+    try {
+      const token = await regeneratePortalToken(client.id)
+      onTokenChange(token)
+      setConfirmRegen(false)
+      onToast({ message: 'Portal link regenerated — the old link no longer works', type: 'success' })
+    } catch (err) {
+      onToast({ message: err.message, type: 'error' })
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+      <div className="px-5 py-4" style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)' }}>
+        <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Client portal</h3>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          One link showing all galleries, contracts, and outstanding questionnaires for this client.
+        </p>
+      </div>
+      <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
+        {!portalUrl ? (
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No portal link generated yet.</p>
+            <Button variant="secondary" size="sm" onClick={handleGenerate} disabled={loading}>
+              <Link2 size={13} />{loading ? 'Generating...' : 'Generate link'}
+            </Button>
+          </div>
+        ) : !confirmRegen ? (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0 px-3 py-2 rounded-lg text-xs truncate"
+              style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              {portalUrl}
+            </div>
+            <button onClick={handleCopy}
+              className="flex items-center gap-1 text-xs px-2.5 py-2 rounded-lg font-medium flex-shrink-0"
+              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button onClick={() => setConfirmRegen(true)}
+              className="flex items-center gap-1 text-xs px-2.5 py-2 rounded-lg font-medium flex-shrink-0"
+              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+              <RefreshCw size={12} />Regenerate
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
+            style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
+            <p className="text-sm flex-1 font-medium" style={{ color: 'var(--danger)' }}>
+              Regenerate? The current link will stop working immediately.
+            </p>
+            <Button variant="danger" size="sm" onClick={handleRegenerate} disabled={regenerating}>
+              {regenerating ? 'Regenerating...' : 'Confirm'}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setConfirmRegen(false)}>Cancel</Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function ClientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -703,6 +797,13 @@ export default function ClientDetail() {
           </div>
         )}
       </div>
+
+      {/* Client portal link */}
+      <PortalLinkCard
+        client={client}
+        onToast={setToast}
+        onTokenChange={token => setClient(prev => ({ ...prev, portal_token: token }))}
+      />
 
       {/* Galleries */}
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
