@@ -23,6 +23,8 @@ import PrivacyPolicy from './routes/PrivacyPolicy.jsx'
 import SignContract from './routes/SignContract.jsx'
 import TermsOfService from './routes/TermsOfService.jsx'
 import ClientPortalGalleries from './routes/ClientPortalGalleries.jsx'
+import ClientPortalContracts from './routes/ClientPortalContracts.jsx'
+import ClientPortalContractDetail from './routes/ClientPortalContractDetail.jsx'
 import ClientPortalRedirect from './routes/ClientPortalRedirect.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
 
@@ -129,6 +131,8 @@ export default function App() {
       <Route path="/submit/:token" element={<SubmitForm />} />
       <Route path="/client/:token" element={<ClientPortalRedirect />} />
       <Route path="/client/:token/galleries" element={<ClientPortalGalleries />} />
+      <Route path="/client/:token/contracts" element={<ClientPortalContracts />} />
+      <Route path="/client/:token/contracts/:contractId" element={<ClientPortalContractDetail />} />
       <Route path="/clients" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><Clients /></PageWrapper>
