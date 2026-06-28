@@ -114,4 +114,93 @@ test.describe('Admin — Tier Management', () => {
     await expect(page.getByText('Test Studio')).toBeVisible()
     await expect(page.locator('select').first()).toBeAttached()
   })
+
+  // ── admin_set_photographer_tier RPC — not covered by an automated test ────
+  //
+  // A UI-driven test for changing a photographer's tier from this dropdown
+  // was attempted alongside the search_path hardening migration
+  // (2026-06-26) but dropped after several rounds of locator instability
+  // against Admin.jsx's nested row markup (filter-by-text and XPath
+  // ancestor traversal both produced unreliable element counts across runs).
+  //
+  // This RPC was manually verified end-to-end after the search_path
+  // migration: a real tier change was made via this exact dropdown and
+  // confirmed to persist correctly. Given the function's simplicity (a
+  // single INSERT ... ON CONFLICT DO UPDATE) and low change frequency,
+  // the manual check is considered sufficient for now rather than continuing
+  // to chase a fragile locator.
+  //
+  // If Admin.jsx's row structure is refactored in the future, this would be
+  // a good time to add a stable test hook (e.g. a data-testid on each row)
+  // and revisit automated coverage here.
+
+  // ── assign_default_storage_tier trigger — fires on real signup ─────────────
+  //
+  // Unlike the test above, this one exercises a genuine auth.users insert
+  // (a real signup) so the actual trigger chain fires:
+  // auth.users insert -> handle_new_user() -> photographers insert ->
+  // assign_default_storage_tier() -> photographer_storage insert.
+  //
+  // This is the one path from the search_path hardening migration that
+  // can't be triggered through the UI in a normal test flow, since it only
+  // runs once, at account creation.
+  test('assigns a default storage tier on signup', async ({ page }) => {
+    // Ensure there's a tier marked as default to assign, without assuming
+    // one already exists — create one if needed, restore prior default
+    // state afterward.
+    const { data: existingDefault } = await sb()
+      .from('storage_tiers')
+      .select('id')
+      .eq('is_default', true)
+      .maybeSingle()
+
+    let createdFallbackDefault = null
+    if (!existingDefault) {
+      const { data } = await sb().from('storage_tiers').insert({
+        name: `PW Default Tier ${Date.now()}`,
+        storage_gb: 5,
+        price_monthly: 0,
+        is_default: true,
+      }).select().single()
+      createdFallbackDefault = data
+    }
+
+    const testEmail = `pw-signup-test-${Date.now()}@example.com`
+    let createdUserId = null
+
+    try {
+      const { data: userData, error: createError } = await sb().auth.admin.createUser({
+        email: testEmail,
+        password: 'PlaywrightSignupTest123!',
+        email_confirm: true,
+      })
+      if (createError) throw new Error(createError.message)
+      createdUserId = userData.user.id
+
+      // Give the trigger chain a moment to run (it's synchronous within the
+      // insert transaction, but allow a brief retry window for safety).
+      let storageRow = null
+      for (let i = 0; i < 5; i++) {
+        const { data } = await sb()
+          .from('photographer_storage')
+          .select('tier_id')
+          .eq('photographer_id', createdUserId)
+          .maybeSingle()
+        if (data) { storageRow = data; break }
+        await page.waitForTimeout(500)
+      }
+
+      expect(storageRow).not.toBeNull()
+      expect(storageRow.tier_id).not.toBeNull()
+    } finally {
+      if (createdUserId) {
+        await sb().from('photographer_storage').delete().eq('photographer_id', createdUserId)
+        await sb().from('photographers').delete().eq('id', createdUserId)
+        await sb().auth.admin.deleteUser(createdUserId)
+      }
+      if (createdFallbackDefault) {
+        await sb().from('storage_tiers').delete().eq('id', createdFallbackDefault.id)
+      }
+    }
+  })
 })
