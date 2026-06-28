@@ -2,7 +2,7 @@
  * Verify a share token against Supabase.
  * Uses plain text password and PIN comparison.
  */
-export async function verifyShareToken(request, env, requirePin = false) {
+export async function verifyShareToken(request, env, requirePin = false, allowExpiredPreview = false) {
   const shareToken = request.headers.get('X-Share-Token')
   if (!shareToken) {
     return { valid: false, error: 'Missing share token' }
@@ -29,7 +29,11 @@ export async function verifyShareToken(request, env, requirePin = false) {
 
     const gallery = rows[0]
 
-    if (gallery.expires_at && new Date(gallery.expires_at) < new Date()) {
+    // allowExpiredPreview is a narrow carve-out for the client portal's
+    // cover thumbnails -- a stale thumbnail is cosmetic, not real photo
+    // access. Defaults to false everywhere else, so /g/:token and all
+    // downloads/zips keep the existing strict expiry block unchanged.
+    if (!allowExpiredPreview && gallery.expires_at && new Date(gallery.expires_at) < new Date()) {
       return { valid: false, error: 'Gallery has expired' }
     }
 

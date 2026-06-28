@@ -20,6 +20,13 @@ export async function handlePreview(request, env, corsHeaders) {
   const queryToken = url.searchParams.get('token')           // JWT via query param (for <img> tags)
   const hasShareHeader = !!request.headers.get('X-Share-Token')
   const queryShareToken = url.searchParams.get('share_token')
+  // Narrow carve-out for the client portal's cover thumbnails -- lets an
+  // expired gallery's preview still render as a (dimmed, grayscale on the
+  // frontend) memory cue, without loosening expiry for any other preview
+  // caller. Real photo access (downloads, zips, the actual /g/:token
+  // gallery view) is untouched -- this only ever reaches verifyShareToken,
+  // never original.js or zip.js.
+  const allowExpiredPreview = url.searchParams.get('allow_expired') === '1'
 
   if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken) {
     return jsonResponse({ ok: false, error: 'Authentication required' }, 401, corsHeaders)
@@ -44,7 +51,7 @@ export async function handlePreview(request, env, corsHeaders) {
         })
       : request
 
-    const shareAuth = await verifyShareToken(tokenRequest, env, false)
+    const shareAuth = await verifyShareToken(tokenRequest, env, false, allowExpiredPreview)
     if (!shareAuth.valid) return jsonResponse({ ok: false, error: shareAuth.error }, 403, corsHeaders)
     photographerId = shareAuth.photographerId
   }
