@@ -553,3 +553,27 @@ export async function createAndAssignTag(galleryId, { name, color = null }) {
   await assignTag(galleryId, tag.id)
   return tag
 }
+
+// Post a photographer reply on a client's comment thread. Uses the real
+// authenticated client (not supabaseAnon) -- RLS (see
+// 030_gallery_comments_photographer_insert.sql) requires photographer_id
+// to match auth.uid() and the gallery to belong to the calling
+// photographer. Does NOT call logActivity -- a photographer's own reply
+// to their own gallery shouldn't show up in their own activity feed as
+// something to review.
+export async function addPhotographerReply(galleryId, imageId, body) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+  const { data, error } = await supabase
+    .from('gallery_comments')
+    .insert({
+      gallery_id: galleryId,
+      image_id: imageId || null,
+      photographer_id: user.id,
+      body,
+    })
+    .select('id, body, created_at, image_id, photographer_id')
+    .single()
+  if (error) throw error
+  return data
+}

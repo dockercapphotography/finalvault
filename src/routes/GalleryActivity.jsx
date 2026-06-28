@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Eye, Heart, HeartOff, MessageCircle, Download, Package, CheckCircle, X, ChevronLeft, ChevronRight, MoreVertical, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
-import { getFolderAncestors, buildGalleryCrumbs } from '../utils/galleryApi.js'
+import { getFolderAncestors, buildGalleryCrumbs, addPhotographerReply } from '../utils/galleryApi.js'
 import { formatDate } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
@@ -13,6 +13,7 @@ const ACTION_CONFIG = {
   favorite:        { icon: Heart,        label: 'Favorited a photo',     color: '#ef4444' },
   unfavorite:      { icon: HeartOff,     label: 'Unfavorited a photo',   color: '#9ca3af' },
   comment:         { icon: MessageCircle,label: 'Left a comment',        color: '#f59e0b' },
+  reply:           { icon: MessageCircle,label: 'You replied',           color: '#6366f1' },
   download_single: { icon: Download,     label: 'Downloaded a photo',    color: '#10b981' },
   download_all:    { icon: Package,      label: 'Downloaded all photos', color: '#10b981' },
   selection_submitted: { icon: CheckCircle, label: 'Submitted selections', color: '#8b5cf6' },
@@ -467,13 +468,16 @@ export default function GalleryActivity() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [authToken, setAuthToken] = useState(null)
+  const [replyingTo, setReplyingTo] = useState(null)
+  const [replyText, setReplyText] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
 
   useEffect(() => { load() }, [id])
 
   async function load() {
     try {
       setLoading(true)
-      const [{ data: { session } }, { data: g }, { data: logs }] = await Promise.all([
+      const [{ data: { session } }, { data: g }, { data: logs }, { data: replies }] = await Promise.all([
         supabase.auth.getSession(),
         supabase.from('galleries')
           .select('id, title, folder_id, image_count:gallery_images!gallery_images_gallery_id_fkey(count)')
@@ -488,9 +492,38 @@ export default function GalleryActivity() {
           .eq('gallery_id', id)
           .order('occurred_at', { ascending: false })
           .limit(200),
+        // Photographer replies live in gallery_comments, not
+        // gallery_activity_log -- that table has no concept of a
+        // photographer action at all (no photographer_id column, no
+        // authenticated INSERT policy), and retrofitting it would mean a
+        // real schema change. Reading replies directly from
+        // gallery_comments (RLS: 031_gallery_comments_photographer_select.sql)
+        // and merging them into the same list is simpler and means replies
+        // persist properly -- no synthetic client-only rows.
+        supabase
+          .from('gallery_comments')
+          .select('id, body, created_at, image_id, gallery_images (file_name, preview_r2_key)')
+          .eq('gallery_id', id)
+          .not('photographer_id', 'is', null)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(200),
       ])
       setAuthToken(session?.access_token || null)
       setGallery(g)
+
+      const replyEntries = (replies || []).map(r => ({
+        id: `reply-${r.id}`,
+        action: 'reply',
+        occurred_at: r.created_at,
+        image_id: r.image_id,
+        viewer_id: null,
+        metadata: { comment_body: r.body },
+        gallery_viewers: null,
+        gallery_images: r.gallery_images || null,
+      }))
+      const mergedLogs = [...(logs || []), ...replyEntries]
+        .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))
       // Folder context: prefer what GalleryDetail relayed via navigation
       // state, otherwise fetch fresh from the gallery's folder_id. Fetching
       // as a fallback keeps the breadcrumb correct even on a direct link
@@ -500,7 +533,7 @@ export default function GalleryActivity() {
       } else if (g?.folder_id !== undefined) {
         getFolderAncestors(g.folder_id).then(setFolderAncestors).catch(() => setFolderAncestors([]))
       }
-      setActivity((logs || []).map(log => ({
+      setActivity(mergedLogs.map(log => ({
         ...log,
         comment_body: log.metadata?.comment_body || null
       })))
@@ -508,6 +541,26 @@ export default function GalleryActivity() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleReply(log) {
+    if (!replyText.trim() || sendingReply) return
+    setSendingReply(true)
+    try {
+      await addPhotographerReply(id, log.image_id || null, replyText.trim())
+      setReplyText('')
+      setReplyingTo(null)
+      // Refetch through the real load() path rather than splicing a local
+      // object into state -- this guarantees what's shown immediately
+      // after sending matches exactly what a reload would show, since
+      // it's the same query either way. Replies are persisted for real in
+      // gallery_comments, so this isn't just a client-side illusion.
+      await load()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSendingReply(false)
     }
   }
 
@@ -632,7 +685,9 @@ export default function GalleryActivity() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm truncate" style={{ color: 'var(--text)' }}>
-                    <span className="font-medium">{name}</span>{' '}{cfg.label.toLowerCase()}
+                    {log.action === 'reply'
+                      ? cfg.label
+                      : <><span className="font-medium">{name}</span>{' '}{cfg.label.toLowerCase()}</>}
                   </p>
                   {fileName && (
                     <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{fileName}</p>
@@ -642,7 +697,37 @@ export default function GalleryActivity() {
                       "{log.comment_body}"
                     </p>
                   )}
+                  {log.action === 'comment' && replyingTo === log.id && (
+                    <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                      <input
+                        value={replyText}
+                        onChange={e => setReplyText(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleReply(log)}
+                        placeholder="Write a reply…"
+                        autoFocus
+                        className="flex-1 text-xs rounded-lg px-2 py-1.5"
+                        style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                      />
+                      <button
+                        onClick={() => handleReply(log)}
+                        disabled={!replyText.trim() || sendingReply}
+                        className="text-xs font-medium px-2 py-1.5 rounded-lg flex-shrink-0 enabled:hover:brightness-90 transition-[filter]"
+                        style={{ background: '#6366f1', color: 'white', opacity: (!replyText.trim() || sendingReply) ? 0.5 : 1 }}
+                      >
+                        Send
+                      </button>
+                    </div>
+                  )}
                 </div>
+                {log.action === 'comment' && (
+                  <button
+                    onClick={() => { setReplyingTo(replyingTo === log.id ? null : log.id); setReplyText('') }}
+                    className="text-xs font-medium flex-shrink-0 px-2 py-1 rounded-lg hover:opacity-70 transition-opacity"
+                    style={{ color: '#6366f1' }}
+                  >
+                    {replyingTo === log.id ? 'Cancel' : 'Reply'}
+                  </button>
+                )}
                 <p className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
                   {timeAgo(log.occurred_at)}
                 </p>

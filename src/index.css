@@ -6,6 +6,21 @@ html, body, #root {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
+
+/* Tailwind v4's Preflight sets cursor: default on <button> deliberately
+   (not every button-shaped element is meant to feel clickable). This app
+   wants the opposite: anything the user can click should always show a
+   pointer cursor. Covers buttons, links, and explicit role="button"
+   elements; excludes disabled buttons, which correctly keep the
+   not-allowed cursor browsers already apply. */
+button:not(:disabled),
+a,
+[role="button"]:not([aria-disabled="true"]),
+select,
+summary {
+  cursor: pointer;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
 
 :root {

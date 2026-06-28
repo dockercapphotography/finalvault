@@ -468,8 +468,8 @@ function CommentThread({ galleryId, imageId, viewerId, allowComments }) {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    getComments(galleryId, imageId).then(setComments).catch(console.error)
-  }, [galleryId, imageId])
+    getComments(galleryId, imageId, viewerId).then(setComments).catch(console.error)
+  }, [galleryId, imageId, viewerId])
 
   async function handleSubmit() {
     if (!body.trim() || !viewerId) return

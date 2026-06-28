@@ -125,7 +125,13 @@ export async function toggleFavorite(galleryId, imageId, viewerId) {
   }
 }
 
-export async function getComments(galleryId, imageId = null) {
+export async function getComments(galleryId, imageId = null, viewerId = null) {
+  // 2026-06-28: scoped to the caller's own comments + all photographer
+  // comments, rather than every viewer's comments. RLS (see
+  // 029_gallery_comments_rls_scope_viewer.sql) enforces this as a ceiling
+  // regardless of what's requested here, but the app should still ask for
+  // the right thing rather than rely on the database to silently narrow
+  // an over-broad request.
   let query = supabase
     .from('gallery_comments')
     .select(`
@@ -141,6 +147,13 @@ export async function getComments(galleryId, imageId = null) {
     query = query.eq('image_id', imageId)
   } else {
     query = query.is('image_id', null)
+  }
+  if (viewerId) {
+    query = query.or(`viewer_id.eq.${viewerId},photographer_id.not.is.null`)
+  } else {
+    // No viewer context (e.g. not past the gate yet) -- only photographer
+    // comments are visible, matching what RLS would return anyway.
+    query = query.not('photographer_id', 'is', null)
   }
   const { data, error } = await query
   if (error) throw error
