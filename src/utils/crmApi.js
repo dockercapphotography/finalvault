@@ -408,3 +408,48 @@ export async function getAllTags(photographerId) {
   const all = (data || []).flatMap(r => r.tags || [])
   return [...new Set(all)].sort()
 }
+
+// ── Client Portal ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns the client's existing portal_token, or generates and saves a new
+ * one if none exists yet. Tokens are generated lazily -- most clients won't
+ * need a portal link, so there's no reason to mint one for every row.
+ */
+export async function getOrCreatePortalToken(clientId) {
+  const { data: existing, error: fetchError } = await supabase
+    .from('clients')
+    .select('portal_token')
+    .eq('id', clientId)
+    .single()
+  if (fetchError) throw fetchError
+  if (existing?.portal_token) return existing.portal_token
+
+  const token = crypto.randomUUID().replace(/-/g, '')
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ portal_token: token, updated_at: new Date().toISOString() })
+    .eq('id', clientId)
+    .select('portal_token')
+    .single()
+  if (error) throw error
+  return data.portal_token
+}
+
+/**
+ * Overwrites the client's portal_token with a fresh one, immediately
+ * invalidating any previously shared link. Caller is responsible for
+ * confirming with the photographer before calling this -- it's destructive
+ * to the old link with no undo.
+ */
+export async function regeneratePortalToken(clientId) {
+  const token = crypto.randomUUID().replace(/-/g, '')
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ portal_token: token, updated_at: new Date().toISOString() })
+    .eq('id', clientId)
+    .select('portal_token')
+    .single()
+  if (error) throw error
+  return data.portal_token
+}

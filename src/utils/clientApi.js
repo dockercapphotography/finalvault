@@ -61,6 +61,19 @@ export async function getPhotographerBranding(photographerId) {
   }
 }
 
+/**
+ * Fetches everything the client portal needs in one round trip: the
+ * client's display info, deduped galleries (linked directly OR via a
+ * session, never both), contracts (pending + signed, voided excluded),
+ * and outstanding questionnaires. Returns null if the token doesn't match
+ * any client -- callers should treat that the same as a 404.
+ */
+export async function getPortalData(token) {
+  const { data, error } = await supabase.rpc('get_client_portal_data', { p_token: token })
+  if (error) throw error
+  return data
+}
+
 export async function getClientImages(galleryId) {
   const { data, error } = await supabase
     .from('gallery_images')
