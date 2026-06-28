@@ -6,6 +6,7 @@ import { handleDelete } from './handlers/delete.js'
 import { handleZip } from './handlers/zip.js'
 import { handleWatermarkUpload, handleWatermarkServe, handleLogoServe } from './handlers/watermark.js'
 import { handlePdfUpload } from './handlers/upload-pdf.js'
+import { handleContractPdf } from './handlers/contract-pdf.js'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -60,6 +61,15 @@ export default {
         const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
         if (!success) return rateLimitedResponse()
         return await handleZip(request, env, CORS_HEADERS)
+      }
+
+      // Contract PDF download -- same rate-limit bucket as image downloads,
+      // since this is serving a real document on the client's behalf, not
+      // a static/cosmetic asset like a logo.
+      if (request.method === 'GET' && pathname.startsWith('/contract-pdf/')) {
+        const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
+        if (!success) return rateLimitedResponse()
+        return await handleContractPdf(request, env, CORS_HEADERS)
       }
 
       // ── Unthrottled routes ─────────────────────────────────────────────
