@@ -22,6 +22,8 @@ import Login from './routes/Login.jsx'
 import PrivacyPolicy from './routes/PrivacyPolicy.jsx'
 import SignContract from './routes/SignContract.jsx'
 import TermsOfService from './routes/TermsOfService.jsx'
+import ClientPortalGalleries from './routes/ClientPortalGalleries.jsx'
+import ClientPortalRedirect from './routes/ClientPortalRedirect.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
 
 const RECOVERY_KEY = 'fv-password-recovery'
@@ -125,6 +127,8 @@ export default function App() {
 
       <Route path="/sign/:token" element={<SignContract />} />
       <Route path="/submit/:token" element={<SubmitForm />} />
+      <Route path="/client/:token" element={<ClientPortalRedirect />} />
+      <Route path="/client/:token/galleries" element={<ClientPortalGalleries />} />
       <Route path="/clients" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><Clients /></PageWrapper>
