@@ -12,16 +12,13 @@ import { Images, FileText, ClipboardList } from 'lucide-react'
 // client happens to be looking at that tab.
 export default function ClientPortalSidebar({
   token,
-  hasQuestionnaires = true,
   pendingContracts = 0,
   pendingQuestionnaires = 0,
 }) {
   const navItems = [
     { to: `/client/${token}/galleries`, label: 'Galleries', icon: Images },
     { to: `/client/${token}/contracts`, label: 'Contracts', icon: FileText, badge: pendingContracts > 0 },
-    ...(hasQuestionnaires
-      ? [{ to: `/client/${token}/questionnaires`, label: 'Questionnaires', icon: ClipboardList, badge: pendingQuestionnaires > 0 }]
-      : []),
+    { to: `/client/${token}/questionnaires`, label: 'Questionnaires', icon: ClipboardList, badge: pendingQuestionnaires > 0 },
   ]
 
   return (
@@ -59,7 +56,7 @@ export default function ClientPortalSidebar({
 
       {/* ── Mobile bottom nav ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-evenly"
         style={{
           background: 'var(--surface)',
           borderTop: '1px solid var(--border)',

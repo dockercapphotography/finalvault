@@ -77,15 +77,6 @@ export default function ClientPortalContracts() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
-          style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
-      </div>
-    )
-  }
-
   if (notFound) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
@@ -99,6 +90,17 @@ export default function ClientPortalContracts() {
     )
   }
 
+  if (loading || !data) {
+    return (
+      <ClientPortalLayout token={token} hasQuestionnaires={true} pendingContracts={0} pendingQuestionnaires={0}>
+        <div className="flex items-center justify-center py-24">
+          <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+            style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+        </div>
+      </ClientPortalLayout>
+    )
+  }
+
   const contracts = data.contracts || []
   // RPC already excludes 'void'; remaining statuses are sent,
   // pending_photographer (both "needs your signature"), and signed.
@@ -108,7 +110,7 @@ export default function ClientPortalContracts() {
   return (
     <ClientPortalLayout
       token={token}
-      hasQuestionnaires={(data.pending_questionnaires || []).length > 0}
+      hasQuestionnaires={true}
       pendingContracts={pending.length}
       pendingQuestionnaires={(data.pending_questionnaires || []).length}
     >

@@ -93,15 +93,6 @@ export default function ClientPortalGalleries() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
-          style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
-      </div>
-    )
-  }
-
   if (notFound) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
@@ -112,6 +103,17 @@ export default function ClientPortalGalleries() {
           </p>
         </div>
       </div>
+    )
+  }
+
+  if (loading || !data) {
+    return (
+      <ClientPortalLayout token={token} hasQuestionnaires={true} pendingContracts={0} pendingQuestionnaires={0}>
+        <div className="flex items-center justify-center py-24">
+          <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+            style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+        </div>
+      </ClientPortalLayout>
     )
   }
 
@@ -140,7 +142,7 @@ export default function ClientPortalGalleries() {
   return (
     <ClientPortalLayout
       token={token}
-      hasQuestionnaires={(data.pending_questionnaires || []).length > 0}
+      hasQuestionnaires={true}
       pendingContracts={(data.contracts || []).filter(c => c.status !== 'signed').length}
       pendingQuestionnaires={(data.pending_questionnaires || []).length}
     >
