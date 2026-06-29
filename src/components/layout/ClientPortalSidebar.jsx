@@ -5,13 +5,26 @@ import { Images, FileText, ClipboardList } from 'lucide-react'
 // is anonymous and token-scoped, while Sidebar.jsx is authenticated and
 // wired to auth.uid(). See docs/CLIENT_PORTAL_SPEC.md for the reasoning.
 //
-// hasQuestionnaires lets the parent omit the Questionnaires item entirely
-// when a client has never had one assigned, rather than showing an empty
-// section. pendingContracts / pendingQuestionnaires drive the small badge
-// dot so outstanding items are visible from any section, not just when the
+// pendingContracts / pendingQuestionnaires drive the small badge dot so
+// outstanding items are visible from any section, not just when the
 // client happens to be looking at that tab.
+//
+// Header avatar deliberately does NOT render the photographer's actual
+// logo image -- after three rounds of trying to make a possibly-white,
+// possibly-transparent logo legible against this sidebar's background
+// (a chip, a dual-tone drop-shadow halo), a small solid-color initials
+// square is the reliable fallback: no color assumptions about the source
+// asset, works for any studio regardless of their logo's palette.
+function studioInitials(name) {
+  if (!name) return '?'
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[1][0]).toUpperCase()
+}
+
 export default function ClientPortalSidebar({
   token,
+  branding,
   pendingContracts = 0,
   pendingQuestionnaires = 0,
 }) {
@@ -21,13 +34,28 @@ export default function ClientPortalSidebar({
     { to: `/client/${token}/questionnaires`, label: 'Questionnaires', icon: ClipboardList, badge: pendingQuestionnaires > 0 },
   ]
 
+  const initials = studioInitials(branding?.name)
+
   return (
     <>
       {/* ── Desktop sidebar ── */}
-      <aside className="hidden md:flex w-52 flex-col py-5 px-3 shrink-0" style={{
+      <aside className="hidden md:flex w-52 flex-col py-5 px-3.5 shrink-0" style={{
         background: 'var(--surface)',
         borderRight: '1px solid var(--border)',
       }}>
+        <div className="flex items-center gap-2.5 px-1 pb-4 mb-3.5" style={{ borderBottom: '1px solid var(--border)', minHeight: 44 }}>
+          {branding && (
+            <>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: '#1a1a1a' }}>
+                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{initials}</span>
+              </div>
+              <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
+                {branding.name || ''}
+              </p>
+            </>
+          )}
+        </div>
         <nav className="flex flex-col gap-0.5">
           {navItems.map(({ to, label, icon: Icon, badge }) => (
             <NavLink
