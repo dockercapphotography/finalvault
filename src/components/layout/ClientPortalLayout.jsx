@@ -34,10 +34,11 @@ export default function ClientPortalLayout({ token, photographerId, pendingContr
       setBranding(cached)
       return
     }
-    getPhotographerBranding(photographerId).then(({ name, logoR2Key }) => {
+    getPhotographerBranding(photographerId).then(({ name, logoR2Key, avatarR2Key }) => {
       const result = {
         name,
         logoUrl: logoR2Key ? `${WORKER_URL}/logo/${encodeURIComponent(logoR2Key)}` : null,
+        avatarR2Key: avatarR2Key || null,
       }
       brandingCache.set(photographerId, result)
       setBranding(result)

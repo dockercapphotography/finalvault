@@ -52,12 +52,13 @@ export async function getPhotographerName(photographerId) {
 export async function getPhotographerBranding(photographerId) {
   const { data } = await supabase
     .from('photographers')
-    .select('display_name, business_name, logo_r2_key')
+    .select('display_name, business_name, logo_r2_key, avatar_r2_key')
     .eq('id', photographerId)
     .single()
   return {
     name: data?.business_name || data?.display_name || null,
     logoR2Key: data?.logo_r2_key || null,
+    avatarR2Key: data?.avatar_r2_key || null,
   }
 }
 

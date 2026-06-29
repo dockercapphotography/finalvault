@@ -5,6 +5,7 @@ import { handleDownload } from './handlers/download.js'
 import { handleDelete } from './handlers/delete.js'
 import { handleZip } from './handlers/zip.js'
 import { handleWatermarkUpload, handleWatermarkServe, handleLogoServe } from './handlers/watermark.js'
+import { handleAvatarServe } from './handlers/avatar.js'
 import { handlePdfUpload } from './handlers/upload-pdf.js'
 import { handleContractPdf } from './handlers/contract-pdf.js'
 
@@ -87,6 +88,9 @@ export default {
       }
       if (request.method === 'GET' && pathname.startsWith('/logo/')) {
         return await handleLogoServe(request, env, CORS_HEADERS)
+      }
+      if (request.method === 'GET' && pathname.startsWith('/avatar/')) {
+        return await handleAvatarServe(request, env, CORS_HEADERS)
       }
 
       // ── PDF upload (internal — service role key auth) ──

@@ -9,12 +9,20 @@ import { Images, FileText, ClipboardList } from 'lucide-react'
 // outstanding items are visible from any section, not just when the
 // client happens to be looking at that tab.
 //
-// Header avatar deliberately does NOT render the photographer's actual
-// logo image -- after three rounds of trying to make a possibly-white,
-// possibly-transparent logo legible against this sidebar's background
-// (a chip, a dual-tone drop-shadow halo), a small solid-color initials
-// square is the reliable fallback: no color assumptions about the source
-// asset, works for any studio regardless of their logo's palette.
+// Header deliberately does NOT render the photographer's logo image --
+// after three rounds of trying to make a possibly-white, possibly-
+// transparent logo legible against this sidebar's background (a chip, a
+// dual-tone drop-shadow halo), a small solid-color initials square became
+// the reliable fallback: no color assumptions about the source asset,
+// works for any studio regardless of their logo's palette.
+//
+// The actual profile photo (avatar_r2_key, separate from logo_r2_key) is a
+// different asset with a different failure mode -- a normal headshot
+// photo doesn't have the transparent-background problem a logo wordmark
+// does, so it's safe to render directly when present. Initials stay as
+// the fallback for photographers who haven't set an avatar.
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+
 function studioInitials(name) {
   if (!name) return '?'
   const words = name.trim().split(/\s+/).filter(Boolean)
@@ -46,10 +54,20 @@ export default function ClientPortalSidebar({
         <div className="flex items-center gap-2.5 px-1 pb-4 mb-3.5" style={{ borderBottom: '1px solid var(--border)', minHeight: 44 }}>
           {branding && (
             <>
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: '#1a1a1a' }}>
-                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{initials}</span>
-              </div>
+              {branding.avatarR2Key ? (
+                <img
+                  src={`${WORKER_URL}/avatar/${encodeURIComponent(branding.avatarR2Key)}`}
+                  alt=""
+                  className="w-7 h-7 rounded-lg flex-shrink-0"
+                  style={{ objectFit: 'cover' }}
+                  onError={e => { e.currentTarget.style.display = 'none' }}
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: '#1a1a1a' }}>
+                  <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{initials}</span>
+                </div>
+              )}
               <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
                 {branding.name || ''}
               </p>
