@@ -100,6 +100,44 @@ export default function ClientPortalSidebar({
         </nav>
       </aside>
 
+      {/* ── Mobile top header ── */}
+      {/* Desktop gets the studio avatar/name in the sidebar header above
+          the nav; mobile's nav is a bottom bar with no room for a header
+          of its own, so this mirrors the same avatar+name block as a
+          fixed top bar instead -- otherwise mobile clients never see any
+          studio identity at all. ClientPortalLayout adds matching top
+          padding to its <main> so page content doesn't render underneath
+          this fixed bar. */}
+      {branding && (
+        <div
+          className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center gap-2.5 px-4"
+          style={{
+            background: 'var(--surface)',
+            borderBottom: '1px solid var(--border)',
+            height: 52,
+            paddingTop: 'env(safe-area-inset-top)',
+          }}
+        >
+          {branding.avatarR2Key ? (
+            <img
+              src={`${WORKER_URL}/avatar/${encodeURIComponent(branding.avatarR2Key)}`}
+              alt=""
+              className="w-7 h-7 rounded-lg flex-shrink-0"
+              style={{ objectFit: 'cover' }}
+              onError={e => { e.currentTarget.style.display = 'none' }}
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: '#1a1a1a' }}>
+              <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{initials}</span>
+            </div>
+          )}
+          <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+            {branding.name || ''}
+          </p>
+        </div>
+      )}
+
       {/* ── Mobile bottom nav ── */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-evenly"

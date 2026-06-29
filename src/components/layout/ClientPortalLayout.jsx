@@ -54,7 +54,7 @@ export default function ClientPortalLayout({ token, photographerId, pendingContr
         pendingQuestionnaires={pendingQuestionnaires}
       />
       <div className="flex-1 flex flex-col min-w-0">
-        <main className="flex-1 p-7 overflow-auto" style={{ paddingBottom: 'calc(1.75rem + 60px)' }}>
+        <main className="flex-1 p-7 pt-[calc(1.75rem+52px)] md:pt-7 overflow-auto" style={{ paddingBottom: 'calc(1.75rem + 60px)' }}>
           {children}
         </main>
       </div>

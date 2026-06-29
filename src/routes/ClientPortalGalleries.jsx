@@ -141,12 +141,7 @@ export default function ClientPortalGalleries() {
     >
       <div className="space-y-5" style={{ maxWidth: 560 }}>
         <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Welcome back</p>
-            <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
-              Hi, {data.client?.first_name}
-            </h1>
-          </div>
+          <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Galleries</h1>
           {galleries.length > 1 && (
             <select value={sort} onChange={e => setSort(e.target.value)}
               className="text-xs px-2.5 py-1.5 rounded-lg"
