@@ -689,3 +689,126 @@ test.describe('Session — Multiple Linked Galleries', () => {
     expect(data?.map(r => r.gallery_id)).toEqual([galleryB.id])
   })
 })
+
+
+// ── Submission to client matching (idea #4 from the client portal spec) ───────
+// Before this feature, "Create client record" never checked for an
+// existing client with a matching email -- a photographer could end up
+// with duplicate client rows for the same person. Testing this also
+// surfaced a real pre-existing bug: session_submissions had no UPDATE
+// RLS policy at all (only INSERT/SELECT/DELETE), so every "Create client
+// record" click -- the original flow, not just this new one -- appeared
+// to succeed (the green "Client" badge is driven by local React state,
+// not a re-fetch) but never actually persisted client_id to the database.
+// Confirmed via direct query during development: zero rows in the whole
+// table had a non-null client_id before the missing policy was added.
+// These tests are the regression guard for both the matching UI and the
+// real database persistence.
+
+test.describe('Session submissions — existing client match', () => {
+  let session
+  let existingClient
+
+  test.beforeEach(async () => {
+    session = await createTestSession({ mode: 'walkup' })
+    existingClient = await createTestClient({ email: 'matching-client@example.com' })
+  })
+
+  test.afterEach(async () => {
+    await sb().from('session_submissions').delete().eq('session_id', session.id)
+    await deleteTestSession(session.id)
+    await deleteTestClient(existingClient.id)
+  })
+
+  test('shows a match banner when the submission email matches an existing client', async ({ page }) => {
+    const { data: submission } = await sb().from('session_submissions').insert({
+      session_id: session.id,
+      email: existingClient.email,
+      questions: [],
+      answers: {},
+      submitted_at: new Date().toISOString(),
+    }).select().single()
+
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.email).click()
+    await page.getByText('Create client record').click()
+    await expect(page.getByText(`Found an existing client with this email`)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(`${existingClient.first_name} ${existingClient.last_name}`)).toBeVisible()
+  })
+
+  test('match is case- and whitespace-insensitive', async ({ page }) => {
+    const { data: submission } = await sb().from('session_submissions').insert({
+      session_id: session.id,
+      email: '  Matching-Client@Example.com  ',
+      questions: [],
+      answers: {},
+      submitted_at: new Date().toISOString(),
+    }).select().single()
+
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.email.trim()).click()
+    await page.getByText('Create client record').click()
+    await expect(page.getByText('Found an existing client with this email')).toBeVisible({ timeout: 5000 })
+  })
+
+  test('no match shows the original create-new form, unchanged', async ({ page }) => {
+    const { data: submission } = await sb().from('session_submissions').insert({
+      session_id: session.id,
+      email: 'no-existing-client@example.com',
+      questions: [],
+      answers: {},
+      submitted_at: new Date().toISOString(),
+    }).select().single()
+
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.email).click()
+    await page.getByText('Create client record').click()
+    await expect(page.getByText('Review before creating client')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Found an existing client with this email')).not.toBeVisible()
+  })
+
+  test('Link to existing actually persists client_id to the database, not just local state', async ({ page }) => {
+    const { data: submission } = await sb().from('session_submissions').insert({
+      session_id: session.id,
+      email: existingClient.email,
+      questions: [],
+      answers: {},
+      submitted_at: new Date().toISOString(),
+    }).select().single()
+
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.email).click()
+    await page.getByText('Create client record').click()
+    await page.getByRole('button', { name: new RegExp(`Link to ${existingClient.first_name}`) }).click()
+    await expect(page.getByText('Client', { exact: true })).toBeVisible({ timeout: 5000 })
+
+    // The real regression guard: reload the page and confirm the link
+    // survives a fresh fetch from the database, not just the optimistic
+    // UI update that was the entire original bug.
+    await page.reload()
+    await expect(page.getByText('Client', { exact: true })).toBeVisible({ timeout: 8000 })
+
+    const { data } = await sb().from('session_submissions').select('client_id').eq('id', submission.id).single()
+    expect(data.client_id).toBe(existingClient.id)
+  })
+
+  test('Create new anyway does not link to the matched client', async ({ page }) => {
+    const { data: submission } = await sb().from('session_submissions').insert({
+      session_id: session.id,
+      email: existingClient.email,
+      questions: [],
+      answers: {},
+      submitted_at: new Date().toISOString(),
+    }).select().single()
+
+    await page.goto(`/sessions/${session.id}`)
+    await page.getByText(submission.email).click()
+    await page.getByText('Create client record').click()
+    await expect(page.getByText('Found an existing client with this email')).toBeVisible({ timeout: 5000 })
+    await page.getByText('Create new anyway').click()
+    await expect(page.getByText('Review before creating client')).toBeVisible({ timeout: 5000 })
+
+    const { data } = await sb().from('session_submissions').select('client_id').eq('id', submission.id).single()
+    expect(data.client_id).not.toBe(existingClient.id)
+  })
+})
