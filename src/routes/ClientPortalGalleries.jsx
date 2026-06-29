@@ -1,24 +1,24 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Images } from 'lucide-react'
-import { getPortalData, getPhotographerBranding } from '../utils/clientApi.js'
+import { Images, ChevronRight } from 'lucide-react'
+import { getPortalData } from '../utils/clientApi.js'
 import ClientPortalLayout from '../components/layout/ClientPortalLayout.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
-function GalleryCard({ gallery, isNew }) {
+function GalleryRow({ gallery, isNew }) {
   const isExpired = !gallery.is_active || (gallery.expires_at && new Date(gallery.expires_at) < new Date())
   return (
     <a
       href={`/g/${gallery.share_token}`}
-      className="block rounded-xl overflow-hidden"
+      className="flex items-center rounded-xl overflow-hidden"
       style={{
         border: '1px solid var(--border)', textDecoration: 'none',
         opacity: isExpired ? 0.55 : 1,
         pointerEvents: isExpired ? 'none' : 'auto',
       }}
     >
-      <div style={{ position: 'relative', aspectRatio: '1.4', background: 'var(--surface-raised)', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', width: 76, height: 76, background: 'var(--surface-raised)', overflow: 'hidden', flexShrink: 0 }}>
         {gallery.cover_r2_key && (
           <img
             src={`${WORKER_URL}/preview/${encodeURIComponent(gallery.cover_r2_key)}?share_token=${gallery.share_token}${isExpired ? '&allow_expired=1' : ''}`}
@@ -33,21 +33,22 @@ function GalleryCard({ gallery, isNew }) {
         )}
         {isNew && !isExpired && (
           <span style={{
-            position: 'absolute', top: 6, right: 6, background: '#6366f1', color: '#fff',
-            fontSize: 10, fontWeight: 500, padding: '2px 7px', borderRadius: 8,
+            position: 'absolute', top: 4, right: 4, background: '#6366f1', color: '#fff',
+            fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 7,
           }}>
             New
           </span>
         )}
       </div>
-      <div className="px-3 py-2.5">
-        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{gallery.title}</p>
+      <div className="px-4 py-3 flex-1 min-w-0">
+        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</p>
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
           {isExpired ? 'Expired' : gallery.event_date
             ? new Date(gallery.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             : ''}
         </p>
       </div>
+      {!isExpired && <ChevronRight size={16} style={{ color: '#c4c4c4', marginRight: 16, flexShrink: 0 }} />}
     </a>
   )
 }
@@ -57,7 +58,6 @@ export default function ClientPortalGalleries() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [branding, setBranding] = useState(null)
   const [sort, setSort] = useState('newest')
 
   useEffect(() => {
@@ -74,18 +74,11 @@ export default function ClientPortalGalleries() {
         return
       }
       setData(result)
-      if (result.client?.photographer_id) {
-        getPhotographerBranding(result.client.photographer_id).then(({ name, logoR2Key }) => {
-          setBranding({
-            name,
-            logoUrl: logoR2Key ? `${WORKER_URL}/logo/${encodeURIComponent(logoR2Key)}` : null,
-          })
-        })
-      }
-      // "New" badge now comes straight from the RPC's per-gallery `viewed`
+      // "New" badge comes straight from the RPC's per-gallery `viewed`
       // field (computed server-side against gallery_viewers), rather than
       // a frontend cross-check -- see docs/CLIENT_PORTAL_SPEC.md for why
       // that logic lives in the RPC instead of a direct anon table read.
+      // Branding is now fetched once in ClientPortalLayout, not per-page.
     } catch {
       setNotFound(true)
     } finally {
@@ -108,7 +101,7 @@ export default function ClientPortalGalleries() {
 
   if (loading || !data) {
     return (
-      <ClientPortalLayout token={token} hasQuestionnaires={true} pendingContracts={0} pendingQuestionnaires={0}>
+      <ClientPortalLayout token={token} pendingContracts={0} pendingQuestionnaires={0}>
         <div className="flex items-center justify-center py-24">
           <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
             style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
@@ -142,26 +135,14 @@ export default function ClientPortalGalleries() {
   return (
     <ClientPortalLayout
       token={token}
-      hasQuestionnaires={true}
+      photographerId={data.client?.photographer_id}
       pendingContracts={(data.contracts || []).filter(c => c.status !== 'signed').length}
       pendingQuestionnaires={(data.pending_questionnaires || []).length}
     >
-      <div className="space-y-5" style={{ maxWidth: 1100 }}>
+      <div className="space-y-5" style={{ maxWidth: 560 }}>
         <div className="flex items-center justify-between gap-4">
           <div>
-            {branding?.logoUrl ? (
-              <img src={branding.logoUrl} alt={branding.name || ''}
-                style={{
-                  height: 24, maxWidth: 140, objectFit: 'contain', marginBottom: 6,
-                  // Dual-tone halo so the logo stays legible regardless of its
-                  // own color or the page background -- a dark logo gets a
-                  // light glow, a white logo gets a dark glow, both at once.
-                  // No per-photographer setting needed since this self-adapts.
-                  filter: 'drop-shadow(0 0 0.5px rgba(0,0,0,0.35)) drop-shadow(0 0 0.5px rgba(255,255,255,0.35))',
-                }} />
-            ) : branding?.name ? (
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{branding.name}</p>
-            ) : null}
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Welcome back</p>
             <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
               Hi, {data.client?.first_name}
             </h1>
@@ -188,9 +169,9 @@ export default function ClientPortalGalleries() {
           groups.map(group => (
             <div key={group.label}>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>{group.label}</p>
-              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 220px))' }}>
+              <div className="space-y-2">
                 {group.galleries.map(g => (
-                  <GalleryCard key={g.id} gallery={g} isNew={!g.viewed} />
+                  <GalleryRow key={g.id} gallery={g} isNew={!g.viewed} />
                 ))}
               </div>
             </div>

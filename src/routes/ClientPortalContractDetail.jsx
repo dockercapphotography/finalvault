@@ -73,7 +73,7 @@ export default function ClientPortalContractDetail() {
 
   if (loading || !data) {
     return (
-      <ClientPortalLayout token={token} hasQuestionnaires={true} pendingContracts={0} pendingQuestionnaires={0}>
+      <ClientPortalLayout token={token} pendingContracts={0} pendingQuestionnaires={0}>
         <div className="flex items-center justify-center py-24">
           <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
             style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
@@ -94,7 +94,7 @@ export default function ClientPortalContractDetail() {
     return (
       <ClientPortalLayout
         token={token}
-        hasQuestionnaires={true}
+        photographerId={data.client?.photographer_id}
         pendingContracts={pending.length}
         pendingQuestionnaires={(data.pending_questionnaires || []).length}
       >
@@ -111,7 +111,7 @@ export default function ClientPortalContractDetail() {
   return (
     <ClientPortalLayout
       token={token}
-      hasQuestionnaires={true}
+      photographerId={data.client?.photographer_id}
       pendingContracts={pending.length}
       pendingQuestionnaires={(data.pending_questionnaires || []).length}
     >
