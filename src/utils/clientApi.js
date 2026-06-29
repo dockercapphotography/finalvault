@@ -61,16 +61,53 @@ export async function getPhotographerBranding(photographerId) {
   }
 }
 
+// Module-level cache, keyed by token. Without this, every portal page
+// (Galleries/Contracts/ContractDetail/Questionnaires) runs its own
+// getPortalData call on mount -- since the portal is structured as real
+// sub-routes (not tabs on one route, by design), navigating between
+// sections remounts a fresh page component every time, which re-ran the
+// full RPC from scratch on every single click. This was traced via console
+// logging through a sidebar-header flash that initially looked like a
+// branding-caching problem but was actually this -- the header had nothing
+// to render because the *whole page's* photographer_id was still loading,
+// not because branding itself was slow.
+//
+// Short TTL rather than a session-long cache: if a client signs a contract
+// or submits a questionnaire (separate routes, /sign/:token and
+// /submit/:token) and navigates back into the portal, a session-long cache
+// would show stale data -- the contract would still look unsigned, the
+// questionnaire would still look outstanding -- until a hard refresh.
+// Explicit invalidation from those pages was considered but means coupling
+// two unrelated routes to this cache and threading the portal token through
+// to them just to clear one entry. A 30s TTL is a good-enough probabilistic
+// fix instead: clicking between portal sections stays instant within that
+// window (the actual problem this cache was built to solve), while anyone
+// taking longer than that to sign or submit -- the realistic case -- gets
+// fresh data automatically on their next portal page load, no extra
+// plumbing required anywhere else.
+const PORTAL_DATA_TTL_MS = 30_000
+const portalDataCache = new Map() // token -> { data, expiresAt }
+
 /**
  * Fetches everything the client portal needs in one round trip: the
  * client's display info, deduped galleries (linked directly OR via a
  * session, never both), contracts (pending + signed, voided excluded),
  * and outstanding questionnaires. Returns null if the token doesn't match
  * any client -- callers should treat that the same as a 404.
+ *
+ * Cached per token for the page's lifetime -- see portalDataCache comment
+ * above. Pass forceRefresh=true to bypass the cache (e.g. after a client
+ * submits a questionnaire or signs a contract, when the portal's own data
+ * genuinely needs to reflect that change rather than serve stale state).
  */
-export async function getPortalData(token) {
+export async function getPortalData(token, forceRefresh = false) {
+  const cached = portalDataCache.get(token)
+  if (!forceRefresh && cached && Date.now() < cached.expiresAt) {
+    return cached.data
+  }
   const { data, error } = await supabase.rpc('get_client_portal_data', { p_token: token })
   if (error) throw error
+  portalDataCache.set(token, { data, expiresAt: Date.now() + PORTAL_DATA_TTL_MS })
   return data
 }
 
