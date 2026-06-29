@@ -287,4 +287,10 @@ These were wrong assumptions in earlier drafts of this spec, caught by testing a
 
 ---
 
+## Known pre-existing issue, unrelated to this feature
+
+`tests/e2e/photographer/dashboard-filters.spec.js` — "dashboard search by tag name surfaces tagged gallery" fails consistently, including in isolation, with "Target page, context or browser has been closed" rather than a selector mismatch — the page/tab itself appears to terminate mid-test before the search fill ever runs. Confirmed during the full-suite run before tagging v1.4.0 that this is unrelated to any portal work: the test touches the photographer dashboard's tag search, a code path nothing in this session came near. Not investigated further given time constraints; worth a fresh look in its own session rather than blocking this release on it.
+
+---
+
 *FinalVault Client Portal Spec — prepared June 2026*
