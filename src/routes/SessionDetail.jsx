@@ -455,7 +455,7 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
 
 const PAGE_SIZE = 50
 
-function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
+function SubmissionsSection({ sessionId, session, questionnaires = [], clients = [] }) {
   const [submissions, setSubmissions] = useState([])
   const [deletingSubmissionId, setDeletingSubmissionId] = useState(null)
   const [confirmDeleteSubmissionId, setConfirmDeleteSubmissionId] = useState(null)
@@ -467,6 +467,8 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
   const [createClientFormId, setCreateClientFormId] = useState(null)
   const [createClientForm, setCreateClientForm] = useState({ firstName: '', lastName: '', email: '' })
   const [copiedEmailId, setCopiedEmailId] = useState(null)
+  const [matchedClient, setMatchedClient] = useState(null)
+  const [linkingClientId, setLinkingClientId] = useState(null)
 
   async function handleCopyEmail(submissionId, email) {
     try {
@@ -583,8 +585,37 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
   }
 
   function openCreateClientForm(submission) {
+    const defaults = getClientFormDefaults(submission)
     setCreateClientFormId(submission.id)
-    setCreateClientForm(getClientFormDefaults(submission))
+    setCreateClientForm(defaults)
+    // Check for an existing client with the same email before showing the
+    // create-new form -- cheap, case/whitespace-insensitive lookup against
+    // the clients list already loaded for this page. A match doesn't force
+    // anything: it just offers "link to existing" alongside "create new
+    // anyway", since legitimate near-duplicates do happen (e.g. a parent
+    // submitting under a slightly different name).
+    const email = (defaults.email || '').trim().toLowerCase()
+    if (email) {
+      const match = clients.find(c => (c.email || '').trim().toLowerCase() === email)
+      setMatchedClient(match || null)
+    } else {
+      setMatchedClient(null)
+    }
+  }
+
+  async function handleLinkExistingClient(submission, client) {
+    setLinkingClientId(submission.id)
+    try {
+      const { supabase } = await import('../supabaseClient.js')
+      await supabase.from('session_submissions').update({ client_id: client.id }).eq('id', submission.id)
+      setSubmissions(prev => prev.map(s => s.id === submission.id ? { ...s, client_id: client.id } : s))
+      setCreateClientFormId(null)
+      setMatchedClient(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLinkingClientId(null)
+    }
   }
 
   async function handleCreateClient(submission) {
@@ -741,7 +772,26 @@ function SubmissionsSection({ sessionId, session, questionnaires = [] }) {
                                   </div>
                                 ))}
                               </div>
-                              {!submission.client_id && createClientFormId === submission.id && (
+                              {!submission.client_id && createClientFormId === submission.id && matchedClient && (
+                                <div className="rounded-lg p-3 mb-2 space-y-2" style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.25)' }}>
+                                  <p className="text-xs" style={{ color: 'var(--text)' }}>
+                                    Found an existing client with this email: <span className="font-medium">{matchedClient.first_name} {matchedClient.last_name}</span>
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => handleLinkExistingClient(submission, matchedClient)} disabled={linkingClientId === submission.id}
+                                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                                      style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                                      {linkingClientId === submission.id ? 'Linking...' : `Link to ${matchedClient.first_name}`}
+                                    </button>
+                                    <button onClick={() => setMatchedClient(null)}
+                                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                                      style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: 'none', cursor: 'pointer' }}>
+                                      Create new anyway
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              {!submission.client_id && createClientFormId === submission.id && !matchedClient && (
                                 <div className="rounded-lg p-3 mb-2 space-y-2" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
                                   <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Review before creating client</p>
                                   <div className="flex gap-2">
@@ -1265,7 +1315,7 @@ export default function SessionDetail() {
       </SectionCard>
 
       {/* Submissions */}
-      <SubmissionsSection sessionId={id} session={session} questionnaires={sessionQuestionnaires} />
+      <SubmissionsSection sessionId={id} session={session} questionnaires={sessionQuestionnaires} clients={clients} />
 
       {/* Danger zone */}
       <div className="rounded-2xl px-5 py-4" style={{ border: '1px solid var(--danger)', background: 'var(--danger-subtle)' }}>
