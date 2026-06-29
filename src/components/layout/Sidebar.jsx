@@ -62,7 +62,7 @@ export default function Sidebar() {
 
       {/* ── Mobile bottom nav ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-evenly"
         style={{
           background: 'var(--surface)',
           borderTop: '1px solid var(--border)',
