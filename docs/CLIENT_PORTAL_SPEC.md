@@ -61,24 +61,40 @@ BEGIN
       'id', v_client.id,
       'first_name', v_client.first_name,
       'last_name', v_client.last_name,
+      'email', v_client.email,
       'photographer_id', v_client.photographer_id
     ),
     'galleries', (
-      SELECT COALESCE(json_agg(g.* ORDER BY g.event_date DESC NULLS LAST), '[]'::json)
+      SELECT COALESCE(json_agg(deduped.* ORDER BY deduped.event_date DESC NULLS LAST), '[]'::json)
       FROM (
-        SELECT g.id, g.title, g.event_name, g.event_date, g.share_token,
-               g.cover_image_id, g.is_active, g.expires_at,
-               NULL::UUID AS session_id, NULL::TEXT AS session_name
-        FROM galleries g WHERE g.client_id = v_client.id
-        UNION
-        SELECT g.id, g.title, g.event_name, g.event_date, g.share_token,
-               g.cover_image_id, g.is_active, g.expires_at,
-               s.id AS session_id, s.name AS session_name
-        FROM galleries g
-        JOIN session_galleries sg ON sg.gallery_id = g.id
-        JOIN sessions s ON s.id = sg.session_id
-        WHERE s.client_id = v_client.id
-      ) g
+        SELECT DISTINCT ON (g.id)
+          g.id, g.title, g.event_name, g.event_date, g.share_token,
+          g.cover_r2_key, g.cover_focus_x, g.cover_focus_y,
+          g.is_active, g.expires_at, g.session_id, g.session_name,
+          EXISTS (
+            SELECT 1 FROM gallery_viewers gv
+            WHERE gv.gallery_id = g.id
+              AND v_client.email IS NOT NULL
+              AND lower(trim(gv.email)) = lower(trim(v_client.email))
+          ) AS viewed
+        FROM (
+          SELECT g.id, g.title, g.event_name, g.event_date, g.share_token,
+                 g.cover_r2_key, g.cover_focus_x, g.cover_focus_y,
+                 g.is_active, g.expires_at,
+                 NULL::UUID AS session_id, NULL::TEXT AS session_name
+          FROM galleries g WHERE g.client_id = v_client.id
+          UNION ALL
+          SELECT g.id, g.title, g.event_name, g.event_date, g.share_token,
+                 g.cover_r2_key, g.cover_focus_x, g.cover_focus_y,
+                 g.is_active, g.expires_at,
+                 s.id AS session_id, s.name AS session_name
+          FROM galleries g
+          JOIN session_galleries sg ON sg.gallery_id = g.id
+          JOIN sessions s ON s.id = sg.session_id
+          WHERE s.client_id = v_client.id
+        ) g
+        ORDER BY g.id, g.session_id NULLS LAST
+      ) deduped
     ),
     'contracts', (
       SELECT COALESCE(json_agg(json_build_object(
@@ -94,15 +110,23 @@ BEGIN
     ),
     'pending_questionnaires', (
       SELECT COALESCE(json_agg(json_build_object(
-        'session_id', s.id, 'session_name', s.name, 'submit_token', s.submit_token
+        'session_id', s.id,
+        'session_name', s.name,
+        'submit_token', s.submit_token,
+        'questionnaire_id', sq.questionnaire_id,
+        'questionnaire_name', qt.name
       )), '[]'::json)
       FROM sessions s
+      JOIN session_questionnaires sq ON sq.session_id = s.id
+      JOIN questionnaire_templates qt ON qt.id = sq.questionnaire_id
       WHERE s.client_id = v_client.id
-        AND s.questionnaire_id IS NOT NULL
         AND s.submit_token IS NOT NULL
         AND NOT EXISTS (
           SELECT 1 FROM session_submissions ss
-          WHERE ss.session_id = s.id AND ss.client_id = v_client.id
+          WHERE ss.session_id = s.id
+            AND ss.questionnaire_id = sq.questionnaire_id
+            AND v_client.email IS NOT NULL
+            AND lower(trim(ss.email)) = lower(trim(v_client.email))
         )
     )
   ) INTO v_result;
@@ -114,9 +138,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public;
 GRANT EXECUTE ON FUNCTION get_client_portal_data(TEXT) TO anon;
 ```
 
-Note on the gallery dedup: a plain `UNION` (not `UNION ALL`) across the two `SELECT`s dedupes on the full row, which works here because both branches select the identical column list for the same `galleries` row. `session_id`/`session_name` come along so the frontend can group by session (idea #3) without a second query.
+Note on the gallery dedup: the first working draft used a plain `UNION`, which only dedupes rows that are byte-for-byte identical — a gallery linked both directly AND via a session produces two *different* rows (one with `session_id` populated, one null), so `UNION` doesn't collapse them. Confirmed live against a real client record with this exact shape (a gallery linked both ways) before catching this. Fixed with `UNION ALL` (combine everything) followed by `DISTINCT ON (g.id) ... ORDER BY g.id, g.session_id NULLS LAST` (pick exactly one row per gallery, preferring the row that has real session context over the null one). `session_id`/`session_name` come along so the frontend can group by session (idea #3) without a second query.
 
-Note on contracts: includes both pending (`sent`, `pending_photographer`) and `signed` — per discussion, a signed contract (e.g. a print release) stays visible indefinitely since the client may need to reference or re-download it long after signing. `void` contracts are excluded — a voided contract was never valid, surfacing it on the client's portal would only invite confusion ("why does this say agreement was cancelled?"). Flagging this exclusion as a default, not a hard requirement — worth a quick confirm before build, but I think it's the safer default. `pdf_r2_key` is included in the payload not for the browser to use directly (it's a private R2 path, not a public URL) but so the frontend can pass the contract id to a download endpoint that resolves it server-side — see "PDF download path" below.
+Note on `viewed`: added after confirming `gallery_viewers`' RLS policy ("Anon can read viewers within the same active gallery") is scoped to active/non-expired galleries only and would silently stop working once a gallery expires — querying it directly from the frontend would make the "New" badge unreliable exactly when expired-gallery handling matters most. Folding it into this `SECURITY DEFINER` RPC instead keeps the check correct regardless of gallery status, and keeps all client-portal logic funneled through one audited function rather than opening a second anon read path. Matched by lowercased, trimmed email against `v_client.email` — same normalization rule as idea #4's existing-client match, for the same reason (case/whitespace shouldn't cause a false "still new").
+
+Note on contracts: includes both pending (`sent`, `pending_photographer`) and `signed` — per discussion, a signed contract (e.g. a print release) stays visible indefinitely since the client may need to reference or re-download it long after signing. `void` contracts are excluded — a voided contract was never valid, surfacing it on the client's portal would only invite confusion ("why does this say agreement was cancelled?"). Confirmed with Nick: voided contracts should not show. `pdf_r2_key` is included in the payload not for the browser to use directly (it's a private R2 path, not a public URL) but so the frontend can pass the contract id to a download endpoint that resolves it server-side — see "PDF download path" below.
 
 Note on "pending questionnaire": unchanged from the original logic — defined as a session with a questionnaire attached and no submission yet *from this client*. Once a client submits a questionnaire, it should not reappear anywhere on the portal — no archive view needed, this is intentionally one-directional (outstanding → gone).
 
@@ -236,6 +262,28 @@ Email comparison note: `clients.email` is plain `TEXT`, not `citext`, so the mat
 1. ~~Voided contracts~~ — resolved: excluded from the client view entirely. RPC already filters to `sent`/`pending_photographer`/`signed` only, no change needed.
 2. **Sort options on Galleries** — confirmed multiple options are needed; exact set (newest first / oldest first / by session) still open, low-stakes enough to decide at build time rather than blocking the spec.
 3. ~~Grouping display~~ — resolved: sidebar/bottom-nav shell with real sub-routes per section, sibling component to the photographer `Sidebar.jsx`.
+
+---
+
+## Deferred — Questionnaire prefill from known client (not started)
+
+When a client reaches `/submit/:token?q=...` via the portal, the form currently has zero awareness of who they are — `SubmitForm.jsx` collects email/name fresh from blank state every time, the same as a true walk-up stranger. `session_submissions.client_id` is only ever populated after the fact, via the photographer's manual "create client" action on `SessionDetail.jsx` — confirmed by checking 10 real submission rows, all with `client_id: null`. This is also why the portal's own outstanding-questionnaire check has to match by `email`, not `client_id` (see schema corrections below) — the column the table was designed around isn't the column the real submit flow actually sets.
+
+**Scoped plan when resumed:**
+1. Portal's questionnaire link adds a `client` param: `/submit/:token?q=<questionnaire_id>&client=<client_id>` — uses the client's row id, not the portal token, since the token is the client's access credential and shouldn't end up embedded in a link that might get forwarded or screenshotted for something unrelated.
+2. `SubmitForm.jsx` reads `client` from the URL, fetches that client's `first_name`/`last_name`/`email` via a narrow anon-safe query (not yet designed — needs its own RLS/RPC scoping decision), and pre-fills the `collect_email`/`collect_name` fields.
+3. Pre-filled fields stay editable, not locked — a shared email, a parent filling in for a minor, etc. are real cases where the client needs to correct what's shown.
+4. Does **not** touch the actual questionnaire question answers (the substantive per-session content) — only the two built-in identity fields. Pre-filling real answers risks the client skimming past stale/wrong information instead of giving a real answer for *this* session.
+5. Submission insert should pass `client_id` through when known, finally giving that column real data from the primary submit path instead of only ever being backfilled manually.
+
+---
+
+## Schema corrections discovered during build (logged for accuracy, not as open questions)
+
+These were wrong assumptions in earlier drafts of this spec, caught by testing against real data rather than trusting column names that sounded right:
+
+- **Questionnaire attachment is many-to-many, not a single column.** `sessions.questionnaire_id` exists but is vestigial/unused by the real send flow. The actual relationship is `session_questionnaires` (`session_id`, `questionnaire_id`, `sort_order`) joined to `questionnaire_templates` — a session can have multiple questionnaires attached, each with its own `?q=<questionnaire_id>` param on the shared `submit_token` URL. The RPC's `pending_questionnaires` block now joins through `session_questionnaires`/`questionnaire_templates` accordingly, and returns `questionnaire_id`/`questionnaire_name` per row so the frontend can build the correct link and show which form is outstanding (not just which session).
+- **Outstanding-questionnaire matching is by email, not `client_id`.** Confirmed via 10 real `session_submissions` rows: `client_id` is null on every one, `email` is reliably populated. Matched with the same `lower(trim(...))` normalization used for the gallery `viewed` check, for the same reason (case/whitespace shouldn't produce a false "still outstanding").
 
 ---
 
