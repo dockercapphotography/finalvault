@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.3.10'
+const VERSION = '1.4.0'
 const BUILD_DATE = new Date().toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
@@ -110,6 +110,23 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.4.0 — June 29, 2026">
+                  <Group label="Client Portal">
+                    <Item>Every client now gets one durable link showing all their galleries, contracts, and outstanding questionnaires</Item>
+                    <Item>Generate or regenerate a client's portal link from their Client page</Item>
+                    <Item>Galleries linked directly and via session are combined and de-duplicated, grouped by session</Item>
+                    <Item>"New" badge on unviewed galleries, search/sort/filter for clients with many galleries</Item>
+                    <Item>Contracts grouped into Needs your signature / Awaiting your photographer / Signed, with a detail page and PDF download for signed contracts</Item>
+                    <Item>Questionnaires show only while outstanding, and disappear once submitted</Item>
+                    <Item>"Link to existing client" suggestion on walk-up submissions matching an existing client's email</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed "Create client record" on session submissions silently failing to persist the link to the database</Item>
+                  </Group>
+                  <Group label="Security">
+                    <Item>Scoped, authenticated PDF download for signed contracts -- a client can only download their own</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.3.10 — June 28, 2026">
                   <Group label="Client Comments">
                     <Item>Photographers can now reply to client comments from the Activity feed</Item>

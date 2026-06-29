@@ -4,6 +4,40 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.4.0 — June 29, 2026
+
+### New Features
+
+**Client Portal**
+- Every client now gets a single, durable link showing all their galleries, contracts, and outstanding questionnaires in one place — no more juggling separate links for each gallery, contract, and form
+- Generate or regenerate a client's portal link from their Client page — regenerating immediately invalidates the old link
+- Galleries linked directly to a client and galleries linked through a session are combined and de-duplicated automatically, grouped by session with a "General" section for anything linked directly
+- A "New" badge appears on galleries the client hasn't viewed yet, and clears automatically once they do
+- Search, sort (newest/oldest), and filter (event date — including a custom date range — and active/expired) for clients with many galleries
+- Expired galleries show grayed out with an "Expired" label rather than disappearing, so clients always see their full history
+- Contracts are grouped into "Needs your signature," "Awaiting your photographer," and "Signed" — a client who already signed never sees a misleading prompt to sign again
+- Signed contracts have their own detail page showing both signatures and a downloadable PDF, with sensitive audit data (IP addresses) kept out of the client-facing view
+- Questionnaires show only while outstanding and disappear immediately once submitted
+- The portal shows the studio's logo or photo and name in its own header, on both desktop and mobile
+- New "link to existing client" suggestion when reviewing a walk-up submission whose email matches an existing client record, instead of only ever offering to create a new one
+
+### Bug Fixes
+
+**Client Linking**
+- Fixed "Create client record" on a session's submissions silently failing to save the link between a submission and its client — every previous use of this feature, going back to its original release, appeared to succeed but never actually persisted; the link is now saved correctly and verified to survive a page reload
+
+### Security
+
+- Added a scoped, authenticated download endpoint for signed contract PDFs so a client can only download their own contracts, never another client's, even with a guessed or shared link
+- Added a narrow, read-only endpoint for serving studio logos and profile photos to clients, scoped strictly to those asset types
+
+### Notes
+
+- The Client Portal's filter/sort interface is intentionally separate from the main dashboard's filters for now (no shared component yet) — revisit if a second use case for the same pattern comes up
+- A pre-existing, unrelated test (`dashboard search by tag name`) was found to be flaky during this release's testing; it predates this release and was not investigated further
+
+---
+
 ## v1.3.10 — June 28, 2026
 
 ### New Features
