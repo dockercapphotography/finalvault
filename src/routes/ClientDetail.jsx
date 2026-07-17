@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
-import GalleryPicker from '../components/ui/GalleryPicker.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags, getOrCreatePortalToken, regeneratePortalToken } from '../utils/crmApi.js'
 import { getUnlinkedGalleries, updateGallery } from '../utils/galleryApi.js'
@@ -382,7 +381,7 @@ function ContractRow({ contract }) {
 function AttachGalleryModal({ onClose, onAttached }) {
   const [galleries, setGalleries] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedId, setSelectedId] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(new Set())
   const [attaching, setAttaching] = useState(false)
   const [error, setError] = useState(null)
 
@@ -393,12 +392,21 @@ function AttachGalleryModal({ onClose, onAttached }) {
       .finally(() => setLoading(false))
   }, [])
 
+  function toggleSelected(galleryId) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(galleryId)) next.delete(galleryId)
+      else next.add(galleryId)
+      return next
+    })
+  }
+
   async function handleAttach() {
-    if (!selectedId) return
+    if (selectedIds.size === 0) return
     setAttaching(true)
     setError(null)
     try {
-      await onAttached(selectedId)
+      await onAttached(Array.from(selectedIds))
     } catch (err) {
       setError(err.message)
       setAttaching(false)
@@ -441,14 +449,43 @@ function AttachGalleryModal({ onClose, onAttached }) {
             </div>
           ) : (
             <div>
-              <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>Select a gallery</label>
-              <GalleryPicker
-                galleries={galleries}
-                value={selectedId}
-                onChange={setSelectedId}
-                placeholder="Select a gallery..."
-                allowNone={false}
-              />
+              <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                Select one or more galleries{selectedIds.size > 0 ? ` (${selectedIds.size} selected)` : ''}
+              </label>
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', maxHeight: 280, overflowY: 'auto' }}>
+                {galleries.map(gallery => {
+                  const isSelected = selectedIds.has(gallery.id)
+                  const sub = [gallery.event_name, gallery.event_date ? new Date(gallery.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null].filter(Boolean).join(' · ')
+                  return (
+                    <button
+                      key={gallery.id}
+                      type="button"
+                      onClick={() => toggleSelected(gallery.id)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
+                      style={{ background: isSelected ? 'rgba(99,102,241,0.08)' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--surface-raised)' }}
+                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <span
+                        className="flex items-center justify-center flex-shrink-0"
+                        style={{
+                          width: 18, height: 18, borderRadius: 5,
+                          background: isSelected ? '#6366f1' : 'transparent',
+                          border: isSelected ? 'none' : '1.5px solid var(--border-strong)',
+                        }}
+                      >
+                        {isSelected && <Check size={12} style={{ color: '#fff' }} />}
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span className="text-sm block truncate" style={{ color: 'var(--text)', fontWeight: isSelected ? 500 : 400 }}>
+                          {gallery.title}
+                        </span>
+                        {sub && <span className="text-xs block truncate" style={{ color: 'var(--text-muted)' }}>{sub}</span>}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -458,10 +495,10 @@ function AttachGalleryModal({ onClose, onAttached }) {
             style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
             Cancel
           </button>
-          <button onClick={handleAttach} disabled={attaching || !selectedId}
+          <button onClick={handleAttach} disabled={attaching || selectedIds.size === 0}
             className="flex-1 py-2 rounded-lg text-sm font-medium"
-            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: (attaching || !selectedId) ? 'not-allowed' : 'pointer', opacity: (attaching || !selectedId) ? 0.6 : 1 }}>
-            {attaching ? 'Attaching...' : 'Attach Gallery'}
+            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: (attaching || selectedIds.size === 0) ? 'not-allowed' : 'pointer', opacity: (attaching || selectedIds.size === 0) ? 0.6 : 1 }}>
+            {attaching ? 'Attaching...' : selectedIds.size > 1 ? `Attach ${selectedIds.size} Galleries` : 'Attach Gallery'}
           </button>
         </div>
       </div>
@@ -652,12 +689,12 @@ export default function ClientDetail() {
     }
   }
 
-  async function handleAttachGallery(galleryId) {
-    await updateGallery(galleryId, { client_id: id })
+  async function handleAttachGallery(galleryIds) {
+    await Promise.all(galleryIds.map(galleryId => updateGallery(galleryId, { client_id: id })))
     const fresh = await getClientGalleries(id)
     setGalleries(fresh)
     setShowAttachGallery(false)
-    setToast({ message: 'Gallery attached', type: 'success' })
+    setToast({ message: galleryIds.length > 1 ? `${galleryIds.length} galleries attached` : 'Gallery attached', type: 'success' })
   }
 
   if (loading) {
