@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {ArrowLeft, CheckCircle, Copy, Eye, EyeOff, Plus, RefreshCw, Trash2, X} from 'lucide-react'
-import { getGallery, updateGallery, getTags, getGalleryTags, assignTag, unassignTag, createAndAssignTag, deleteGallery, getFolderAncestors, buildGalleryCrumbs } from '../utils/galleryApi.js'
+import { getGallery, updateGallery, getTags, getGalleryTags, assignTag, unassignTag, createAndAssignTag, deleteGallery, getFolderAncestors, buildGalleryCrumbs, linkGalleriesToClient, unlinkGalleryFromClient } from '../utils/galleryApi.js'
 import { getClients } from '../utils/crmApi.js'
 import { getImages } from '../utils/imageApi.js'
 import { deleteFromR2 } from '../utils/r2.js'
@@ -129,7 +129,7 @@ export default function GallerySettings() {
   const [allowComments, setAllowComments] = useState(true)
   const [showGuide, setShowGuide] = useState(true)
   const [galleryTags, setGalleryTags] = useState([])
-  const [linkedClientId, setLinkedClientId] = useState('')
+  const [linkedClients, setLinkedClients] = useState([])
   const [allClients, setAllClients] = useState([])
   const [allTags, setAllTags] = useState([])
   const [tagInput, setTagInput] = useState('')
@@ -195,7 +195,7 @@ export default function GallerySettings() {
       // Normalise legacy 'regular' value to 'medium'
       setGridSize(g.grid_size === 'regular' ? 'medium' : (g.grid_size || 'medium'))
       setGridSpacing(g.grid_spacing === 'regular' ? 'tight' : (g.grid_spacing || 'tight'))
-      setLinkedClientId(g.client_id || '')
+      setLinkedClients((g.gallery_clients || []).map(gc => gc.clients).filter(Boolean))
       getClients().then(setAllClients).catch(() => {})
     } catch {
       setSaveState('error')
@@ -224,6 +224,18 @@ export default function GallerySettings() {
     }
   }
 
+  async function handleAddLinkedClient(clientId) {
+    if (!clientId) return
+    await linkGalleriesToClient([id], clientId)
+    const client = allClients.find(c => c.id === clientId)
+    if (client) setLinkedClients(prev => [...prev, client])
+  }
+
+  async function handleRemoveLinkedClient(clientId) {
+    await unlinkGalleryFromClient(id, clientId)
+    setLinkedClients(prev => prev.filter(c => c.id !== clientId))
+  }
+
   const save = useCallback(async (overrides = {}) => {
     if (isFirstLoad.current || !gallery || !title) return
     try {
@@ -232,7 +244,6 @@ export default function GallerySettings() {
         requirePassword, password, requireDownloadPin, downloadPin,
         allowDownloads, downloadWatermarked, allowHiresDownload,
         allowFavorites, allowComments, showGuide, themeColor, gridSize, gridSpacing,
-        linkedClientId,
         ...overrides
       }
       await updateGallery(id, {
@@ -255,7 +266,6 @@ export default function GallerySettings() {
         expiry_warning_days: s.expiryWarningDays,
         allow_comments: s.allowComments,
         show_guide: s.showGuide,
-        client_id: s.linkedClientId || null,
         theme_color: s.themeColor,
         grid_size: s.gridSize,
         grid_spacing: s.gridSpacing,
@@ -414,15 +424,35 @@ export default function GallerySettings() {
             </div>
           </SettingsSection>
           {allClients.length > 0 && (
-            <SettingsSection title="Linked Client" description="Associate this gallery with a client record">
-              <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
+            <SettingsSection title="Linked Clients" description="Linked clients get portal access to this gallery">
+              <div className="px-5 py-4 space-y-3" style={{ background: 'var(--surface)' }}>
+                {linkedClients.length > 0 && (
+                  <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                    {linkedClients.map((client, i) => (
+                      <div
+                        key={client.id}
+                        className="flex items-center justify-between px-3 py-2.5"
+                        style={{ borderBottom: i < linkedClients.length - 1 ? '1px solid var(--border)' : 'none' }}
+                      >
+                        <span className="text-sm truncate" style={{ color: 'var(--text)' }}>
+                          {[client.first_name, client.last_name].filter(Boolean).join(' ') || client.email}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveLinkedClient(client.id)}
+                          style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none', flexShrink: 0 }}
+                          title="Remove link"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <ClientPicker
-                  clients={allClients}
-                  value={linkedClientId}
-                  onChange={clientId => {
-                    setLinkedClientId(clientId)
-                    save({ linkedClientId: clientId })
-                  }}
+                  clients={allClients.filter(c => !linkedClients.some(lc => lc.id === c.id))}
+                  value=""
+                  onChange={handleAddLinkedClient}
+                  placeholder="Add a client..."
                 />
               </div>
             </SettingsSection>
