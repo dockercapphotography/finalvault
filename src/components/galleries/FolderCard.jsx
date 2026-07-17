@@ -175,12 +175,17 @@ function FolderCoverPickerModal({ folder, onSaved, onClose }) {
     setSaving(true)
     try {
       let r2Key = chosen.r2Key
+      const previousCoverKey = folder.cover_r2_key
 
       // If uploading a new file, upload it to R2 first
       if (chosen.type === 'upload' && chosen.file) {
         const { data: { session } } = await supabase.auth.getSession()
         const ext = chosen.file.name.split('.').pop().toLowerCase()
-        r2Key = `photographers/${folder.photographer_id}/folders/${folder.id}/cover.${ext}`
+        // Unique key per upload (not a fixed "cover.ext") so the URL actually
+        // changes when the cover is replaced -- otherwise the browser keeps
+        // serving the old cached bytes at the old URL (see Cache-Control on
+        // the /preview/ Worker endpoint) until the cache expires or is cleared.
+        r2Key = `photographers/${folder.photographer_id}/folders/${folder.id}/cover-${Date.now()}.${ext}`
         const formData = new FormData()
         formData.append('file', chosen.file)
         formData.append('key', r2Key)
@@ -196,6 +201,18 @@ function FolderCoverPickerModal({ folder, onSaved, onClose }) {
       onSaved(r2Key, focusX, focusY)
       ownedBlobsRef.current.forEach(u => URL.revokeObjectURL(u))
       onClose()
+
+      // Clean up the old cover object now that the new one is live, so
+      // replaced covers don't pile up as orphaned storage. Non-fatal --
+      // the folder record already points at the new key either way.
+      if (previousCoverKey && previousCoverKey !== r2Key) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          fetch(`${WORKER_URL}/delete/${encodeURIComponent(previousCoverKey)}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }).catch(() => {})
+        })
+      }
     } catch (err) {
       console.error('Failed to set folder cover:', err)
     } finally {
@@ -205,10 +222,19 @@ function FolderCoverPickerModal({ folder, onSaved, onClose }) {
 
   async function handleRemoveCover() {
     setSaving(true)
+    const previousCoverKey = folder.cover_r2_key
     try {
       await updateFolderCover(folder.id, null, 0.5, 0.5)
       onSaved(null, 0.5, 0.5)
       onClose()
+
+      if (previousCoverKey) {
+        const { data: { session } } = await supabase.auth.getSession()
+        fetch(`${WORKER_URL}/delete/${encodeURIComponent(previousCoverKey)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }).catch(() => {})
+      }
     } catch (err) {
       console.error('Failed to remove folder cover:', err)
     } finally {
