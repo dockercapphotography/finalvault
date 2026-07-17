@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Folder, MoreVertical, Pencil, Trash2, Image as ImageIcon, X, Upload, FolderInput } from 'lucide-react'
 import { useDroppable } from '@dnd-kit/core'
 import { renameFolder, deleteFolderTree, getFolderTreeCounts, updateFolderCover, getFolderImages, moveFolder } from '../../utils/galleryApi.js'
 import { supabase } from '../../supabaseClient.js'
-import MoveFolderModal from './MoveFolderModal.jsx'
+import MovePickerModal from './MovePickerModal.jsx'
+import { useFolderContext } from '../../contexts/FolderContext.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
@@ -413,7 +414,25 @@ function FolderCoverPickerModal({ folder, onSaved, onClose }) {
   )
 }
 
-export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, subfolderCount = 0, allFolders = [], onNavigate, onRenamed, onDeleted, onCoverChanged, onMoved }) {
+export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, subfolderCount = 0, onNavigate, onRenamed, onDeleted, onCoverChanged, onMoved }) {
+  const { folders: allFolders } = useFolderContext()
+
+  // A folder can't be moved into itself or into any of its own descendants
+  // -- exclude that whole subtree from the picker rather than just
+  // disabling it, since letting someone navigate into an excluded branch
+  // only to hit a server error is a worse experience than not showing it.
+  const excludeFolderIds = useMemo(() => {
+    const invalid = new Set([folder.id])
+    if (folder.path) {
+      for (const f of allFolders) {
+        if (f.path === folder.path || f.path?.startsWith(`${folder.path}.`)) {
+          invalid.add(f.id)
+        }
+      }
+    }
+    return invalid
+  }, [folder, allFolders])
+
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [renameName, setRenameName] = useState(folder.name)
@@ -669,14 +688,16 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
           onClose={() => setShowCoverPicker(false)}
         />
       )}
-      {showMovePicker && (
-        <MoveFolderModal
-          folder={folder}
-          allFolders={allFolders}
-          onMove={handleMove}
-          onClose={() => setShowMovePicker(false)}
-        />
-      )}
+      <MovePickerModal
+        open={showMovePicker}
+        onClose={() => setShowMovePicker(false)}
+        title={folder.name}
+        currentLocationId={folder.parent_id ?? null}
+        excludeFolderIds={excludeFolderIds}
+        rootLabel="Move to Top Level"
+        rootBreadcrumbLabel="Folders"
+        onConfirm={handleMove}
+      />
     </>
   )
 }

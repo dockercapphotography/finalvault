@@ -1618,7 +1618,6 @@ export default function Dashboard() {
                 galleryCount={galleriesPerFolder[item.id] || 0}
                 subfolderCount={subfoldersPerFolder[item.id] || 0}
                 onNavigate={handleNavigateToFolder}
-                allFolders={folders}
                 onRenamed={handleFolderRenamed}
                 onDeleted={handleFolderDeleted}
                 onCoverChanged={handleFolderCoverChanged}
