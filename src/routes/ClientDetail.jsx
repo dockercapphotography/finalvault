@@ -10,7 +10,7 @@ import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags, getOrCreatePortalToken, regeneratePortalToken } from '../utils/crmApi.js'
-import { getUnlinkedGalleries, updateGallery } from '../utils/galleryApi.js'
+import { getUnlinkedGalleries, linkGalleriesToClient } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
 import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
@@ -378,7 +378,7 @@ function ContractRow({ contract }) {
   )
 }
 
-function AttachGalleryModal({ onClose, onAttached }) {
+function AttachGalleryModal({ clientId, onClose, onAttached }) {
   const [galleries, setGalleries] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedIds, setSelectedIds] = useState(new Set())
@@ -386,7 +386,7 @@ function AttachGalleryModal({ onClose, onAttached }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    getUnlinkedGalleries()
+    getUnlinkedGalleries(clientId)
       .then(setGalleries)
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
@@ -690,7 +690,7 @@ export default function ClientDetail() {
   }
 
   async function handleAttachGallery(galleryIds) {
-    await Promise.all(galleryIds.map(galleryId => updateGallery(galleryId, { client_id: id })))
+    await linkGalleriesToClient(galleryIds, id)
     const fresh = await getClientGalleries(id)
     setGalleries(fresh)
     setShowAttachGallery(false)
@@ -1025,6 +1025,7 @@ export default function ClientDetail() {
 
       {showAttachGallery && (
         <AttachGalleryModal
+          clientId={id}
           onClose={() => setShowAttachGallery(false)}
           onAttached={handleAttachGallery}
         />

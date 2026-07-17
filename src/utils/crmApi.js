@@ -87,8 +87,8 @@ export async function deleteClient(id) {
 export async function getClientGalleries(clientId) {
   const { data, error } = await supabase
     .from('galleries')
-    .select('id, title, event_name, event_date, is_active, share_token, created_at, cover_image_id, cover_r2_key, gallery_images!cover_image_id(preview_r2_key)')
-    .eq('client_id', clientId)
+    .select('id, title, event_name, event_date, is_active, share_token, created_at, cover_image_id, cover_r2_key, gallery_images!cover_image_id(preview_r2_key), gallery_clients!inner(client_id)')
+    .eq('gallery_clients.client_id', clientId)
     .order('created_at', { ascending: false })
 
   if (error) throw error

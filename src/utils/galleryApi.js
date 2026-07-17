@@ -32,7 +32,7 @@ export async function getGalleries() {
 export async function getGallery(id) {
   const { data, error } = await supabase
     .from('galleries')
-    .select('*, plain_password, plain_download_pin')
+    .select('*, plain_password, plain_download_pin, gallery_clients(client_id, clients(id, first_name, last_name, email))')
     .eq('id', id)
     .single()
 
@@ -71,7 +71,6 @@ export async function createGallery({
       plain_download_pin: requireDownloadPin ? (downloadPin || null) : null,
       watermark_id: watermarkId || null,
       folder_id: folderId || null,
-      client_id: clientId || null,
       photographer_id: user.id,
       share_token: generateShareToken(),
     })
@@ -79,6 +78,16 @@ export async function createGallery({
     .single()
 
   if (error) throw error
+
+  // Link via gallery_clients (the sole source of truth for gallery-client
+  // links now) rather than the legacy client_id column.
+  if (clientId) {
+    const { error: linkError } = await supabase
+      .from('gallery_clients')
+      .insert({ gallery_id: data.id, client_id: clientId })
+    if (linkError) throw linkError
+  }
+
   return data
 }
 
@@ -103,18 +112,53 @@ export async function deleteGallery(id) {
   if (error) throw error
 }
 
-// Returns galleries with no client_id set — used by the "Attach Gallery"
-// picker on ClientDetail.jsx so photographers only see galleries that are
-// actually available to link, rather than every gallery in the account.
-export async function getUnlinkedGalleries() {
-  const { data, error } = await supabase
+// Returns galleries not yet linked to the given client — used by the
+// "Attach Gallery" picker on ClientDetail.jsx. A gallery can now be linked
+// to more than one client (e.g. both spouses in a wedding), so this only
+// excludes galleries already linked to THIS client -- a gallery linked to
+// a different client should still show up as available here.
+export async function getUnlinkedGalleries(clientId) {
+  const { data: linkedRows, error: linkedErr } = await supabase
+    .from('gallery_clients')
+    .select('gallery_id')
+    .eq('client_id', clientId)
+  if (linkedErr) throw linkedErr
+  const linkedIds = (linkedRows ?? []).map(r => r.gallery_id)
+
+  let query = supabase
     .from('galleries')
     .select('id, title, event_name, event_date, created_at')
-    .is('client_id', null)
     .order('created_at', { ascending: false })
+  if (linkedIds.length > 0) {
+    query = query.not('id', 'in', `(${linkedIds.join(',')})`)
+  }
 
+  const { data, error } = await query
   if (error) throw error
   return data ?? []
+}
+
+// Links one or more galleries to a client. Safe to call with galleries
+// already linked to this client -- duplicates are silently ignored rather
+// than erroring, via the (gallery_id, client_id) unique constraint.
+export async function linkGalleriesToClient(galleryIds, clientId) {
+  const rows = galleryIds.map(galleryId => ({ gallery_id: galleryId, client_id: clientId }))
+  const { error } = await supabase
+    .from('gallery_clients')
+    .upsert(rows, { onConflict: 'gallery_id,client_id', ignoreDuplicates: true })
+  if (error) throw error
+}
+
+// Removes the link between a gallery and a client (the client loses portal
+// access to that gallery). Does not affect the gallery's other client
+// links, if any.
+export async function unlinkGalleryFromClient(galleryId, clientId) {
+  const { error } = await supabase
+    .from('gallery_clients')
+    .delete()
+    .eq('gallery_id', galleryId)
+    .eq('client_id', clientId)
+  if (error) throw error
 }
 
 export async function getGalleryImageCount(galleryId) {
