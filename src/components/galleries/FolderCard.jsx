@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Folder, MoreVertical, Pencil, Trash2, Image as ImageIcon, X, Upload } from 'lucide-react'
+import { Folder, MoreVertical, Pencil, Trash2, Image as ImageIcon, X, Upload, FolderInput } from 'lucide-react'
 import { useDroppable } from '@dnd-kit/core'
-import { renameFolder, deleteFolderTree, getFolderTreeCounts, updateFolderCover, getFolderImages } from '../../utils/galleryApi.js'
+import { renameFolder, deleteFolderTree, getFolderTreeCounts, updateFolderCover, getFolderImages, moveFolder } from '../../utils/galleryApi.js'
 import { supabase } from '../../supabaseClient.js'
+import MoveFolderModal from './MoveFolderModal.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
@@ -412,7 +413,7 @@ function FolderCoverPickerModal({ folder, onSaved, onClose }) {
   )
 }
 
-export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, subfolderCount = 0, onNavigate, onRenamed, onDeleted, onCoverChanged }) {
+export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, subfolderCount = 0, allFolders = [], onNavigate, onRenamed, onDeleted, onCoverChanged, onMoved }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [renameName, setRenameName] = useState(folder.name)
@@ -422,6 +423,7 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
   const [deleteError, setDeleteError] = useState(null)
   const [deleteCounts, setDeleteCounts] = useState(null)
   const [showCoverPicker, setShowCoverPicker] = useState(false)
+  const [showMovePicker, setShowMovePicker] = useState(false)
   const [folderCoverUrl, setFolderCoverUrl] = useState(null)
   const menuRef = useRef(null)
   const renameInputRef = useRef(null)
@@ -482,6 +484,11 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
 
   function handleCoverSaved(newKey, focusX, focusY) {
     onCoverChanged?.(folder.id, newKey, focusX, focusY)
+  }
+
+  async function handleMove(newParentId) {
+    await moveFolder(folder.id, newParentId)
+    onMoved?.(folder.id, newParentId)
   }
 
   const countLine = [
@@ -568,6 +575,15 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
                   <ImageIcon size={13} />Set Cover
                 </button>
                 <button
+                  onClick={() => { setMenuOpen(false); setShowMovePicker(true) }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <FolderInput size={13} />Move to...
+                </button>
+                <button
                   onClick={() => { setMenuOpen(false); handleDeleteConfirm() }}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
                   style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
@@ -651,6 +667,14 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
           folder={folder}
           onSaved={handleCoverSaved}
           onClose={() => setShowCoverPicker(false)}
+        />
+      )}
+      {showMovePicker && (
+        <MoveFolderModal
+          folder={folder}
+          allFolders={allFolders}
+          onMove={handleMove}
+          onClose={() => setShowMovePicker(false)}
         />
       )}
     </>

@@ -1293,6 +1293,15 @@ export default function Dashboard() {
     setFolders(prev => prev.map(f => f.id === folderId ? { ...f, cover_r2_key: coverR2Key, cover_focus_x: focusX, cover_focus_y: focusY } : f))
   }
 
+  // Called after a folder is moved to a new parent. The RPC recomputes the
+  // ltree `path` for the moved folder and its whole subtree server-side, so
+  // reload folders from the DB rather than trying to patch every affected
+  // path client-side.
+  async function handleFolderMoved(folderId, newParentId) {
+    const foldersData = await getFolders()
+    setFolders(foldersData)
+  }
+
   // Called when a new folder is created
   function handleFolderCreated(folder) {
     setFolders(prev => [...prev, folder])
@@ -1609,9 +1618,11 @@ export default function Dashboard() {
                 galleryCount={galleriesPerFolder[item.id] || 0}
                 subfolderCount={subfoldersPerFolder[item.id] || 0}
                 onNavigate={handleNavigateToFolder}
+                allFolders={folders}
                 onRenamed={handleFolderRenamed}
                 onDeleted={handleFolderDeleted}
                 onCoverChanged={handleFolderCoverChanged}
+                onMoved={handleFolderMoved}
               />
             ) : (
               <GalleryCard

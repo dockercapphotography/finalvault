@@ -235,6 +235,20 @@ export async function deleteFolderTree(id) {
   return { ok: true }
 }
 
+// Moves a folder (and its entire subtree) under a new parent folder.
+// newParentId = null moves it to the top level.
+// Server-side RPC handles cascading the ltree `path` update to the folder
+// and all its descendants (the INSERT-only set_folder_path trigger does
+// not do this on its own), and rejects moves that would create a cycle
+// (into itself or into one of its own descendants).
+export async function moveFolder(folderId, newParentId) {
+  const { error } = await supabase.rpc('move_folder_tree', {
+    p_folder_id: folderId,
+    p_new_parent_id: newParentId,
+  })
+  if (error) throw error
+}
+
 // Updates a folder's cover image.
 export async function updateFolderCover(folderId, coverR2Key, focusX = 0.5, focusY = 0.5) {
   const { data, error } = await supabase
