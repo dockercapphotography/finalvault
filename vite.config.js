@@ -64,5 +64,12 @@ export default defineConfig({
       devOptions: { enabled: false }
     })
   ],
+  define: {
+    // Frozen at build time (this runs in Node during `vite build`/`vite
+    // dev`, not in the browser) -- see PageWrapper.jsx for why this
+    // matters. Textually replaced wherever __BUILD_DATE__ appears in
+    // source, so it's a build-time constant, not a runtime lookup.
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
+  },
   server: { host: true }
 })

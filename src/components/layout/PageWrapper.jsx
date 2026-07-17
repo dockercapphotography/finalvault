@@ -4,7 +4,12 @@ import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
 const VERSION = '1.4.0'
-const BUILD_DATE = new Date().toLocaleDateString('en-US', {
+// __BUILD_DATE__ is injected by Vite's `define` at build time (see
+// vite.config.js) -- NOT computed here. Computing it here with `new
+// Date()` would run in the browser at page-load time, so it would show
+// "today" every time someone loads the page rather than the actual date
+// this bundle was built/deployed.
+const BUILD_DATE = new Date(__BUILD_DATE__).toLocaleDateString('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit'
 })
 
