@@ -1282,10 +1282,12 @@ export default function Dashboard() {
   }
 
   // Called when a folder (and its subtree) is deleted.
-  // Since the RPC deletes recursively server-side, we reload all data
-  // and navigate back to root to avoid showing stale state.
+  // The deleted folder is always a direct child of the folder currently
+  // being viewed (that's the only place a delete can be triggered from),
+  // so currentFolderId/folderPath are still valid -- no navigation needed,
+  // just reload folders/galleries so the deleted subtree disappears from
+  // the current view.
   async function handleFolderDeleted(deletedRootId) {
-    navigate('/', { state: { restoreFolderPath: [] } })
     await loadData()
   }
 
