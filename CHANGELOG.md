@@ -4,6 +4,40 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.4.1 — July 17, 2026
+
+### New Features
+
+**Multi-Client Galleries**
+- A gallery can now be linked to more than one client (e.g. both spouses in a wedding), each with full portal access to it
+- Manage a gallery's linked clients from Gallery Settings — add or remove clients without affecting the gallery's other links
+- Attaching a gallery to a client now shows galleries already linked to a *different* client too, instead of hiding them
+- Unlink a gallery from a client directly from the client's page
+
+**Folder Organization**
+- Folders can now be moved (with their entire contents) into another folder, or back to the top level, from the folder's own menu
+
+**Attach Gallery**
+- Select multiple galleries at once instead of attaching one, saving, and reopening the picker each time
+- Search added to the picker for accounts with a large number of galleries
+
+### Bug Fixes
+
+- Fixed folder cover images showing the old image after being replaced, until the browser cache was manually cleared
+- Fixed deleting a folder navigating all the way back to the root gallery view instead of staying where you were
+- Fixed a gallery's linked client silently getting cleared any time an unrelated setting was saved on that gallery
+- Fixed new galleries not generating a download PIN or password when a template defaulted "Require Download PIN" or "Require Password" to on -- the requirement was enabled but no actual PIN/password existed until one was manually generated
+- Fixed the in-app "Build" date always showing the current date instead of the date the app was actually last deployed
+
+### Notes
+
+- `galleries.client_id` (the old single-client column) is no longer written to by any part of the app -- `gallery_clients` is now the sole source of truth for gallery-client links. The column is left in place, unused, rather than dropped.
+- Known gap: `GalleryDetail.jsx`'s client link still reads the now-stale `gallery.client_id` instead of the new linked-clients list -- scheduled for a follow-up pass.
+- Known gap: gallery creation (`GalleryNew.jsx`) still only supports selecting one client at creation time; additional clients are added afterward via Gallery Settings.
+- As with the Client Portal work in v1.4.0, the `gallery_folders` and `gallery_clients` schemas (tables, RLS, and the `move_folder_tree` / `get_client_portal_data` functions) were changed directly in the Supabase SQL Editor and aren't yet reflected in any tracked migration file -- same pre-existing gap as the rest of the untracked schema, to be closed by the deferred canonical `schema.sql` task.
+
+---
+
 ## v1.4.0 — June 29, 2026
 
 ### New Features

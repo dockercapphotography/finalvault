@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.4.0'
+const VERSION = '1.4.1'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,24 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.4.1 — July 17, 2026">
+                  <Group label="Multi-Client Galleries">
+                    <Item>A gallery can now be linked to more than one client, each with full portal access</Item>
+                    <Item>Manage a gallery's linked clients from Gallery Settings</Item>
+                    <Item>Unlink a gallery from a client directly from the client's page</Item>
+                  </Group>
+                  <Group label="Folders &amp; Attach Gallery">
+                    <Item>Folders can now be moved (with their contents) into another folder</Item>
+                    <Item>Attach Gallery now supports selecting multiple galleries at once, with search</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed folder cover images showing stale after being replaced</Item>
+                    <Item>Fixed deleting a folder navigating back to root instead of staying in place</Item>
+                    <Item>Fixed a gallery's linked client getting cleared on unrelated settings saves</Item>
+                    <Item>Fixed new galleries not generating a PIN/password when required by a template</Item>
+                    <Item>Fixed the in-app Build date always showing today instead of the actual build date</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.4.0 — June 29, 2026">
                   <Group label="Client Portal">
                     <Item>Every client now gets one durable link showing all their galleries, contracts, and outstanding questionnaires</Item>

@@ -29,7 +29,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 ### For Photographers
 
 - **Gallery management** — create galleries with client name, event details, internal notes, and named photo sets
-- **Folder organization** — organize galleries into nested folders with drag-and-drop, breadcrumb navigation, full path tracking, and custom folder cover photos
+- **Folder organization** — organize galleries into nested folders with drag-and-drop, breadcrumb navigation, full path tracking, custom folder cover photos, and the ability to move a folder (with its entire contents) into another folder
 - **8 color themes** — Light, Dark, Slate, Dusk, Ember, Sage, Blush, Noir — applied per gallery
 - **Watermarking** — upload watermark images, configure opacity/position/scale, apply per image, set, or in bulk
 - **Gallery templates** — save your preferred settings as a reusable template for faster gallery creation
@@ -44,7 +44,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Gallery Guide control** — enable or disable the client onboarding guide per gallery
 - **Gallery category tags** — create a per-account tag library with custom colors, assign tags to galleries, filter and search by tag on the dashboard
 - **Dashboard sort & display** — sort galleries by Created, Event Date, Last Updated, or Name; toggle between Default and Large grid sizes
-- **Client CRM** — create and manage client records with contact info, avatars, pronouns, tags, and linked galleries; Google Places address autocomplete; chip+typeahead tag input with autocomplete
+- **Client CRM** — create and manage client records with contact info, avatars, pronouns, tags, and linked galleries (a gallery can be linked to multiple clients, e.g. both spouses in a wedding, each with full portal access); Google Places address autocomplete; chip+typeahead tag input with autocomplete
 - **Contract management** — send contracts to clients with typed digital signatures (US ESIGN/UETA compliant), SHA-256 body hash, IP/timestamp audit trail, and signed PDF stored in R2; three default templates included (General Photography Services Agreement, Print Release, Photo Licensing Agreement)
 - **Contract templates** — create reusable templates with variable substitution for client info, photographer business info, gallery details, fees, and more
 - **Business information** — store your business email, phone, address, and governing state in Account → Profile; auto-fills contract variables
