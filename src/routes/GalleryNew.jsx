@@ -9,6 +9,7 @@ import { THEMES, getTheme } from '../utils/themes.js'
 import Button from '../components/ui/Button.jsx'
 import ClientPicker from '../components/ui/ClientPicker.jsx'
 import Input from '../components/ui/Input.jsx'
+import { generatePin, generatePassword } from '../utils/secretGenerators.js'
 
 export default function GalleryNew() {
   const navigate = useNavigate()
@@ -64,6 +65,8 @@ export default function GalleryNew() {
     setIsSubmitting(true)
     setError(null)
     try {
+      const requirePassword = selectedTemplate?.require_password ?? false
+      const requireDownloadPin = selectedTemplate?.require_download_pin ?? false
       const gallery = await createGallery({
         title: values.title,
         clientName: values.clientName,
@@ -79,8 +82,15 @@ export default function GalleryNew() {
         allowHiresDownload: selectedTemplate?.allow_hires_download ?? false,
         allowFavorites: selectedTemplate?.allow_favorites ?? true,
         allowComments: selectedTemplate?.allow_comments ?? true,
-        requirePassword: selectedTemplate?.require_password ?? false,
-        requireDownloadPin: selectedTemplate?.require_download_pin ?? false,
+        requirePassword,
+        requireDownloadPin,
+        // A template can default these requirements to ON, but there's no
+        // UI at creation time to set the actual secret -- generate one
+        // automatically (same as Settings does when the toggle is flipped
+        // on there) so the gallery isn't left requiring a PIN/password
+        // that doesn't exist yet.
+        password: requirePassword ? generatePassword() : null,
+        downloadPin: requireDownloadPin ? generatePin() : null,
         watermarkId: selectedTemplate?.watermark_id || null,
         folderId,
       })

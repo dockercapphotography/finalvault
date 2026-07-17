@@ -16,6 +16,7 @@ import Input from '../components/ui/Input.jsx'
 import Button from '../components/ui/Button.jsx'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
 import ClientPicker from '../components/ui/ClientPicker.jsx'
+import { generatePin, generatePassword } from '../utils/secretGenerators.js'
 
 const TABS = [
   { id: 'general',  label: 'General' },
@@ -24,15 +25,6 @@ const TABS = [
   { id: 'display',  label: 'Display' },
   { id: 'danger',   label: 'Danger Zone' },
 ]
-
-function generatePin() {
-  return String(Math.floor(1000 + Math.random() * 9000))
-}
-
-function generatePassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-}
 
 function PlainField({ label, value, onChange, onRefresh, onCopy, placeholder, hint, maxLength, type = 'text' }) {
   const [show, setShow] = useState(true)
