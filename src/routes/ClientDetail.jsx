@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, Camera,
   Pencil, Trash2, X, Plus, Clock, CheckCircle, Images,
-  AlertCircle, Ban, CalendarDays, Link2, Copy, RefreshCw, Check
+  AlertCircle, Ban, CalendarDays, Link2, Copy, RefreshCw, Check, Search
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
@@ -393,6 +393,7 @@ function AttachGalleryModal({ clientId, onClose, onAttached }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [attaching, setAttaching] = useState(false)
   const [error, setError] = useState(null)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     getUnlinkedGalleries(clientId)
@@ -461,8 +462,38 @@ function AttachGalleryModal({ clientId, onClose, onAttached }) {
               <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>
                 Select one or more galleries{selectedIds.size > 0 ? ` (${selectedIds.size} selected)` : ''}
               </label>
+              <div className="relative mb-2">
+                <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search galleries..."
+                  autoFocus
+                  style={{
+                    width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                    color: 'var(--text)', borderRadius: 8, padding: '7px 10px 7px 30px', fontSize: 13,
+                    outline: 'none', boxSizing: 'border-box',
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+              </div>
               <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', maxHeight: 280, overflowY: 'auto' }}>
-                {galleries.map(gallery => {
+                {galleries.filter(gallery => {
+                  if (!query.trim()) return true
+                  const q = query.toLowerCase()
+                  return gallery.title.toLowerCase().includes(q) || gallery.event_name?.toLowerCase().includes(q)
+                }).length === 0 && (
+                  <div className="text-center py-4">
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No galleries match "{query}"</p>
+                  </div>
+                )}
+                {galleries.filter(gallery => {
+                  if (!query.trim()) return true
+                  const q = query.toLowerCase()
+                  return gallery.title.toLowerCase().includes(q) || gallery.event_name?.toLowerCase().includes(q)
+                }).map(gallery => {
                   const isSelected = selectedIds.has(gallery.id)
                   const sub = [gallery.event_name, gallery.event_date ? new Date(gallery.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null].filter(Boolean).join(' · ')
                   return (
