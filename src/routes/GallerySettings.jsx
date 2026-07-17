@@ -240,6 +240,7 @@ export default function GallerySettings() {
         requirePassword, password, requireDownloadPin, downloadPin,
         allowDownloads, downloadWatermarked, allowHiresDownload,
         allowFavorites, allowComments, showGuide, themeColor, gridSize, gridSpacing,
+        linkedClientId,
         ...overrides
       }
       await updateGallery(id, {
