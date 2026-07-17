@@ -10,7 +10,7 @@ import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags, getOrCreatePortalToken, regeneratePortalToken } from '../utils/crmApi.js'
-import { getUnlinkedGalleries, linkGalleriesToClient } from '../utils/galleryApi.js'
+import { getUnlinkedGalleries, linkGalleriesToClient, unlinkGalleryFromClient } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
 import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
@@ -312,7 +312,7 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
   )
 }
 
-function GalleryRow({ gallery }) {
+function GalleryRow({ gallery, onUnlink }) {
   const coverKey = gallery.cover_r2_key || gallery.gallery_images?.preview_r2_key
   const isActive = gallery.is_active
   return (
@@ -346,6 +346,15 @@ function GalleryRow({ gallery }) {
         </p>
       </div>
       <Badge variant={isActive ? 'success' : 'default'}>{isActive ? 'Active' : 'Inactive'}</Badge>
+      <button
+        onClick={e => { e.preventDefault(); e.stopPropagation(); onUnlink(gallery.id) }}
+        style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none', flexShrink: 0, display: 'flex', padding: 2 }}
+        onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+        title="Remove from client"
+      >
+        <X size={14} />
+      </button>
       <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
     </Link>
   )
@@ -697,6 +706,19 @@ export default function ClientDetail() {
     setToast({ message: galleryIds.length > 1 ? `${galleryIds.length} galleries attached` : 'Gallery attached', type: 'success' })
   }
 
+  async function handleUnlinkGallery(galleryId) {
+    setGalleries(prev => prev.filter(g => g.id !== galleryId))
+    try {
+      await unlinkGalleryFromClient(galleryId, id)
+      setToast({ message: 'Gallery removed from client', type: 'success' })
+    } catch (err) {
+      // Roll back the optimistic removal if the request actually failed
+      const fresh = await getClientGalleries(id)
+      setGalleries(fresh)
+      setToast({ message: 'Failed to remove gallery', type: 'error' })
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -872,7 +894,7 @@ export default function ClientDetail() {
           <div style={{ background: 'var(--surface)' }}>
             {galleries.map((g, i) => (
               <div key={g.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                <GalleryRow gallery={g} />
+                <GalleryRow gallery={g} onUnlink={handleUnlinkGallery} />
               </div>
             ))}
           </div>
