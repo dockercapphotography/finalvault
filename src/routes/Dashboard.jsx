@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useNavigate, useLocation } from 'react-router-dom'
-import {Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Circle, Folder, FolderPlus, Home, Images, LayoutGrid, Plus, Search, Share2, Upload, X} from 'lucide-react'
+import {Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Circle, Folder, FolderPlus, Home, Images, LayoutGrid, Plus, Share2, Upload, X} from 'lucide-react'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import FilterSortControl from '../components/ui/FilterSortControl.jsx'
+import PageHeader from '../components/ui/PageHeader.jsx'
 import { getGalleries, getFolders, getTags, createFolder, moveGalleryToFolder } from '../utils/galleryApi.js'
 import { getBookmarkedGalleryIds } from '../utils/bookmarkApi.js'
 import { supabase } from '../supabaseClient.js'
@@ -830,97 +831,20 @@ export default function Dashboard() {
         <Breadcrumb folderPath={folderPath} onNavigate={handleBreadcrumbNavigate} />
       )}
 
-      {/* ── Desktop: title + search + buttons ── */}
-      <div className="hidden md:flex items-center gap-3">
-        <div className="shrink-0">
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>
-            {folderPath.length > 0 ? folderPath[folderPath.length - 1].name : 'Galleries'}
-          </h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {currentFolderId
-              ? `${galleriesInView.length} ${galleriesInView.length === 1 ? 'gallery' : 'galleries'}`
-              : `${galleries.length} ${galleries.length === 1 ? 'gallery' : 'galleries'} total`}
-          </p>
-        </div>
-        {(galleries.length > 0 || folders.length > 0) && (
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search all galleries..."
-              className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-          </div>
-        )}
-        <button
-          onClick={() => setNewFolderOpen(true)}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text)' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
-        >
-          <FolderPlus size={15} />
-          New Folder
-        </button>
-        <Button onClick={() => navigate('/galleries/new', { state: { folderId: currentFolderId } })} className="shrink-0">
-          <Plus size={15} />New Gallery
-        </Button>
-      </div>
-
-      {/* ── Desktop: filters & sort ── */}
-      {(galleries.length > 0 || folders.length > 0) && (
-        <div className="hidden md:flex items-center gap-2 flex-wrap">
-          <FilterSortControl sections={filterSections} onClearAll={clearAllFilters} panelWidth={260} />
-          <div className="ml-auto flex items-center gap-2">
-            <DisplayDropdown gridSize={gridSize} onGridSize={setGridSize} />
-          </div>
-        </div>
-      )}
-
-      {/* ── Mobile: title + actions ── */}
-      <div className="flex items-center gap-2 md:hidden">
-        <div>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>
-            {folderPath.length > 0 ? folderPath[folderPath.length - 1].name : 'Galleries'}
-          </h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {currentFolderId
-              ? `${galleriesInView.length} ${galleriesInView.length === 1 ? 'gallery' : 'galleries'}`
-              : `${galleries.length} ${galleries.length === 1 ? 'gallery' : 'galleries'} total`}
-          </p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <FilterSortControl sections={filterSections} onClearAll={clearAllFilters} />
-          <button
-            onClick={() => setNewFolderOpen(true)}
-            className="flex items-center justify-center rounded-xl"
-            style={{ width: 44, height: 44, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
-            aria-label="New Folder"
-          >
-            <FolderPlus size={18} />
-          </button>
-          <button
-            onClick={() => navigate('/galleries/new', { state: { folderId: currentFolderId } })}
-            className="flex items-center justify-center rounded-xl"
-            style={{ width: 44, height: 44, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-            aria-label="New Gallery"
-          >
-            <Plus size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile search */}
-      <div className="relative md:hidden">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search all galleries..."
-            className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-        </div>
+      <PageHeader
+        title={folderPath.length > 0 ? folderPath[folderPath.length - 1].name : 'Galleries'}
+        subtitle={currentFolderId
+          ? `${galleriesInView.length} ${galleriesInView.length === 1 ? 'gallery' : 'galleries'}`
+          : `${galleries.length} ${galleries.length === 1 ? 'gallery' : 'galleries'} total`}
+        search={(galleries.length > 0 || folders.length > 0)
+          ? { value: search, onChange: setSearch, placeholder: 'Search all galleries...' }
+          : undefined}
+        filterSections={(galleries.length > 0 || folders.length > 0) ? filterSections : undefined}
+        onClearAllFilters={clearAllFilters}
+        primaryAction={{ label: 'New Gallery', icon: Plus, onClick: () => navigate('/galleries/new', { state: { folderId: currentFolderId } }) }}
+        secondaryActions={[{ label: 'New Folder', icon: FolderPlus, onClick: () => setNewFolderOpen(true) }]}
+        extra={(galleries.length > 0 || folders.length > 0) ? <DisplayDropdown gridSize={gridSize} onGridSize={setGridSize} /> : null}
+      />
 
       {loading && (
         <div className="flex items-center justify-center py-24">
