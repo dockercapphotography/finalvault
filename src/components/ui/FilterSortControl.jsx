@@ -1,15 +1,27 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { SlidersHorizontal, ChevronRight, ChevronLeft, Check } from 'lucide-react'
 import BottomSheet from '../layout/BottomSheet.jsx'
 
 // ── FilterSortControl ───────────────────────────────────────────────────────
 // One "Filters & sort" button (icon + label, purple when active) that opens
-// either a mobile bottom-sheet drill-down or a desktop anchored panel,
-// driven entirely by a declarative `sections` config. This generalizes the
-// pattern originally built for the Client Portal (ClientPortalFilterSheet +
-// the DesktopFilterPanel in ClientPortalGalleries.jsx) so every
+// either a mobile bottom-sheet drill-down or a desktop panel, driven
+// entirely by a declarative `sections` config. This generalizes the pattern
+// originally built for the Client Portal (ClientPortalFilterSheet + the
+// DesktopFilterPanel in ClientPortalGalleries.jsx) so every
 // photographer-facing list page can share the exact same interaction and
 // visual language instead of each having its own bespoke filter UI.
+//
+// The desktop panel is rendered through a portal to document.body with its
+// position computed from the trigger button's real screen coordinates
+// (getBoundingClientRect), rather than CSS position:absolute anchored to a
+// position:relative ancestor. That containing-block approach is fragile --
+// it depends on no ancestor between the trigger and the panel introducing
+// its own scroll container, transform, or filter, any of which silently
+// changes what the panel positions itself relative to. Different pages'
+// layouts don't all give that guarantee, so the portal + real-coordinates
+// approach (the same technique BottomSheet.jsx already uses) is used
+// instead -- it's correct regardless of ancestor structure.
 //
 // Section shape:
 //   {
@@ -107,13 +119,46 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
   const [mobileOpen, setMobileOpen] = useState(false)
   const [desktopOpen, setDesktopOpen] = useState(false)
   const [subScreen, setSubScreen] = useState(null) // null | sectionKey | `${sectionKey}:range`
-  const desktopRef = useRef(null)
+  const [panelPos, setPanelPos] = useState(null) // { top, right } in viewport px
+  const desktopButtonRef = useRef(null)
+  const desktopPanelRef = useRef(null)
+
+  // Position the portaled panel from the trigger button's real screen
+  // coordinates -- correct regardless of what's between them in the DOM.
+  useEffect(() => {
+    if (!desktopOpen) return
+    function updatePos() {
+      const btn = desktopButtonRef.current
+      if (!btn) return
+      const rect = btn.getBoundingClientRect()
+      setPanelPos({
+        top: rect.bottom + 8,
+        right: Math.max(8, window.innerWidth - rect.right),
+      })
+    }
+    updatePos()
+    window.addEventListener('resize', updatePos)
+    // If the page (or a scroll container) moves under the open panel,
+    // close it rather than leaving it stale and misaligned -- standard
+    // dropdown behavior, and simpler/safer than tracking every possible
+    // scrollable ancestor.
+    function handleScroll() { setDesktopOpen(false) }
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      window.removeEventListener('resize', updatePos)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [desktopOpen])
 
   useEffect(() => {
     if (!desktopOpen) return
-    const h = e => { if (!desktopRef.current?.contains(e.target)) setDesktopOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
+    function handleClickOutside(e) {
+      if (desktopButtonRef.current?.contains(e.target)) return
+      if (desktopPanelRef.current?.contains(e.target)) return
+      setDesktopOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [desktopOpen])
 
   const hasActiveFilters = sections.some(isActiveOf)
@@ -356,26 +401,36 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
         <SlidersHorizontal size={13} />Filters &amp; sort
       </button>
 
-      {/* Desktop trigger + panel */}
-      <div className="hidden md:block relative" ref={desktopRef}>
-        <button onClick={() => setDesktopOpen(o => !o)}
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg flex-shrink-0"
-          style={triggerButtonStyle(hasActiveFilters)}>
-          <SlidersHorizontal size={13} />Filters &amp; sort
-        </button>
-        {desktopOpen && (
-          <div className="absolute right-0 top-full mt-2 rounded-xl shadow-lg z-30 p-3 space-y-3"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: panelWidth, maxHeight: 420, overflowY: 'auto' }}>
-            {sections.map(renderDesktopSection)}
-            {hasActiveFilters && (
-              <button onClick={handleClearAll} className="text-xs w-full text-left"
-                style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>
-                Clear all
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Desktop trigger */}
+      <button ref={desktopButtonRef} onClick={() => setDesktopOpen(o => !o)}
+        className="hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg flex-shrink-0"
+        style={triggerButtonStyle(hasActiveFilters)}>
+        <SlidersHorizontal size={13} />Filters &amp; sort
+      </button>
+
+      {/* Desktop panel -- portaled to document.body, positioned from the
+          trigger button's real screen coordinates (see effect above) so it
+          can never end up clipped or mispositioned by an ancestor's own
+          scroll container, transform, or overflow. */}
+      {desktopOpen && panelPos && createPortal(
+        <div ref={desktopPanelRef} className="space-y-3"
+          style={{
+            position: 'fixed', top: panelPos.top, right: panelPos.right,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 12, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+            zIndex: 100, padding: 12, width: panelWidth,
+            maxHeight: `calc(100vh - ${panelPos.top + 16}px)`, overflowY: 'auto',
+          }}>
+          {sections.map(renderDesktopSection)}
+          {hasActiveFilters && (
+            <button onClick={handleClearAll} className="text-xs w-full text-left"
+              style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Clear all
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
 
       {/* Mobile sheet */}
       <BottomSheet open={mobileOpen} onClose={closeMobile}>
