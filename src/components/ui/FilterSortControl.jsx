@@ -127,31 +127,14 @@ function triggerButtonStyle(active) {
 function DesktopMultiSelect({ section, selectStyle }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [pos, setPos] = useState(null)
-  const triggerRef = useRef(null)
-  const dropdownRef = useRef(null)
+  const ref = useRef(null)
   const value = section.value || []
   const options = section.options || []
 
   useEffect(() => {
     if (!open) return
-    function updatePos() {
-      const el = triggerRef.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
-    }
-    updatePos()
-    window.addEventListener('resize', updatePos)
-    return () => window.removeEventListener('resize', updatePos)
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
     function handleClickOutside(e) {
-      if (triggerRef.current?.contains(e.target)) return
-      if (dropdownRef.current?.contains(e.target)) return
-      setOpen(false)
+      if (!ref.current?.contains(e.target)) setOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -164,22 +147,31 @@ function DesktopMultiSelect({ section, selectStyle }) {
     : options
 
   return (
-    <div>
+    <div ref={ref} className="relative">
       <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>{section.label}</label>
-      <button ref={triggerRef} onClick={() => setOpen(o => !o)}
+      <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between"
         style={selectStyle}>
         <span className="truncate">{summaryOf(section)}</span>
         <ChevronDown size={13} style={{ flexShrink: 0, marginLeft: 4 }} />
       </button>
 
-      {open && pos && createPortal(
-        <div ref={dropdownRef}
+      {/* Rendered as a normal nested child, NOT its own portal -- the
+          outer panel is already a portaled, fixed-position element with
+          no scroll/transform ancestors between it and document.body, so a
+          plain position:absolute dropdown nested inside it is safe (no
+          containing-block ambiguity). Just as important: nesting it here
+          means the outer panel's own click-outside check correctly sees
+          clicks in here as "inside itself" -- a separate portal made
+          every click here look like a click outside the panel, closing
+          it before the tag selection even registered. */}
+      {open && (
+        <div
           style={{
-            position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 180),
+            position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
             background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
             boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
-            zIndex: 110, overflow: 'hidden',
+            zIndex: 10, overflow: 'hidden',
           }}>
           {options.length > 6 && (
             <div className="relative" style={{ padding: 6, borderBottom: '1px solid var(--border)' }}>
@@ -223,8 +215,7 @@ function DesktopMultiSelect({ section, selectStyle }) {
               Clear {section.label.toLowerCase()}
             </button>
           )}
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   )
