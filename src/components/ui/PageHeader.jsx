@@ -131,31 +131,38 @@ export default function PageHeader({
       {/* Mobile search -- own full-width row */}
       {search && <SearchInput search={search} className="md:hidden" />}
 
-      {/* Desktop toolbar -- search, Filters & sort, extra, then actions */}
-      <div className="hidden md:flex items-center gap-2">
-        {search && <SearchInput search={search} className="flex-1 max-w-md" />}
-        {filterSections && <FilterSortControl sections={filterSections} onClearAll={onClearAllFilters} />}
-        {extra}
-        <div className="ml-auto flex items-center gap-2">
-          {secondaryActions.map((a, i) => a.iconOnly ? (
-            <button key={i} onClick={a.onClick} title={a.label} aria-label={a.label}
-              className="flex items-center justify-center rounded-lg flex-shrink-0"
-              style={{ width: 36, height: 36, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
-              <a.icon size={15} />
-            </button>
-          ) : (
-            <Button key={i} variant="secondary" onClick={a.onClick} className="flex-shrink-0">
-              <a.icon size={15} />{a.label}
-            </Button>
-          ))}
-          {primaryAction && (
-            <Button variant="primary" onClick={primaryAction.onClick} className="flex-shrink-0">
-              <primaryAction.icon size={15} />{primaryAction.label}
-            </Button>
-          )}
+      {/* Desktop -- row 1: search + create action(s), row 2: Filters & sort + extra, right-aligned */}
+      <div className="hidden md:flex md:flex-col gap-2">
+        <div className="flex items-center gap-2">
+          {search && <SearchInput search={search} className="flex-1" />}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {secondaryActions.map((a, i) => a.iconOnly ? (
+              <button key={i} onClick={a.onClick} title={a.label} aria-label={a.label}
+                className="flex items-center justify-center rounded-lg flex-shrink-0"
+                style={{ width: 36, height: 36, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
+                <a.icon size={15} />
+              </button>
+            ) : (
+              <Button key={i} variant="secondary" onClick={a.onClick} className="flex-shrink-0">
+                <a.icon size={15} />{a.label}
+              </Button>
+            ))}
+            {primaryAction && (
+              <Button variant="primary" onClick={primaryAction.onClick} className="flex-shrink-0">
+                <primaryAction.icon size={15} />{primaryAction.label}
+              </Button>
+            )}
+          </div>
         </div>
+
+        {(filterSections || extra) && (
+          <div className="flex items-center justify-end gap-2">
+            {filterSections && <FilterSortControl sections={filterSections} onClearAll={onClearAllFilters} />}
+            {extra}
+          </div>
+        )}
       </div>
     </div>
   )
