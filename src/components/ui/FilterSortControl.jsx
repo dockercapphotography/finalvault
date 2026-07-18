@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { SlidersHorizontal, ChevronRight, ChevronLeft, Check } from 'lucide-react'
+import { SlidersHorizontal, ChevronRight, ChevronLeft, ChevronDown, Check, Search } from 'lucide-react'
 import BottomSheet from '../layout/BottomSheet.jsx'
 
 // ── FilterSortControl ───────────────────────────────────────────────────────
@@ -113,6 +113,121 @@ function triggerButtonStyle(active) {
     color: active ? '#6366f1' : 'var(--text)',
     cursor: 'pointer',
   }
+}
+
+// A multiSelect section (e.g. Tags) can have far more options than fit
+// comfortably inline in the main panel -- rendering them all as an
+// always-expanded checklist doesn't scale and is awkward to scroll (a
+// scroll area nested inside an already-scrolling panel). This collapses
+// to a single summary trigger, matching every other section, and opens
+// its own small dropdown -- with a search box once there are enough
+// options to need one -- via the same portal + real-coordinates
+// technique as the outer panel (and as ClientPicker.jsx elsewhere in the
+// app), so it's correctly positioned regardless of ancestor structure.
+function DesktopMultiSelect({ section, selectStyle }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [pos, setPos] = useState(null)
+  const triggerRef = useRef(null)
+  const dropdownRef = useRef(null)
+  const value = section.value || []
+  const options = section.options || []
+
+  useEffect(() => {
+    if (!open) return
+    function updatePos() {
+      const el = triggerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    }
+    updatePos()
+    window.addEventListener('resize', updatePos)
+    return () => window.removeEventListener('resize', updatePos)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    function handleClickOutside(e) {
+      if (triggerRef.current?.contains(e.target)) return
+      if (dropdownRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
+  useEffect(() => { if (!open) setQuery('') }, [open])
+
+  const filtered = query.trim()
+    ? options.filter(o => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : options
+
+  return (
+    <div>
+      <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>{section.label}</label>
+      <button ref={triggerRef} onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between"
+        style={selectStyle}>
+        <span className="truncate">{summaryOf(section)}</span>
+        <ChevronDown size={13} style={{ flexShrink: 0, marginLeft: 4 }} />
+      </button>
+
+      {open && pos && createPortal(
+        <div ref={dropdownRef}
+          style={{
+            position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 180),
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
+            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+            zIndex: 110, overflow: 'hidden',
+          }}>
+          {options.length > 6 && (
+            <div className="relative" style={{ padding: 6, borderBottom: '1px solid var(--border)' }}>
+              <Search size={12} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text" value={query} onChange={e => setQuery(e.target.value)}
+                placeholder={`Search ${section.label.toLowerCase()}...`} autoFocus
+                style={{ width: '100%', border: 'none', outline: 'none', background: 'none', color: 'var(--text)', fontSize: 12.5, padding: '4px 4px 4px 20px', boxSizing: 'border-box' }} />
+            </div>
+          )}
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {filtered.length === 0 && (
+              <p className="text-xs" style={{ color: 'var(--text-muted)', padding: '10px 12px' }}>No matches</p>
+            )}
+            {filtered.map(o => {
+              const selected = value.includes(o.value)
+              return (
+                <button key={o.value} onClick={() => section.onChange(selected ? value.filter(v => v !== o.value) : [...value, o.value])}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <span style={{
+                    width: 15, height: 15, borderRadius: 4, flexShrink: 0,
+                    border: `1.5px solid ${selected ? '#6366f1' : 'var(--border-strong)'}`,
+                    background: selected ? '#6366f1' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {selected && <Check size={10} style={{ color: '#fff' }} />}
+                  </span>
+                  {o.color && <span style={{ width: 7, height: 7, borderRadius: '50%', background: o.color, flexShrink: 0 }} />}
+                  <span className="truncate">{o.label}</span>
+                </button>
+              )
+            })}
+          </div>
+          {value.length > 0 && (
+            <button onClick={() => section.onChange([])}
+              className="w-full text-left"
+              style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '8px 12px' }}>
+              Clear {section.label.toLowerCase()}
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
 }
 
 export default function FilterSortControl({ sections, onClearAll, panelWidth = 240 }) {
@@ -324,33 +439,7 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
       )
     }
     if (section.type === 'multiSelect') {
-      const value = section.value || []
-      return (
-        <div key={section.key}>
-          <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>{section.label}</label>
-          <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-subtle)' }}>
-            {(section.options || []).map(o => {
-              const selected = value.includes(o.value)
-              return (
-                <button key={o.value} onClick={() => section.onChange(selected ? value.filter(v => v !== o.value) : [...value, o.value])}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5, color: 'var(--text)' }}>
-                  <span style={{
-                    width: 14, height: 14, borderRadius: 4, flexShrink: 0,
-                    border: `1.5px solid ${selected ? '#6366f1' : 'var(--border-strong)'}`,
-                    background: selected ? '#6366f1' : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {selected && <Check size={9} style={{ color: '#fff' }} />}
-                  </span>
-                  {o.color && <span style={{ width: 7, height: 7, borderRadius: '50%', background: o.color, flexShrink: 0 }} />}
-                  <span className="truncate">{o.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )
+      return <DesktopMultiSelect key={section.key} section={section} selectStyle={selectStyle} />
     }
     if (section.type === 'dateRange') {
       const value = section.value
