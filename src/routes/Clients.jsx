@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, User, Mail, Phone, Tag, X, ChevronRight, SlidersHorizontal } from 'lucide-react'
-import FilterSheet from '../components/ui/FilterSheet.jsx'
+import { Plus, User, Mail, Phone, Tag, X, ChevronRight } from 'lucide-react'
+import PageHeader from '../components/ui/PageHeader.jsx'
 import { getClients, createClient, deleteClient, getAllTags as fetchAllTags } from '../utils/crmApi.js'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
@@ -242,7 +242,6 @@ export default function Clients() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
-  const [showFilters, setShowFilters] = useState(false)
   const [tagFilter, setTagFilter] = useState([])
   const [showNewModal, setShowNewModal] = useState(false)
   const [toast, setToast] = useState(null)
@@ -288,117 +287,17 @@ export default function Clients() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Clients</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {clients.length} {clients.length === 1 ? 'client' : 'clients'}
-          </p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          {/* Filter icon — mobile only */}
-          <button onClick={() => setShowFilters(true)}
-            className="flex items-center justify-center rounded-xl md:hidden"
-            style={{ width: 44, height: 44, background: tagFilter.length ? 'rgba(99,102,241,0.1)' : '#ffffff', border: `1px solid ${tagFilter.length ? '#6366f1' : '#e5e7eb'}`, color: tagFilter.length ? '#6366f1' : '#9ca3af', cursor: 'pointer', flexShrink: 0 }}
-            aria-label="Filter clients">
-            <SlidersHorizontal size={18} />
-          </button>
-          {/* New Client — icon+label on desktop, icon-only (#111) on mobile */}
-          <button onClick={() => setShowNewModal(true)}
-            className="hidden md:flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg"
-            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            <Plus size={15} />New Client
-          </button>
-          <button onClick={() => setShowNewModal(true)}
-            className="flex items-center justify-center rounded-xl md:hidden"
-            style={{ width: 44, height: 44, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-            aria-label="New Client">
-            <Plus size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/* Search + tag filter — desktop only */}
-      {clients.length > 0 && (
-        <div className="hidden md:flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1" style={{ minWidth: 200 }}>
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search clients..."
-              className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'}
-            />
-          </div>
-          {allTags.length > 0 && (
-            <div className="relative">
-              <Tag size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
-              <select
-                value={tagFilter[0] || ''}
-                onChange={e => setTagFilter(e.target.value ? [e.target.value] : [])}
-                className="text-sm pl-8 pr-8 py-2 rounded-lg outline-none appearance-none"
-                style={{
-                  background: tagFilter ? '#6366f1' : 'var(--surface)',
-                  border: `1px solid ${tagFilter ? '#6366f1' : 'var(--border)'}`,
-                  color: tagFilter ? '#fff' : 'var(--text)',
-                  cursor: 'pointer',
-                }}>
-                <option value="">All tags</option>
-                {allTags.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              {tagFilter.length > 0 && (
-                <button onClick={() => setTagFilter([])}
-                  className="absolute right-2 top-1/2 -translate-y-1/2"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', display: 'flex' }}>
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          )}
-          {(search || tagFilter.length > 0) && (
-            <button onClick={() => { setSearch(''); setTagFilter([]) }}
-              className="text-xs" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Mobile search bar */}
-      <div className="relative md:hidden">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search clients..."
-          className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-          onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
-          onBlur={e => e.target.style.borderColor = 'var(--border)'}
-        />
-      </div>
-
-      {/* Mobile filter sheet */}
-      <FilterSheet
-        open={showFilters}
-        onClose={() => setShowFilters(false)}
-        title="Filters"
-        filters={[
-          {
-            key: 'tag',
-            label: 'Tags',
-            placeholder: 'Any',
-            multiple: true,
-            options: allTags.map(t => ({ value: t, label: t })),
-          },
-        ]}
-        values={{ tag: tagFilter }}
-        onChange={(key, val) => { if (key === 'tag') setTagFilter(val) }}
+      <PageHeader
+        title="Clients"
+        subtitle={`${clients.length} ${clients.length === 1 ? 'client' : 'clients'}`}
+        search={clients.length > 0 ? { value: search, onChange: setSearch, placeholder: 'Search clients...' } : undefined}
+        filterSections={clients.length > 0 && allTags.length > 0 ? [{
+          key: 'tags', label: 'Tags', type: 'multiSelect',
+          value: tagFilter, onChange: setTagFilter,
+          options: allTags.map(t => ({ value: t, label: t })),
+        }] : undefined}
+        onClearAllFilters={() => { setSearch(''); setTagFilter([]) }}
+        primaryAction={{ label: 'New Client', icon: Plus, onClick: () => setShowNewModal(true) }}
       />
 
       {/* Loading */}
