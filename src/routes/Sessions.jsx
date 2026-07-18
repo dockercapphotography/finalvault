@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, CalendarDays, X, LayoutList, Columns, SlidersHorizontal,
+import { Plus, CalendarDays, X, LayoutList, Columns,
   Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser } from 'lucide-react'
-import FilterSheet from '../components/ui/FilterSheet.jsx'
+import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
   getSessions, createSession, updateSession, SESSION_TYPES, SESSION_STATUSES,
@@ -429,11 +429,10 @@ export default function Sessions() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [filterMode, setFilterMode] = useState('')
+  const [filterStatus, setFilterStatus] = useState(null)
+  const [filterMode, setFilterMode] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [view, setView] = useState(() => window.innerWidth >= 768 ? 'kanban' : 'list')
-  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => { load() }, [])
 
@@ -470,21 +469,26 @@ export default function Sessions() {
     <div className="space-y-5">
 
       {/* Header — always full width */}
-      <div className="flex items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Sessions</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{sessions.length} {sessions.length === 1 ? 'session' : 'sessions'}</p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          {/* Filter icon — mobile only */}
-          <button onClick={() => setShowFilters(true)}
-            className="flex items-center justify-center rounded-xl md:hidden"
-            style={{ width: 44, height: 44, background: (filterStatus || filterMode) ? 'rgba(99,102,241,0.1)' : '#ffffff', border: `1px solid ${(filterStatus || filterMode) ? '#6366f1' : '#e5e7eb'}`, color: (filterStatus || filterMode) ? '#6366f1' : '#9ca3af', cursor: 'pointer', flexShrink: 0 }}
-            aria-label="Filter sessions">
-            <SlidersHorizontal size={18} />
-          </button>
-          {/* View toggle — desktop only */}
-          <div className="hidden md:flex items-center rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+      <PageHeader
+        title="Sessions"
+        subtitle={`${sessions.length} ${sessions.length === 1 ? 'session' : 'sessions'}`}
+        search={sessions.length > 0 ? { value: search, onChange: setSearch, placeholder: 'Search sessions or clients...' } : undefined}
+        filterSections={sessions.length > 0 ? [
+          {
+            key: 'status', label: 'Status', type: 'select',
+            value: filterStatus, onChange: setFilterStatus,
+            options: SESSION_STATUSES.map(s => ({ value: s.value, label: s.label })),
+          },
+          {
+            key: 'mode', label: 'Mode', type: 'select',
+            value: filterMode, onChange: setFilterMode,
+            options: [{ value: 'private', label: 'Private' }, { value: 'walkup', label: 'Walk-up' }],
+          },
+        ] : undefined}
+        onClearAllFilters={() => { setFilterStatus(null); setFilterMode(null); setSearch('') }}
+        primaryAction={{ label: 'New Session', icon: Plus, onClick: () => setShowNew(true) }}
+        extra={
+          <div className="flex items-center rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
             <button onClick={() => setView('kanban')} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
               style={{ background: view === 'kanban' ? 'var(--surface-raised)' : 'transparent', color: view === 'kanban' ? 'var(--text)' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
               <Columns size={13} />Board
@@ -494,80 +498,7 @@ export default function Sessions() {
               <LayoutList size={13} />List
             </button>
           </div>
-          <button onClick={() => setShowNew(true)}
-            className="hidden md:flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg"
-            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            <Plus size={15} />New Session
-          </button>
-          <button onClick={() => setShowNew(true)}
-            className="flex items-center justify-center rounded-xl md:hidden"
-            style={{ width: 44, height: 44, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-            aria-label="New Session">
-            <Plus size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/* Filters — desktop only */}
-      <div className="hidden md:flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-48">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search sessions or clients..."
-            style={{ width: '100%', paddingLeft: 34, paddingRight: 12, paddingTop: 8, paddingBottom: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 14, color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-        </div>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: filterStatus ? 'var(--text)' : 'var(--text-muted)', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
-          <option value="">All statuses</option>
-          {SESSION_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-        <select value={filterMode} onChange={e => setFilterMode(e.target.value)}
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: filterMode ? 'var(--text)' : 'var(--text-muted)', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
-          <option value="">All modes</option>
-          <option value="private">Private</option>
-          <option value="walkup">Walk-up</option>
-        </select>
-        {(filterStatus || filterMode || search) && (
-          <button onClick={() => { setFilterStatus(''); setFilterMode(''); setSearch('') }} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg"
-            style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-            <X size={12} />Clear
-          </button>
-        )}
-      </div>
-
-      {/* Mobile search */}
-      <div className="relative md:hidden">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search sessions or clients..."
-          className="w-full text-sm pl-9 pr-4 py-2 rounded-lg outline-none"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-          onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-      </div>
-
-      {/* Mobile filter sheet */}
-      <FilterSheet
-        open={showFilters}
-        onClose={() => setShowFilters(false)}
-        title="Filters"
-        filters={[
-          {
-            key: 'status',
-            label: 'Status',
-            placeholder: 'Any',
-            options: [{ value: '', label: 'Any' }, ...SESSION_STATUSES.map(s => ({ value: s.value, label: s.label }))],
-          },
-          {
-            key: 'mode',
-            label: 'Mode',
-            placeholder: 'Any',
-            options: [{ value: '', label: 'Any' }, { value: 'private', label: 'Private' }, { value: 'walkup', label: 'Walk-up' }],
-          },
-        ]}
-        values={{ status: filterStatus, mode: filterMode }}
-        onChange={(key, val) => {
-          if (key === 'status') setFilterStatus(val)
-          if (key === 'mode') setFilterMode(val)
-        }}
+        }
       />
 
       {/* Loading spinner */}
