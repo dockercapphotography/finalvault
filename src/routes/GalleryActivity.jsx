@@ -7,7 +7,6 @@ import { formatDate } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
-import FilterSortControl from '../components/ui/FilterSortControl.jsx'
 
 const ACTION_CONFIG = {
   view:            { icon: Eye,          label: 'Viewed gallery',        color: '#6366f1' },
@@ -612,18 +611,26 @@ export default function GalleryActivity() {
 
       {!loading && <div style={{ borderTop: '1px solid var(--border)' }} />}
 
-      <FilterSortControl sections={[{
-        key: 'type', label: 'Activity Type', type: 'select',
-        value: filter === 'all' ? null : filter,
-        onChange: v => setFilter(v || 'all'),
-        placeholder: 'All Activity',
-        options: [
-          { value: 'view', label: 'Views' },
-          { value: 'favorite', label: 'Favorites' },
-          { value: 'download', label: 'Downloads' },
-          { value: 'comment', label: 'Comments' },
-        ],
-      }]} />
+      <div className="flex items-center gap-2 flex-wrap">
+        {[
+          { id: 'all',      label: 'All' },
+          { id: 'view',     label: 'Views' },
+          { id: 'favorite', label: 'Favorites' },
+          { id: 'download', label: 'Downloads' },
+          { id: 'comment',  label: 'Comments' },
+        ].map(f => (
+          <button key={f.id} onClick={() => setFilter(f.id)}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            style={{
+              background: filter === f.id ? '#6366f1' : 'var(--surface)',
+              color: filter === f.id ? '#fff' : 'var(--text-muted)',
+              border: `1px solid ${filter === f.id ? '#6366f1' : 'var(--border)'}`,
+              cursor: 'pointer',
+            }}>
+            {f.label}
+          </button>
+        ))}
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
