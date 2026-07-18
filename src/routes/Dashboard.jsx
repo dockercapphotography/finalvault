@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useNavigate, useLocation } from 'react-router-dom'
-import {ArrowDownUp, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Circle, Folder, FolderPlus, Home, Images, LayoutGrid, Plus, Search, Share2, SlidersHorizontal, Upload, X} from 'lucide-react'
+import {Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Circle, Folder, FolderPlus, Home, Images, LayoutGrid, Plus, Search, Share2, Upload, X} from 'lucide-react'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
+import FilterSortControl from '../components/ui/FilterSortControl.jsx'
 import { getGalleries, getFolders, getTags, createFolder, moveGalleryToFolder } from '../utils/galleryApi.js'
 import { getBookmarkedGalleryIds } from '../utils/bookmarkApi.js'
 import { supabase } from '../supabaseClient.js'
@@ -16,588 +17,6 @@ import Toast from '../components/ui/Toast.jsx'
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-
-// ── Calendar range picker ─────────────────────────────────────────────────────
-
-function CalendarRangePicker({ value, onChange }) {
-  const today = new Date()
-  const [viewYear, setViewYear] = useState(today.getFullYear())
-  const [viewMonth, setViewMonth] = useState(today.getMonth())
-  const [hovering, setHovering] = useState(null)
-  const [picker, setPicker] = useState(null)
-
-  const from = value?.from || null
-  const to = value?.to || null
-
-  function prevMonth() {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
-    else setViewMonth(m => m - 1)
-  }
-  function nextMonth() {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
-    else setViewMonth(m => m + 1)
-  }
-  function startOfDay(d) { const c = new Date(d); c.setHours(0,0,0,0); return c }
-
-  function handleDayClick(date) {
-    if (!from || (from && to)) onChange({ from: startOfDay(date), to: null })
-    else if (date < from) onChange({ from: startOfDay(date), to: startOfDay(from) })
-    else onChange({ from, to: startOfDay(date) })
-  }
-
-  function isInRange(date) {
-    if (!from) return false
-    const end = to || hovering
-    if (!end) return false
-    const lo = from < end ? from : end
-    const hi = from < end ? end : from
-    return date > lo && date < hi
-  }
-
-  function isSelected(date) {
-    if (from && date.toDateString() === from.toDateString()) return true
-    if (to && date.toDateString() === to.toDateString()) return true
-    return false
-  }
-
-  const firstDay = new Date(viewYear, viewMonth, 1).getDay()
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
-  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate()
-  const cells = []
-  for (let i = firstDay - 1; i >= 0; i--) {
-    const pm = viewMonth === 0 ? 11 : viewMonth - 1
-    const py = viewMonth === 0 ? viewYear - 1 : viewYear
-    cells.push({ date: new Date(py, pm, daysInPrevMonth - i), faded: true })
-  }
-  for (let d = 1; d <= daysInMonth; d++) cells.push({ date: new Date(viewYear, viewMonth, d), faded: false })
-  const totalCells = 42
-  let nextD = 1
-  while (cells.length < totalCells) {
-    const nm = viewMonth === 11 ? 0 : viewMonth + 1
-    const ny = viewMonth === 11 ? viewYear + 1 : viewYear
-    cells.push({ date: new Date(ny, nm, nextD++), faded: true })
-  }
-
-  return (
-    <div style={{ width: 300 }}>
-      <div className="flex items-center justify-between mb-3">
-        <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
-          <ChevronLeft size={16} />
-        </button>
-        <div className="flex items-center gap-1">
-          <button onClick={() => setPicker(p => p === 'month' ? null : 'month')}
-            className="text-sm font-semibold px-1.5 py-0.5 rounded-md"
-            style={{ background: picker === 'month' ? 'rgba(99,102,241,0.1)' : 'transparent', color: picker === 'month' ? '#6366f1' : 'var(--text)', border: 'none', cursor: 'pointer' }}>
-            {MONTHS[viewMonth]}
-          </button>
-          <button onClick={() => setPicker(p => p === 'year' ? null : 'year')}
-            className="text-sm font-semibold px-1.5 py-0.5 rounded-md"
-            style={{ background: picker === 'year' ? 'rgba(99,102,241,0.1)' : 'transparent', color: picker === 'year' ? '#6366f1' : 'var(--text)', border: 'none', cursor: 'pointer' }}>
-            {viewYear}
-          </button>
-        </div>
-        <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
-          <ChevronRight size={16} />
-        </button>
-      </div>
-
-      {picker === 'month' && (
-        <div className="grid grid-cols-3 gap-1">
-          {MONTHS.map((m, i) => (
-            <button key={i} onClick={() => { setViewMonth(i); setPicker(null) }}
-              className="py-2 rounded-lg text-sm font-medium"
-              style={{ background: i === viewMonth ? '#6366f1' : 'transparent', color: i === viewMonth ? '#fff' : 'var(--text)', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => { if (i !== viewMonth) e.currentTarget.style.background = 'var(--surface-raised)' }}
-              onMouseLeave={e => { if (i !== viewMonth) e.currentTarget.style.background = 'transparent' }}>
-              {m.slice(0, 3)}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {picker === 'year' && (
-        <div className="grid grid-cols-3 gap-1 overflow-y-auto" style={{ maxHeight: 220 }}>
-          {Array.from({ length: 20 }, (_, i) => today.getFullYear() - 5 + i).map(y => (
-            <button key={y} onClick={() => { setViewYear(y); setPicker(null) }}
-              className="py-2 rounded-lg text-sm font-medium"
-              style={{ background: y === viewYear ? '#6366f1' : 'transparent', color: y === viewYear ? '#fff' : 'var(--text)', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => { if (y !== viewYear) e.currentTarget.style.background = 'var(--surface-raised)' }}
-              onMouseLeave={e => { if (y !== viewYear) e.currentTarget.style.background = 'transparent' }}>
-              {y}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {picker === null && (
-        <>
-          <div className="grid grid-cols-7 mb-1">
-            {DAYS.map((d, i) => (
-              <div key={i} className="text-center text-xs font-medium py-2" style={{ color: 'var(--text-muted)' }}>{d}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7">
-            {cells.map(({ date, faded }, i) => {
-              const sel = isSelected(date)
-              const inRange = isInRange(date)
-              const isToday = date.toDateString() === today.toDateString()
-              return (
-                <button key={i}
-                  onClick={() => !faded && handleDayClick(date)}
-                  onMouseEnter={() => { if (!faded && from && !to) setHovering(date) }}
-                  onMouseLeave={() => setHovering(null)}
-                  style={{
-                    background: sel ? '#6366f1' : inRange ? 'rgba(99,102,241,0.12)' : 'transparent',
-                    color: sel ? '#fff' : isToday ? '#6366f1' : 'var(--text)',
-                    opacity: faded ? 0.25 : 1,
-                    border: 'none', borderRadius: 6,
-                    cursor: faded ? 'default' : 'pointer',
-                    padding: '10px 0', fontSize: 12,
-                    fontWeight: sel || isToday ? '600' : '400',
-                  }}>
-                  {date.getDate()}
-                </button>
-              )
-            })}
-          </div>
-          {(from || to) && (
-            <button onClick={() => onChange({ from: null, to: null })}
-              className="w-full text-xs mt-3 py-1.5 rounded-lg"
-              style={{ color: 'var(--text-muted)', background: 'var(--surface-raised)', border: 'none', cursor: 'pointer' }}>
-              Clear dates
-            </button>
-          )}
-        </>
-      )}
-      </div>
-  )
-}
-
-function DateFilterPanel({ value, onChange, presets }) {
-  return (
-    <div className="flex gap-4 p-4" style={{ minWidth: 500 }}>
-      <CalendarRangePicker
-        value={value?.range || { from: null, to: null }}
-        onChange={range => onChange({ type: 'range', range })}
-      />
-      <div style={{ width: 1, background: 'var(--border)', flexShrink: 0 }} />
-      <div className="flex flex-col gap-0.5 overflow-y-auto" style={{ minWidth: 140, maxHeight: 300 }}>
-        <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Quick Search</p>
-        {presets.map(p => {
-          const active = value?.type === 'preset' && value?.preset === p.value
-          return (
-            <button key={p.value} onClick={() => onChange({ type: 'preset', preset: p.value })}
-              className="text-left px-2 py-1.5 rounded-lg text-sm"
-              style={{ background: active ? 'rgba(99,102,241,0.08)' : 'transparent', color: active ? '#6366f1' : 'var(--text)', border: 'none', cursor: 'pointer', fontWeight: active ? '600' : '400' }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--surface-raised)' }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
-              {p.label}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-
-function TagsPill({ value, onChange, tags }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const active = value.length > 0
-
-  useEffect(() => {
-    if (!open) return
-    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [open])
-
-  function toggleTag(id) {
-    onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id])
-  }
-
-  const label = active
-    ? value.length === 1
-      ? tags.find(t => t.id === value[0])?.name || 'Tags'
-      : `Tags · ${value.length}`
-    : 'Tags'
-
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
-        style={{ background: active ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`, color: active ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-        <span className="truncate" style={{ maxWidth: 120 }}>{label}</span>
-        {active
-          ? <X size={12} onClick={e => { e.stopPropagation(); onChange([]) }} style={{ cursor: 'pointer', flexShrink: 0 }} />
-          : <ChevronDown size={12} style={{ flexShrink: 0 }} />}
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 rounded-xl shadow-lg z-30"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 180, maxHeight: 280, overflowY: 'auto' }}>
-          {tags.map(tag => {
-            const selected = value.includes(tag.id)
-            return (
-              <button key={tag.id} onClick={() => toggleTag(tag.id)}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                style={{ background: selected ? 'rgba(99,102,241,0.06)' : 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text)' }}
-                onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--surface-raised)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = selected ? 'rgba(99,102,241,0.06)' : 'transparent' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: tag.color || '#6366f1', flexShrink: 0 }} />
-                <span className="flex-1">{tag.name}</span>
-                {selected && <Check size={13} style={{ color: '#6366f1', flexShrink: 0 }} />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function StatusPill({ value, onChange }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const options = [
-    { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
-    { value: 'expired', label: 'Expired' },
-  ]
-  const activeLabel = options.find(o => o.value === value)?.label
-
-  useEffect(() => {
-    if (!open) return
-    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [open])
-
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
-        style={{ background: value ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${value ? '#6366f1' : 'var(--border)'}`, color: value ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-        {value ? activeLabel : 'Status'}
-        {value
-          ? <X size={12} onClick={e => { e.stopPropagation(); onChange(null) }} style={{ cursor: 'pointer' }} />
-          : <ChevronDown size={12} />}
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 rounded-xl shadow-lg z-30 overflow-hidden"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 140 }}>
-          {options.map(opt => (
-            <button key={opt.value} onClick={() => { onChange(opt.value); setOpen(false) }}
-              className="w-full px-4 py-2.5 text-sm text-left"
-              style={{ background: value === opt.value ? 'rgba(99,102,241,0.08)' : 'transparent', color: value === opt.value ? '#6366f1' : 'var(--text)', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => { if (value !== opt.value) e.currentTarget.style.background = 'var(--surface-raised)' }}
-              onMouseLeave={e => { if (value !== opt.value) e.currentTarget.style.background = 'transparent' }}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DateRangePill({ label, value, onChange, presets }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const active = value !== null
-
-  useEffect(() => {
-    if (!open) return
-    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [open])
-
-  function getLabel() {
-    if (!value) return label
-    if (value.type === 'preset') return presets.find(p => p.value === value.preset)?.label || label
-    if (value.type === 'range' && value.range?.from) {
-      const f = value.range.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      const t = value.range.to ? value.range.to.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...'
-      return `${f} – ${t}`
-    }
-    return label
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
-        style={{ background: active ? 'rgba(99,102,241,0.1)' : 'var(--surface)', border: `1px solid ${active ? '#6366f1' : 'var(--border)'}`, color: active ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer', maxWidth: 200 }}>
-        <span className="truncate">{getLabel()}</span>
-        {active
-          ? <X size={12} onClick={e => { e.stopPropagation(); onChange(null); setOpen(false) }} style={{ cursor: 'pointer', flexShrink: 0 }} />
-          : <ChevronDown size={12} style={{ flexShrink: 0 }} />}
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 rounded-2xl shadow-xl z-30 overflow-hidden"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <DateFilterPanel
-            value={value}
-            onChange={v => { onChange(v); if (v?.type === 'preset') setOpen(false) }}
-            presets={presets}
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function MobileFilterSheet({ open, onClose, statusFilter, setStatusFilter, eventDateFilter, setEventDateFilter, expiryFilter, setExpiryFilter, tagFilter, setTagFilter, allTags, eventPresets, expiryPresets, hasFilters, onClear, sortBy, setSortBy, gridSize, setGridSize }) {
-  const [visible, setVisible] = useState(false)
-  const [subScreen, setSubScreen] = useState(null) // null | 'status' | 'eventDate' | 'expiry' | 'tags' | 'sort'
-  const sheetTouchStartY = useRef(null)
-  const sheetRef = useRef(null)
-  const sheetDragY = useRef(0)
-
-  useScrollLock(open)
-  useEffect(() => {
-    if (open) requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
-    else { setVisible(false); setSubScreen(null) }
-  }, [open])
-  useEffect(() => {
-    if (!open || !sheetRef.current) return
-    function blockTouch(e) {
-      // Allow scrolling inside elements with overflow scroll/auto
-      let el = e.target
-      while (el && el !== sheetRef.current) {
-        const style = window.getComputedStyle(el)
-        if (style.overflowY === 'auto' || style.overflowY === 'scroll') return
-        el = el.parentElement
-      }
-      e.preventDefault()
-    }
-    const el = sheetRef.current
-    el.addEventListener('touchmove', blockTouch, { passive: false })
-    return () => el.removeEventListener('touchmove', blockTouch)
-  }, [open])
-
-  const SORT_OPTIONS = [
-    { id: 'created_desc', label: 'Created: New → Old' },
-    { id: 'created_asc',  label: 'Created: Old → New' },
-    { id: 'event_desc',   label: 'Event Date: New → Old' },
-    { id: 'event_asc',    label: 'Event Date: Old → New' },
-    { id: 'updated_desc', label: 'Last Updated: New → Old' },
-    { id: 'updated_asc',  label: 'Last Updated: Old → New' },
-    { id: 'name_asc',     label: 'Name: A → Z' },
-    { id: 'name_desc',    label: 'Name: Z → A' },
-  ]
-
-  const STATUS_OPTIONS = [
-    { value: null,       label: 'Any' },
-    { value: 'active',   label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
-    { value: 'expired',  label: 'Expired' },
-  ]
-
-  function statusLabel() {
-    return STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'Any'
-  }
-  function eventDateLabel() {
-    if (!eventDateFilter) return 'Any'
-    return eventPresets.find(p => p.value === eventDateFilter.preset)?.label ?? 'Any'
-  }
-  function expiryLabel() {
-    if (!expiryFilter) return 'Any'
-    return expiryPresets.find(p => p.value === expiryFilter.preset)?.label ?? 'Any'
-  }
-  function tagsLabel() {
-    if (tagFilter.length === 0) return 'None'
-    if (tagFilter.length === 1) return allTags.find(t => t.id === tagFilter[0])?.name ?? '1 selected'
-    return `${tagFilter.length} selected`
-  }
-  function sortLabel() {
-    return SORT_OPTIONS.find(o => o.id === sortBy)?.label ?? 'Created: New → Old'
-  }
-
-  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }
-  const rowLabelStyle = { fontSize: 15, color: 'var(--text)' }
-  const rowValStyle = (set) => ({ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: set ? '#6366f1' : 'var(--text-muted)' })
-  const radioRowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '0.5px solid var(--border)', cursor: 'pointer', background: 'none', width: '100%', textAlign: 'left' }
-
-  function RadioDot({ selected }) {
-    return (
-      <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${selected ? '#6366f1' : 'var(--border-strong)'}`, background: selected ? '#6366f1' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        {selected && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />}
-      </div>
-    )
-  }
-
-  function CheckBox({ selected }) {
-    return (
-      <div style={{ width: 20, height: 20, borderRadius: 6, border: `1.5px solid ${selected ? '#6366f1' : 'var(--border-strong)'}`, background: selected ? '#6366f1' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        {selected && <svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4 7L10 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-      </div>
-    )
-  }
-
-  const sheetContent = (
-    <>
-      {subScreen === null && (
-        <>
-          {/* Main header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>Filters & sort</span>
-            {hasFilters && <button onClick={onClear} style={{ fontSize: 13, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>}
-          </div>
-          {/* Filter rows */}
-          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
-            <button style={rowStyle} onClick={() => setSubScreen('status')}>
-              <span style={rowLabelStyle}>Status</span>
-              <span style={rowValStyle(!!statusFilter)}>{statusLabel()} <ChevronRight size={14} /></span>
-            </button>
-            <button style={rowStyle} onClick={() => setSubScreen('eventDate')}>
-              <span style={rowLabelStyle}>Event date</span>
-              <span style={rowValStyle(!!eventDateFilter)}>{eventDateLabel()} <ChevronRight size={14} /></span>
-            </button>
-            <button style={rowStyle} onClick={() => setSubScreen('expiry')}>
-              <span style={rowLabelStyle}>Expiry</span>
-              <span style={rowValStyle(!!expiryFilter)}>{expiryLabel()} <ChevronRight size={14} /></span>
-            </button>
-            {allTags.length > 0 && (
-              <button style={rowStyle} onClick={() => setSubScreen('tags')}>
-                <span style={rowLabelStyle}>Tags</span>
-                <span style={rowValStyle(tagFilter.length > 0)}>{tagsLabel()} <ChevronRight size={14} /></span>
-              </button>
-            )}
-            <button style={{ ...rowStyle, borderTop: '0.5px solid var(--border)', marginTop: 8 }} onClick={() => setSubScreen('sort')}>
-              <span style={rowLabelStyle}>Sort by</span>
-              <span style={rowValStyle(false)}>{sortLabel()} <ChevronRight size={14} /></span>
-            </button>
-          </div>
-          <div style={{ padding: '12px 16px 24px', flexShrink: 0 }}>
-            <button onClick={onClose} style={{ width: '100%', padding: '13px', borderRadius: 12, background: '#6366f1', color: '#fff', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Done</button>
-          </div>
-        </>
-      )}
-
-      {subScreen === 'status' && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
-              <ChevronLeft size={16} /> Back
-            </button>
-            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Status</span>
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
-            {STATUS_OPTIONS.map(opt => (
-              <button key={String(opt.value)} style={radioRowStyle} onClick={() => { setStatusFilter(opt.value); setSubScreen(null) }}>
-                <span style={{ fontSize: 15, color: 'var(--text)' }}>{opt.label}</span>
-                <RadioDot selected={statusFilter === opt.value} />
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      {subScreen === 'eventDate' && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
-              <ChevronLeft size={16} /> Back
-            </button>
-            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Event date</span>
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
-            <button style={radioRowStyle} onClick={() => { setEventDateFilter(null); setSubScreen(null) }}>
-              <span style={{ fontSize: 15, color: 'var(--text)' }}>Any</span>
-              <RadioDot selected={!eventDateFilter} />
-            </button>
-            {eventPresets.map(p => (
-              <button key={p.value} style={radioRowStyle} onClick={() => { setEventDateFilter({ type: 'preset', preset: p.value }); setSubScreen(null) }}>
-                <span style={{ fontSize: 15, color: 'var(--text)' }}>{p.label}</span>
-                <RadioDot selected={eventDateFilter?.preset === p.value} />
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      {subScreen === 'expiry' && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
-              <ChevronLeft size={16} /> Back
-            </button>
-            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Expiry</span>
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
-            <button style={radioRowStyle} onClick={() => { setExpiryFilter(null); setSubScreen(null) }}>
-              <span style={{ fontSize: 15, color: 'var(--text)' }}>Any</span>
-              <RadioDot selected={!expiryFilter} />
-            </button>
-            {expiryPresets.map(p => (
-              <button key={p.value} style={radioRowStyle} onClick={() => { setExpiryFilter({ type: 'preset', preset: p.value }); setSubScreen(null) }}>
-                <span style={{ fontSize: 15, color: 'var(--text)' }}>{p.label}</span>
-                <RadioDot selected={expiryFilter?.preset === p.value} />
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      {subScreen === 'tags' && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
-              <ChevronLeft size={16} /> Back
-            </button>
-            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Tags</span>
-            {tagFilter.length > 0 && (
-              <button onClick={() => setTagFilter([])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: 13, padding: 0, marginLeft: 'auto' }}>Clear</button>
-            )}
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
-            {allTags.map(tag => {
-              const selected = tagFilter.includes(tag.id)
-              return (
-                <button key={tag.id} style={{ ...radioRowStyle, gap: 12 }}
-                  onClick={() => setTagFilter(selected ? tagFilter.filter(id => id !== tag.id) : [...tagFilter, tag.id])}>
-                  <CheckBox selected={selected} />
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: tag.color || '#6366f1', flexShrink: 0 }} />
-                  <span style={{ fontSize: 15, color: 'var(--text)', flex: 1, textAlign: 'left' }}>{tag.name}</span>
-                </button>
-              )
-            })}
-          </div>
-          <div style={{ padding: '12px 16px 24px', flexShrink: 0 }}>
-            <button onClick={() => setSubScreen(null)} style={{ width: '100%', padding: '13px', borderRadius: 12, background: '#6366f1', color: '#fff', border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Done</button>
-          </div>
-        </>
-      )}
-
-      {subScreen === 'sort' && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 20px 12px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-            <button onClick={() => setSubScreen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'flex', alignItems: 'center', gap: 2, fontSize: 14, padding: 0, marginRight: 'auto' }}>
-              <ChevronLeft size={16} /> Back
-            </button>
-            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Sort by</span>
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1, overscrollBehavior: 'contain' }}>
-            {SORT_OPTIONS.map(opt => (
-              <button key={opt.id} style={radioRowStyle} onClick={() => { setSortBy(opt.id); setSubScreen(null) }}>
-                <span style={{ fontSize: 15, color: 'var(--text)' }}>{opt.label}</span>
-                <RadioDot selected={sortBy === opt.id} />
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </>
-  )
-
-  return (
-    <BottomSheet open={open} onClose={onClose}>
-      {sheetContent}
-    </BottomSheet>
-  )
-}
 
 // ── Setup Checklist ───────────────────────────────────────────────────────────
 
@@ -948,14 +367,14 @@ function matchesDateFilter(dateStr, filter) {
   const d = new Date(dateStr)
   const now = new Date()
   if (filter.type === 'range') {
-    const { from, to } = filter.range || {}
-    if (!from) return true
-    if (d < from) return false
-    if (to && d > to) return false
+    const { from, to } = filter
+    if (!from && !to) return true
+    if (from && d < new Date(from)) return false
+    if (to && d > new Date(to)) return false
     return true
   }
   if (filter.type === 'preset') {
-    const p = filter.preset
+    const p = filter.value
     const c = new Date(now); c.setHours(0,0,0,0)
     const today = c
     const ms = 86400000
@@ -1100,57 +519,6 @@ const DASHBOARD_SORT_OPTIONS = [
   { id: 'name_desc',    label: 'Name: Z → A' },
 ]
 
-function DashboardSortDropdown({ value, onChange }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [open])
-
-  const current = DASHBOARD_SORT_OPTIONS.find(o => o.id === value) || DASHBOARD_SORT_OPTIONS[0]
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors"
-        style={{
-          background: open ? 'var(--surface-raised)' : 'var(--surface)',
-          border: '1px solid var(--border)',
-          color: 'var(--text-secondary)',
-          cursor: 'pointer',
-        }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
-        onMouseLeave={e => e.currentTarget.style.borderColor = open ? 'var(--border-strong)' : 'var(--border)'}
-        title="Sort galleries"
-      >
-        <ArrowDownUp size={14} />
-        <span className="hidden sm:inline">{current.label}</span>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 w-56 rounded-xl shadow-lg z-30 overflow-hidden"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <p className="px-4 pt-3 pb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Sort galleries by</p>
-          {DASHBOARD_SORT_OPTIONS.map(option => (
-            <button key={option.id} onClick={() => { onChange(option.id); setOpen(false) }}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left"
-              style={{ cursor: 'pointer', color: option.id === value ? 'var(--text)' : 'var(--text-secondary)', background: 'transparent', border: 'none' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-raised)'; e.currentTarget.style.cursor = 'pointer' }}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              {option.label}
-              {option.id === value && <Check size={13} style={{ color: 'var(--accent)' }} />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function Dashboard() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -1166,8 +534,6 @@ export default function Dashboard() {
   const [allTags, setAllTags] = useState([])
   const [eventDateFilter, setEventDateFilter] = useState(null)
   const [expiryFilter, setExpiryFilter] = useState(null)
-  const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
-  useScrollLock(mobileFilterOpen)
   const [toast, setToast] = useState(null)
   const [bookmarkedIds, setBookmarkedIds] = useState(new Set())
   const [firstSharedAt, setFirstSharedAt] = useState(null)
@@ -1322,7 +688,6 @@ export default function Dashboard() {
   }
 
   const hasFilters = statusFilter || eventDateFilter || expiryFilter || tagFilter.length > 0
-  const activeFilterCount = [statusFilter, eventDateFilter, expiryFilter].filter(Boolean).length + (tagFilter.length > 0 ? 1 : 0)
 
   // When searching, show all galleries regardless of folder
   const isSearching = search.trim().length > 0
@@ -1344,6 +709,36 @@ export default function Dashboard() {
   function clearAllFilters() {
     setStatusFilter(null); setEventDateFilter(null); setExpiryFilter(null); setTagFilter([]); setSearch('')
   }
+
+  const filterSections = [
+    {
+      key: 'status', label: 'Status', type: 'select',
+      value: statusFilter, onChange: setStatusFilter,
+      options: [
+        { value: 'active', label: 'Active' },
+        { value: 'inactive', label: 'Inactive' },
+        { value: 'expired', label: 'Expired' },
+      ],
+    },
+    {
+      key: 'eventDate', label: 'Event Date', type: 'dateRange',
+      value: eventDateFilter, onChange: setEventDateFilter, presets: EVENT_PRESETS,
+    },
+    {
+      key: 'expiry', label: 'Expiry Date', type: 'dateRange',
+      value: expiryFilter, onChange: setExpiryFilter, presets: EXPIRY_PRESETS,
+    },
+    ...(allTags.length > 0 ? [{
+      key: 'tags', label: 'Tags', type: 'multiSelect',
+      value: tagFilter, onChange: setTagFilter,
+      options: allTags.map(t => ({ value: t.id, label: t.name, color: t.color })),
+    }] : []),
+    {
+      key: 'sort', label: 'Sort by', type: 'sort',
+      value: sortBy, onChange: setSortBy,
+      options: DASHBOARD_SORT_OPTIONS.map(o => ({ value: o.id, label: o.label })),
+    },
+  ]
 
   const hasGallery = galleries.length > 0
   const hasImages = galleries.some(g => (g.image_count?.[0]?.count ?? 0) > 0)
@@ -1473,21 +868,11 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {/* ── Desktop: filter pills ── */}
+      {/* ── Desktop: filters & sort ── */}
       {(galleries.length > 0 || folders.length > 0) && (
         <div className="hidden md:flex items-center gap-2 flex-wrap">
-          <StatusPill value={statusFilter} onChange={setStatusFilter} />
-          <DateRangePill label="Event Date" value={eventDateFilter} onChange={setEventDateFilter} presets={EVENT_PRESETS} />
-          <DateRangePill label="Expiry Date" value={expiryFilter} onChange={setExpiryFilter} presets={EXPIRY_PRESETS} />
-          {allTags.length > 0 && <TagsPill value={tagFilter} onChange={setTagFilter} tags={allTags} />}
-          {hasFilters && (
-            <button onClick={clearAllFilters} className="text-xs"
-              style={{ color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none' }}>
-              Clear all
-            </button>
-          )}
+          <FilterSortControl sections={filterSections} onClearAll={clearAllFilters} panelWidth={260} />
           <div className="ml-auto flex items-center gap-2">
-            <DashboardSortDropdown value={sortBy} onChange={setSortBy} />
             <DisplayDropdown gridSize={gridSize} onGridSize={setGridSize} />
           </div>
         </div>
@@ -1506,18 +891,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setMobileFilterOpen(true)}
-            className="relative flex items-center justify-center rounded-xl"
-            style={{ width: 44, height: 44, background: hasFilters ? 'rgba(99,102,241,0.1)' : '#ffffff', border: `1px solid ${hasFilters ? '#6366f1' : '#e5e7eb'}`, color: hasFilters ? '#6366f1' : '#9ca3af', cursor: 'pointer', flexShrink: 0 }}
-            aria-label="Filters">
-            <SlidersHorizontal size={18} />
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
-                style={{ background: '#6366f1', fontSize: 9, fontWeight: 700 }}>
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
+          <FilterSortControl sections={filterSections} onClearAll={clearAllFilters} />
           <button
             onClick={() => setNewFolderOpen(true)}
             className="flex items-center justify-center rounded-xl"
@@ -1676,18 +1050,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      <MobileFilterSheet
-        open={mobileFilterOpen}
-        onClose={() => setMobileFilterOpen(false)}
-        statusFilter={statusFilter} setStatusFilter={setStatusFilter}
-        eventDateFilter={eventDateFilter} setEventDateFilter={setEventDateFilter}
-        expiryFilter={expiryFilter} setExpiryFilter={setExpiryFilter}
-        tagFilter={tagFilter} setTagFilter={setTagFilter} allTags={allTags}
-        eventPresets={EVENT_PRESETS} expiryPresets={EXPIRY_PRESETS}
-        hasFilters={hasFilters} onClear={clearAllFilters}
-        sortBy={sortBy} setSortBy={setSortBy} gridSize={gridSize} setGridSize={setGridSize}
-      />
 
       <NewFolderModal
         open={newFolderOpen}
