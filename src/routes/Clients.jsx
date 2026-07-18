@@ -243,6 +243,7 @@ export default function Clients() {
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [tagFilter, setTagFilter] = useState([])
+  const [sortBy, setSortBy] = useState('name_asc')
   const [showNewModal, setShowNewModal] = useState(false)
   const [toast, setToast] = useState(null)
 
@@ -282,6 +283,18 @@ export default function Clients() {
       c.phone?.includes(search)
     const matchesTag = !tagFilter.length || tagFilter.every(t => (c.tags ?? []).includes(t))
     return matchesSearch && matchesTag
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'name_desc':
+        return `${b.last_name} ${b.first_name}`.localeCompare(`${a.last_name} ${a.first_name}`)
+      case 'created_desc':
+        return new Date(b.created_at) - new Date(a.created_at)
+      case 'created_asc':
+        return new Date(a.created_at) - new Date(b.created_at)
+      case 'name_asc':
+      default:
+        return `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
+    }
   })
 
   return (
@@ -291,11 +304,23 @@ export default function Clients() {
         title="Clients"
         subtitle={`${clients.length} ${clients.length === 1 ? 'client' : 'clients'}`}
         search={clients.length > 0 ? { value: search, onChange: setSearch, placeholder: 'Search clients...' } : undefined}
-        filterSections={clients.length > 0 && allTags.length > 0 ? [{
-          key: 'tags', label: 'Tags', type: 'multiSelect',
-          value: tagFilter, onChange: setTagFilter,
-          options: allTags.map(t => ({ value: t, label: t })),
-        }] : undefined}
+        filterSections={clients.length > 0 ? [
+          ...(allTags.length > 0 ? [{
+            key: 'tags', label: 'Tags', type: 'multiSelect',
+            value: tagFilter, onChange: setTagFilter,
+            options: allTags.map(t => ({ value: t, label: t })),
+          }] : []),
+          {
+            key: 'sort', label: 'Sort by', type: 'sort',
+            value: sortBy, onChange: setSortBy,
+            options: [
+              { value: 'name_asc', label: 'Name: A \u2192 Z' },
+              { value: 'name_desc', label: 'Name: Z \u2192 A' },
+              { value: 'created_desc', label: 'Recently added' },
+              { value: 'created_asc', label: 'Oldest added' },
+            ],
+          },
+        ] : undefined}
         onClearAllFilters={() => { setSearch(''); setTagFilter([]) }}
         primaryAction={{ label: 'New Client', icon: Plus, onClick: () => setShowNewModal(true) }}
       />
