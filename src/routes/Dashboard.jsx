@@ -493,7 +493,7 @@ function DisplayDropdown({ gridSize, onGridSize }) {
         <div className="absolute right-0 top-full mt-1 w-44 rounded-xl shadow-lg z-30 overflow-hidden"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <p className="px-4 pt-3 pb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Grid Size</p>
-          {[{ id: 'default', label: 'Default' }, { id: 'large', label: 'Large' }].map(opt => (
+          {[{ id: 'small', label: 'Small' }, { id: 'default', label: 'Default' }, { id: 'large', label: 'Large' }].map(opt => (
             <button key={opt.id} onClick={() => { onGridSize(opt.id); setOpen(false) }}
               className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left"
               style={{ cursor: 'pointer', color: opt.id === gridSize ? 'var(--text)' : 'var(--text-secondary)', background: 'transparent', border: 'none' }}
@@ -911,7 +911,11 @@ export default function Dashboard() {
         }
         const allItems = sortItems([...folderItems, ...galleryItems])
         return (
-          <div className={gridSize === 'large' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"}>
+          <div className={
+          gridSize === 'large' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4" :
+          gridSize === 'small' ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3" :
+          "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+        }>
             {allItems.map(item => item._type === 'folder' ? (
               <FolderCard
                 key={`folder-${item.id}`}
