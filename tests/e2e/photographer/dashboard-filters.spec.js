@@ -161,7 +161,9 @@ test.describe('Dashboard — Filters & Sort', () => {
       await page.getByText('Clear all').click()
       await page.waitForTimeout(300)
 
-      await openFilters(page)
+      // Clear all does not close the panel (it stays open, unlike selecting
+      // an option) -- calling openFilters again here would toggle it closed
+      // instead of opening it.
       await expect(page.getByLabel('Tags')).toContainText('Any')
     })
 
