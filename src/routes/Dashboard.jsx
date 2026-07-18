@@ -842,7 +842,7 @@ export default function Dashboard() {
         filterSections={(galleries.length > 0 || folders.length > 0) ? filterSections : undefined}
         onClearAllFilters={clearAllFilters}
         primaryAction={{ label: 'New Gallery', icon: Plus, onClick: () => navigate('/galleries/new', { state: { folderId: currentFolderId } }) }}
-        secondaryActions={[{ label: 'New Folder', icon: FolderPlus, onClick: () => setNewFolderOpen(true) }]}
+        secondaryActions={[{ label: 'New Folder', icon: FolderPlus, onClick: () => setNewFolderOpen(true), iconOnly: true }]}
         extra={(galleries.length > 0 || folders.length > 0) ? <DisplayDropdown gridSize={gridSize} onGridSize={setGridSize} /> : null}
       />
 

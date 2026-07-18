@@ -20,8 +20,13 @@ import FilterSortControl from './FilterSortControl.jsx'
 //   onClearAllFilters : optional override, passed through to FilterSortControl
 //   primaryAction  : { label, icon, onClick } | undefined -- solid button,
 //                    e.g. "New Gallery" / "New Client"
-//   secondaryActions : [{ label, icon, onClick }] -- bordered buttons,
-//                    e.g. Dashboard's "New Folder"
+//   secondaryActions : [{ label, icon, onClick, iconOnly? }] -- bordered
+//                    buttons, e.g. Dashboard's "New Folder". iconOnly
+//                    renders as a compact square icon button (title
+//                    attribute for the tooltip/label) instead of a full
+//                    labeled button -- for a secondary action used often
+//                    enough to deserve one click, but that doesn't need
+//                    the same visual weight as the primary action.
 //   extra          : ReactNode rendered at the end of the desktop toolbar,
 //                    after Filters & sort and before the action buttons
 //                    (e.g. Dashboard's grid Display dropdown -- a view
@@ -128,11 +133,22 @@ export default function PageHeader({
 
       {/* Desktop toolbar -- search, Filters & sort, extra, then actions */}
       <div className="hidden md:flex items-center gap-2">
-        {search && <SearchInput search={search} className="flex-1" />}
+        {search && <SearchInput search={search} className="flex-1 max-w-md" />}
         {filterSections && <FilterSortControl sections={filterSections} onClearAll={onClearAllFilters} />}
         {extra}
         <div className="ml-auto flex items-center gap-2">
-          {secondaryActions.map((a, i) => (
+          {(secondaryActions.length > 0 || primaryAction) && (search || filterSections || extra) && (
+            <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '0 2px' }} />
+          )}
+          {secondaryActions.map((a, i) => a.iconOnly ? (
+            <button key={i} onClick={a.onClick} title={a.label} aria-label={a.label}
+              className="flex items-center justify-center rounded-lg flex-shrink-0"
+              style={{ width: 36, height: 36, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
+              <a.icon size={15} />
+            </button>
+          ) : (
             <Button key={i} variant="secondary" onClick={a.onClick} className="flex-shrink-0">
               <a.icon size={15} />{a.label}
             </Button>
