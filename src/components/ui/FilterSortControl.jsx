@@ -127,14 +127,36 @@ function triggerButtonStyle(active) {
 function DesktopMultiSelect({ section, selectStyle }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const ref = useRef(null)
+  const [pos, setPos] = useState(null)
+  const triggerRef = useRef(null)
+  const dropdownRef = useRef(null)
   const value = section.value || []
   const options = section.options || []
+
+  // Own portal, positioned from real screen coordinates -- same reasoning
+  // as the outer panel: this needs to scroll independently of wherever
+  // the outer panel happens to be scrolled to, not be nested inside it
+  // (nesting it caused a double-scroll: scroll the outer panel down to
+  // even see the dropdown, then scroll again inside the dropdown itself).
+  useEffect(() => {
+    if (!open) return
+    function updatePos() {
+      const el = triggerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    }
+    updatePos()
+    window.addEventListener('resize', updatePos)
+    return () => window.removeEventListener('resize', updatePos)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
     function handleClickOutside(e) {
-      if (!ref.current?.contains(e.target)) setOpen(false)
+      if (triggerRef.current?.contains(e.target)) return
+      if (dropdownRef.current?.contains(e.target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -147,62 +169,58 @@ function DesktopMultiSelect({ section, selectStyle }) {
     : options
 
   return (
-    <div ref={ref} className="relative">
+    <div>
       <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>{section.label}</label>
-      <button onClick={() => setOpen(o => !o)}
+      <button ref={triggerRef} onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between"
-        style={selectStyle}>
+        style={open ? { ...selectStyle, borderRadius: '8px 8px 0 0', borderBottom: 'none' } : selectStyle}>
         <span className="truncate">{summaryOf(section)}</span>
-        <ChevronDown size={13} style={{ flexShrink: 0, marginLeft: 4 }} />
+        <ChevronDown size={13} style={{ flexShrink: 0, marginLeft: 4, transform: open ? 'rotate(180deg)' : 'none' }} />
       </button>
 
-      {/* Rendered as a normal nested child, NOT its own portal -- the
-          outer panel is already a portaled, fixed-position element with
-          no scroll/transform ancestors between it and document.body, so a
-          plain position:absolute dropdown nested inside it is safe (no
-          containing-block ambiguity). Just as important: nesting it here
-          means the outer panel's own click-outside check correctly sees
-          clicks in here as "inside itself" -- a separate portal made
-          every click here look like a click outside the panel, closing
-          it before the tag selection even registered. */}
-      {open && (
-        <div
+      {/* data-fsc-popover marks this for the outer panel's click-outside
+          check (see FilterSortControl below) -- this lives in its own
+          portal, not as a DOM descendant of the outer panel, so without
+          this marker a click in here looks like a click "outside" the
+          panel and would incorrectly close the whole thing. */}
+      {open && pos && createPortal(
+        <div ref={dropdownRef} data-fsc-popover="true"
           style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
-            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
-            zIndex: 10, overflow: 'hidden',
+            position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 180),
+            background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: '0 0 8px 8px',
+            boxShadow: '0 4px 10px -2px rgba(0,0,0,0.08)',
+            zIndex: 110, overflow: 'hidden',
           }}>
           {options.length > 6 && (
-            <div className="relative" style={{ padding: 6, borderBottom: '1px solid var(--border)' }}>
-              <Search size={12} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <div className="flex items-center gap-1.5" style={{ padding: '7px 10px', borderBottom: '1px solid var(--border)' }}>
+              <Search size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
               <input
                 type="text" value={query} onChange={e => setQuery(e.target.value)}
                 placeholder={`Search ${section.label.toLowerCase()}...`} autoFocus
-                style={{ width: '100%', border: 'none', outline: 'none', background: 'none', color: 'var(--text)', fontSize: 12.5, padding: '4px 4px 4px 20px', boxSizing: 'border-box' }} />
+                style={{ width: '100%', border: 'none', outline: 'none', background: 'none', color: 'var(--text)', fontSize: 12.5 }} />
             </div>
           )}
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {filtered.length === 0 && (
-              <p className="text-xs" style={{ color: 'var(--text-muted)', padding: '10px 12px' }}>No matches</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)', padding: '8px 10px' }}>No matches</p>
             )}
             {filtered.map(o => {
               const selected = value.includes(o.value)
               return (
                 <button key={o.value} onClick={() => section.onChange(selected ? value.filter(v => v !== o.value) : [...value, o.value])}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}
+                  className="w-full flex items-center gap-2 text-left"
+                  style={{ background: selected ? 'var(--surface-raised)' : 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text)', padding: '6px 10px' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  onMouseLeave={e => e.currentTarget.style.background = selected ? 'var(--surface-raised)' : 'transparent'}>
                   <span style={{
-                    width: 15, height: 15, borderRadius: 4, flexShrink: 0,
+                    width: 14, height: 14, borderRadius: 4, flexShrink: 0,
                     border: `1.5px solid ${selected ? '#6366f1' : 'var(--border-strong)'}`,
                     background: selected ? '#6366f1' : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {selected && <Check size={10} style={{ color: '#fff' }} />}
+                    {selected && <Check size={9} style={{ color: '#fff' }} />}
                   </span>
-                  {o.color && <span style={{ width: 7, height: 7, borderRadius: '50%', background: o.color, flexShrink: 0 }} />}
+                  {o.color && <span style={{ width: 6, height: 6, borderRadius: '50%', background: o.color, flexShrink: 0 }} />}
                   <span className="truncate">{o.label}</span>
                 </button>
               )
@@ -211,11 +229,12 @@ function DesktopMultiSelect({ section, selectStyle }) {
           {value.length > 0 && (
             <button onClick={() => section.onChange([])}
               className="w-full text-left"
-              style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '8px 12px' }}>
+              style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '7px 10px' }}>
               Clear {section.label.toLowerCase()}
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -252,6 +271,12 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
     function handleClickOutside(e) {
       if (desktopButtonRef.current?.contains(e.target)) return
       if (desktopPanelRef.current?.contains(e.target)) return
+      // Nested popovers (e.g. the Tags multiSelect dropdown) live in their
+      // own separate portal for independent scrolling, so they're not a
+      // DOM descendant of desktopPanelRef -- recognize them via this data
+      // attribute instead, or a click inside one would look like a click
+      // "outside" the panel and incorrectly close it.
+      if (e.target.closest?.('[data-fsc-popover]')) return
       setDesktopOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
