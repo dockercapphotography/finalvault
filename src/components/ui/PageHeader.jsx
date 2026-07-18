@@ -137,9 +137,6 @@ export default function PageHeader({
         {filterSections && <FilterSortControl sections={filterSections} onClearAll={onClearAllFilters} />}
         {extra}
         <div className="ml-auto flex items-center gap-2">
-          {(secondaryActions.length > 0 || primaryAction) && (search || filterSections || extra) && (
-            <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '0 2px' }} />
-          )}
           {secondaryActions.map((a, i) => a.iconOnly ? (
             <button key={i} onClick={a.onClick} title={a.label} aria-label={a.label}
               className="flex items-center justify-center rounded-lg flex-shrink-0"
