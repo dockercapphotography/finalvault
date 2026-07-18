@@ -4,6 +4,35 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.4.2 — July 17, 2026
+
+### New Features
+
+**Unified Filters & Sort**
+- Every list page (Galleries, Clients, Sessions) now shares the same "Filters & sort" pattern first built for the Client Portal -- one button, a mobile drill-down sheet, and a desktop panel, instead of each page having its own bespoke filter UI
+- Galleries: Status, Event Date, Expiry Date, Tags, and Sort now live in one panel instead of a row of always-visible pills; Event Date/Expiry Date simplified from a full calendar widget to a preset dropdown + custom range, matching the same pattern everywhere else
+- New "Small" grid size option (up to 6 galleries per row, down from 4)
+- Gallery Sort By and Grid Size selections now persist across sessions instead of resetting on every reload
+- Clients: Sort By added (Name, Recently added) -- previously no sort control existed at all
+- Sessions: Type and Payment status filters added, plus Sort By (Session Date, Client Name, Recently created)
+- Unified page header layout across Galleries/Clients/Sessions -- title, then search + create action(s), then Filters & sort (and view toggles, where applicable) right-aligned below
+
+### Bug Fixes
+
+- Fixed Clients' desktop tag filter only allowing one tag to be selected at a time, while the mobile version already allowed multiple -- both are consistently multi-select now
+- Fixed the Filters & sort panel occasionally rendering off-page depending on the surrounding page layout
+- Fixed the Filters & sort panel closing itself whenever anything inside it was scrolled, including its own contents
+- Fixed clicking a tag in the Tags picker closing the whole Filters & sort panel instead of selecting the tag
+- Fixed the Tags picker requiring two separate scroll actions (scroll the panel, then scroll the tag list) to reach the bottom of a long tag list
+- Fixed search, Filters & sort, and the create button appearing to "pop in" a moment after a page finished loading instead of being present immediately
+
+### Notes
+
+- Gallery Activity's activity-type filter intentionally stayed as always-visible pill buttons rather than moving to the new Filters & sort button -- with only one filter dimension, the extra click to open a panel added friction without a real benefit. The page title size was still brought in line with the rest of the app.
+- Bookmarked was left untouched -- its header already matched the app-wide convention and it has nothing to filter or sort.
+
+---
+
 ## v1.4.1 — July 17, 2026
 
 ### New Features

@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.4.1'
+const VERSION = '1.4.2'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,22 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.4.2 — July 17, 2026">
+                  <Group label="Unified Filters &amp; Sort">
+                    <Item>Galleries, Clients, and Sessions now share one "Filters &amp; sort" pattern instead of each page having its own</Item>
+                    <Item>New "Small" grid size on Galleries (up to 6 per row)</Item>
+                    <Item>Gallery Sort By and Grid Size now persist across sessions</Item>
+                    <Item>Clients: added Sort By (Name, Recently added)</Item>
+                    <Item>Sessions: added Type and Payment status filters, plus Sort By</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed Clients' tag filter only allowing one tag on desktop while mobile allowed multiple</Item>
+                    <Item>Fixed the Filters &amp; sort panel occasionally rendering off-page</Item>
+                    <Item>Fixed the panel closing itself when scrolling its own contents</Item>
+                    <Item>Fixed clicking a tag closing the whole panel instead of selecting it</Item>
+                    <Item>Fixed search/filters/create button appearing to pop in after page load</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.4.1 — July 17, 2026">
                   <Group label="Multi-Client Galleries">
                     <Item>A gallery can now be linked to more than one client, each with full portal access</Item>
