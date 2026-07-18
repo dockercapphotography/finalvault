@@ -492,9 +492,10 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
     <>
       {/* Mobile trigger */}
       <button onClick={() => setMobileOpen(true)}
-        className="md:hidden flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg flex-shrink-0"
-        style={triggerButtonStyle(hasActiveFilters)}>
-        <SlidersHorizontal size={13} />Filters &amp; sort
+        className="md:hidden flex items-center justify-center rounded-xl flex-shrink-0"
+        style={{ ...triggerButtonStyle(hasActiveFilters), width: 44, height: 44, borderRadius: 12 }}
+        aria-label="Filters and sort">
+        <SlidersHorizontal size={18} />
       </button>
 
       {/* Desktop trigger */}
