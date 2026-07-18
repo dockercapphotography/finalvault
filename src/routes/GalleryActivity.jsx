@@ -7,6 +7,7 @@ import { formatDate } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
+import FilterSortControl from '../components/ui/FilterSortControl.jsx'
 
 const ACTION_CONFIG = {
   view:            { icon: Eye,          label: 'Viewed gallery',        color: '#6366f1' },
@@ -582,7 +583,7 @@ export default function GalleryActivity() {
       <PageBreadcrumb crumbs={gallery ? buildGalleryCrumbs(gallery, folderAncestors, 'Activity') : [{ label: 'Galleries', to: '/' }, { label: 'Activity' }]} />
 
       <div>
-        <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Activity</h1>
+        <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Activity</h1>
         {gallery && <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{gallery.title}</p>}
       </div>
 
@@ -611,45 +612,18 @@ export default function GalleryActivity() {
 
       {!loading && <div style={{ borderTop: '1px solid var(--border)' }} />}
 
-      <div className="md:hidden">
-        <select value={filter} onChange={e => setFilter(e.target.value)}
-          style={{
-            width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
-            color: 'var(--text)', borderRadius: '10px', padding: '10px 14px', fontSize: '14px',
-            fontWeight: '500', outline: 'none', cursor: 'pointer', appearance: 'none',
-            WebkitAppearance: 'none',
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-            backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', paddingRight: '36px',
-          }}>
-          {[
-            { id: 'all',      label: 'All Activity' },
-            { id: 'view',     label: 'Views' },
-            { id: 'favorite', label: 'Favorites' },
-            { id: 'download', label: 'Downloads' },
-            { id: 'comment',  label: 'Comments' },
-          ].map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-        </select>
-      </div>
-      <div className="hidden md:flex items-center gap-2 flex-wrap">
-        {[
-          { id: 'all',      label: 'All' },
-          { id: 'view',     label: 'Views' },
-          { id: 'favorite', label: 'Favorites' },
-          { id: 'download', label: 'Downloads' },
-          { id: 'comment',  label: 'Comments' },
-        ].map(f => (
-          <button key={f.id} onClick={() => setFilter(f.id)}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: filter === f.id ? '#6366f1' : 'var(--surface)',
-              color: filter === f.id ? '#fff' : 'var(--text-muted)',
-              border: `1px solid ${filter === f.id ? '#6366f1' : 'var(--border)'}`,
-              cursor: 'pointer',
-            }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
+      <FilterSortControl sections={[{
+        key: 'type', label: 'Activity Type', type: 'select',
+        value: filter === 'all' ? null : filter,
+        onChange: v => setFilter(v || 'all'),
+        placeholder: 'All Activity',
+        options: [
+          { value: 'view', label: 'Views' },
+          { value: 'favorite', label: 'Favorites' },
+          { value: 'download', label: 'Downloads' },
+          { value: 'comment', label: 'Comments' },
+        ],
+      }]} />
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
