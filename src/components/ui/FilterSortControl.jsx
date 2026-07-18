@@ -172,6 +172,7 @@ function DesktopMultiSelect({ section, selectStyle }) {
     <div>
       <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>{section.label}</label>
       <button ref={triggerRef} onClick={() => setOpen(o => !o)}
+        aria-label={section.label}
         className="w-full flex items-center justify-between"
         style={open ? { ...selectStyle, borderRadius: '8px 8px 0 0', borderBottom: 'none' } : selectStyle}>
         <span className="truncate">{summaryOf(section)}</span>
@@ -438,7 +439,7 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
       return (
         <div key={section.key}>
           <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>{section.label}</label>
-          <select value={section.value ?? ''} onChange={e => section.onChange(e.target.value === '' ? null : e.target.value)} style={selectStyle}>
+          <select aria-label={section.label} value={section.value ?? ''} onChange={e => section.onChange(e.target.value === '' ? null : e.target.value)} style={selectStyle}>
             {section.type === 'select' && <option value="">{section.placeholder || 'Any'}</option>}
             {(section.options || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -454,6 +455,7 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
         <div key={section.key}>
           <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>{section.label}</label>
           <select
+            aria-label={section.label}
             value={value == null ? '' : value.type === 'preset' ? value.value : 'custom'}
             onChange={e => {
               const v = e.target.value

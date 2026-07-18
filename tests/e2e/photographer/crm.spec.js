@@ -77,7 +77,7 @@ test.describe('Clients list', () => {
 
   test('shows search input', async ({ page }) => {
     await page.goto('/clients')
-    await expect(page.locator('input[placeholder="Search clients..."]').first()).toBeVisible()
+    await expect(page.locator('input[placeholder="Search clients..."]').locator('visible=true')).toBeVisible()
   })
 
   test('existing clients appear in list', async ({ page }) => {
@@ -96,7 +96,7 @@ test.describe('Clients list', () => {
     try {
       await page.goto('/clients')
       // Use the visible search input (desktop = first visible one)
-      const search = page.locator('input[placeholder="Search clients..."]').first()
+      const search = page.locator('input[placeholder="Search clients..."]').locator('visible=true')
       await search.waitFor({ state: 'visible' })
       await search.fill(`Search-${uid}`)
       await expect(page.getByText(`Search-${uid}`).first()).toBeVisible({ timeout: 5000 })

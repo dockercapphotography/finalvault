@@ -127,7 +127,7 @@ test.describe('Sessions list', () => {
 
   test('shows search input', async ({ page }) => {
     await page.goto('/sessions')
-    await expect(page.locator('input[placeholder="Search sessions or clients..."]').first()).toBeVisible()
+    await expect(page.locator('input[placeholder="Search sessions or clients..."]').locator('visible=true')).toBeVisible()
   })
 
   test('existing session appears in list view', async ({ page }) => {
@@ -157,7 +157,7 @@ test.describe('Sessions list', () => {
     const session = await createTestSession({ name: `Searchable-${uid}` })
     try {
       await page.goto('/sessions')
-      await page.locator('input[placeholder="Search sessions or clients..."]').first().fill(`Searchable-${uid}`)
+      await page.locator('input[placeholder="Search sessions or clients..."]').locator('visible=true').fill(`Searchable-${uid}`)
       await expect(page.getByText(session.name).first()).toBeVisible({ timeout: 5000 })
     } finally {
       await deleteTestSession(session.id)

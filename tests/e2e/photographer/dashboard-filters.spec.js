@@ -22,24 +22,42 @@ async function gotoDashboard(page) {
   await expect(page.getByRole('heading', { name: 'Galleries' })).toBeVisible({ timeout: 10000 })
 }
 
+// As of v1.4.2, Status/Event Date/Expiry Date/Tags/Sort all live behind one
+// "Filters & sort" button (desktop panel) instead of always-visible pills.
+// The mobile trigger is icon-only with a different accessible name
+// ("Filters and sort", no "&"), and is display:none (excluded from the a11y
+// tree) at the chromium project's desktop viewport -- so this text match is
+// unambiguous without needing :visible scoping.
+async function openFilters(page) {
+  await page.getByRole('button', { name: 'Filters & sort' }).click()
+}
+
+async function closeFilters(page) {
+  // Same button toggles open/closed.
+  await page.getByRole('button', { name: 'Filters & sort' }).click()
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-test.describe('Dashboard — Sort & Filter', () => {
+test.describe('Dashboard — Filters & Sort', () => {
   // ── Sort ────────────────────────────────────────────────────────────────────
 
-  test('sort dropdown is visible on desktop dashboard', async ({ page }) => {
-    await gotoDashboard(page)
-    // DashboardSortDropdown renders a button containing the sort label text
-    await expect(page.getByRole('button', { name: /Created: New → Old/ })).toBeVisible()
-  })
+  test.describe('Sort', () => {
+    test('Sort by control is available in the Filters & sort panel', async ({ page }) => {
+      await gotoDashboard(page)
+      await openFilters(page)
+      await expect(page.getByLabel('Sort by')).toBeVisible()
+    })
 
-  test('sort dropdown opens and shows all sort options', async ({ page }) => {
-    await gotoDashboard(page)
-    // Click the sort dropdown button (has hidden sm:inline span inside)
-    await page.getByRole('button', { name: /Created: New → Old/ }).click()
-    await expect(page.getByRole('button', { name: 'Created: Old → New' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Name: A → Z' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Name: Z → A' })).toBeVisible()
+    test('changing sort updates the selected option', async ({ page }) => {
+      await gotoDashboard(page)
+      await openFilters(page)
+      await page.getByLabel('Sort by').selectOption('name_asc')
+      await expect(page.getByLabel('Sort by')).toHaveValue('name_asc')
+      // Switch to a different option too, to confirm it's not a one-way fluke
+      await page.getByLabel('Sort by').selectOption('name_desc')
+      await expect(page.getByLabel('Sort by')).toHaveValue('name_desc')
+    })
   })
 
   // ── Tags filter ─────────────────────────────────────────────────────────────
@@ -51,7 +69,6 @@ test.describe('Dashboard — Sort & Filter', () => {
     test.beforeAll(async () => {
       photographerId = await getPhotographerId()
 
-      // Create two tags
       const { data: t1 } = await sb()
         .from('gallery_tags')
         .insert({ photographer_id: photographerId, name: 'pw-filter-alpha', color: '#6366f1' })
@@ -63,7 +80,6 @@ test.describe('Dashboard — Sort & Filter', () => {
       tag1 = t1
       tag2 = t2
 
-      // Create two galleries — one with tag1, one with both
       const base = {
         photographer_id: photographerId,
         is_active: true,
@@ -92,18 +108,20 @@ test.describe('Dashboard — Sort & Filter', () => {
       if (tag2) await sb().from('gallery_tags').delete().eq('id', tag2.id)
     })
 
-    test('Tags filter pill appears on dashboard when tags exist', async ({ page }) => {
+    test('Tags control appears in the Filters & sort panel when tags exist', async ({ page }) => {
       await gotoDashboard(page)
-      await expect(page.getByText(/^Tags$/)).toBeVisible({ timeout: 5000 })
+      await openFilters(page)
+      await expect(page.getByLabel('Tags')).toBeVisible({ timeout: 5000 })
     })
 
     test('selecting a tag filters galleries to those with that tag', async ({ page }) => {
       await gotoDashboard(page)
-      await page.getByText(/^Tags$/).click()
-      // Dropdown shows tag names
-      await expect(page.getByText('pw-filter-alpha')).toBeVisible({ timeout: 3000 })
-      await page.getByText('pw-filter-alpha').click()
-      await page.keyboard.press('Escape')
+      await openFilters(page)
+      await page.getByLabel('Tags').click()
+      await expect(page.getByRole('button', { name: 'pw-filter-alpha' })).toBeVisible({ timeout: 3000 })
+      await page.getByRole('button', { name: 'pw-filter-alpha' }).click()
+      await page.getByLabel('Tags').click() // close the nested Tags dropdown
+      await closeFilters(page)
       await page.waitForTimeout(300)
 
       // Both galleries visible — use .first() since desktop+mobile cards both render
@@ -113,65 +131,53 @@ test.describe('Dashboard — Sort & Filter', () => {
 
     test('selecting two tags filters to galleries with BOTH tags (AND logic)', async ({ page }) => {
       await gotoDashboard(page)
-      await page.getByText(/^Tags$/).click()
-      await expect(page.getByText('pw-filter-alpha')).toBeVisible({ timeout: 3000 })
-      await page.getByText('pw-filter-alpha').click()
-      await page.getByText('pw-filter-beta').click()
-
-      // Close dropdown by clicking the Tags pill button again
-      await page.getByRole('button', { name: /Tags/ }).click()
+      await openFilters(page)
+      await page.getByLabel('Tags').click()
+      await expect(page.getByRole('button', { name: 'pw-filter-alpha' })).toBeVisible({ timeout: 3000 })
+      await page.getByRole('button', { name: 'pw-filter-alpha' }).click()
+      await page.getByRole('button', { name: 'pw-filter-beta' }).click()
+      await page.getByLabel('Tags').click() // close the nested Tags dropdown
+      await closeFilters(page)
       await page.waitForTimeout(300)
 
       // AND logic: only Alpha Beta Gallery (which has BOTH tags) should be visible
-      // Alpha Only Gallery (only has alpha) should NOT appear
       await expect(page.getByText('Alpha Beta Gallery').first()).toBeVisible()
       await expect(page.getByText('Alpha Only Gallery').first()).not.toBeVisible()
 
-      // Active state: when multiple tags selected, pill shows "Tags · N"
-      await expect(page.getByRole('button', { name: /Tags · 2/ })).toBeVisible()
+      // Reopen and confirm the Tags control reflects the 2-tag selection
+      await openFilters(page)
+      await expect(page.getByLabel('Tags')).toContainText('2 selected')
     })
 
-    test('tag filter active label shows selected count', async ({ page }) => {
+    test('Clear all resets the tag filter', async ({ page }) => {
       await gotoDashboard(page)
-      await page.getByText(/^Tags$/).click()
-      await expect(page.getByText('pw-filter-alpha')).toBeVisible({ timeout: 3000 })
-      await page.getByText('pw-filter-alpha').click()
-      // Close dropdown by clicking the pill button itself (first match = the pill, not dropdown item)
-      await page.getByRole('button', { name: /pw-filter-alpha/ }).first().click()
-      await page.waitForTimeout(300)
-      // When one tag selected, TagsPill shows the tag name as the pill label
-      await expect(page.getByRole('button', { name: /pw-filter-alpha/ }).first()).toBeVisible()
-    })
+      await openFilters(page)
+      await page.getByLabel('Tags').click()
+      await expect(page.getByRole('button', { name: 'pw-filter-alpha' })).toBeVisible({ timeout: 3000 })
+      await page.getByRole('button', { name: 'pw-filter-alpha' }).click()
+      await page.getByLabel('Tags').click() // close the nested Tags dropdown
 
-    test('Clear all resets tag filter', async ({ page }) => {
-      await gotoDashboard(page)
-      await page.getByText(/^Tags$/).click()
-      await expect(page.getByText('pw-filter-alpha')).toBeVisible({ timeout: 3000 })
-      await page.getByText('pw-filter-alpha').click()
-      await page.keyboard.press('Escape')
-
-      // Click Clear all
       await expect(page.getByText('Clear all')).toBeVisible()
       await page.getByText('Clear all').click()
+      await page.waitForTimeout(300)
 
-      // Tags pill returns to default label
-      await expect(page.getByText(/^Tags$/)).toBeVisible()
-      await expect(page.getByText(/Tags · /)).not.toBeVisible()
+      await openFilters(page)
+      await expect(page.getByLabel('Tags')).toContainText('Any')
     })
 
     test('dashboard search by tag name surfaces tagged gallery', async ({ page }) => {
       await gotoDashboard(page)
-      // Two search inputs exist (desktop + mobile) — use first (desktop)
-      const search = page.getByPlaceholder('Search all galleries...').first()
+      // Two search inputs exist (desktop + mobile); the mobile one is
+      // display:none at this viewport, so :visible scoping picks the
+      // right one deterministically.
+      const search = page.getByPlaceholder('Search all galleries...').locator('visible=true')
       await search.fill('pw-filter-alpha')
 
-      // Both tagged galleries should appear — use .first() for desktop card
       await expect(page.getByText('Alpha Only Gallery').first()).toBeVisible({ timeout: 3000 })
       await expect(page.getByText('Alpha Beta Gallery').first()).toBeVisible()
     })
 
     test('tag filter flattens folder structure', async ({ page }) => {
-      // Create a folder and move gallery1 into it
       const { data: folder } = await sb().from('gallery_folders')
         .insert({ photographer_id: photographerId, name: 'pw-filter-folder' })
         .select().single()
@@ -179,13 +185,14 @@ test.describe('Dashboard — Sort & Filter', () => {
 
       try {
         await gotoDashboard(page)
-        await page.getByText(/^Tags$/).click()
-        await expect(page.getByText('pw-filter-alpha')).toBeVisible({ timeout: 3000 })
-        await page.getByText('pw-filter-alpha').click()
-        await page.keyboard.press('Escape')
-
-        await page.keyboard.press('Escape')
+        await openFilters(page)
+        await page.getByLabel('Tags').click()
+        await expect(page.getByRole('button', { name: 'pw-filter-alpha' })).toBeVisible({ timeout: 3000 })
+        await page.getByRole('button', { name: 'pw-filter-alpha' }).click()
+        await page.getByLabel('Tags').click() // close the nested Tags dropdown
+        await closeFilters(page)
         await page.waitForTimeout(300)
+
         // gallery1 is in a folder, but tag filter should surface it anyway
         await expect(page.getByText('Alpha Only Gallery').first()).toBeVisible({ timeout: 3000 })
       } finally {
@@ -197,21 +204,24 @@ test.describe('Dashboard — Sort & Filter', () => {
 
   // ── Status filter ────────────────────────────────────────────────────────────
 
-  test('Status filter pill is visible', async ({ page }) => {
-    await gotoDashboard(page)
-    await expect(page.getByText('Status')).toBeVisible()
-  })
+  test.describe('Status filter', () => {
+    test('Status control is visible in the Filters & sort panel', async ({ page }) => {
+      await gotoDashboard(page)
+      await openFilters(page)
+      await expect(page.getByLabel('Status')).toBeVisible()
+    })
 
-  test('Status filter — Active hides folder cards and flattens view', async ({ page }) => {
-    await gotoDashboard(page)
-    await page.getByRole('button', { name: 'Status' }).click()
-    await expect(page.getByRole('button', { name: 'Active', exact: true })).toBeVisible({ timeout: 3000 })
-    await page.getByRole('button', { name: 'Active', exact: true }).click()
-    await page.keyboard.press('Escape')
+    test('Status filter — Active hides folder cards and flattens view', async ({ page }) => {
+      await gotoDashboard(page)
+      await openFilters(page)
+      await page.getByLabel('Status').selectOption('active')
+      await closeFilters(page)
+      await page.waitForTimeout(300)
 
-    // Folder cards should not appear (filter flattens)
-    await expect(page.locator('h3').filter({ hasText: /folder/i })).not.toBeVisible({ timeout: 2000 }).catch(() => {
-      // OK if there happen to be folders with active galleries — just verify the filter applied
+      // Folder cards should not appear (filter flattens)
+      await expect(page.locator('h3').filter({ hasText: /folder/i })).not.toBeVisible({ timeout: 2000 }).catch(() => {
+        // OK if there happen to be folders with active galleries — just verify the filter applied
+      })
     })
   })
 })
