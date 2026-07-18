@@ -253,16 +253,7 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
     }
     updatePos()
     window.addEventListener('resize', updatePos)
-    // If the page (or a scroll container) moves under the open panel,
-    // close it rather than leaving it stale and misaligned -- standard
-    // dropdown behavior, and simpler/safer than tracking every possible
-    // scrollable ancestor.
-    function handleScroll() { setDesktopOpen(false) }
-    window.addEventListener('scroll', handleScroll, true)
-    return () => {
-      window.removeEventListener('resize', updatePos)
-      window.removeEventListener('scroll', handleScroll, true)
-    }
+    return () => window.removeEventListener('resize', updatePos)
   }, [desktopOpen])
 
   useEffect(() => {
