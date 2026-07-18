@@ -6,7 +6,7 @@ import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
   getSessions, createSession, updateSession, SESSION_TYPES, SESSION_STATUSES,
-  getStatusConfig, getPaymentConfig, formatSessionDate, SESSION_TYPE_ICON,
+  getStatusConfig, getPaymentConfig, PAYMENT_STATUSES, formatSessionDate, SESSION_TYPE_ICON,
 } from '../utils/sessionApi.js'
 import { getClients } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
@@ -431,6 +431,9 @@ export default function Sessions() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState(null)
   const [filterMode, setFilterMode] = useState(null)
+  const [filterType, setFilterType] = useState(null)
+  const [filterPayment, setFilterPayment] = useState(null)
+  const [sortBy, setSortBy] = useState('date_desc')
   const [showNew, setShowNew] = useState(false)
   const [view, setView] = useState(() => window.innerWidth >= 768 ? 'kanban' : 'list')
 
@@ -462,7 +465,24 @@ export default function Sessions() {
     const matchesSearch = !q || s.name.toLowerCase().includes(q) || (s.clients && `${s.clients.first_name} ${s.clients.last_name}`.toLowerCase().includes(q))
     const matchesStatus = !filterStatus || s.status === filterStatus
     const matchesMode = !filterMode || s.mode === filterMode
-    return matchesSearch && matchesStatus && matchesMode
+    const matchesType = !filterType || s.type === filterType
+    const matchesPayment = !filterPayment || s.payment_status === filterPayment
+    return matchesSearch && matchesStatus && matchesMode && matchesType && matchesPayment
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'date_asc':
+        return new Date(a.session_date || 0) - new Date(b.session_date || 0)
+      case 'created_desc':
+        return new Date(b.created_at) - new Date(a.created_at)
+      case 'client_asc': {
+        const an = a.clients ? `${a.clients.first_name} ${a.clients.last_name}` : ''
+        const bn = b.clients ? `${b.clients.first_name} ${b.clients.last_name}` : ''
+        return an.localeCompare(bn)
+      }
+      case 'date_desc':
+      default:
+        return new Date(b.session_date || 0) - new Date(a.session_date || 0)
+    }
   })
 
   return (
@@ -484,8 +504,28 @@ export default function Sessions() {
             value: filterMode, onChange: setFilterMode,
             options: [{ value: 'private', label: 'Private' }, { value: 'walkup', label: 'Walk-up' }],
           },
+          {
+            key: 'type', label: 'Type', type: 'select',
+            value: filterType, onChange: setFilterType,
+            options: SESSION_TYPES.map(t => ({ value: t, label: t })),
+          },
+          {
+            key: 'payment', label: 'Payment status', type: 'select',
+            value: filterPayment, onChange: setFilterPayment,
+            options: PAYMENT_STATUSES.map(p => ({ value: p.value, label: p.label })),
+          },
+          {
+            key: 'sort', label: 'Sort by', type: 'sort',
+            value: sortBy, onChange: setSortBy,
+            options: [
+              { value: 'date_desc', label: 'Session Date: New \u2192 Old' },
+              { value: 'date_asc', label: 'Session Date: Old \u2192 New' },
+              { value: 'client_asc', label: 'Client: A \u2192 Z' },
+              { value: 'created_desc', label: 'Recently created' },
+            ],
+          },
         ] : undefined}
-        onClearAllFilters={() => { setFilterStatus(null); setFilterMode(null); setSearch('') }}
+        onClearAllFilters={() => { setFilterStatus(null); setFilterMode(null); setFilterType(null); setFilterPayment(null); setSearch('') }}
         primaryAction={{ label: 'New Session', icon: Plus, onClick: () => setShowNew(true) }}
         extra={
           <div className="flex items-center rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
