@@ -34,7 +34,7 @@ summary {
   --text:         #111827;
   --text-secondary: #6b7280;
   --text-muted:   #9ca3af;
-  --accent:       #111827;
+  --accent:       #6366f1;
   --accent-fg:    #ffffff;
   --danger:       #ef4444;
   --danger-subtle: #fef2f2;
@@ -54,8 +54,8 @@ summary {
   --text:         #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted:   #475569;
-  --accent:       #f8fafc;
-  --accent-fg:    #020617;
+  --accent:       #6366f1;
+  --accent-fg:    #ffffff;
   --danger:       #f87171;
   --danger-subtle: rgba(239,68,68,0.1);
   --success:      #4ade80;

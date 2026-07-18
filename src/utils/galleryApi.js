@@ -32,7 +32,7 @@ export async function getGalleries() {
 export async function getGallery(id) {
   const { data, error } = await supabase
     .from('galleries')
-    .select('*, plain_password, plain_download_pin, gallery_clients(client_id, clients(id, first_name, last_name, email))')
+    .select('*, plain_password, plain_download_pin, gallery_clients(client_id, clients(id, first_name, last_name, email, avatar_r2_key))')
     .eq('id', id)
     .single()
 

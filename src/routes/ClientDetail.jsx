@@ -606,22 +606,24 @@ function PortalLinkCard({ client, onToast, onTokenChange }) {
             </Button>
           </div>
         ) : !confirmRegen ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col md:flex-row md:items-center gap-2">
             <div className="flex-1 min-w-0 px-3 py-2 rounded-lg text-xs truncate"
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
               {portalUrl}
             </div>
-            <button onClick={handleCopy}
-              className="flex items-center gap-1 text-xs px-2.5 py-2 rounded-lg font-medium flex-shrink-0"
-              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-              {copied ? <Check size={12} /> : <Copy size={12} />}
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-            <button onClick={() => setConfirmRegen(true)}
-              className="flex items-center gap-1 text-xs px-2.5 py-2 rounded-lg font-medium flex-shrink-0"
-              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-              <RefreshCw size={12} />Regenerate
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={handleCopy}
+                className="flex-1 md:flex-none flex items-center justify-center gap-1 text-xs px-2.5 py-2 rounded-lg font-medium"
+                style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                {copied ? <Check size={12} /> : <Copy size={12} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+              <button onClick={() => setConfirmRegen(true)}
+                className="flex-1 md:flex-none flex items-center justify-center gap-1 text-xs px-2.5 py-2 rounded-lg font-medium"
+                style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                <RefreshCw size={12} />Regenerate
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
@@ -779,20 +781,11 @@ export default function ClientDetail() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      {/* Breadcrumb — desktop */}
-      <div className="hidden md:block">
-        <PageBreadcrumb crumbs={[
-          { label: 'Clients', to: '/clients' },
-          { label: fullName },
-        ]} />
-      </div>
-
-      {/* Mobile back button */}
-      <button onClick={() => navigate('/clients')}
-        className="flex items-center gap-2 text-sm md:hidden"
-        style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-        <ArrowLeft size={16} />Clients
-      </button>
+      {/* Breadcrumb */}
+      <PageBreadcrumb crumbs={[
+        { label: 'Clients', to: '/clients' },
+        { label: fullName },
+      ]} />
 
       {/* Header card */}
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
@@ -897,7 +890,7 @@ export default function ClientDetail() {
 
       {/* Galleries */}
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+        <div className="px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
           <div>
             <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Galleries</h3>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -905,10 +898,10 @@ export default function ClientDetail() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setShowAttachGallery(true)}>
+            <Button variant="secondary" size="sm" onClick={() => setShowAttachGallery(true)} className="flex-1 md:flex-none">
               <Images size={13} />Attach Gallery
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => navigate('/galleries/new')}>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/galleries/new')} className="flex-1 md:flex-none">
               <Plus size={13} />New Gallery
             </Button>
           </div>

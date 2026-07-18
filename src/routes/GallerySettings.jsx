@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import {ArrowLeft, CheckCircle, Copy, Eye, EyeOff, Plus, RefreshCw, Trash2, X} from 'lucide-react'
+import ClientAvatarCircle from '../components/ui/ClientAvatarCircle.jsx'
 import { getGallery, updateGallery, getTags, getGalleryTags, assignTag, unassignTag, createAndAssignTag, deleteGallery, getFolderAncestors, buildGalleryCrumbs, linkGalleriesToClient, unlinkGalleryFromClient } from '../utils/galleryApi.js'
 import { getClients } from '../utils/crmApi.js'
 import { getImages } from '../utils/imageApi.js'
@@ -332,17 +333,21 @@ export default function GallerySettings() {
 
   async function handleSelectTag(tag) {
     setTagInput('')
-    setTagInput('')
     if (galleryTags.find(t => t.id === tag.id)) return
     try {
       await assignTag(id, tag.id)
       setGalleryTags(prev => [...prev, tag])
       setAllTags(prev => prev.map(t => t.id === tag.id ? { ...t, usage_count: (t.usage_count || 0) + 1 } : t))
+      // Without this, the dropdown's own suggestion list stays stale until
+      // it happens to get recomputed (closed and reopened, or the input's
+      // onChange fires again) -- meaning the just-selected tag would
+      // sometimes vanish from the list immediately and sometimes stay
+      // stuck there, depending on what the user did next.
+      setTagSuggestions(prev => prev.filter(t => t.id !== tag.id))
     } catch (err) { console.error(err) }
   }
 
   async function handleCreateTag(name) {
-    setTagInput('')
     setTagInput('')
     try {
       const tag = await createAndAssignTag(id, { name: name.trim().toLowerCase() })
@@ -429,22 +434,31 @@ export default function GallerySettings() {
                 {linkedClients.length > 0 && (
                   <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
                     {linkedClients.map((client, i) => (
-                      <div
+                      <Link
                         key={client.id}
-                        className="flex items-center justify-between px-3 py-2.5"
-                        style={{ borderBottom: i < linkedClients.length - 1 ? '1px solid var(--border)' : 'none' }}
+                        to={`/clients/${client.id}`}
+                        className="flex items-center gap-2.5 px-3 py-2.5"
+                        style={{ borderBottom: i < linkedClients.length - 1 ? '1px solid var(--border)' : 'none', textDecoration: 'none' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
-                        <span className="text-sm truncate" style={{ color: 'var(--text)' }}>
-                          {[client.first_name, client.last_name].filter(Boolean).join(' ') || client.email}
+                        <ClientAvatarCircle client={client} size={30} />
+                        <span className="flex-1 min-w-0">
+                          <span className="text-sm block truncate" style={{ color: 'var(--text)' }}>
+                            {[client.first_name, client.last_name].filter(Boolean).join(' ') || client.email}
+                          </span>
+                          {client.email && (
+                            <span className="text-xs block truncate" style={{ color: 'var(--text-muted)' }}>{client.email}</span>
+                          )}
                         </span>
                         <button
-                          onClick={() => handleRemoveLinkedClient(client.id)}
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); handleRemoveLinkedClient(client.id) }}
                           style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none', flexShrink: 0 }}
                           title="Remove link"
                         >
                           <X size={14} />
                         </button>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}
