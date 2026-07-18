@@ -492,8 +492,8 @@ export default function Sessions() {
       <PageHeader
         title="Sessions"
         subtitle={`${sessions.length} ${sessions.length === 1 ? 'session' : 'sessions'}`}
-        search={sessions.length > 0 ? { value: search, onChange: setSearch, placeholder: 'Search sessions or clients...' } : undefined}
-        filterSections={sessions.length > 0 ? [
+        search={(loading || sessions.length > 0) ? { value: search, onChange: setSearch, placeholder: 'Search sessions or clients...' } : undefined}
+        filterSections={(loading || sessions.length > 0) ? [
           {
             key: 'status', label: 'Status', type: 'select',
             value: filterStatus, onChange: setFilterStatus,

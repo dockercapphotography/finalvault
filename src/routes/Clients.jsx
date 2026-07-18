@@ -303,8 +303,8 @@ export default function Clients() {
       <PageHeader
         title="Clients"
         subtitle={`${clients.length} ${clients.length === 1 ? 'client' : 'clients'}`}
-        search={clients.length > 0 ? { value: search, onChange: setSearch, placeholder: 'Search clients...' } : undefined}
-        filterSections={clients.length > 0 ? [
+        search={(loading || clients.length > 0) ? { value: search, onChange: setSearch, placeholder: 'Search clients...' } : undefined}
+        filterSections={(loading || clients.length > 0) ? [
           ...(allTags.length > 0 ? [{
             key: 'tags', label: 'Tags', type: 'multiSelect',
             value: tagFilter, onChange: setTagFilter,

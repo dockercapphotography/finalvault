@@ -838,14 +838,14 @@ export default function Dashboard() {
         subtitle={currentFolderId
           ? `${galleriesInView.length} ${galleriesInView.length === 1 ? 'gallery' : 'galleries'}`
           : `${galleries.length} ${galleries.length === 1 ? 'gallery' : 'galleries'} total`}
-        search={(galleries.length > 0 || folders.length > 0)
+        search={(loading || galleries.length > 0 || folders.length > 0)
           ? { value: search, onChange: setSearch, placeholder: 'Search all galleries...' }
           : undefined}
-        filterSections={(galleries.length > 0 || folders.length > 0) ? filterSections : undefined}
+        filterSections={(loading || galleries.length > 0 || folders.length > 0) ? filterSections : undefined}
         onClearAllFilters={clearAllFilters}
         primaryAction={{ label: 'New Gallery', icon: Plus, onClick: () => navigate('/galleries/new', { state: { folderId: currentFolderId } }) }}
         secondaryActions={[{ label: 'New Folder', icon: FolderPlus, onClick: () => setNewFolderOpen(true), iconOnly: true }]}
-        extra={(galleries.length > 0 || folders.length > 0) ? <DisplayDropdown gridSize={gridSize} onGridSize={setGridSize} /> : null}
+        extra={(loading || galleries.length > 0 || folders.length > 0) ? <DisplayDropdown gridSize={gridSize} onGridSize={setGridSize} /> : null}
       />
 
       {loading && (
