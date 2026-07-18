@@ -55,6 +55,20 @@ async function createTestGallery(overrides = {}) {
     ...overrides,
   }).select().single()
   if (error) throw new Error(error.message)
+
+  // gallery_clients is the actual source of truth for portal access as of
+  // v1.4.1 -- galleries.client_id is legacy and no longer read by
+  // get_client_portal_data. Mirror that here so a fixture created with
+  // { client_id: ... } actually shows up in that client's portal, same as
+  // a gallery linked through the real app UI would.
+  if (data.client_id) {
+    const { error: linkError } = await sb().from('gallery_clients').insert({
+      gallery_id: data.id,
+      client_id: data.client_id,
+    })
+    if (linkError) throw new Error(linkError.message)
+  }
+
   return data
 }
 
