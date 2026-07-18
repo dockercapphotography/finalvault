@@ -4,6 +4,21 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.4.3 — July 18, 2026
+
+### UI Polish
+
+- Primary buttons ("New Gallery", "New Client", "New Session", etc.) now use the app's actual brand purple instead of near-black -- a mismatched `--accent` variable, unrelated to the intentional hardcoded purple already used for Share/Filters & sort
+- Fixed cramped mobile layout on the Client Portal link card and Galleries card on a client's page -- both now stack their title/buttons vertically on small screens instead of forcing everything into one row
+- Client detail page's mobile header now uses the same breadcrumb component used everywhere else in the app, instead of a separate plain "back" button
+- Linked Clients rows in Gallery Settings now show an avatar and email, and link to that client's page, instead of just a bare name
+
+### Bug Fixes
+
+- Fixed a gallery's tag suggestion dropdown showing a tag as still available right after it had already been assigned -- inconsistent, since it depended entirely on whether something else happened to refresh the list afterward
+
+---
+
 ## v1.4.2 — July 17, 2026
 
 ### New Features
