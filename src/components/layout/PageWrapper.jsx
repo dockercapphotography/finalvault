@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.4.3'
+const VERSION = '1.4.4'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,20 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.4.4 — July 19, 2026">
+                  <Group label="Client Portal Password Protection">
+                    <Item>Clients can now have an optional password protecting their entire portal</Item>
+                    <Item>Escalating lockout after repeated wrong attempts, with a manual reset option</Item>
+                    <Item>Regenerating a gallery's password now also revokes previously-unlocked access to it</Item>
+                  </Group>
+                  <Group label="Gallery Access Info">
+                    <Item>Clients can now see a gallery's password/PIN directly in their portal, with one-click copy</Item>
+                    <Item>Gallery links from the portal now open in a new tab</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed the gallery "remembered password" flag resetting when opened in a new tab</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.4.3 — July 18, 2026">
                   <Group label="UI Polish">
                     <Item>Primary buttons now use the app's actual brand purple instead of near-black</Item>

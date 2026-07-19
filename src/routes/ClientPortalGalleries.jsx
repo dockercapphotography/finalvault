@@ -1,56 +1,87 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
-import { Images, ChevronRight, Search, SlidersHorizontal } from 'lucide-react'
+import { Images, ChevronRight, Search, SlidersHorizontal, Lock, Copy, Check } from 'lucide-react'
 import { getPortalData } from '../utils/clientApi.js'
+import PortalPasswordGate from '../components/layout/PortalPasswordGate.jsx'
 import ClientPortalLayout from '../components/layout/ClientPortalLayout.jsx'
 import ClientPortalFilterSheet from '../components/layout/ClientPortalFilterSheet.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
+function AccessInfoItem({ label, value }) {
+  const [copied, setCopied] = useState(false)
+  function handleCopy(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+      {label} <span className="font-mono font-medium" style={{ color: 'var(--text)' }}>{value}</span>
+      <button type="button" onClick={handleCopy} aria-label={`Copy ${label.toLowerCase()}`}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#22c55e' : 'var(--text-muted)', display: 'flex', padding: 2 }}>
+        {copied ? <Check size={12} /> : <Copy size={12} />}
+      </button>
+    </span>
+  )
+}
+
 function GalleryRow({ gallery, isNew }) {
   const isExpired = !gallery.is_active || (gallery.expires_at && new Date(gallery.expires_at) < new Date())
+  const hasAccessInfo = !isExpired && (gallery.require_password || gallery.require_download_pin)
+
   return (
-    <a
-      href={`/g/${gallery.share_token}`}
-      className="flex items-center rounded-xl overflow-hidden"
-      style={{
-        border: '1px solid var(--border)', textDecoration: 'none',
-        opacity: isExpired ? 0.55 : 1,
-        pointerEvents: isExpired ? 'none' : 'auto',
-      }}
-    >
-      <div style={{ position: 'relative', width: 76, height: 76, background: 'var(--surface-raised)', overflow: 'hidden', flexShrink: 0 }}>
-        {gallery.cover_r2_key && (
-          <img
-            src={`${WORKER_URL}/preview/${encodeURIComponent(gallery.cover_r2_key)}?share_token=${gallery.share_token}${isExpired ? '&allow_expired=1' : ''}`}
-            alt=""
-            style={{
-              display: 'block', width: '100%', height: '100%', objectFit: 'cover',
-              objectPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`,
-              filter: isExpired ? 'grayscale(1) brightness(0.85)' : 'none',
-            }}
-            onError={e => { e.currentTarget.style.display = 'none' }}
-          />
-        )}
-        {isNew && !isExpired && (
-          <span style={{
-            position: 'absolute', top: 4, right: 4, background: '#6366f1', color: '#fff',
-            fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 7,
-          }}>
-            New
-          </span>
-        )}
-      </div>
-      <div className="px-4 py-3 flex-1 min-w-0">
-        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</p>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-          {isExpired ? 'Expired' : gallery.event_date
-            ? new Date(gallery.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            : ''}
-        </p>
-      </div>
-      {!isExpired && <ChevronRight size={16} style={{ color: '#c4c4c4', marginRight: 16, flexShrink: 0 }} />}
-    </a>
+    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', opacity: isExpired ? 0.55 : 1 }}>
+      <a
+        href={`/g/${gallery.share_token}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center"
+        style={{ textDecoration: 'none', pointerEvents: isExpired ? 'none' : 'auto' }}
+      >
+        <div style={{ position: 'relative', width: 76, height: 76, background: 'var(--surface-raised)', overflow: 'hidden', flexShrink: 0 }}>
+          {gallery.cover_r2_key && (
+            <img
+              src={`${WORKER_URL}/preview/${encodeURIComponent(gallery.cover_r2_key)}?share_token=${gallery.share_token}${isExpired ? '&allow_expired=1' : ''}`}
+              alt=""
+              style={{
+                display: 'block', width: '100%', height: '100%', objectFit: 'cover',
+                objectPosition: `${(gallery.cover_focus_x ?? 0.5) * 100}% ${(gallery.cover_focus_y ?? 0.5) * 100}%`,
+                filter: isExpired ? 'grayscale(1) brightness(0.85)' : 'none',
+              }}
+              onError={e => { e.currentTarget.style.display = 'none' }}
+            />
+          )}
+          {isNew && !isExpired && (
+            <span style={{
+              position: 'absolute', top: 4, right: 4, background: '#6366f1', color: '#fff',
+              fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 7,
+            }}>
+              New
+            </span>
+          )}
+        </div>
+        <div className="px-4 py-3 flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {isExpired ? 'Expired' : gallery.event_date
+              ? new Date(gallery.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : ''}
+          </p>
+        </div>
+        {!isExpired && <ChevronRight size={16} style={{ color: '#c4c4c4', marginRight: 16, flexShrink: 0 }} />}
+      </a>
+
+      {hasAccessInfo && (
+        <div className="flex items-center flex-wrap gap-x-4 gap-y-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+          <Lock size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          {gallery.require_password && <AccessInfoItem label="Password" value={gallery.plain_password} />}
+          {gallery.require_download_pin && <AccessInfoItem label="PIN" value={gallery.plain_download_pin} />}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -168,6 +199,7 @@ export default function ClientPortalGalleries() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [gateResult, setGateResult] = useState(null)
 
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('newest')
@@ -195,6 +227,10 @@ export default function ClientPortalGalleries() {
     setNotFound(false)
     try {
       const result = await getPortalData(token)
+      if (result?.password_required) {
+        setGateResult(result)
+        return
+      }
       if (!result) {
         setNotFound(true)
         return
@@ -217,6 +253,16 @@ export default function ClientPortalGalleries() {
           </p>
         </div>
       </div>
+    )
+  }
+
+  if (gateResult) {
+    return (
+      <PortalPasswordGate
+        token={token}
+        gateResult={gateResult}
+        onUnlock={result => { setGateResult(null); setData(result) }}
+      />
     )
   }
 

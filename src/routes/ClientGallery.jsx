@@ -186,8 +186,8 @@ export default function ClientGallery() {
       const existingViewer = getViewerFromSession(g.id)
       if (existingViewer) {
         if (g.require_password) {
-          const pwVerified = sessionStorage.getItem(`fv-pw-${g.id}`)
-          if (pwVerified) { navigate(`/g/${token}/view${window.location.search}`, { replace: true }); return }
+          const storedPw = localStorage.getItem(`fv-pw-${g.id}`)
+          if (storedPw && storedPw === g.plain_password) { navigate(`/g/${token}/view${window.location.search}`, { replace: true }); return }
           setStage('password')
         } else {
           navigate(`/g/${token}/view${window.location.search}`, { replace: true })
@@ -231,7 +231,7 @@ export default function ClientGallery() {
     try {
       const correct = await verifyGalleryPassword(gallery.id, password)
       if (correct) {
-        sessionStorage.setItem(`fv-pw-${gallery.id}`, '1')
+        localStorage.setItem(`fv-pw-${gallery.id}`, password)
         navigate(`/g/${token}/view${window.location.search}`, { replace: true })
       } else {
         setPasswordError('Incorrect password. Please try again.')

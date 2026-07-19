@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle, ShieldCheck, ChevronDown, Download } from 'lucide-react'
 import { getPortalData } from '../utils/clientApi.js'
+import PortalPasswordGate from '../components/layout/PortalPasswordGate.jsx'
 import ClientPortalLayout from '../components/layout/ClientPortalLayout.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
@@ -11,6 +12,7 @@ export default function ClientPortalContractDetail() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [gateResult, setGateResult] = useState(null)
   const [auditOpen, setAuditOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState(null)
@@ -24,6 +26,10 @@ export default function ClientPortalContractDetail() {
     setNotFound(false)
     try {
       const result = await getPortalData(token)
+      if (result?.password_required) {
+        setGateResult(result)
+        return
+      }
       if (!result) {
         setNotFound(true)
         return
@@ -68,6 +74,16 @@ export default function ClientPortalContractDetail() {
           </p>
         </div>
       </div>
+    )
+  }
+
+  if (gateResult) {
+    return (
+      <PortalPasswordGate
+        token={token}
+        gateResult={gateResult}
+        onUnlock={result => { setGateResult(null); setData(result) }}
+      />
     )
   }
 

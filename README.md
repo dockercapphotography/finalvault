@@ -48,7 +48,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Contract management** — send contracts to clients with typed digital signatures (US ESIGN/UETA compliant), SHA-256 body hash, IP/timestamp audit trail, and signed PDF stored in R2; three default templates included (General Photography Services Agreement, Print Release, Photo Licensing Agreement)
 - **Contract templates** — create reusable templates with variable substitution for client info, photographer business info, gallery details, fees, and more
 - **Business information** — store your business email, phone, address, and governing state in Account → Profile; auto-fills contract variables
-- **Client Portal** — generate a single, durable link for each client showing all their galleries, contracts, and outstanding questionnaires in one place; regenerate anytime to revoke an old link
+- **Client Portal** — generate a single, durable link for each client showing all their galleries, contracts, and outstanding questionnaires in one place; regenerate anytime to revoke an old link; optionally protect the whole portal with a password, with automatic escalating lockout after repeated wrong attempts and a manual reset if a client gets stuck
 
 ### For Clients
 
@@ -59,7 +59,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Favorites** — heart individual images; your photographer can see your picks
 - **Comments** — leave notes on specific images, including from inside the lightbox; the photographer can reply, and each client only sees their own comments and the photographer's replies
 - **Downloads** — web-size JPEG or full-resolution original, individual or full-gallery ZIP
-- **Client Portal** — a single link showing all of your galleries (grouped by session, with search/sort/filter once you have several), contracts awaiting or already signed with downloadable PDFs, and any outstanding questionnaires
+- **Client Portal** — a single link showing all of your galleries (grouped by session, with search/sort/filter once you have several), contracts awaiting or already signed with downloadable PDFs, and any outstanding questionnaires; password- or PIN-protected galleries show their access code directly in the portal with one-click copy, and open in a new tab so the code stays visible while you browse
 - **iOS native downloads** — save directly to Photos via the system share sheet
 - **Right-click and drag protection** on preview images
 - **Mobile PWA** — installable as a home screen app on iOS and Android

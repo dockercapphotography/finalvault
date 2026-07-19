@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { ClipboardList, ChevronRight } from 'lucide-react'
 import { getPortalData } from '../utils/clientApi.js'
+import PortalPasswordGate from '../components/layout/PortalPasswordGate.jsx'
 import ClientPortalLayout from '../components/layout/ClientPortalLayout.jsx'
 
 function QuestionnaireRow({ questionnaire }) {
@@ -29,6 +30,7 @@ export default function ClientPortalQuestionnaires() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [gateResult, setGateResult] = useState(null)
 
   useEffect(() => {
     load()
@@ -39,6 +41,10 @@ export default function ClientPortalQuestionnaires() {
     setNotFound(false)
     try {
       const result = await getPortalData(token)
+      if (result?.password_required) {
+        setGateResult(result)
+        return
+      }
       if (!result) {
         setNotFound(true)
         return
@@ -61,6 +67,16 @@ export default function ClientPortalQuestionnaires() {
           </p>
         </div>
       </div>
+    )
+  }
+
+  if (gateResult) {
+    return (
+      <PortalPasswordGate
+        token={token}
+        gateResult={gateResult}
+        onUnlock={result => { setGateResult(null); setData(result) }}
+      />
     )
   }
 

@@ -4,14 +4,17 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, Camera,
   Pencil, Trash2, X, Plus, Clock, CheckCircle, Images,
-  AlertCircle, Ban, CalendarDays, Link2, Copy, RefreshCw, Check, Search
+  AlertCircle, Ban, CalendarDays, Link2, Copy, RefreshCw, Check, Search,
+  Lock, Unlock, ShieldAlert
 } from 'lucide-react'
 import TagInput from '../components/ui/TagInput.jsx'
+import PlainField from '../components/ui/PlainField.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
-import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags, getOrCreatePortalToken, regeneratePortalToken } from '../utils/crmApi.js'
+import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags, getOrCreatePortalToken, regeneratePortalToken, setClientPortalPassword, clearClientPortalPassword, resetPortalLockout } from '../utils/crmApi.js'
 import { getUnlinkedGalleries, linkGalleriesToClient, unlinkGalleryFromClient } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
+import { generatePassword } from '../utils/secretGenerators.js'
 import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
 import Button from '../components/ui/Button.jsx'
@@ -546,6 +549,146 @@ function AttachGalleryModal({ clientId, onClose, onAttached }) {
   )
 }
 
+function PortalPasswordSection({ client, onToast }) {
+  const [hasPassword, setHasPassword] = useState(!!client.portal_password_hash)
+  const [lockedUntil, setLockedUntil] = useState(client.portal_password_locked_until)
+  const [showForm, setShowForm] = useState(false)
+  const [pw1, setPw1] = useState('')
+  const [pwError, setPwError] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [resettingLock, setResettingLock] = useState(false)
+
+  const isLocked = lockedUntil && new Date(lockedUntil) > new Date()
+
+  function openForm() {
+    setPw1('')
+    setPwError(null)
+    setShowForm(true)
+  }
+
+  async function handleSave() {
+    if (pw1.length < 6) {
+      setPwError('Password must be at least 6 characters.')
+      return
+    }
+    setSaving(true)
+    setPwError(null)
+    try {
+      await setClientPortalPassword(client.id, pw1)
+      setHasPassword(true)
+      setLockedUntil(null)
+      setShowForm(false)
+      onToast({ message: hasPassword ? 'Portal password changed' : 'Portal password added', type: 'success' })
+    } catch (err) {
+      setPwError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRemove() {
+    setRemoving(true)
+    try {
+      await clearClientPortalPassword(client.id)
+      setHasPassword(false)
+      setLockedUntil(null)
+      setConfirmRemove(false)
+      onToast({ message: 'Portal password removed', type: 'success' })
+    } catch (err) {
+      onToast({ message: err.message, type: 'error' })
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  async function handleResetLockout() {
+    setResettingLock(true)
+    try {
+      await resetPortalLockout(client.id)
+      setLockedUntil(null)
+      onToast({ message: 'Lockout cleared', type: 'success' })
+    } catch (err) {
+      onToast({ message: err.message, type: 'error' })
+    } finally {
+      setResettingLock(false)
+    }
+  }
+
+  return (
+    <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
+      <div className="flex items-center justify-between gap-4 mb-1">
+        <div className="flex items-center gap-2">
+          {hasPassword ? <Lock size={14} style={{ color: 'var(--text-muted)' }} /> : <Unlock size={14} style={{ color: 'var(--text-muted)' }} />}
+          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+            {hasPassword ? 'Portal password protection enabled' : 'No portal password set'}
+          </p>
+        </div>
+        {!showForm && !confirmRemove && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="secondary" size="sm" onClick={openForm}>
+              {hasPassword ? 'Change password' : 'Add password'}
+            </Button>
+            {hasPassword && (
+              <Button variant="secondary" size="sm" onClick={() => setConfirmRemove(true)}>Remove</Button>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        When set, the client must enter this password before viewing anything in their portal — including gallery access codes and contracts.
+      </p>
+
+      {isLocked && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl mt-3"
+          style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
+          <ShieldAlert size={16} style={{ color: 'var(--danger)' }} />
+          <p className="text-sm flex-1 font-medium" style={{ color: 'var(--danger)' }}>
+            Client is currently locked out from too many failed attempts.
+          </p>
+          <Button variant="danger" size="sm" onClick={handleResetLockout} disabled={resettingLock}>
+            {resettingLock ? 'Clearing...' : 'Reset lockout'}
+          </Button>
+        </div>
+      )}
+
+      {showForm && (
+        <div className="mt-3 space-y-2">
+          <PlainField
+            value={pw1}
+            onChange={setPw1}
+            onRefresh={() => { setPw1(generatePassword()); setPwError(null) }}
+            onCopy
+            placeholder="Enter password"
+            hint="Share this with your client so they can access the portal."
+          />
+          {pwError && <p className="text-xs" style={{ color: 'var(--danger)' }}>{pwError}</p>}
+          <div className="flex items-center gap-2">
+            <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving...' : 'Save password'}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setShowForm(false)} disabled={saving}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {confirmRemove && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl mt-3"
+          style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
+          <p className="text-sm flex-1 font-medium" style={{ color: 'var(--danger)' }}>
+            Remove password protection? The portal link alone will grant access again.
+          </p>
+          <Button variant="danger" size="sm" onClick={handleRemove} disabled={removing}>
+            {removing ? 'Removing...' : 'Confirm'}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setConfirmRemove(false)}>Cancel</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PortalLinkCard({ client, onToast, onTokenChange }) {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -638,6 +781,7 @@ function PortalLinkCard({ client, onToast, onTokenChange }) {
           </div>
         )}
       </div>
+      {portalUrl && <PortalPasswordSection client={client} onToast={onToast} />}
     </div>
   )
 }
