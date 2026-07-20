@@ -4,9 +4,9 @@ import NotificationBell from './NotificationBell.jsx'
 
 const baseNavItems = [
   { to: '/', label: 'Galleries', icon: Images, end: true },
-  { to: '/bookmarked', label: 'Bookmarked', icon: Bookmark },
   { to: '/clients', label: 'Clients', icon: Users },
   { to: '/sessions', label: 'Sessions', icon: CalendarDays },
+  { to: '/bookmarked', label: 'Bookmarked', icon: Bookmark },
   { to: '/account', label: 'Account', icon: Settings },
 ]
 

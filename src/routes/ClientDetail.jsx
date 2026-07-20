@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Cropper from 'react-easy-crop'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, Camera,
+  ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, ChevronLeft, Camera,
   Pencil, Trash2, X, Plus, Clock, CheckCircle, Images,
   AlertCircle, Ban, CalendarDays, Link2, Copy, RefreshCw, Check, Search,
   Lock, Unlock, ShieldAlert
@@ -14,6 +14,8 @@ import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags, getOrCreatePortalToken, regeneratePortalToken, setClientPortalPassword, clearClientPortalPassword, resetPortalLockout } from '../utils/crmApi.js'
 import { getUnlinkedGalleries, linkGalleriesToClient, unlinkGalleryFromClient } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
+import { getImages } from '../utils/imageApi.js'
+import { usePreviewUrls } from '../hooks/usePreviewUrls.js'
 import { generatePassword } from '../utils/secretGenerators.js'
 import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
@@ -138,7 +140,160 @@ function EditClientWrapper({ onClose, footer, children }) {
   )
 }
 
-function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onClose, onSaved, allTags = [] }) {
+function AvatarGalleryImageGrid({ galleryId, onSelect }) {
+  const [images, setImages] = useState([])
+  const [loading, setLoading] = useState(true)
+  const { previewUrls } = usePreviewUrls(images)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getImages(galleryId)
+      .then(imgs => { if (!cancelled) setImages(imgs) })
+      .catch(() => { if (!cancelled) setImages([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [galleryId])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+      </div>
+    )
+  }
+
+  if (images.length === 0) {
+    return <p className="text-sm text-center py-16 px-5" style={{ color: 'var(--text-muted)' }}>This gallery has no images yet.</p>
+  }
+
+  return (
+    <div className="grid grid-cols-4 gap-2 p-4 overflow-y-auto" style={{ maxHeight: 380 }}>
+      {images.map(img => (
+        <button key={img.id} onClick={() => previewUrls[img.id] && onSelect(previewUrls[img.id])}
+          className="aspect-square rounded-lg overflow-hidden"
+          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', padding: 0, cursor: previewUrls[img.id] ? 'pointer' : 'default' }}>
+          {previewUrls[img.id]
+            ? <img src={previewUrls[img.id]} alt="" className="w-full h-full object-cover" />
+            : <div className="w-full h-full animate-pulse" style={{ background: 'var(--surface-raised)' }} />}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// Two-step avatar source picker: choose a linked gallery, then choose one
+// of its images. Selecting an image hands its already-fetched preview
+// blob URL straight to the same crop modal/upload pipeline used for a
+// local file upload (see handlePickFromGallery below) -- the chosen image
+// becomes a real independent copy at that point, not a live reference to
+// the gallery, so deleting it later from the gallery won't break the
+// client's avatar.
+function AvatarGalleryPickerModal({ galleries, onSelect, onClose }) {
+  const [selectedGallery, setSelectedGallery] = useState(null)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-2 min-w-0">
+            {selectedGallery && (
+              <button onClick={() => setSelectedGallery(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
+                <ChevronLeft size={16} />
+              </button>
+            )}
+            <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>
+              {selectedGallery ? selectedGallery.title : 'Choose from a gallery'}
+            </h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {!selectedGallery ? (
+          galleries.length === 0 ? (
+            <p className="text-sm text-center py-16 px-5" style={{ color: 'var(--text-muted)' }}>No linked galleries yet.</p>
+          ) : (
+            <div className="max-h-96 overflow-y-auto">
+              {galleries.map(g => (
+                <button key={g.id} onClick={() => setSelectedGallery(g)}
+                  className="w-full flex items-center gap-3 px-5 py-3 text-left transition-colors"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <span className="text-sm font-medium flex-1 min-w-0 truncate" style={{ color: 'var(--text)' }}>{g.title}</span>
+                  <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
+          )
+        ) : (
+          <AvatarGalleryImageGrid galleryId={selectedGallery.id} onSelect={onSelect} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AvatarChangeControl({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onChooseFromGallery }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const fileInputRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const h = e => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+        onChange={e => { setOpen(false); onAvatarUpload(e) }} disabled={uploadingAvatar} />
+      <button onClick={() => setOpen(o => !o)} disabled={uploadingAvatar} aria-label="Change photo"
+        className="relative w-10 h-10 rounded-full group"
+        style={{ display: 'block', border: 'none', padding: 0, background: 'none', cursor: uploadingAvatar ? 'not-allowed' : 'pointer' }}>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={client.first_name} className="w-10 h-10 rounded-full object-cover" />
+        ) : (
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
+            style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>
+            {client.first_name[0]}{client.last_name[0]}
+          </div>
+        )}
+        <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ background: 'rgba(0,0,0,0.45)' }}>
+          {uploadingAvatar
+            ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            : <Camera size={14} style={{ color: '#fff' }} />}
+        </div>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 rounded-xl shadow-lg z-30 overflow-hidden"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 170 }}>
+          <button onClick={() => { setOpen(false); fileInputRef.current?.click() }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            Upload photo
+          </button>
+          <button onClick={() => { setOpen(false); onChooseFromGallery() }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            Choose from gallery
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onChooseFromGallery, onClose, onSaved, allTags = [] }) {
   const [form, setForm] = useState({
     firstName: client.first_name,
     lastName: client.last_name,
@@ -201,20 +356,19 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
               </div>
             )}
 
-            {/* Avatar + name row */}
+            {/* Avatar + name row -- same menu control as the main client page,
+                so both places offer Upload photo / Choose from gallery the
+                same way instead of one being a menu and the other two
+                separate buttons */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden" style={{ background: 'var(--accent)' }}>
-                {avatarUrl
-                  ? <img src={avatarUrl} alt="" className="w-10 h-10 object-cover" />
-                  : <div className="w-10 h-10 flex items-center justify-center text-sm font-bold" style={{ color: 'var(--accent-fg)' }}>
-                      {client.first_name[0]}{client.last_name[0]}
-                    </div>}
-              </div>
-              <label className="text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer flex-shrink-0"
-                style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)' }}>
-                <input type="file" accept="image/*" className="hidden" onChange={onAvatarUpload} disabled={uploadingAvatar} />
-                {uploadingAvatar ? 'Uploading...' : 'Change photo'}
-              </label>
+              <AvatarChangeControl
+                client={client}
+                avatarUrl={avatarUrl}
+                uploadingAvatar={uploadingAvatar}
+                onAvatarUpload={onAvatarUpload}
+                onChooseFromGallery={onChooseFromGallery}
+              />
+              {uploadingAvatar && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Uploading...</span>}
             </div>
 
             {/* First + Last name */}
@@ -317,7 +471,17 @@ function EditClientModal({ client, avatarUrl, uploadingAvatar, onAvatarUpload, o
 
 function GalleryRow({ gallery, onUnlink }) {
   const coverKey = gallery.cover_r2_key || gallery.gallery_images?.preview_r2_key
-  const isActive = gallery.is_active
+  // Distinct from a manual is_active=false toggle -- a date-expired gallery
+  // is still "active" in the DB, it's just past its expires_at. Both cases
+  // are unavailable to clients, but which one applies is meaningful to the
+  // photographer specifically (did I turn this off, or did time just pass?),
+  // so unlike the client portal's GalleryRow (which collapses both into one
+  // generic "Expired" label since a client doesn't need the distinction),
+  // this one keeps them separate.
+  const isDateExpired = gallery.expires_at && new Date(gallery.expires_at) < new Date()
+  const isUnavailable = !gallery.is_active || isDateExpired
+  const badgeLabel = !gallery.is_active ? 'Inactive' : isDateExpired ? 'Expired' : 'Active'
+  const badgeVariant = !gallery.is_active ? 'default' : isDateExpired ? 'warning' : 'success'
   return (
     <Link
       to={`/galleries/${gallery.id}`}
@@ -331,9 +495,10 @@ function GalleryRow({ gallery, onUnlink }) {
         style={{ background: 'var(--surface-raised)' }}>
         {coverKey ? (
           <img
-            src={`${WORKER_URL}/preview/${encodeURIComponent(coverKey)}?share_token=${gallery.share_token}`}
+            src={`${WORKER_URL}/preview/${encodeURIComponent(coverKey)}?share_token=${gallery.share_token}${isUnavailable ? '&allow_expired=1' : ''}`}
             alt={gallery.title}
             className="w-full h-full object-cover"
+            style={{ filter: isUnavailable ? 'grayscale(1) brightness(0.85)' : 'none' }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -348,7 +513,7 @@ function GalleryRow({ gallery, onUnlink }) {
           {gallery.event_name && ` · ${gallery.event_name}`}
         </p>
       </div>
-      <Badge variant={isActive ? 'success' : 'default'}>{isActive ? 'Active' : 'Inactive'}</Badge>
+      <Badge variant={badgeVariant}>{badgeLabel}</Badge>
       <button
         onClick={e => { e.preventDefault(); e.stopPropagation(); onUnlink(gallery.id) }}
         style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none', flexShrink: 0, display: 'flex', padding: 2 }}
@@ -804,6 +969,7 @@ export default function ClientDetail() {
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState(null)
   const [showAttachGallery, setShowAttachGallery] = useState(false)
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false)
 
   useEffect(() => {
     load()
@@ -843,6 +1009,11 @@ export default function ClientDetail() {
     reader.onload = () => setCropSrc(reader.result)
     reader.readAsDataURL(file)
     e.target.value = ''
+  }
+
+  function handlePickFromGallery(previewUrl) {
+    setCropSrc(previewUrl)
+    setShowGalleryPicker(false)
   }
 
   async function handleCropSave(croppedAreaPixels) {
@@ -935,23 +1106,13 @@ export default function ClientDetail() {
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
         {/* Name + avatar + edit */}
         <div className="px-4 py-3 flex items-center gap-3">
-          <label className="relative w-10 h-10 rounded-full flex-shrink-0 cursor-pointer group" style={{ display: 'block' }}>
-            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={client.first_name} className="w-10 h-10 rounded-full object-cover" />
-            ) : (
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>
-                {client.first_name[0]}{client.last_name[0]}
-              </div>
-            )}
-            <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ background: 'rgba(0,0,0,0.45)' }}>
-              {uploadingAvatar
-                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : <Camera size={14} style={{ color: '#fff' }} />}
-            </div>
-          </label>
+          <AvatarChangeControl
+            client={client}
+            avatarUrl={avatarUrl}
+            uploadingAvatar={uploadingAvatar}
+            onAvatarUpload={handleAvatarUpload}
+            onChooseFromGallery={() => setShowGalleryPicker(true)}
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1192,6 +1353,7 @@ export default function ClientDetail() {
           avatarUrl={avatarUrl}
           uploadingAvatar={uploadingAvatar}
           onAvatarUpload={handleAvatarUpload}
+          onChooseFromGallery={() => setShowGalleryPicker(true)}
           onClose={() => setShowEdit(false)}
           allTags={allTags}
           onSaved={updated => {
@@ -1210,6 +1372,14 @@ export default function ClientDetail() {
           onSave={handleCropSave}
           onCancel={() => setCropSrc(null)}
           saving={uploadingAvatar}
+        />
+      )}
+
+      {showGalleryPicker && (
+        <AvatarGalleryPickerModal
+          galleries={galleries}
+          onSelect={handlePickFromGallery}
+          onClose={() => setShowGalleryPicker(false)}
         />
       )}
 

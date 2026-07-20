@@ -55,8 +55,8 @@ function MobileActionMenu({ primaryAction, secondaryActions = [] }) {
   if (allActions.length === 0) return null
 
   const iconButtonStyle = {
-    width: 44, height: 44, background: 'var(--surface)', border: '1px solid var(--border)',
-    color: 'var(--text-muted)', cursor: 'pointer', borderRadius: 12,
+    width: 44, height: 44, background: 'var(--accent)', border: 'none',
+    color: 'var(--accent-fg)', cursor: 'pointer', borderRadius: 12,
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   }
 

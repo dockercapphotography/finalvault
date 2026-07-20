@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.4.4'
+const VERSION = '1.4.5'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,19 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.4.5 — July 19, 2026">
+                  <Group label="Client Avatars">
+                    <Item>New "Choose from gallery" option -- pick a client's avatar straight from one of their linked galleries instead of only uploading a file</Item>
+                    <Item>Same Upload photo / Choose from gallery menu now used consistently on both the client page and Edit Client modal</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed expired galleries showing "Active" and a broken cover image on the Client page</Item>
+                  </Group>
+                  <Group label="UI Polish">
+                    <Item>Desktop sidebar nav order now matches mobile (Bookmarked moved after Sessions)</Item>
+                    <Item>Fixed mobile "+" button color and Activity page pills wrapping on narrow phones</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.4.4 — July 19, 2026">
                   <Group label="Client Portal Password Protection">
                     <Item>Clients can now have an optional password protecting their entire portal</Item>
