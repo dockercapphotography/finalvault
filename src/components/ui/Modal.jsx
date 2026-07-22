@@ -17,11 +17,11 @@ export default function Modal({ title, onClose, children, size = 'md' }) {
         className={`relative w-full ${sizes[size]} max-h-[90vh] flex flex-col rounded-xl shadow-xl`}
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
-        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{title}</h2>
+        <div className="flex items-center justify-between gap-3 px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="font-semibold text-sm truncate min-w-0" style={{ color: 'var(--text)' }}>{title}</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg transition-colors"
+            className="p-1.5 rounded-lg transition-colors shrink-0"
             style={{ color: 'var(--text-muted)' }}
             onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
