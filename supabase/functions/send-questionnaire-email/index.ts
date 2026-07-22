@@ -115,6 +115,18 @@ serve(async (req) => {
     const result = await res.json()
     if (!res.ok) throw new Error(result.message || 'Send failed')
 
+    // Log the send so the photographer can see who a questionnaire was sent
+    // to and when, without blocking the response on it.
+    if (questionnaireId) {
+      const { error: logError } = await supabase.from('questionnaire_sends').insert({
+        session_id: sessionId,
+        questionnaire_id: questionnaireId,
+        sent_to_email: client.email,
+        sent_to_name: clientName,
+      })
+      if (logError) console.error('Failed to log questionnaire send:', logError)
+    }
+
     return new Response(JSON.stringify({ ok: true, id: result.id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
