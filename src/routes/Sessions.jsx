@@ -684,7 +684,7 @@ function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
         style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>
         {shootTypes.map(t => <option key={t.id} value={t.id}>{t.name} ({t.duration_minutes} min)</option>)}
       </select>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Start date</p>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
@@ -696,11 +696,11 @@ function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
             style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
+          style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
         <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
-          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
+          style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
         <div className="flex items-center gap-1.5">
           <input type="number" min="0" step="5" value={buffer} onChange={e => setBuffer(e.target.value)}
             style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
@@ -775,11 +775,11 @@ function ManualAddSlotForm({ page, shootTypes, onAdded }) {
         style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>
         {shootTypes.map(t => <option key={t.id} value={t.id}>{t.name} ({t.duration_minutes} min)</option>)}
       </select>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
-          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
+          style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
         <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
+          style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
       </div>
       {selectedType && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Ends automatically after {selectedType.duration_minutes} minutes.</p>}
       {formError && <p className="text-xs" style={{ color: 'var(--danger)' }}>{formError}</p>}
@@ -988,19 +988,23 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
       ) : (
         <div className="space-y-6">
           {/* Link + active toggle */}
-          <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
-            <Link2 size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-            <span className="text-xs flex-1 min-w-0 truncate" style={{ color: 'var(--text-muted)' }}>{bookingUrl}</span>
-            <button onClick={handleCopyLink} className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0"
-              style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-              {copied ? <Check size={12} /> : <Copy size={12} />}{copied ? 'Copied' : 'Copy'}
-            </button>
-            <RouterLink to={`/sessions/signups/${page.id}/status`} target="_blank" rel="noopener noreferrer"
-              className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0"
-              style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', textDecoration: 'none' }}>
-              Live status
-            </RouterLink>
-            <Toggle checked={page.is_active} onChange={handleToggleActive} label={page.is_active ? 'Active' : 'Inactive'} />
+          <div className="rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2 min-w-0">
+              <Link2 size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <span className="text-xs flex-1 min-w-0 truncate" style={{ color: 'var(--text-muted)' }}>{bookingUrl}</span>
+              <button onClick={handleCopyLink} className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0"
+                style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                {copied ? <Check size={12} /> : <Copy size={12} />}{copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <div className="flex items-center justify-between sm:justify-start sm:ml-auto gap-3">
+              <RouterLink to={`/sessions/signups/${page.id}/status`} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0"
+                style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', textDecoration: 'none' }}>
+                Live status
+              </RouterLink>
+              <Toggle checked={page.is_active} onChange={handleToggleActive} label={page.is_active ? 'Active' : 'Inactive'} />
+            </div>
           </div>
 
           {/* Booking page description -- shown to clients on the public
@@ -1104,11 +1108,11 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
               <GenerateSlotsForm page={page} shootTypes={page.signup_shoot_types} onGenerated={() => load({ silent: true })} />
             </div>
-            <div className="mt-2.5 flex items-center justify-between">
+            <div className="mt-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <ManualAddSlotForm page={page} shootTypes={page.signup_shoot_types} onAdded={() => load({ silent: true })} />
               {slots.some(s => !s.claimed_at) && (
                 confirmClearAll ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center flex-wrap gap-2">
                     <span className="text-xs" style={{ color: 'var(--danger)' }}>Remove all open slots?</span>
                     <Button variant="danger" size="sm" onClick={handleClearAllOpenSlots} disabled={clearingAll}>
                       {clearingAll ? 'Clearing...' : 'Confirm'}
@@ -1116,7 +1120,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
                     <Button variant="secondary" size="sm" onClick={() => setConfirmClearAll(false)}>Cancel</Button>
                   </div>
                 ) : (
-                  <button onClick={() => setConfirmClearAll(true)} className="text-xs font-medium" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <button onClick={() => setConfirmClearAll(true)} className="text-xs font-medium text-left" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
                     Clear all open slots
                   </button>
                 )
@@ -1308,19 +1312,22 @@ export default function Sessions() {
           ? { label: 'New signup page', icon: Plus, onClick: () => setShowNewSignup(true) }
           : { label: 'New Session', icon: Plus, onClick: () => setShowNew(true) }}
         extra={
-          <div className="flex items-center rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-            <button onClick={() => setView('kanban')} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
-              style={{ background: view === 'kanban' ? 'var(--surface-raised)' : 'transparent', color: view === 'kanban' ? 'var(--text)' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-              <Columns size={13} />Board
-            </button>
-            <button onClick={() => setView('list')} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
-              style={{ background: view === 'list' ? 'var(--surface-raised)' : 'transparent', color: view === 'list' ? 'var(--text)' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-              <LayoutList size={13} />List
-            </button>
-            <button onClick={() => setView('signups')} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
-              style={{ background: view === 'signups' ? 'var(--surface-raised)' : 'transparent', color: view === 'signups' ? 'var(--text)' : 'var(--text-muted)', border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer' }}>
-              <TicketIcon size={13} />Sign-ups
-            </button>
+          <div>
+            <p className="text-xs font-medium mb-1.5 md:hidden" style={{ color: 'var(--text-muted)' }}>View</p>
+            <div className="flex items-center rounded-full p-0.5 w-full md:w-auto" style={{ background: 'var(--bg-subtle)' }}>
+              <button onClick={() => setView('kanban')} className="flex-1 md:flex-none flex items-center justify-center gap-1 py-1.5 px-0 md:px-3 rounded-full text-xs font-medium whitespace-nowrap"
+                style={{ background: view === 'kanban' ? 'var(--surface)' : 'transparent', color: view === 'kanban' ? 'var(--text)' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                <Columns size={12} />Board
+              </button>
+              <button onClick={() => setView('list')} className="flex-1 md:flex-none flex items-center justify-center gap-1 py-1.5 px-0 md:px-3 rounded-full text-xs font-medium whitespace-nowrap"
+                style={{ background: view === 'list' ? 'var(--surface)' : 'transparent', color: view === 'list' ? 'var(--text)' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                <LayoutList size={12} />List
+              </button>
+              <button onClick={() => setView('signups')} className="flex-1 md:flex-none flex items-center justify-center gap-1 py-1.5 px-0 md:px-3 rounded-full text-xs font-medium whitespace-nowrap"
+                style={{ background: view === 'signups' ? 'var(--surface)' : 'transparent', color: view === 'signups' ? 'var(--text)' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                <TicketIcon size={12} />Sign-ups
+              </button>
+            </div>
           </div>
         }
       />

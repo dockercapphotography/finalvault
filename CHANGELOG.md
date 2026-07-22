@@ -4,6 +4,20 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.1 — July 21, 2026
+
+### Bug Fixes
+
+- Fixed the Sign-ups view being completely unreachable on mobile: `PageHeader`'s `extra` slot (used for Sessions' Board/List/Sign-ups toggle and Dashboard's grid Display control) was only ever rendered in the desktop toolbar -- not deprioritized, genuinely absent from the DOM on small screens. Both now render inside the mobile Filters & sort sheet instead, where they're actually reachable; desktop is unchanged, since it was never broken there
+- Fixed the Sign-ups view toggle and Dashboard's grid-size control stretching and wrapping awkwardly when first moved into the Filters & sort sheet -- both now use different, appropriately-sized styling on mobile (a full-width flexible pill, matching the sheet's own width) versus desktop (compact, fixed-width, matching their original toolbar appearance)
+- Fixed several layout areas inside the Signup Page detail modal that didn't adapt to narrow phone screens: the venue link/copy/live-status/active-toggle row, the slot generator's date and time fields, and the manual-add/clear-all-slots row were all using fixed multi-column layouts that caused text truncation and cramped controls on mobile -- all now stack to a single column below the desktop breakpoint
+
+### UI Polish
+
+- Dashboard's grid-size control is now a direct two-option Small/Default toggle on mobile (matching Sessions' Board/List/Sign-ups toggle) instead of a menu that had to be opened first -- Large is omitted there specifically, since it renders identically to Default at that width
+
+---
+
 ## v1.5.0 — July 21, 2026
 
 ### New Features

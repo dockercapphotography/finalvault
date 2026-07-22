@@ -473,39 +473,60 @@ function DisplayDropdown({ gridSize, onGridSize }) {
   }, [open])
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center justify-center px-2.5 py-1.5 rounded-lg text-sm transition-colors"
-        style={{
-          background: open ? 'var(--surface-raised)' : 'var(--surface)',
-          border: '1px solid var(--border)',
-          color: 'var(--text-secondary)',
-          cursor: 'pointer',
-        }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
-        onMouseLeave={e => e.currentTarget.style.borderColor = open ? 'var(--border-strong)' : 'var(--border)'}
-        title="Display options"
-      >
-        <LayoutGrid size={15} />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 w-44 rounded-xl shadow-lg z-30 overflow-hidden"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <p className="px-4 pt-3 pb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Grid Size</p>
-          {[{ id: 'small', label: 'Small' }, { id: 'default', label: 'Default' }, { id: 'large', label: 'Large' }].map(opt => (
-            <button key={opt.id} onClick={() => { onGridSize(opt.id); setOpen(false) }}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left"
-              style={{ cursor: 'pointer', color: opt.id === gridSize ? 'var(--text)' : 'var(--text-secondary)', background: 'transparent', border: 'none' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-raised)'; e.currentTarget.style.cursor = 'pointer' }}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              {opt.label}
-              {opt.id === gridSize && <Check size={13} style={{ color: 'var(--accent)' }} />}
-            </button>
-          ))}
+    <>
+      {/* Desktop -- unchanged: icon button opens a small dropdown menu */}
+      <div ref={ref} className="relative hidden md:block">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center justify-center px-2.5 py-1.5 rounded-lg text-sm transition-colors"
+          style={{
+            background: open ? 'var(--surface-raised)' : 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = open ? 'var(--border-strong)' : 'var(--border)'}
+          title="Display options"
+        >
+          <LayoutGrid size={15} />
+        </button>
+        {open && (
+          <div className="absolute right-0 top-full mt-1 w-44 rounded-xl shadow-lg z-30 overflow-hidden"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <p className="px-4 pt-3 pb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Grid Size</p>
+            {[{ id: 'small', label: 'Small' }, { id: 'default', label: 'Default' }, { id: 'large', label: 'Large' }].map(opt => (
+              <button key={opt.id} onClick={() => { onGridSize(opt.id); setOpen(false) }}
+                className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left"
+                style={{ cursor: 'pointer', color: opt.id === gridSize ? 'var(--text)' : 'var(--text-secondary)', background: 'transparent', border: 'none' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-raised)'; e.currentTarget.style.cursor = 'pointer' }}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                {opt.label}
+                {opt.id === gridSize && <Check size={13} style={{ color: 'var(--accent)' }} />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Mobile -- inside the Filters & sort sheet, matching Sessions' view
+          toggle exactly. Large is omitted: it renders identically to
+          Default at this width (both grid-cols-1), so offering it here
+          would be a choice with no visible effect. */}
+      <div className="md:hidden">
+        <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Grid Size</p>
+        <div className="flex items-center rounded-full p-0.5 w-full" style={{ background: 'var(--bg-subtle)' }}>
+          <button onClick={() => onGridSize('small')} className="flex-1 flex items-center justify-center py-1.5 rounded-full text-xs font-medium"
+            style={{ background: gridSize === 'small' ? 'var(--surface)' : 'transparent', color: gridSize === 'small' ? 'var(--text)' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+            Small
+          </button>
+          <button onClick={() => onGridSize('default')} className="flex-1 flex items-center justify-center py-1.5 rounded-full text-xs font-medium"
+            style={{ background: gridSize === 'default' ? 'var(--surface)' : 'transparent', color: gridSize === 'default' ? 'var(--text)' : 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+            Default
+          </button>
         </div>
-      )}
-    </div>
+      </div>
+    </>
   )
 }
 

@@ -27,11 +27,16 @@ import FilterSortControl from './FilterSortControl.jsx'
 //                    labeled button -- for a secondary action used often
 //                    enough to deserve one click, but that doesn't need
 //                    the same visual weight as the primary action.
-//   extra          : ReactNode rendered at the end of the desktop toolbar,
-//                    after Filters & sort and before the action buttons
-//                    (e.g. Dashboard's grid Display dropdown -- a view
-//                    preference, not a filter/sort/create concept, so it
-//                    doesn't fit any of the typed slots above)
+//   extra          : ReactNode rendered inside the Filters & sort panel/
+//                    sheet (both desktop and mobile), above the filter
+//                    sections themselves. For content that isn't really a
+//                    filter/sort/create concept (e.g. Dashboard's grid
+//                    Display dropdown, Sessions' Board/List/Sign-ups view
+//                    toggle) but still needs to be reachable on mobile --
+//                    previously desktop-toolbar-only, which meant it was
+//                    completely inaccessible on small screens. Requires
+//                    filterSections to also be set, since extra now lives
+//                    inside that panel rather than as an independent slot.
 //
 // Mobile: search drops to its own full-width row below the title (no room
 // to sit inline). Filters & sort collapses to its own icon trigger
@@ -123,7 +128,7 @@ export default function PageHeader({
           {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>}
         </div>
         <div className="flex items-center gap-2 md:hidden flex-shrink-0">
-          {filterSections && <FilterSortControl sections={filterSections} onClearAll={onClearAllFilters} />}
+          {filterSections && <FilterSortControl sections={filterSections} onClearAll={onClearAllFilters} extra={extra} />}
           <MobileActionMenu primaryAction={primaryAction} secondaryActions={secondaryActions} />
         </div>
       </div>

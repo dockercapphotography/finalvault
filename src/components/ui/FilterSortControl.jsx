@@ -241,7 +241,7 @@ function DesktopMultiSelect({ section, selectStyle }) {
   )
 }
 
-export default function FilterSortControl({ sections, onClearAll, panelWidth = 240 }) {
+export default function FilterSortControl({ sections, onClearAll, panelWidth = 240, extra }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [desktopOpen, setDesktopOpen] = useState(false)
   const [subScreen, setSubScreen] = useState(null) // null | sectionKey | `${sectionKey}:range`
@@ -520,6 +520,7 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
             zIndex: 100, padding: 12, width: panelWidth,
             maxHeight: `calc(100vh - ${panelPos.top + 16}px)`, overflowY: 'auto',
           }}>
+          {extra && <div style={{ paddingBottom: 8, marginBottom: 4, borderBottom: '1px solid var(--border)' }}>{extra}</div>}
           {sections.map(renderDesktopSection)}
           {hasActiveFilters && (
             <button onClick={handleClearAll} className="text-xs w-full text-left"
@@ -541,6 +542,7 @@ export default function FilterSortControl({ sections, onClearAll, panelWidth = 2
                 <button onClick={handleClearAll} style={{ fontSize: 13, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>
               )}
             </div>
+            {extra && <div style={{ padding: '0 20px 14px' }}>{extra}</div>}
             {sections.map((section, i) => (
               <button key={section.key} onClick={() => setSubScreen(section.key)}
                 style={i === sections.length - 1 ? { ...rowStyle, borderBottom: 'none' } : rowStyle}>
