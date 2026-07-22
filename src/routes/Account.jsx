@@ -584,6 +584,8 @@ function ProfileTab({ user, onSaveState }) {
   const [businessZip, setBusinessZip] = useState('')
   const [businessEmail, setBusinessEmail] = useState('')
   const [businessPhone, setBusinessPhone] = useState('')
+  const [bookingConfirmationNote, setBookingConfirmationNote] = useState('')
+  const [bookingNotificationNote, setBookingNotificationNote] = useState('')
   const [governingState, setGoverningState] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [newEmail, setNewEmail] = useState('')
@@ -604,7 +606,7 @@ function ProfileTab({ user, onSaveState }) {
   useEffect(() => {
     if (!user) return
     Promise.all([
-      supabase.from('photographers').select('display_name, business_name, business_address, business_city, business_state, business_zip, business_email, business_phone, governing_state, avatar_r2_key, logo_r2_key').eq('id', user.id).single(),
+      supabase.from('photographers').select('display_name, business_name, business_address, business_city, business_state, business_zip, business_email, business_phone, governing_state, avatar_r2_key, logo_r2_key, booking_confirmation_note, booking_notification_note').eq('id', user.id).single(),
       supabase.from('photographer_storage').select('*, storage_tiers(name, storage_gb)').eq('photographer_id', user.id).single(),
       supabase.from('galleries').select('id').eq('photographer_id', user.id),
     ]).then(async ([{ data }, { data: storageRow }, { data: galleries }]) => {
@@ -626,6 +628,8 @@ function ProfileTab({ user, onSaveState }) {
         setBusinessZip(data?.business_zip || '')
         setBusinessEmail(data?.business_email || '')
         setBusinessPhone(data?.business_phone || '')
+        setBookingConfirmationNote(data?.booking_confirmation_note || '')
+        setBookingNotificationNote(data?.booking_notification_note || '')
         setGoverningState(data?.governing_state || '')
         if (data?.avatar_r2_key) {
           const { data: { session } } = await supabase.auth.getSession()
@@ -769,6 +773,8 @@ function ProfileTab({ user, onSaveState }) {
           business_zip: businessZip || null,
           business_email: businessEmail || null,
           business_phone: businessPhone || null,
+          booking_confirmation_note: bookingConfirmationNote || null,
+          booking_notification_note: bookingNotificationNote || null,
           governing_state: governingState || null,
           updated_at: new Date().toISOString()
         }).eq('id', user.id)
@@ -880,6 +886,27 @@ function ProfileTab({ user, onSaveState }) {
           <div>
             <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Account Email</label>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+          </div>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title="Booking emails" description="Custom text included in the emails sent when someone books a session signup slot. Leave blank to omit.">
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Client confirmation note</label>
+            <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Shown in the confirmation email sent to the client, above the booking details.</p>
+            <textarea value={bookingConfirmationNote} onChange={e => setBookingConfirmationNote(e.target.value)} onBlur={save}
+              placeholder="e.g. Please arrive 10 minutes early. Parking is available on the 3rd floor."
+              rows={3}
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', resize: 'vertical' }} />
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Photographer notification note</label>
+            <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Shown in the notification email sent to you when a booking comes in.</p>
+            <textarea value={bookingNotificationNote} onChange={e => setBookingNotificationNote(e.target.value)} onBlur={save}
+              placeholder="e.g. Remember to confirm equipment availability for convention shoots."
+              rows={3}
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', resize: 'vertical' }} />
           </div>
         </div>
       </SettingsSection>

@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.4.5'
+const VERSION = '1.5.0'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,27 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.0 — July 21, 2026">
+                  <Group label="Session Signup Pages">
+                    <Item>New "Sign-ups" workspace on the Sessions page -- create public booking pages per event, with venue, timezone, shoot types, and time slots</Item>
+                    <Item>Public booking page with day-grouped, venue-local-time slots; database-enforced double-booking prevention across overlapping shoot types</Item>
+                    <Item>Booking auto-creates (or matches) the client and a real session -- no separate approval step -- and can auto-assign linked questionnaires</Item>
+                    <Item>Client confirmation + photographer notification emails, both with a calendar link and .ics attachment; per-page custom note fields</Item>
+                    <Item>Live status page for checking bookings on your phone, with real-time updates and a claimed/open progress view</Item>
+                    <Item>Slot generator supports single-day or multi-day ranges, plus manual single-slot add and a clear-all-open-slots action</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed a crash selecting a venue address on a signup page</Item>
+                    <Item>Fixed slot times using the browser's timezone instead of the venue's</Item>
+                    <Item>Fixed incorrect times on the "Add to Google Calendar" link and .ics file</Item>
+                    <Item>Fixed a Gmail inline-preview error and an email crash on venue addresses with commas</Item>
+                    <Item>Fixed the booking page showing slots already blocked by an overlapping claim</Item>
+                    <Item>Removed a stale duplicate database function left from an earlier update</Item>
+                  </Group>
+                  <Group label="UI Polish">
+                    <Item>Redesigned Sign-ups overview cards, the booking page flow, and the live status page</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.4.5 — July 19, 2026">
                   <Group label="Client Avatars">
                     <Item>New "Choose from gallery" option -- pick a client's avatar straight from one of their linked galleries instead of only uploading a file</Item>

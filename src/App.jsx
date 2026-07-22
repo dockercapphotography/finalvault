@@ -27,7 +27,9 @@ import ClientPortalContracts from './routes/ClientPortalContracts.jsx'
 import ClientPortalContractDetail from './routes/ClientPortalContractDetail.jsx'
 import ClientPortalQuestionnaires from './routes/ClientPortalQuestionnaires.jsx'
 import ClientPortalRedirect from './routes/ClientPortalRedirect.jsx'
+import SignupBooking from './routes/SignupBooking.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
+import SignupLiveStatus from './routes/SignupLiveStatus.jsx'
 
 const RECOVERY_KEY = 'fv-password-recovery'
 
@@ -131,6 +133,7 @@ export default function App() {
       <Route path="/sign/:token" element={<SignContract />} />
       <Route path="/submit/:token" element={<SubmitForm />} />
       <Route path="/client/:token" element={<ClientPortalRedirect />} />
+      <Route path="/book/:token" element={<SignupBooking />} />
       <Route path="/client/:token/galleries" element={<ClientPortalGalleries />} />
       <Route path="/client/:token/contracts" element={<ClientPortalContracts />} />
       <Route path="/client/:token/contracts/:contractId" element={<ClientPortalContractDetail />} />
@@ -158,6 +161,11 @@ export default function App() {
       <Route path="/sessions/:id" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><SessionDetail /></PageWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/sessions/signups/:id/status" element={
+        <ProtectedRoute session={session}>
+          <SignupLiveStatus />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
