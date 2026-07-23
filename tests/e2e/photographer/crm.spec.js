@@ -383,7 +383,7 @@ test.describe('Account business info', () => {
     await page.goto('/account?tab=profile')
     await expect(page.getByPlaceholder('contact@yourstudio.com')).toBeVisible({ timeout: 5000 })
     await expect(page.getByPlaceholder('(555) 000-0000')).toBeVisible()
-    await expect(page.getByPlaceholder('123 Main St')).toBeVisible()
+    await expect(page.getByPlaceholder('Start typing an address...')).toBeVisible()
     await expect(page.getByPlaceholder('e.g. Ohio')).toBeVisible()
   })
 
