@@ -22,6 +22,7 @@ import WatermarkCard from '../components/watermarks/WatermarkCard.jsx'
 import SettingsSection from '../components/ui/SettingsSection.jsx'
 import Tabs from '../components/ui/Tabs.jsx'
 import Input from '../components/ui/Input.jsx'
+import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
 import Admin from './Admin.jsx'
 import MarkdownToolbar from '../components/ui/MarkdownToolbar.jsx'
@@ -777,6 +778,28 @@ function ProfileTab({ user, onSaveState }) {
     } catch { onSaveState('error') }
   }
 
+  // Saves directly with the values the autocomplete just returned, rather
+  // than calling save() (which would read businessCity/State/Zip from this
+  // render's closure -- still the pre-selection values, since setState
+  // hasn't applied yet when this runs).
+  async function handleAddressSelect({ address, city, state, zip }) {
+    setBusinessAddress(address)
+    if (city) setBusinessCity(city)
+    if (state) setBusinessState(state)
+    if (zip) setBusinessZip(zip)
+    try {
+      const { error } = await supabase.from('photographers').update({
+          business_address: address || null,
+          business_city: city || businessCity || null,
+          business_state: state || businessState || null,
+          business_zip: zip || businessZip || null,
+          updated_at: new Date().toISOString()
+        }).eq('id', user.id)
+      if (error) throw error
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
   async function handleEmailChange() {
     if (!newEmail.trim()) return
     setSavingSecurity(true); setSecurityMsg(null)
@@ -870,7 +893,17 @@ function ProfileTab({ user, onSaveState }) {
             <Input label="Business email" value={businessEmail} onChange={setBusinessEmail} onBlur={save} placeholder="contact@yourstudio.com" type="email" />
             <Input label="Business phone" value={businessPhone} onChange={setBusinessPhone} onBlur={save} placeholder="(555) 000-0000" />
           </div>
-          <Input label="Street address" value={businessAddress} onChange={setBusinessAddress} onBlur={save} placeholder="123 Main St" />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Street address</label>
+            <AddressAutocomplete
+              value={businessAddress}
+              onChange={setBusinessAddress}
+              onSelect={handleAddressSelect}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => { e.target.style.borderColor = 'var(--border)'; save() }}
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', transition: 'border-color 0.15s' }}
+            />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input label="City" value={businessCity} onChange={setBusinessCity} onBlur={save} placeholder="Columbus" />
             <Input label="State" value={businessState} onChange={setBusinessState} onBlur={save} placeholder="OH" />
