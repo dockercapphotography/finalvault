@@ -1245,20 +1245,22 @@ function GalleryTemplatesTab({ onSaveState }) {
             const theme = getTheme(t.theme_color)
             return (
               <div key={t.id}>
-                <div className="flex items-center gap-4 px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
-                  <div className="shrink-0 flex gap-1 items-center">
-                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.bg, borderColor: 'var(--border)' }} />
-                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.surface, borderColor: 'var(--border)' }} />
-                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.accent, borderColor: 'var(--border)' }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
-                      {t.is_builtin && <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>Built-in</span>}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="shrink-0 flex gap-1 items-center">
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.bg, borderColor: 'var(--border)' }} />
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.surface, borderColor: 'var(--border)' }} />
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.accent, borderColor: 'var(--border)' }} />
                     </div>
-                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{theme.label} · {t.sets.join(', ')}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                        {t.is_builtin && <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>Built-in</span>}
+                      </div>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{theme.label} · {t.sets.join(', ')}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
                     <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Copy size={13} style={{ color: 'var(--text-muted)' }} /></button>
                     <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Pencil size={13} style={{ color: 'var(--text-muted)' }} /></button>
                     <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete" className="p-1.5 rounded-lg"
