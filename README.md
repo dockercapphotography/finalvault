@@ -10,7 +10,7 @@ Own your delivery experience. No monthly SaaS fees. No compromises.
 
 [Live App](https://finalvault.dockercapphotography.com) · [Report a Bug](https://github.com/dockercapphotography/finalvault/issues) · [Request a Feature](https://github.com/dockercapphotography/finalvault/issues)
 
-![Tests](https://img.shields.io/badge/tests-355%20passing-22c55e?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-366%20passing-22c55e?style=flat-square)
 ![Cloudflare Pages](https://img.shields.io/badge/deployed-Cloudflare%20Pages-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![Supabase](https://img.shields.io/badge/database-Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
 
@@ -44,12 +44,13 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Gallery Guide control** — enable or disable the client onboarding guide per gallery
 - **Gallery category tags** — create a per-account tag library with custom colors, assign tags to galleries, filter and search by tag on the dashboard
 - **Dashboard sort & display** — sort galleries by Created, Event Date, Last Updated, or Name (persists across sessions); Small/Default/Large grid sizes (persists across sessions); Status, Event Date, Expiry Date, and Tags filters, all in one unified Filters & sort panel shared across Galleries, Clients, and Sessions
-- **Client CRM** — create and manage client records with contact info, avatars (upload a photo or pick straight from one of the client's linked galleries), pronouns, tags, and linked galleries (a gallery can be linked to multiple clients, e.g. both spouses in a wedding, each with full portal access); Google Places address autocomplete; chip+typeahead tag input with autocomplete; search, tag filtering (multi-select), and Sort By (Name, Recently added)
-- **Contract management** — send contracts to clients with typed digital signatures (US ESIGN/UETA compliant), SHA-256 body hash, IP/timestamp audit trail, and signed PDF stored in R2; three default templates included (General Photography Services Agreement, Print Release, Photo Licensing Agreement)
+- **Client CRM** — create and manage client records with contact info, avatars (upload a photo or pick straight from one of the client's linked galleries), pronouns, tags, and linked galleries (a gallery can be linked to multiple clients, e.g. both spouses in a wedding, each with full portal access — selectable at gallery creation time, not just after); Google Places address autocomplete; chip+typeahead tag input with autocomplete; search, tag filtering (multi-select), and Sort By (Name, Recently added)
+- **Contract management** — send contracts to clients with typed digital signatures (US ESIGN/UETA compliant), SHA-256 body hash, IP/timestamp audit trail, and signed PDF stored in R2; three default templates included (General Photography Services Agreement, Print Release, Photo Licensing Agreement); Session Detail shows who a contract or questionnaire was last sent to, and when
 - **Contract templates** — create reusable templates with variable substitution for client info, photographer business info, gallery details, fees, and more
-- **Business information** — store your business email, phone, address, and governing state in Account → Profile; auto-fills contract variables
+- **Business information** — store your business email, phone, address, and governing state in Account → Profile, with the same Google Places address autocomplete used for clients; auto-fills contract variables
 - **Client Portal** — generate a single, durable link for each client showing all their galleries, contracts, and outstanding questionnaires in one place; regenerate anytime to revoke an old link; optionally protect the whole portal with a password, with automatic escalating lockout after repeated wrong attempts and a manual reset if a client gets stuck
-- **Session Signup Pages** — create a public, shareable booking page per event with its own venue, timezone, and shoot types; clients pick a time and book themselves, which atomically creates the client (or matches an existing one) and a real session, with automatic questionnaire assignment, database-enforced double-booking prevention across overlapping shoot types, calendar-ready confirmation emails (Google Calendar link + .ics), and a live status page for checking bookings on the go
+- **Session Signup Pages** — create a public, shareable booking page per event with its own venue, timezone, and shoot types; clients pick a time and book themselves, which atomically creates the client (or matches an existing one) and a real session, with automatic questionnaire assignment, database-enforced double-booking prevention across overlapping shoot types, and calendar-ready confirmation emails (Google Calendar link + .ics)
+- **Live status page** — a dedicated, mobile-friendly view for checking bookings on the go: a "Happening now" card shows the current or next session with a countdown, search and Booked-only filtering, private per-slot notes, one-tap call/text/email, mark-as-no-show to free up a slot without losing the client record, and registering a walk-up client directly against an open slot (creates a real booking identical to a public signup)
 
 ### For Clients
 
