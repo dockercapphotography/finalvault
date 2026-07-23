@@ -872,12 +872,12 @@ function ProfileTab({ user, onSaveState }) {
             <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style={{ display: 'none' }} onChange={handleLogoSelect} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Business email" value={businessEmail} onChange={setBusinessEmail} onBlur={save} placeholder="contact@yourstudio.com" type="email" />
             <Input label="Business phone" value={businessPhone} onChange={setBusinessPhone} onBlur={save} placeholder="(555) 000-0000" />
           </div>
           <Input label="Street address" value={businessAddress} onChange={setBusinessAddress} onBlur={save} placeholder="123 Main St" />
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input label="City" value={businessCity} onChange={setBusinessCity} onBlur={save} placeholder="Columbus" />
             <Input label="State" value={businessState} onChange={setBusinessState} onBlur={save} placeholder="OH" />
             <Input label="ZIP" value={businessZip} onChange={setBusinessZip} onBlur={save} placeholder="43215" />
