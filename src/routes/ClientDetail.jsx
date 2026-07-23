@@ -907,9 +907,9 @@ function PortalLinkCard({ client, onToast, onTokenChange }) {
       </div>
       <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
         {!portalUrl ? (
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No portal link generated yet.</p>
-            <Button variant="secondary" size="sm" onClick={handleGenerate} disabled={loading}>
+            <Button variant="secondary" size="sm" onClick={handleGenerate} disabled={loading} className="w-full sm:w-auto">
               <Link2 size={13} />{loading ? 'Generating...' : 'Generate link'}
             </Button>
           </div>
