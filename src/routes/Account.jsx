@@ -1538,7 +1538,6 @@ function LinksTab({ platforms, dbColumn, onSaveState }) {
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
               onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} />
           </div>
-          {links[platform.id] && <div className="shrink-0 w-2 h-2 rounded-full" style={{ background: 'var(--success)' }} />}
         </div>
       ))}
     </div>
