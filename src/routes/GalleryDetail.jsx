@@ -803,18 +803,24 @@ export default function GalleryDetail() {
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                 {[gallery.client_name, gallery.event_name].filter(Boolean).join(' · ')}
               </p>
-              {/* Linked client CRM badge */}
-              {gallery.client_id && (
-                <button
-                  onClick={() => navigate(`/clients/${gallery.client_id}`)}
-                  className="inline-flex items-center gap-1 mt-1 text-xs px-2 py-0.5 rounded-md"
-                  style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.18)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  Client record
-                </button>
+              {/* Linked client CRM badges — driven by gallery_clients, the source of
+                  truth for gallery↔client links (gallery.client_id is legacy/stale) */}
+              {gallery.gallery_clients?.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                  {gallery.gallery_clients.map(gc => gc.clients && (
+                    <button
+                      key={gc.client_id}
+                      onClick={() => navigate(`/clients/${gc.client_id}`)}
+                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md"
+                      style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.18)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                      {gc.clients.first_name} {gc.clients.last_name}
+                    </button>
+                  ))}
+                </div>
               )}
               {/* Line 2: dates */}
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>

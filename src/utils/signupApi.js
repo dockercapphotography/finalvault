@@ -268,6 +268,37 @@ export async function deleteAllOpenSlots(signupPageId) {
   if (error) throw error
 }
 
+// Frees a claimed slot back to open, for a no-show or a booking mistake.
+// Deliberately does NOT touch the client or session records created when
+// the slot was originally claimed -- those stay as real business records
+// (the client's contact info, the session itself, which the photographer
+// can still separately mark cancelled in Sessions if they want). This
+// only resets the slot so it can be booked again.
+export async function unclaimSlot(id) {
+  const { error } = await supabase
+    .from('signup_slots')
+    .update({
+      claimed_at: null,
+      client_name: null,
+      client_email: null,
+      client_phone: null,
+      client_pronouns: null,
+    })
+    .eq('id', id)
+  if (error) throw error
+}
+
+// A private, photographer-only note on a slot (e.g. "brought 2 friends,
+// wants extra prints"). Never shown to the client, never touched by the
+// public claim_signup_slot RPC or the public booking page.
+export async function updateSlotNote(id, note) {
+  const { error } = await supabase
+    .from('signup_slots')
+    .update({ photographer_note: note?.trim() || null })
+    .eq('id', id)
+  if (error) throw error
+}
+
 // ── Public booking (anonymous, via RPC) ─────────────────────────────────────
 
 export async function getSignupPageData(token) {

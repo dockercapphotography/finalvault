@@ -783,20 +783,20 @@ function PortalPasswordSection({ client, onToast }) {
 
   return (
     <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
-      <div className="flex items-center justify-between gap-4 mb-1">
-        <div className="flex items-center gap-2">
-          {hasPassword ? <Lock size={14} style={{ color: 'var(--text-muted)' }} /> : <Unlock size={14} style={{ color: 'var(--text-muted)' }} />}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-1">
+        <div className="flex items-center gap-2 min-w-0">
+          {hasPassword ? <Lock size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : <Unlock size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
           <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
             {hasPassword ? 'Portal password protection enabled' : 'No portal password set'}
           </p>
         </div>
         {!showForm && !confirmRemove && (
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="secondary" size="sm" onClick={openForm}>
+            <Button variant="secondary" size="sm" onClick={openForm} className="flex-1 sm:flex-none">
               {hasPassword ? 'Change password' : 'Add password'}
             </Button>
             {hasPassword && (
-              <Button variant="secondary" size="sm" onClick={() => setConfirmRemove(true)}>Remove</Button>
+              <Button variant="secondary" size="sm" onClick={() => setConfirmRemove(true)} className="flex-1 sm:flex-none">Remove</Button>
             )}
           </div>
         )}
@@ -907,9 +907,9 @@ function PortalLinkCard({ client, onToast, onTokenChange }) {
       </div>
       <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
         {!portalUrl ? (
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No portal link generated yet.</p>
-            <Button variant="secondary" size="sm" onClick={handleGenerate} disabled={loading}>
+            <Button variant="secondary" size="sm" onClick={handleGenerate} disabled={loading} className="w-full sm:w-auto">
               <Link2 size={13} />{loading ? 'Generating...' : 'Generate link'}
             </Button>
           </div>

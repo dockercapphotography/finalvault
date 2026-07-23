@@ -13,6 +13,7 @@ import {
   getSubmissions, getSessionQuestionnaires, setSessionQuestionnaires,
   deleteSubmission,
   getSessionGalleries, addSessionGallery, removeSessionGallery,
+  getQuestionnaireSends,
 } from '../utils/sessionApi.js'
 import { getContracts, createClient } from '../utils/crmApi.js'
 import { getGalleries } from '../utils/galleryApi.js'
@@ -916,6 +917,7 @@ export default function SessionDetail() {
   const [sentForm, setSentForm] = useState(null)
   const [submissionCounts, setSubmissionCounts] = useState({})
   const [copiedQ, setCopiedQ] = useState(null)
+  const [questionnaireSends, setQuestionnaireSends] = useState({})
 
   useEffect(() => { load() }, [id])
 
@@ -938,6 +940,8 @@ export default function SessionDetail() {
       setSessionGalleries(sgs || [])
       // Load contracts linked to this session
       getContracts({ sessionId: id }).then(setContracts).catch(() => {})
+      // Load who each attached questionnaire was last sent to, and when
+      getQuestionnaireSends(id).then(setQuestionnaireSends).catch(() => {})
       // Load submission counts per questionnaire
       const { supabase: sb } = await import('../supabaseClient.js').catch(() => ({ supabase }))
       supabase.from('session_submissions')
@@ -1000,6 +1004,7 @@ export default function SessionDetail() {
       if (!result.ok) throw new Error(result.error || 'Send failed')
       setSentForm(questionnaireId)
       setTimeout(() => setSentForm(null), 3000)
+      getQuestionnaireSends(id).then(setQuestionnaireSends).catch(() => {})
     } catch (err) {
       console.error(err)
     } finally {
@@ -1194,7 +1199,7 @@ export default function SessionDetail() {
             : null} />
 
           {/* Quick payment actions */}
-          {session.payment_status !== 'paid' && (
+          {session.payment_status !== 'paid' && (session.session_fee || session.retainer_amount || session.balance_due) && (
             <div className="px-5 py-3 flex flex-wrap gap-2" style={{ borderTop: '1px solid var(--border)' }}>
               {session.payment_status === 'unpaid' && session.retainer_amount && !session.retainer_paid && (
                 <button onClick={async () => {
@@ -1247,10 +1252,27 @@ export default function SessionDetail() {
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <div>
                 <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{c.title}</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {c.status === 'signed' ? 'Signed' : c.status === 'pending_client' ? 'Awaiting client' : c.status}
-                  {c.signed_at ? ` · ${new Date(c.signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
-                </p>
+                {(() => {
+                  const label = {
+                    draft: 'Draft',
+                    pending_photographer: 'Awaiting your signature',
+                    signed: 'Signed',
+                    void: 'Void',
+                    // 'sent' is intentionally omitted — the "Sent to X · date"
+                    // line below already conveys that status.
+                  }[c.status]
+                  return label ? (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {label}
+                      {c.signed_at ? ` · ${new Date(c.signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                    </p>
+                  ) : null
+                })()}
+                {c.sent_at && c.clients && (
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Sent to {c.clients.first_name} {c.clients.last_name} · {new Date(c.sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                )}
               </div>
               <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
             </Link>
@@ -1282,6 +1304,11 @@ export default function SessionDetail() {
                   <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                     {count} {count === 1 ? 'response' : 'responses'}
                   </p>
+                  {questionnaireSends[qid] && (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      Sent to {questionnaireSends[qid].sent_to_name || questionnaireSends[qid].sent_to_email} · {new Date(questionnaireSends[qid].sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {/* Copy link */}
@@ -1366,7 +1393,7 @@ export default function SessionDetail() {
           clients={clients}
           questionnaires={questionnaires}
           onClose={() => setShowEdit(false)}
-          onSaved={async updated => { setSession(prev => ({ ...prev, ...updated })); const sq = await getSessionQuestionnaires(id); setSessionQuestionnaires(sq); setShowEdit(false) }}
+          onSaved={async updated => { const fresh = await getSession(id); setSession(fresh); const sq = await getSessionQuestionnaires(id); setSessionQuestionnaires(sq); setShowEdit(false) }}
         />
       )}
     </div>

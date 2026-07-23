@@ -545,14 +545,16 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
   if (editing) {
     return (
       <div className="px-4 py-3 space-y-2.5" style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-2">
-          <input value={name} onChange={e => setName(e.target.value)}
-            style={{ flex: 2, background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
-          <input type="number" min="5" step="5" value={duration} onChange={e => setDuration(e.target.value)}
-            style={{ width: 64, background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>min</span>
+        <input value={name} onChange={e => setName(e.target.value)}
+          style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-center gap-1.5">
+            <input type="number" min="5" step="5" value={duration} onChange={e => setDuration(e.target.value)}
+              style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
+            <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>min</span>
+          </div>
           <select value={sessionType} onChange={e => setSessionType(e.target.value)}
-            style={{ flex: 1, background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
+            style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
             {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
@@ -989,7 +991,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
         <div className="space-y-6">
           {/* Link + active toggle */}
           <div className="rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <Link2 size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
               <span className="text-xs flex-1 min-w-0 truncate" style={{ color: 'var(--text-muted)' }}>{bookingUrl}</span>
               <button onClick={handleCopyLink} className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0"
@@ -997,13 +999,15 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
                 {copied ? <Check size={12} /> : <Copy size={12} />}{copied ? 'Copied' : 'Copy'}
               </button>
             </div>
-            <div className="flex items-center justify-between sm:justify-start sm:ml-auto gap-3">
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-3 shrink-0">
               <RouterLink to={`/sessions/signups/${page.id}/status`} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0"
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center justify-center gap-1"
                 style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', textDecoration: 'none' }}>
                 Live status
               </RouterLink>
-              <Toggle checked={page.is_active} onChange={handleToggleActive} label={page.is_active ? 'Active' : 'Inactive'} />
+              <div className="flex items-center justify-center sm:justify-start">
+                <Toggle checked={page.is_active} onChange={handleToggleActive} label={page.is_active ? 'Active' : 'Inactive'} />
+              </div>
             </div>
           </div>
 
@@ -1082,21 +1086,26 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
                 <ShootTypeRow key={t.id} shootType={t} allQuestionnaires={questionnaires} onUpdated={handleUpdateShootType} onDeleted={handleDeleteShootType} />
               ))}
               {addingType && (
-                <div className="flex items-center gap-2 px-4 py-3" style={{ borderTop: page.signup_shoot_types.length > 0 ? '1px solid var(--border)' : 'none' }}>
+                <div className="p-3 space-y-2" style={{ borderTop: page.signup_shoot_types.length > 0 ? '1px solid var(--border)' : 'none' }}>
                   <input value={newTypeName} onChange={e => setNewTypeName(e.target.value)} placeholder="Cosplay Portrait" autoFocus
-                    style={{ flex: 2, background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
-                  <input type="number" min="5" step="5" value={newTypeDuration} onChange={e => setNewTypeDuration(e.target.value)}
-                    style={{ width: 64, background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>min</span>
-                  <select value={newTypeSessionType} onChange={e => setNewTypeSessionType(e.target.value)}
-                    style={{ flex: 1, background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
-                    {SESSION_TYPES.map(st => <option key={st} value={st}>{st}</option>)}
-                  </select>
-                  <button onClick={handleAddShootType} disabled={!newTypeName.trim()} className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
-                    style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>Add</button>
-                  <button onClick={() => setAddingType(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}>
-                    <X size={15} />
-                  </button>
+                    style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <input type="number" min="5" step="5" value={newTypeDuration} onChange={e => setNewTypeDuration(e.target.value)}
+                        style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
+                      <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>min</span>
+                    </div>
+                    <select value={newTypeSessionType} onChange={e => setNewTypeSessionType(e.target.value)}
+                      style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
+                      {SESSION_TYPES.map(st => <option key={st} value={st}>{st}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleAddShootType} disabled={!newTypeName.trim()} className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                      style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>Add</button>
+                    <button onClick={() => setAddingType(false)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1108,30 +1117,33 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
               <GenerateSlotsForm page={page} shootTypes={page.signup_shoot_types} onGenerated={() => load({ silent: true })} />
             </div>
-            <div className="mt-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="mt-2.5">
               <ManualAddSlotForm page={page} shootTypes={page.signup_shoot_types} onAdded={() => load({ silent: true })} />
-              {slots.some(s => !s.claimed_at) && (
-                confirmClearAll ? (
-                  <div className="flex items-center flex-wrap gap-2">
-                    <span className="text-xs" style={{ color: 'var(--danger)' }}>Remove all open slots?</span>
-                    <Button variant="danger" size="sm" onClick={handleClearAllOpenSlots} disabled={clearingAll}>
-                      {clearingAll ? 'Clearing...' : 'Confirm'}
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => setConfirmClearAll(false)}>Cancel</Button>
-                  </div>
-                ) : (
-                  <button onClick={() => setConfirmClearAll(true)} className="text-xs font-medium text-left" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    Clear all open slots
-                  </button>
-                )
-              )}
             </div>
           </div>
 
           {/* Slot summary by day */}
           {Object.keys(slotsByDay).length > 0 && (
             <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Slots by day</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Slots by day</label>
+                {slots.some(s => !s.claimed_at) && !confirmClearAll && (
+                  <button onClick={() => setConfirmClearAll(true)}
+                    className="flex items-center gap-1 text-xs font-medium"
+                    style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <Trash2 size={12} />Clear all open slots
+                  </button>
+                )}
+              </div>
+              {confirmClearAll && (
+                <div className="flex items-center flex-wrap gap-2 mb-1.5 px-3 py-2 rounded-lg" style={{ background: 'var(--danger-subtle)' }}>
+                  <span className="text-xs flex-1" style={{ color: 'var(--danger)' }}>Remove all open slots? Claimed slots won't be affected.</span>
+                  <Button variant="danger" size="sm" onClick={handleClearAllOpenSlots} disabled={clearingAll}>
+                    {clearingAll ? 'Clearing...' : 'Confirm'}
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setConfirmClearAll(false)}>Cancel</Button>
+                </div>
+              )}
               <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
                 {Object.entries(slotsByDay).map(([day, dayData], i) => (
                   <SlotDayRow key={day} day={day} dayData={dayData} isFirst={i === 0}

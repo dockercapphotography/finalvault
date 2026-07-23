@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.1'
+const VERSION = '1.5.2'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,24 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.2 — July 23, 2026">
+                  <Group label="Live Status page">
+                    <Item>New "Happening now" card showing the current or next session, with a countdown</Item>
+                    <Item>Register a walk-up client directly from an open slot -- creates a real booking, same as the public page</Item>
+                    <Item>Mark a claimed slot as no-show to free it back up, without losing the client or session</Item>
+                    <Item>Private per-slot notes, search by name/email, and a Booked-only filter</Item>
+                    <Item>Quick call/text/email actions, and a tappable manual refresh</Item>
+                  </Group>
+                  <Group label="Contracts & Questionnaires">
+                    <Item>Session Detail now shows who a contract or questionnaire was last sent to, and when</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed contract Preview not showing your edits after switching back from Edit</Item>
+                    <Item>Fixed the folder ⋮ menu clipping on mobile, and a long modal title overflowing instead of truncating</Item>
+                    <Item>Fixed "Mark Paid in Full" showing with no financials set, and a linked client not refreshing after Edit Session</Item>
+                    <Item>Fixed several cramped mobile layouts across Client Portal, Account, and Gallery Templates</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.1 — July 21, 2026">
                   <Group label="Bug Fixes">
                     <Item>Fixed Sign-ups (and Dashboard's grid Display control) being completely unreachable on mobile -- both now live inside the mobile Filters & sort sheet</Item>

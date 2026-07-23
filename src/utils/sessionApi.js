@@ -308,3 +308,21 @@ export async function setSessionQuestionnaires(sessionId, questionnaireIds) {
     })))
   if (error) throw error
 }
+
+// Returns the most recent send record per questionnaire for a session, as
+// { [questionnaire_id]: { sent_to_name, sent_to_email, sent_at } }. Used to
+// show "Sent to X · date" next to each attached questionnaire.
+export async function getQuestionnaireSends(sessionId) {
+  const { supabase } = await import('../supabaseClient.js')
+  const { data, error } = await supabase
+    .from('questionnaire_sends')
+    .select('questionnaire_id, sent_to_name, sent_to_email, sent_at')
+    .eq('session_id', sessionId)
+    .order('sent_at', { ascending: false })
+  if (error) throw error
+  const latest = {}
+  for (const row of data ?? []) {
+    if (!latest[row.questionnaire_id]) latest[row.questionnaire_id] = row
+  }
+  return latest
+}

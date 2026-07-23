@@ -4,6 +4,50 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.2 — July 23, 2026
+
+### New Features
+
+**Live Status page**
+- "Happening now" card at the top of the page shows the current time and whichever session is active right now (or the next upcoming one, with a countdown), refreshing automatically -- independent of whichever day tab is currently selected
+- Tap an open slot to register a walk-up client on the spot (name, email, phone, pronouns) -- calls the exact same `claim_signup_slot` RPC the public booking page uses, so the resulting client match/create, session creation, questionnaire assignment, and confirmation/notification emails are identical to a normal signup
+- "Mark as no-show" frees a claimed slot back to open without touching the client or session records, which stay in your history
+- Private, photographer-only notes per slot -- never shown to the client
+- Search by name or email, and a "Booked only" filter, both via the same shared Filters & sort component used across the rest of the app
+- Quick call/text/email actions directly on each claimed slot; consolidated into a single "Contact" action sheet on mobile, kept as three separate icons on desktop where there's room
+- The Live/Reconnecting badge is now a tappable manual refresh, with a spinner and a minimum visible duration so the tap always registers as "something happened"
+- Desktop-only anchored popover (matching the app's existing Filters & sort pop-up pattern) for slot actions and walk-up registration, instead of a mobile-style slide-up sheet; mobile keeps the sheet
+
+**Contracts & Questionnaires**
+- Session Detail now shows who a contract or questionnaire was last sent to and when, via a new `questionnaire_sends` table tracking every send
+
+**Client linking**
+- Galleries now support linking multiple clients at creation time, matching what Gallery Settings already supported after the fact
+- Gallery Detail's linked-client badge now reads from `gallery_clients` (the real source of truth since the multi-client migration) instead of the legacy, single-client `client_id` column
+
+**Account**
+- The Profile page's street address field now uses the same Google Places autocomplete already used for client and session-venue addresses elsewhere in the app -- picking a suggestion auto-fills City/State/ZIP, which stay separately editable
+
+### Bug Fixes
+
+- Fixed the contract Preview pane always showing the original template text instead of your edits after switching back from Edit
+- Fixed the folder card's ⋮ dropdown menu (Rename/Set Cover/Move/Delete) getting clipped or rendering behind other content on mobile
+- Fixed a long modal title (e.g. a signup page name) overflowing past the modal edge instead of truncating -- a shared-component fix, so it covers every modal in the app
+- Fixed "Mark Paid in Full" showing on a session with no fee, retainer, or balance set
+- Fixed a session's linked client not refreshing on the page immediately after attaching one via Edit Session
+- Fixed the contract status line showing a raw, sometimes-incorrect database value instead of a readable label (the mapping referenced a status value that doesn't exist in the schema)
+- Fixed the signup page detail modal's link/copy/status row overflowing on desktop, and its mobile Live-status/Active row spacing
+- Fixed the "Add shoot type" and shoot-type edit rows cramming six controls into one unbreakable row on mobile instead of stacking
+
+### UI Polish
+
+- Removed the account-level "Booking emails" section, superseded by the per-signup-page note fields added in v1.5.0
+- Removed the green "filled in" dot next to Payment/Social links
+- Relocated "Clear all open slots" out of the generate/add-slot row and into the Slots-by-day section header, where it reads as an intentional action rather than an afterthought
+- Fixed cramped mobile layouts in the Client Portal's password and generate-link rows, the Account Profile page's business-info grids, and the Gallery Templates list row
+
+---
+
 ## v1.5.1 — July 21, 2026
 
 ### Bug Fixes

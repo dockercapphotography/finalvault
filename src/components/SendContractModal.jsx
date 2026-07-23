@@ -295,7 +295,7 @@ export default function SendContractModal({ client, galleries = [], sessionData 
                   fontSize: 13, lineHeight: 1.8, color: 'var(--text)',
                   fontFamily: 'inherit', margin: 0,
                 }}>
-                  {editing ? editedBody : resolvedBody}
+                  {editedBody}
                 </pre>
               )}
             </div>

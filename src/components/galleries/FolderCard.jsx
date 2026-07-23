@@ -519,19 +519,20 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
     <>
       <div
         ref={setNodeRef}
-        className="rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-md"
+        className="rounded-xl overflow-visible relative cursor-pointer transition-all hover:shadow-md"
         style={{
           background: 'var(--surface)',
           border: isOver ? '2px solid #6366f1' : '1px solid var(--border)',
           boxShadow: isOver ? '0 0 0 4px rgba(99,102,241,0.15)' : undefined,
           transition: 'border-color 0.15s, box-shadow 0.15s',
+          zIndex: menuOpen ? 20 : undefined,
         }}
         onClick={() => !menuOpen && !renaming && !deleteConfirm && onNavigate?.(folder)}
         onMouseEnter={e => { if (!isOver) e.currentTarget.style.borderColor = 'var(--border-strong)' }}
         onMouseLeave={e => { if (!isOver) e.currentTarget.style.borderColor = 'var(--border)' }}
       >
         {/* Cover area */}
-        <div className="aspect-[4/3] relative overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
+        <div className="aspect-[4/3] relative overflow-hidden rounded-t-xl" style={{ background: 'var(--surface-raised)' }}>
           <CoverGrid
             coverUrls={coverUrls}
             folderCoverUrl={folderCoverUrl}
@@ -556,64 +557,66 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
               </div>
             </div>
           )}
+        </div>
 
-          {/* ⋮ menu */}
-          <div ref={menuRef} className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
-            <button
-              onClick={() => setMenuOpen(v => !v)}
-              className="w-7 h-7 rounded-full flex items-center justify-center"
-              style={{
-                background: menuOpen ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)',
-                color: '#fff', border: 'none', cursor: 'pointer', backdropFilter: 'blur(4px)',
-              }}
+        {/* ⋮ menu — sits outside the cover area's own overflow-hidden box (which exists
+            only to clip the cover image to its rounded corners) so the dropdown isn't
+            clipped when it's taller than the remaining space in the cover area. */}
+        <div ref={menuRef} className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{
+              background: menuOpen ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)',
+              color: '#fff', border: 'none', cursor: 'pointer', backdropFilter: 'blur(4px)',
+            }}
+          >
+            <MoreVertical size={13} />
+          </button>
+
+          {menuOpen && (
+            <div
+              className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-30"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 160 }}
             >
-              <MoreVertical size={13} />
-            </button>
-
-            {menuOpen && (
-              <div
-                className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-30"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 160 }}
+              <button
+                onClick={() => { setMenuOpen(false); setRenaming(true); setRenameName(folder.name) }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+                style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <button
-                  onClick={() => { setMenuOpen(false); setRenaming(true); setRenameName(folder.name) }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <Pencil size={13} />Rename
-                </button>
-                <button
-                  onClick={() => { setMenuOpen(false); setShowCoverPicker(true) }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <ImageIcon size={13} />Set Cover
-                </button>
-                <button
-                  onClick={() => { setMenuOpen(false); setShowMovePicker(true) }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <FolderInput size={13} />Move to...
-                </button>
-                <button
-                  onClick={() => { setMenuOpen(false); handleDeleteConfirm() }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <Trash2 size={13} />Delete
-                </button>
-              </div>
-            )}
-          </div>
+                <Pencil size={13} />Rename
+              </button>
+              <button
+                onClick={() => { setMenuOpen(false); setShowCoverPicker(true) }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+                style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <ImageIcon size={13} />Set Cover
+              </button>
+              <button
+                onClick={() => { setMenuOpen(false); setShowMovePicker(true) }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+                style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <FolderInput size={13} />Move to...
+              </button>
+              <button
+                onClick={() => { setMenuOpen(false); handleDeleteConfirm() }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+                style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <Trash2 size={13} />Delete
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Body */}

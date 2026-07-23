@@ -22,6 +22,7 @@ import WatermarkCard from '../components/watermarks/WatermarkCard.jsx'
 import SettingsSection from '../components/ui/SettingsSection.jsx'
 import Tabs from '../components/ui/Tabs.jsx'
 import Input from '../components/ui/Input.jsx'
+import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
 import Admin from './Admin.jsx'
 import MarkdownToolbar from '../components/ui/MarkdownToolbar.jsx'
@@ -584,8 +585,6 @@ function ProfileTab({ user, onSaveState }) {
   const [businessZip, setBusinessZip] = useState('')
   const [businessEmail, setBusinessEmail] = useState('')
   const [businessPhone, setBusinessPhone] = useState('')
-  const [bookingConfirmationNote, setBookingConfirmationNote] = useState('')
-  const [bookingNotificationNote, setBookingNotificationNote] = useState('')
   const [governingState, setGoverningState] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [newEmail, setNewEmail] = useState('')
@@ -606,7 +605,7 @@ function ProfileTab({ user, onSaveState }) {
   useEffect(() => {
     if (!user) return
     Promise.all([
-      supabase.from('photographers').select('display_name, business_name, business_address, business_city, business_state, business_zip, business_email, business_phone, governing_state, avatar_r2_key, logo_r2_key, booking_confirmation_note, booking_notification_note').eq('id', user.id).single(),
+      supabase.from('photographers').select('display_name, business_name, business_address, business_city, business_state, business_zip, business_email, business_phone, governing_state, avatar_r2_key, logo_r2_key').eq('id', user.id).single(),
       supabase.from('photographer_storage').select('*, storage_tiers(name, storage_gb)').eq('photographer_id', user.id).single(),
       supabase.from('galleries').select('id').eq('photographer_id', user.id),
     ]).then(async ([{ data }, { data: storageRow }, { data: galleries }]) => {
@@ -628,8 +627,6 @@ function ProfileTab({ user, onSaveState }) {
         setBusinessZip(data?.business_zip || '')
         setBusinessEmail(data?.business_email || '')
         setBusinessPhone(data?.business_phone || '')
-        setBookingConfirmationNote(data?.booking_confirmation_note || '')
-        setBookingNotificationNote(data?.booking_notification_note || '')
         setGoverningState(data?.governing_state || '')
         if (data?.avatar_r2_key) {
           const { data: { session } } = await supabase.auth.getSession()
@@ -773,9 +770,29 @@ function ProfileTab({ user, onSaveState }) {
           business_zip: businessZip || null,
           business_email: businessEmail || null,
           business_phone: businessPhone || null,
-          booking_confirmation_note: bookingConfirmationNote || null,
-          booking_notification_note: bookingNotificationNote || null,
           governing_state: governingState || null,
+          updated_at: new Date().toISOString()
+        }).eq('id', user.id)
+      if (error) throw error
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  // Saves directly with the values the autocomplete just returned, rather
+  // than calling save() (which would read businessCity/State/Zip from this
+  // render's closure -- still the pre-selection values, since setState
+  // hasn't applied yet when this runs).
+  async function handleAddressSelect({ address, city, state, zip }) {
+    setBusinessAddress(address)
+    if (city) setBusinessCity(city)
+    if (state) setBusinessState(state)
+    if (zip) setBusinessZip(zip)
+    try {
+      const { error } = await supabase.from('photographers').update({
+          business_address: address || null,
+          business_city: city || businessCity || null,
+          business_state: state || businessState || null,
+          business_zip: zip || businessZip || null,
           updated_at: new Date().toISOString()
         }).eq('id', user.id)
       if (error) throw error
@@ -872,12 +889,22 @@ function ProfileTab({ user, onSaveState }) {
             <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style={{ display: 'none' }} onChange={handleLogoSelect} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Business email" value={businessEmail} onChange={setBusinessEmail} onBlur={save} placeholder="contact@yourstudio.com" type="email" />
             <Input label="Business phone" value={businessPhone} onChange={setBusinessPhone} onBlur={save} placeholder="(555) 000-0000" />
           </div>
-          <Input label="Street address" value={businessAddress} onChange={setBusinessAddress} onBlur={save} placeholder="123 Main St" />
-          <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Street address</label>
+            <AddressAutocomplete
+              value={businessAddress}
+              onChange={setBusinessAddress}
+              onSelect={handleAddressSelect}
+              onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
+              onBlur={e => { e.target.style.borderColor = 'var(--border)'; save() }}
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', transition: 'border-color 0.15s' }}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input label="City" value={businessCity} onChange={setBusinessCity} onBlur={save} placeholder="Columbus" />
             <Input label="State" value={businessState} onChange={setBusinessState} onBlur={save} placeholder="OH" />
             <Input label="ZIP" value={businessZip} onChange={setBusinessZip} onBlur={save} placeholder="43215" />
@@ -886,27 +913,6 @@ function ProfileTab({ user, onSaveState }) {
           <div>
             <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Account Email</label>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
-          </div>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection title="Booking emails" description="Custom text included in the emails sent when someone books a session signup slot. Leave blank to omit.">
-        <div className="px-5 py-4 space-y-4">
-          <div>
-            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Client confirmation note</label>
-            <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Shown in the confirmation email sent to the client, above the booking details.</p>
-            <textarea value={bookingConfirmationNote} onChange={e => setBookingConfirmationNote(e.target.value)} onBlur={save}
-              placeholder="e.g. Please arrive 10 minutes early. Parking is available on the 3rd floor."
-              rows={3}
-              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', resize: 'vertical' }} />
-          </div>
-          <div>
-            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Photographer notification note</label>
-            <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Shown in the notification email sent to you when a booking comes in.</p>
-            <textarea value={bookingNotificationNote} onChange={e => setBookingNotificationNote(e.target.value)} onBlur={save}
-              placeholder="e.g. Remember to confirm equipment availability for convention shoots."
-              rows={3}
-              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', resize: 'vertical' }} />
           </div>
         </div>
       </SettingsSection>
@@ -1239,20 +1245,22 @@ function GalleryTemplatesTab({ onSaveState }) {
             const theme = getTheme(t.theme_color)
             return (
               <div key={t.id}>
-                <div className="flex items-center gap-4 px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
-                  <div className="shrink-0 flex gap-1 items-center">
-                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.bg, borderColor: 'var(--border)' }} />
-                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.surface, borderColor: 'var(--border)' }} />
-                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.accent, borderColor: 'var(--border)' }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
-                      {t.is_builtin && <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>Built-in</span>}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="shrink-0 flex gap-1 items-center">
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.bg, borderColor: 'var(--border)' }} />
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.surface, borderColor: 'var(--border)' }} />
+                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.accent, borderColor: 'var(--border)' }} />
                     </div>
-                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{theme.label} · {t.sets.join(', ')}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                        {t.is_builtin && <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>Built-in</span>}
+                      </div>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{theme.label} · {t.sets.join(', ')}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
                     <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Copy size={13} style={{ color: 'var(--text-muted)' }} /></button>
                     <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Pencil size={13} style={{ color: 'var(--text-muted)' }} /></button>
                     <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete" className="p-1.5 rounded-lg"
@@ -1530,7 +1538,6 @@ function LinksTab({ platforms, dbColumn, onSaveState }) {
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
               onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} />
           </div>
-          {links[platform.id] && <div className="shrink-0 w-2 h-2 rounded-full" style={{ background: 'var(--success)' }} />}
         </div>
       ))}
     </div>
