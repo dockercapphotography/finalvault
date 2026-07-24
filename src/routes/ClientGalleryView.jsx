@@ -613,12 +613,12 @@ export default function ClientGalleryView() {
       const keys = images.map(i => i.original_r2_key)
       const names = hires ? images.map(i => i.file_name) : images.map(i => i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
       const watermarkIds = images.map(i => i.watermark_id || null)
-      const watermarkConfigs = images.map(i => i.watermarks || null)
+      const webKeys = images.map(i => i.web_r2_key || null)
       await downloadZip(
         gallery.id, token, keys, names, gallery.title, pin,
         hires ? 'hires' : 'web',
         watermarkIds,
-        watermarkConfigs,
+        webKeys,
         hires
           ? (bytes) => setZipProgress(prev => ({ ...prev, bytes }))
           : (current, t) => setZipProgress(prev => ({ ...prev, current }))

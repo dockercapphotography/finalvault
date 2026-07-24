@@ -384,10 +384,12 @@ export async function downloadOriginal(originalR2Key, fileName, shareToken = nul
 /**
  * Download a ZIP of multiple images.
  *
- * size='hires': hits the worker, ZIPs raw originals (fast, no CPU issue)
- * size='web':   client-side processing — fetches each original, resizes to 2048px,
- *               composites watermark via canvas, encodes JPEG, ZIPs in browser.
- *               Sequential to keep memory manageable.
+ * size='hires': hits the worker, ZIPs raw originals in one streamed
+ *               response (worker-side, no CPU issue on our end).
+ * size='web':   worker resizes + watermarks each image server-side (same
+ *               pipeline as the single-image "download web-size" button),
+ *               we just collect the finished bytes into a ZIP in the
+ *               browser. Sequential to keep memory manageable.
  *
  * @param {string} galleryId
  * @param {string} shareToken
@@ -396,13 +398,13 @@ export async function downloadOriginal(originalR2Key, fileName, shareToken = nul
  * @param {string} galleryTitle
  * @param {string|null} downloadPin
  * @param {string} size               - 'web' | 'hires'
- * @param {Array<string|null>} watermarkIds - unused, kept for compat
- * @param {Array<object|null>} watermarkConfigs - image.watermarks objects (r2_key, opacity, position, scale)
+ * @param {Array<string|null>} watermarkIds - image.watermark_id values, used for the size='web' fallback path when web_key is unavailable
+ * @param {Array<string|null>} webKeys - image.web_r2_key values, used for the size='web' fast path (pre-generated JPEG, skips server-side WASM processing)
  * @param {function} onProgress       - called with (current, total) after each image
  */
-export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = [], galleryTitle = 'gallery', downloadPin = null, size = 'hires', watermarkIds = [], watermarkConfigs = [], onProgress = null) {
+export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = [], galleryTitle = 'gallery', downloadPin = null, size = 'hires', watermarkIds = [], webKeys = [], onProgress = null) {
   if (size === 'web') {
-    return downloadZipClientSide(imageKeys, fileNames, galleryTitle, shareToken, downloadPin, watermarkConfigs, onProgress)
+    return downloadZipClientSide(imageKeys, fileNames, galleryTitle, shareToken, downloadPin, watermarkIds, webKeys, onProgress)
   }
 
   // Hires: worker streams the ZIP back one image at a time — raw originals,
@@ -443,118 +445,67 @@ export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = 
 }
 
 /**
- * Client-side web ZIP processing.
- * Fetches each original, resizes + watermarks via canvas, encodes JPEG, ZIPs with JSZip.
- * Sequential to keep peak memory to one image at a time.
+ * Web ZIP assembly.
+ * Requests size=web per image -- the Worker resizes and watermarks
+ * server-side (same pipeline the single-image "download web-size" button
+ * uses), including allow_hires_download permission not applying here,
+ * since size=web never returns a hi-res file regardless of that setting.
+ * We just collect the already-finished bytes into a ZIP. Sequential to
+ * keep peak memory to one image at a time, same as before.
  */
-async function downloadZipClientSide(imageKeys, fileNames, galleryTitle, shareToken, downloadPin, watermarkConfigs, onProgress) {
+// Worker allows 100 req/min/IP on /download/ -- 650ms between requests
+// keeps a full batch at ~92/min, under the limit with margin.
+const DOWNLOAD_PACE_MS = 650
+const MAX_429_RETRIES = 3
+
+async function downloadZipClientSide(imageKeys, fileNames, galleryTitle, shareToken, downloadPin, watermarkIds, webKeys, onProgress) {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
   const total = imageKeys.length
-
-  // Pre-fetch unique watermark images as blob URLs (keyed by r2_key)
-  const wmBlobCache = {}
-  for (const wm of watermarkConfigs) {
-    if (wm?.r2_key && !wmBlobCache[wm.r2_key]) {
-      try {
-        const headers = { 'X-Share-Token': shareToken }
-        if (downloadPin) headers['X-Download-Pin'] = downloadPin
-        const resp = await fetch(`${WORKER_URL}/watermark/${encodeURIComponent(wm.r2_key)}`, { headers, credentials: 'omit' })
-        if (resp.ok) wmBlobCache[wm.r2_key] = URL.createObjectURL(await resp.blob())
-      } catch { /* skip watermark if fetch fails */ }
-    }
-  }
+  let lastRequestAt = 0
 
   for (let i = 0; i < imageKeys.length; i++) {
     const key = imageKeys[i]
     const fileName = fileNames[i] || key.split('/').pop().replace(/\.[^.]+$/, '_web.jpg')
-    const wmConfig = watermarkConfigs[i] || null
-    const wmBlobUrl = wmConfig?.r2_key ? wmBlobCache[wmConfig.r2_key] : null
+    const watermarkId = watermarkIds[i] || null
+    const webKey = webKeys[i] || null
 
     try {
-      // Fetch original through worker
       const headers = { 'X-Share-Token': shareToken }
       if (downloadPin) headers['X-Download-Pin'] = downloadPin
-      const params = new URLSearchParams({ size: 'hires' })
-      const resp = await fetch(`${WORKER_URL}/download/${encodeURIComponent(key)}?${params}`, { headers, credentials: 'omit' })
+      const params = new URLSearchParams({ size: 'web' })
+      if (watermarkId) params.set('watermark_id', watermarkId)
+      if (webKey) params.set('web_key', encodeURIComponent(webKey))
+      const url = `${WORKER_URL}/download/${encodeURIComponent(key)}?${params}`
+
+      let resp
+      for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
+        const waitMs = lastRequestAt + DOWNLOAD_PACE_MS - Date.now()
+        if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs))
+        lastRequestAt = Date.now()
+
+        resp = await fetch(url, { headers, credentials: 'omit' })
+        if (resp.status !== 429) break
+        if (attempt === MAX_429_RETRIES) break
+
+        const retryAfterSec = parseInt(resp.headers.get('Retry-After'), 10)
+        const backoffMs = Number.isFinite(retryAfterSec) ? retryAfterSec * 1000 : 5000
+        await new Promise(r => setTimeout(r, backoffMs))
+      }
       if (!resp.ok) continue
 
       const blob = await resp.blob()
-      const jpegBlob = await processImageClientSide(blob, wmConfig, wmBlobUrl)
-      zip.file(fileName, jpegBlob)
+      zip.file(fileName, blob)
     } catch (err) {
-      console.error(`Failed to process ${fileName}:`, err)
+      console.error(`Failed to fetch ${fileName}:`, err)
     }
 
     onProgress?.(i + 1, total)
   }
 
-  // Clean up watermark blob URLs
-  for (const url of Object.values(wmBlobCache)) URL.revokeObjectURL(url)
-
   const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' })
   const safeName = galleryTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()
   triggerBrowserDownload(zipBlob, `${safeName}.zip`)
-}
-
-/**
- * Resize image to 2048px long edge, composite watermark, encode as JPEG.
- * Returns a Blob.
- */
-async function processImageClientSide(imageBlob, wmConfig, wmBlobUrl) {
-  const MAX_LONG_EDGE = 2048
-  const bitmap = await createImageBitmap(imageBlob)
-  const { width: origW, height: origH } = bitmap
-
-  let newW = origW
-  let newH = origH
-  if (origW > MAX_LONG_EDGE || origH > MAX_LONG_EDGE) {
-    if (origW >= origH) {
-      newW = MAX_LONG_EDGE
-      newH = Math.round((origH / origW) * MAX_LONG_EDGE)
-    } else {
-      newH = MAX_LONG_EDGE
-      newW = Math.round((origW / origH) * MAX_LONG_EDGE)
-    }
-  }
-
-  const canvas = new OffscreenCanvas(newW, newH)
-  const ctx = canvas.getContext('2d')
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(bitmap, 0, 0, newW, newH)
-  bitmap.close()
-
-  // Composite watermark if available
-  if (wmConfig && wmBlobUrl) {
-    try {
-      const wmBitmap = await createImageBitmap(await fetch(wmBlobUrl).then(r => r.blob()))
-      const wmW = Math.round(newW * (wmConfig.scale ?? 0.15))
-      const wmH = Math.round((wmBitmap.height / wmBitmap.width) * wmW)
-      const padding = Math.round(newW * 0.02)
-      const { x, y } = getWatermarkPosition(wmConfig.position, newW, newH, wmW, wmH, padding)
-      ctx.save()
-      ctx.globalAlpha = wmConfig.opacity ?? 0.5
-      ctx.drawImage(wmBitmap, x, y, wmW, wmH)
-      ctx.restore()
-      wmBitmap.close()
-    } catch (err) {
-      console.warn('Watermark composite failed:', err)
-    }
-  }
-
-  return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.88 })
-}
-
-function getWatermarkPosition(position, cW, cH, wmW, wmH, pad) {
-  switch (position) {
-    case 'top-left':     return { x: pad, y: pad }
-    case 'top-right':    return { x: cW - wmW - pad, y: pad }
-    case 'bottom-left':  return { x: pad, y: cH - wmH - pad }
-    case 'center':       return { x: Math.round((cW - wmW) / 2), y: Math.round((cH - wmH) / 2) }
-    case 'bottom-right':
-    default:             return { x: cW - wmW - pad, y: cH - wmH - pad }
-  }
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────

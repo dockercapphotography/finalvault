@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import {CheckCircle, Copy, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
+import WebImageBackfillSection from '../components/account/WebImageBackfillSection.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
   getWatermarks, uploadWatermark, updateWatermark,
@@ -2147,7 +2148,7 @@ export default function Account() {
 
   if (!user) return null
 
-  const ACCOUNT_TABS = isAdmin ? [...BASE_ACCOUNT_TABS, { id: 'admin', label: 'Admin' }] : BASE_ACCOUNT_TABS
+  const ACCOUNT_TABS = isAdmin ? [...BASE_ACCOUNT_TABS, { id: 'maintenance', label: 'Maintenance' }, { id: 'admin', label: 'Admin' }] : BASE_ACCOUNT_TABS
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -2195,6 +2196,7 @@ export default function Account() {
       )}
       {activeTab === 'notifications' && <NotificationsTab user={user} onSaveState={setSaveState} />}
       {activeTab === 'tags'          && <TagsTab onSaveState={setSaveState} />}
+      {activeTab === 'maintenance'   && isAdmin && <WebImageBackfillSection user={user} />}
       {activeTab === 'admin'         && isAdmin && <Admin />}
 
       <SaveIndicator state={saveState} />

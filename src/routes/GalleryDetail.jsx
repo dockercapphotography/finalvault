@@ -337,46 +337,54 @@ export default function GalleryDetail() {
         document.body.appendChild(a); a.click()
         document.body.removeChild(a); URL.revokeObjectURL(url)
       } else {
-        // Web size: client-side processing — resize + watermark via canvas + JSZip
+        // Web size: worker resizes + watermarks server-side (size=web,
+        // same pipeline the single-image web-size download uses) -- we
+        // just collect the finished bytes into a ZIP. No client-side
+        // image processing needed anymore.
         const { default: JSZip } = await import('jszip')
         const zip = new JSZip()
         const { data: { session } } = await supabase.auth.getSession()
         const token = session.access_token
         const workerUrl = import.meta.env.VITE_R2_WORKER_URL
 
-        // Pre-fetch unique watermark images
-        const wmBlobCache = {}
-        for (const img of selected) {
-          const wm = img.watermarks
-          if (wm?.r2_key && !wmBlobCache[wm.r2_key]) {
-            try {
-              const resp = await fetch(`${workerUrl}/watermark/${encodeURIComponent(wm.r2_key)}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              })
-              if (resp.ok) wmBlobCache[wm.r2_key] = URL.createObjectURL(await resp.blob())
-            } catch { /* skip */ }
-          }
-        }
+        // Worker allows 100 req/min/IP on /download/ -- 650ms between
+        // requests keeps a full batch at ~92/min, under the limit with
+        // margin. Same pacing/retry constants as the client-facing ZIP
+        // loop in clientApi.js, kept consistent on purpose.
+        const DOWNLOAD_PACE_MS = 650
+        const MAX_429_RETRIES = 3
+        let lastRequestAt = 0
 
         for (let i = 0; i < selected.length; i++) {
           const img = selected[i]
           const fileName = names[i]
-          const wmConfig = img.watermarks || null
-          const wmBlobUrl = wmConfig?.r2_key ? wmBlobCache[wmConfig.r2_key] : null
           try {
-            const resp = await fetch(
-              `${workerUrl}/download/${encodeURIComponent(img.original_r2_key)}?size=hires`,
-              { headers: { Authorization: `Bearer ${token}` } }
-            )
+            const params = new URLSearchParams({ size: 'web' })
+            if (img.watermark_id) params.set('watermark_id', img.watermark_id)
+            if (img.web_r2_key) params.set('web_key', encodeURIComponent(img.web_r2_key))
+            const url = `${workerUrl}/download/${encodeURIComponent(img.original_r2_key)}?${params}`
+
+            let resp
+            for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
+              const waitMs = lastRequestAt + DOWNLOAD_PACE_MS - Date.now()
+              if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs))
+              lastRequestAt = Date.now()
+
+              resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+              if (resp.status !== 429) break
+              if (attempt === MAX_429_RETRIES) break
+
+              const retryAfterSec = parseInt(resp.headers.get('Retry-After'), 10)
+              const backoffMs = Number.isFinite(retryAfterSec) ? retryAfterSec * 1000 : 5000
+              await new Promise(r => setTimeout(r, backoffMs))
+            }
             if (!resp.ok) continue
+
             const blob = await resp.blob()
-            const jpegBlob = await processImageForZip(blob, wmConfig, wmBlobUrl)
-            zip.file(fileName, jpegBlob)
-          } catch (err) { console.error('Failed to process', fileName, err) }
+            zip.file(fileName, blob)
+          } catch (err) { console.error('Failed to fetch', fileName, err) }
           setZipProgress(prev => ({ ...prev, current: i + 1 }))
         }
-
-        for (const url of Object.values(wmBlobCache)) URL.revokeObjectURL(url)
 
         const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' })
         const url = URL.createObjectURL(zipBlob)
@@ -393,44 +401,6 @@ export default function GalleryDetail() {
     } finally {
       setDownloadingZip(false); setZipProgress(null)
     }
-  }
-
-  async function processImageForZip(imageBlob, wmConfig, wmBlobUrl) {
-    const MAX_LONG_EDGE = 2048
-    const bitmap = await createImageBitmap(imageBlob)
-    const { width: origW, height: origH } = bitmap
-    let newW = origW, newH = origH
-    if (origW > MAX_LONG_EDGE || origH > MAX_LONG_EDGE) {
-      if (origW >= origH) { newW = MAX_LONG_EDGE; newH = Math.round((origH / origW) * MAX_LONG_EDGE) }
-      else { newH = MAX_LONG_EDGE; newW = Math.round((origW / origH) * MAX_LONG_EDGE) }
-    }
-    const canvas = new OffscreenCanvas(newW, newH)
-    const ctx = canvas.getContext('2d')
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(bitmap, 0, 0, newW, newH)
-    bitmap.close()
-    if (wmConfig && wmBlobUrl) {
-      try {
-        const wmBitmap = await createImageBitmap(await fetch(wmBlobUrl).then(r => r.blob()))
-        const wmW = Math.round(newW * (wmConfig.scale ?? 0.15))
-        const wmH = Math.round((wmBitmap.height / wmBitmap.width) * wmW)
-        const padding = Math.round(newW * 0.02)
-        const pos = wmConfig.position || 'bottom-right'
-        const positions = {
-          'center':       [Math.round((newW - wmW) / 2), Math.round((newH - wmH) / 2)],
-          'top-left':     [padding, padding],
-          'top-right':    [newW - wmW - padding, padding],
-          'bottom-left':  [padding, newH - wmH - padding],
-          'bottom-right': [newW - wmW - padding, newH - wmH - padding],
-        }
-        const [x, y] = positions[pos] || positions['bottom-right']
-        ctx.save(); ctx.globalAlpha = wmConfig.opacity ?? 0.5
-        ctx.drawImage(wmBitmap, x, y, wmW, wmH)
-        ctx.restore(); wmBitmap.close()
-      } catch { /* continue without watermark */ }
-    }
-    return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.80 })
   }
 
   async function handleSetAsCover(image) {
