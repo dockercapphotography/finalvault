@@ -16,10 +16,15 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
+    <script type="module">
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(err => {
+          // injectRegister: null means we register manually -- and in
+          // dev, vite-plugin-pwa serves the injectManifest worker at
+          // /dev-sw.js?dev-sw, not /sw.js (that's prod-only). Requires
+          // this to be a module script so import.meta.env resolves.
+          const swUrl = import.meta.env.MODE === 'production' ? '/sw.js' : '/dev-sw.js?dev-sw'
+          navigator.serviceWorker.register(swUrl, { type: import.meta.env.MODE === 'production' ? 'classic' : 'module' }).catch(err => {
             console.warn('Service worker registration failed:', err)
           })
         })

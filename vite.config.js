@@ -25,43 +25,22 @@ export default defineConfig({
           { src: 'icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        runtimeCaching: [
-          {
-            // Only cache preview images — NOT originals, downloads, watermarks or zip
-            urlPattern: ({ url }) =>
-              url.hostname.includes('workers.dev') &&
-              url.pathname.includes('/preview/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'r2-preview-cache',
-              fetchOptions: { credentials: 'omit' },
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
-              cacheableResponse: { statuses: [0, 200] },
-            }
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] }
-            }
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'gstatic-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] }
-            }
-          }
-        ]
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
       },
-      devOptions: { enabled: false }
+      // Registration is already handled manually in index.html
+      // (navigator.serviceWorker.register('/sw.js')) -- disable the
+      // plugin's own auto-injected registration script so we don't
+      // register the worker twice.
+      injectRegister: null,
+      // Was false under generateSW (the plugin did nothing in dev, so
+      // public/sw.js was served as-is). Now true so dev runs the real
+      // injectManifest-built worker -- needed to test push locally,
+      // and closes the dev/prod behavior gap that existed before.
+      devOptions: { enabled: true, type: 'module' }
     })
   ],
   define: {

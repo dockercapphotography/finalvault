@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {CheckCircle, Copy, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
+import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
   getWatermarks, uploadWatermark, updateWatermark,
@@ -1615,6 +1616,8 @@ function NotificationsTab({ user, onSaveState }) {
           </p>
         </div>
       </SettingsSection>
+
+      <PushNotificationsSection photographerId={user?.id} />
     </div>
   )
 }
