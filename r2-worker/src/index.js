@@ -12,7 +12,13 @@ import { handleContractPdf } from './handlers/contract-pdf.js'
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Share-Token, X-Download-Pin, X-Hires, X-Download-Size'
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Share-Token, X-Download-Pin, X-Hires, X-Download-Size',
+  // Lets the browser cache preflight results instead of sending a fresh
+  // OPTIONS request before every single call -- confirmed today that
+  // this was roughly doubling real network traffic on any multi-request
+  // flow (ZIP downloads especially). Only affects preflight caching;
+  // has no effect on the actual GET/POST/DELETE responses.
+  'Access-Control-Max-Age': '86400',
 }
 
 function ipKey(request) {
