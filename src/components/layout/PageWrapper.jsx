@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.2'
+const VERSION = '1.5.3'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,20 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.3 — July 24, 2026">
+                  <Group label="Live Status page">
+                    <Item>Real push notifications for slot claims -- works even with the app closed, not just the tab open. Enable per-device from Account → Notifications</Item>
+                    <Item>A short chime now plays alongside the existing vibration, closing the gap on iOS where vibration is blocked</Item>
+                  </Group>
+                  <Group label="Account">
+                    <Item>New Maintenance tab (admins for now) to backfill the web-size JPEG for images that predate automatic generation at upload</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed web-size ZIP downloads failing outright when a gallery had hi-res downloads disabled</Item>
+                    <Item>Fixed large ZIP downloads silently dropping images partway through by hitting the download rate limit with no backoff</Item>
+                    <Item>Fixed a CORS preflight caching gap that was roughly doubling network requests on any download flow</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.2 — July 23, 2026">
                   <Group label="Live Status page">
                     <Item>New "Happening now" card showing the current or next session, with a countdown</Item>

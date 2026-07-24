@@ -4,6 +4,25 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.3 — July 24, 2026
+
+### New Features
+
+**Live Status page**
+- Real push notifications for slot claims -- works even with the app closed or backgrounded, not just while the Live Status tab is open. Enable per-device from Account -> Notifications, with a list showing which devices are currently subscribed
+- A short audio chime now plays alongside the existing vibration when a slot is claimed, closing the gap on iOS where the Vibration API itself is blocked
+
+**Account**
+- New Maintenance tab (visible to admins for now) with a one-time tool to backfill the web-size JPEG for any image that predates automatic generation at upload time
+
+### Bug Fixes
+
+- Fixed web-size ZIP downloads -- both the client share-link "download all" and the admin bulk download -- failing outright whenever a gallery had high-resolution downloads disabled. The download loop was requesting raw, full-resolution bytes even when building a web-size archive, which incorrectly required hi-res download permission for a feature that never delivers hi-res files. Both now use the same server-side resize/watermark pipeline as the single-image "download web-size" button, and no longer duplicate that processing in the browser
+- Fixed large ZIP downloads silently dropping images partway through the batch by exceeding the download endpoint's rate limit with no backoff. Both download loops now pace requests to stay under the limit and retry automatically on a rate-limit response
+- Fixed the R2 Worker's CORS preflight response not being cached by the browser, which was roughly doubling the number of network requests on any download flow
+
+---
+
 ## v1.5.2 — July 23, 2026
 
 ### New Features

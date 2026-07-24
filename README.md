@@ -10,7 +10,7 @@ Own your delivery experience. No monthly SaaS fees. No compromises.
 
 [Live App](https://finalvault.dockercapphotography.com) · [Report a Bug](https://github.com/dockercapphotography/finalvault/issues) · [Request a Feature](https://github.com/dockercapphotography/finalvault/issues)
 
-![Tests](https://img.shields.io/badge/tests-366%20passing-22c55e?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-370%20passing-22c55e?style=flat-square)
 ![Cloudflare Pages](https://img.shields.io/badge/deployed-Cloudflare%20Pages-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![Supabase](https://img.shields.io/badge/database-Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
 
@@ -50,7 +50,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Business information** — store your business email, phone, address, and governing state in Account → Profile, with the same Google Places address autocomplete used for clients; auto-fills contract variables
 - **Client Portal** — generate a single, durable link for each client showing all their galleries, contracts, and outstanding questionnaires in one place; regenerate anytime to revoke an old link; optionally protect the whole portal with a password, with automatic escalating lockout after repeated wrong attempts and a manual reset if a client gets stuck
 - **Session Signup Pages** — create a public, shareable booking page per event with its own venue, timezone, and shoot types; clients pick a time and book themselves, which atomically creates the client (or matches an existing one) and a real session, with automatic questionnaire assignment, database-enforced double-booking prevention across overlapping shoot types, and calendar-ready confirmation emails (Google Calendar link + .ics)
-- **Live status page** — a dedicated, mobile-friendly view for checking bookings on the go: a "Happening now" card shows the current or next session with a countdown, search and Booked-only filtering, private per-slot notes, one-tap call/text/email, mark-as-no-show to free up a slot without losing the client record, and registering a walk-up client directly against an open slot (creates a real booking identical to a public signup)
+- **Live status page** — a dedicated, mobile-friendly view for checking bookings on the go: a "Happening now" card shows the current or next session with a countdown, search and Booked-only filtering, private per-slot notes, one-tap call/text/email, mark-as-no-show to free up a slot without losing the client record, and registering a walk-up client directly against an open slot (creates a real booking identical to a public signup); real push notifications for new claims, delivered even when the app is closed, with per-device enable/disable
 
 ### For Clients
 
@@ -80,7 +80,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 | Deployment | Cloudflare Pages |
 | Email | Resend |
 | Scheduling | pg_cron (daily digest + expiry reminders) |
-| Testing | Playwright (321 end-to-end tests) |
+| Testing | Playwright (371 end-to-end tests) |
 | Icons | Lucide React |
 
 ---
