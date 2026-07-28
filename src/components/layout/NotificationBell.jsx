@@ -1,7 +1,7 @@
 import BottomSheet from './BottomSheet.jsx'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { useState, useEffect, useRef } from 'react'
-import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle, FileText } from 'lucide-react'
+import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle, FileText, CalendarCheck } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import { formatDate } from '../../utils/formatters.js'
 
@@ -12,6 +12,7 @@ const ACTION_CONFIG = {
   favorite:        { Icon: Heart,         color: '#f43f5e', bg: '#f43f5e15' },
   unfavorite:      { Icon: HeartOff,      color: '#94a3b8', bg: '#94a3b815' },
   comment:         { Icon: MessageCircle, color: '#10b981', bg: '#10b98115' },
+  slot_claimed:    { Icon: CalendarCheck,  color: '#6366f1', bg: '#6366f115' },
 }
 
 function getActionLabel(item) {
@@ -70,6 +71,30 @@ export default function NotificationBell({ mobile = false }) {
     })
   }, [])
 
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel(`notifications-${userId}-${mobile ? 'mobile' : 'desktop'}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+        filter: `photographer_id=eq.${userId}`,
+      }, payload => {
+        const n = payload.new
+        const item = {
+          id: `notif-${n.id}`,
+          action: n.type,
+          occurred_at: n.created_at,
+          notifTitle: n.title,
+          notifBody: n.body,
+          url: n.url,
+        }
+        setItems(prev => [item, ...prev])
+        setUnreadCount(prev => prev + 1)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [userId, mobile])
+
   // Listen for the global "notifications read" event fired by the other bell instance
   useEffect(() => {
     function handleNotificationsRead() {
@@ -114,51 +139,69 @@ export default function NotificationBell({ mobile = false }) {
     setLoading(true)
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-    const { data: galleries } = await supabase
-      .from('galleries')
-      .select('id, title')
-      .eq('photographer_id', uid)
+    const [{ data: galleries }, { data: notifRows }] = await Promise.all([
+      supabase.from('galleries').select('id, title').eq('photographer_id', uid),
+      supabase.from('notifications')
+        .select('id, type, title, body, url, created_at')
+        .eq('photographer_id', uid)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ])
 
-    if (!galleries?.length) { setLoading(false); return }
-
-    const galleryIds = galleries.map(g => g.id)
-    const galleryMap = Object.fromEntries(galleries.map(g => [g.id, g.title]))
-
-    const { data: logs } = await supabase
-      .from('gallery_activity_log')
-      .select(`
-        id, gallery_id, action, occurred_at, metadata, image_id,
-        gallery_viewers (email, display_name)
-      `)
-      .in('gallery_id', galleryIds)
-      .gte('occurred_at', since)
-      .order('occurred_at', { ascending: false })
-      .limit(100)
-
-    if (!logs) { setLoading(false); return }
-
-    const imageIds = [...new Set(logs.filter(l => l.image_id).map(l => l.image_id))]
-    let fileNameMap = {}
-    if (imageIds.length) {
-      const { data: imgs } = await supabase
-        .from('gallery_images')
-        .select('id, file_name')
-        .in('id', imageIds)
-      if (imgs) fileNameMap = Object.fromEntries(imgs.map(i => [i.id, i.file_name]))
-    }
-
-    const enriched = logs.map(log => ({
-      ...log,
-      galleryTitle: galleryMap[log.gallery_id] || 'Unknown gallery',
-      viewerName: log.gallery_viewers?.email ? log.gallery_viewers.email : log.gallery_viewers?.display_name || 'Someone',
-      fileName: log.image_id ? fileNameMap[log.image_id] : null,
+    const notifItems = (notifRows ?? []).map(n => ({
+      id: `notif-${n.id}`,
+      action: n.type,
+      occurred_at: n.created_at,
+      notifTitle: n.title,
+      notifBody: n.body,
+      url: n.url,
     }))
 
-    setItems(enriched)
+    let enrichedGalleryItems = []
+    if (galleries?.length) {
+      const galleryIds = galleries.map(g => g.id)
+      const galleryMap = Object.fromEntries(galleries.map(g => [g.id, g.title]))
+
+      const { data: logs } = await supabase
+        .from('gallery_activity_log')
+        .select(`
+          id, gallery_id, action, occurred_at, metadata, image_id,
+          gallery_viewers (email, display_name)
+        `)
+        .in('gallery_id', galleryIds)
+        .gte('occurred_at', since)
+        .order('occurred_at', { ascending: false })
+        .limit(100)
+
+      if (logs) {
+        const imageIds = [...new Set(logs.filter(l => l.image_id).map(l => l.image_id))]
+        let fileNameMap = {}
+        if (imageIds.length) {
+          const { data: imgs } = await supabase
+            .from('gallery_images')
+            .select('id, file_name')
+            .in('id', imageIds)
+          if (imgs) fileNameMap = Object.fromEntries(imgs.map(i => [i.id, i.file_name]))
+        }
+
+        enrichedGalleryItems = logs.map(log => ({
+          ...log,
+          galleryTitle: galleryMap[log.gallery_id] || 'Unknown gallery',
+          viewerName: log.gallery_viewers?.email ? log.gallery_viewers.email : log.gallery_viewers?.display_name || 'Someone',
+          fileName: log.image_id ? fileNameMap[log.image_id] : null,
+        }))
+      }
+    }
+
+    const combined = [...enrichedGalleryItems, ...notifItems]
+      .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))
+
+    setItems(combined)
 
     const activityUnread = knownLastRead
-      ? enriched.filter(i => new Date(i.occurred_at) > new Date(knownLastRead)).length
-      : enriched.length
+      ? combined.filter(i => new Date(i.occurred_at) > new Date(knownLastRead)).length
+      : combined.length
     setUnreadCount(activityUnread)
 
     setLoading(false)
@@ -307,6 +350,29 @@ function NotificationPanel({ groups, loading, items, onClose, pendingContracts =
             </div>
             {dayItems.map(item => {
               const action = ACTION_CONFIG[item.action] || { Icon: Bell, color: 'var(--text-muted)', bg: 'var(--surface-raised)' }
+
+              if (item.notifTitle) {
+                return (
+                  <button key={item.id} onClick={() => { if (item.url) window.location.href = item.url }}
+                    className="px-4 py-3 flex items-start gap-3 w-full text-left"
+                    style={{ borderBottom: '1px solid var(--border)', background: 'transparent', border: 'none', cursor: item.url ? 'pointer' : 'default' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ background: action.bg }}>
+                      <action.Icon size={14} style={{ color: action.color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm leading-snug font-medium" style={{ color: 'var(--text)' }}>{item.notifTitle}</p>
+                      {item.notifBody && (
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.notifBody}</p>
+                      )}
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{timeAgo(item.occurred_at)}</p>
+                    </div>
+                  </button>
+                )
+              }
+
               return (
                 <div key={item.id} className="px-4 py-3 flex items-start gap-3"
                   style={{ borderBottom: '1px solid var(--border)' }}>
