@@ -1218,7 +1218,30 @@ export default function Sessions() {
   const [showNewSignup, setShowNewSignup] = useState(false)
   const [openSignupPageId, setOpenSignupPageId] = useState(null)
 
-  useEffect(() => { load() }, [])
+  const [photographerId, setPhotographerId] = useState(null)
+
+  useEffect(() => {
+    load()
+    supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id ?? null))
+  }, [])
+
+  useEffect(() => {
+    if (!photographerId) return
+    const channel = supabase
+      .channel(`sessions_${photographerId}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'sessions', filter: `photographer_id=eq.${photographerId}` },
+        () => load({ silent: true })
+      )
+      .subscribe()
+
+    const fallbackInterval = setInterval(() => load({ silent: true }), 30_000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(fallbackInterval)
+    }
+  }, [photographerId])
 
   useEffect(() => {
     if (view === 'signups' && signupPages.length === 0) loadSignupPages()
@@ -1233,13 +1256,13 @@ export default function Sessions() {
     finally { setLoadingSignups(false) }
   }
 
-  async function load() {
-    setLoading(true)
+  async function load({ silent = false } = {}) {
+    if (!silent) setLoading(true)
     try {
       const data = await getSessions()
       setSessions(data)
     } catch (err) { console.error(err) }
-    finally { setLoading(false) }
+    finally { if (!silent) setLoading(false) }
   }
 
   async function handleStatusChange(sessionId, newStatus) {

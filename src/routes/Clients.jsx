@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, User, Mail, Phone, Tag, X, ChevronRight } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { getClients, createClient, deleteClient, getAllTags as fetchAllTags } from '../utils/crmApi.js'
+import { supabase } from '../supabaseClient.js'
 import TagInput from '../components/ui/TagInput.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
@@ -247,12 +248,33 @@ export default function Clients() {
   const [showNewModal, setShowNewModal] = useState(false)
   const [toast, setToast] = useState(null)
 
+  const [photographerId, setPhotographerId] = useState(null)
+
   useEffect(() => {
     load()
+    supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id ?? null))
   }, [])
 
-  async function load() {
-    setLoading(true)
+  useEffect(() => {
+    if (!photographerId) return
+    const channel = supabase
+      .channel(`clients_${photographerId}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'clients', filter: `photographer_id=eq.${photographerId}` },
+        () => load({ silent: true })
+      )
+      .subscribe()
+
+    const fallbackInterval = setInterval(() => load({ silent: true }), 30_000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(fallbackInterval)
+    }
+  }, [photographerId])
+
+  async function load({ silent = false } = {}) {
+    if (!silent) setLoading(true)
     setError(null)
     try {
       const data = await getClients()
@@ -260,7 +282,7 @@ export default function Clients() {
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 

@@ -921,8 +921,33 @@ export default function SessionDetail() {
 
   useEffect(() => { load() }, [id])
 
-  async function load() {
-    setLoading(true)
+  useEffect(() => {
+    const channel = supabase
+      .channel(`session_detail_${id}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'sessions', filter: `id=eq.${id}` },
+        () => load({ silent: true })
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'contracts', filter: `session_id=eq.${id}` },
+        () => load({ silent: true })
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'session_submissions', filter: `session_id=eq.${id}` },
+        () => load({ silent: true })
+      )
+      .subscribe()
+
+    const fallbackInterval = setInterval(() => load({ silent: true }), 30_000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(fallbackInterval)
+    }
+  }, [id])
+
+  async function load({ silent = false } = {}) {
+    if (!silent) setLoading(true)
     try {
       const [s, cs, qs, sq, gs, sgs] = await Promise.all([
         getSession(id),
@@ -959,7 +984,7 @@ export default function SessionDetail() {
     } catch (err) {
       console.error(err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
