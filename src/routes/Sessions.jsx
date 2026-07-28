@@ -5,6 +5,7 @@ import { Plus, CalendarDays, X, LayoutList, Columns, Link2, Copy, Check, Trash2,
   Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
+import { formatPlainTimeRange } from '../utils/formatters.js'
 import {
   getSessions, createSession, updateSession, SESSION_TYPES, SESSION_STATUSES,
   getStatusConfig, getPaymentConfig, PAYMENT_STATUSES, formatSessionDate, SESSION_TYPE_ICON,
@@ -419,7 +420,9 @@ function SessionCard({ session, onClick }) {
       )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {session.type}{session.session_date ? ` · ${new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+          {session.type}
+          {session.session_date ? ` · ${new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+          {session.start_time && session.end_time ? ` · ${formatPlainTimeRange(session.start_time, session.end_time)}` : ''}
         </span>
         {paymentCfg && (
           <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: paymentCfg.color + '18', color: paymentCfg.color }}>{paymentCfg.label}</span>
@@ -1442,7 +1445,7 @@ export default function Sessions() {
                           {[
                             session.clients ? `${session.clients.first_name} ${session.clients.last_name}` : null,
                             session.type,
-                            session.session_date ? new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null,
+                            session.session_date ? formatSessionDate(session.session_date, session.start_time, session.end_time) : null,
                             session.mode === 'walkup' ? 'Walk-up' : null,
                           ].filter(Boolean).join(' · ')}
                         </p>

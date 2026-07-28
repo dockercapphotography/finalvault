@@ -12,6 +12,40 @@ export function formatDate(dateString) {
   return new Date(normalized).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function compactRange(startTime, startPeriod, endTime, endPeriod) {
+  const start = startTime.replace(':00', '')
+  const end = endTime.replace(':00', '')
+  if (startPeriod === endPeriod) return `${start} – ${end} ${endPeriod}`
+  return `${start} ${startPeriod} – ${end} ${endPeriod}`
+}
+
+// For ISO timestamps (signup_slots.start_time/end_time and similar) --
+// needs a timezone since these are stored in UTC.
+export function formatTimeRange(startIso, endIso, timezone) {
+  const split = iso => {
+    const str = new Date(iso).toLocaleTimeString('en-US', { timeZone: timezone, hour: 'numeric', minute: '2-digit', hour12: true })
+    const [time, period] = str.split(' ')
+    return [time, period]
+  }
+  const [startTime, startPeriod] = split(startIso)
+  const [endTime, endPeriod] = split(endIso)
+  return compactRange(startTime, startPeriod, endTime, endPeriod)
+}
+
+// For plain "HH:MM:SS" local-time strings with no date/timezone info
+// (sessions.start_time/end_time) -- used by formatSessionDate.
+export function formatPlainTimeRange(startHHMM, endHHMM) {
+  const split = t => {
+    const [h, m] = t.split(':')
+    const hour = parseInt(h)
+    const period = hour >= 12 ? 'PM' : 'AM'
+    return [`${hour % 12 || 12}:${m}`, period]
+  }
+  const [startTime, startPeriod] = split(startHHMM)
+  const [endTime, endPeriod] = split(endHHMM)
+  return compactRange(startTime, startPeriod, endTime, endPeriod)
+}
+
 export function formatPhone(raw) {
   if (!raw) return ''
   const digits = raw.replace(/\D/g, '')

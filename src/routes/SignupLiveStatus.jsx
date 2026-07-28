@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Wifi, WifiOff, Clock, Mail, Phone, MessageSquare, Search, StickyNote, ChevronRight, CalendarClock, X } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
 import { getSignupPage, getSlots, claimSignupSlot, unclaimSlot, updateSlotNote, getSessionDeletionImpact, deleteSession } from '../utils/signupApi.js'
+import { formatTimeRange } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import FilterSortControl from '../components/ui/FilterSortControl.jsx'
@@ -136,7 +137,7 @@ function NowCard({ activeSlot, nextSlot, shootTypes, now, timezone }) {
             {activeSlot.claimed_at ? activeSlot.client_name : 'Open slot'}
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {activeType?.name || 'Unknown shoot type'} · until {timeLabel(activeSlot.end_time, timezone)}
+            {activeType?.name || 'Unknown shoot type'} · {formatTimeRange(activeSlot.start_time, activeSlot.end_time, timezone)}
           </p>
         </div>
       ) : (
@@ -148,7 +149,7 @@ function NowCard({ activeSlot, nextSlot, shootTypes, now, timezone }) {
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Next: <span style={{ color: 'var(--text)', fontWeight: 500 }}>
               {nextSlot.claimed_at ? nextSlot.client_name : (nextType?.name || 'Open slot')}
-            </span> at {timeLabel(nextSlot.start_time, timezone)} ({formatCountdown(new Date(nextSlot.start_time) - now)})
+            </span> {formatTimeRange(nextSlot.start_time, nextSlot.end_time, timezone)} ({formatCountdown(new Date(nextSlot.start_time) - now)})
           </p>
         </div>
       )}
@@ -233,7 +234,7 @@ function WalkupRegisterModal({ slot, shootType, timezone, onClose, onRegistered 
   return (
     <Modal title="Register walk-up" onClose={onClose} size="sm">
       <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-        {shootType?.name || 'Unknown shoot type'} · {timeLabel(slot.start_time, timezone)}
+        {shootType?.name || 'Unknown shoot type'} · {formatTimeRange(slot.start_time, slot.end_time, timezone)}
       </p>
       <WalkupRegisterFields slot={slot} onRegistered={onRegistered} />
     </Modal>
@@ -255,7 +256,7 @@ function WalkupRegisterSheet({ slot, shootType, timezone, onClose, onRegistered 
         </div>
         {slot && (
           <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-            {shootType?.name || 'Unknown shoot type'} · {timeLabel(slot.start_time, timezone)}
+            {shootType?.name || 'Unknown shoot type'} · {formatTimeRange(slot.start_time, slot.end_time, timezone)}
           </p>
         )}
         {slot && <WalkupRegisterFields slot={slot} onRegistered={onRegistered} />}
@@ -476,7 +477,7 @@ function SlotActionsModal({ slot, onClose, onUnclaimed, onNoteSaved, onReschedul
   return (
     <Modal title={slot.client_name} onClose={onClose} size="sm">
       <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-        {timeLabel(slot.start_time, timezone)} – {timeLabel(slot.end_time, timezone)} · {shootTypes?.find(t => t.id === slot.shoot_type_id)?.name || 'Unknown shoot type'}
+        {formatTimeRange(slot.start_time, slot.end_time, timezone)} · {shootTypes?.find(t => t.id === slot.shoot_type_id)?.name || 'Unknown shoot type'}
       </p>
       <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} onReschedule={onReschedule} />
     </Modal>
@@ -499,7 +500,7 @@ function SlotActionsSheet({ slot, onClose, onUnclaimed, onNoteSaved, onReschedul
               </button>
             </div>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {timeLabel(slot.start_time, timezone)} – {timeLabel(slot.end_time, timezone)} · {shootTypes?.find(t => t.id === slot.shoot_type_id)?.name || 'Unknown shoot type'}
+              {formatTimeRange(slot.start_time, slot.end_time, timezone)} · {shootTypes?.find(t => t.id === slot.shoot_type_id)?.name || 'Unknown shoot type'}
             </p>
           </div>
           <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} onReschedule={onReschedule} />
@@ -913,7 +914,7 @@ export default function SignupLiveStatus() {
                   <div className="flex-1 min-w-0 px-4 py-3 flex items-center justify-between gap-2" style={{ background: 'var(--surface)' }}>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{timeLabel(slot.start_time, page.timezone)}</span>
+                        <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{formatTimeRange(slot.start_time, slot.end_time, page.timezone)}</span>
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
                           style={{
                             background: slot.claimed_at ? 'rgba(99,102,241,0.1)' : 'var(--bg-subtle)',

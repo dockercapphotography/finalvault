@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Check } from 'lucide-react'
 import Modal from '../ui/Modal.jsx'
 import Toggle from '../ui/Toggle.jsx'
+import { formatTimeRange } from '../../utils/formatters.js'
 import { moveSignupSlotBooking, updateSignupSlotTime, zonedTimeToUtc } from '../../utils/signupApi.js'
 
 // Shared between the Live Status page's actions sheet and the Sessions ->
@@ -116,7 +117,7 @@ export default function RescheduleModal({ slot, allSlots, shootTypes, timezone, 
   return (
     <Modal title="Reschedule booking" onClose={onClose} size="md">
       <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-        {slot.client_name} · {currentShootType?.name || 'Unknown shoot type'} · currently {dayLabel(slot.start_time, timezone)}, {timeLabel(slot.start_time, timezone)}
+        {slot.client_name} · {currentShootType?.name || 'Unknown shoot type'} · currently {dayLabel(slot.start_time, timezone)}, {formatTimeRange(slot.start_time, slot.end_time, timezone)}
       </p>
 
       <div className="flex rounded-lg p-0.5 mb-4" style={{ background: 'var(--bg-subtle)' }}>
@@ -157,7 +158,7 @@ export default function RescheduleModal({ slot, allSlots, shootTypes, timezone, 
                   }}>
                   <div className="min-w-0">
                     <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                      {dayLabel(s.start_time, timezone)}, {timeLabel(s.start_time, timezone)}
+                      {dayLabel(s.start_time, timezone)}, {formatTimeRange(s.start_time, s.end_time, timezone)}
                     </p>
                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{st?.name || 'Unknown'}</p>
                   </div>

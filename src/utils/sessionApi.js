@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient.js'
+import { formatPlainTimeRange } from './formatters.js'
 
 const SESSION_TYPES = [
   'Boudoir', 'Convention', 'Corporate', 'Event', 'Family', 'Graduation',
@@ -202,13 +203,13 @@ export function formatSessionDate(date, startTime, endTime) {
   if (!date) return null
   const d = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
   if (!startTime) return d
-  const fmt = t => {
-    const [h, m] = t.split(':')
+  if (!endTime) {
+    const [h, m] = startTime.split(':')
     const hour = parseInt(h)
     const ampm = hour >= 12 ? 'PM' : 'AM'
-    return `${hour % 12 || 12}:${m} ${ampm}`
+    return `${d} · ${hour % 12 || 12}:${m} ${ampm}`
   }
-  return `${d} · ${fmt(startTime)}${endTime ? ` – ${fmt(endTime)}` : ''}`
+  return `${d} · ${formatPlainTimeRange(startTime, endTime)}`
 }
 
 // ── Session Galleries (junction table) ─────────────────────────────────────────
