@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import RescheduleModal from '../components/signup/RescheduleModal.jsx'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { Plus, CalendarDays, X, LayoutList, Columns, Link2, Copy, Check, Trash2, MapPin, Ticket as TicketIcon, Camera,
-  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser } from 'lucide-react'
+  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
@@ -793,7 +794,7 @@ function ManualAddSlotForm({ page, shootTypes, onAdded }) {
   )
 }
 
-function SlotDayRow({ day, dayData, isFirst, timezone, shootTypes, onDeleteSlot }) {
+function SlotDayRow({ day, dayData, isFirst, timezone, shootTypes, onDeleteSlot, onReschedule }) {
   const [expanded, setExpanded] = useState(false)
   const sorted = [...dayData.slots].sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
 
@@ -827,10 +828,17 @@ function SlotDayRow({ day, dayData, isFirst, timezone, shootTypes, onDeleteSlot 
                     <div style={{ color: 'var(--text-muted)' }}>Open</div>
                   )}
                 </div>
-                {!slot.claimed_at && (
+                {!slot.claimed_at ? (
                   <button onClick={() => onDeleteSlot(slot.id)} title="Delete this open slot"
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: 4, flexShrink: 0 }}>
                     <Trash2 size={13} />
+                  </button>
+                ) : (
+                  <button onClick={() => onReschedule(slot)}
+                    className="flex items-center gap-1 text-xs font-medium"
+                    style={{ color: 'var(--text)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', flexShrink: 0 }}>
+                    <CalendarClock size={12} />
+                    Reschedule
                   </button>
                 )}
               </div>
@@ -981,7 +989,10 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
     setSlots(prev => prev.filter(s => s.id !== slotId))
   }
 
+  const [rescheduleSlot, setRescheduleSlot] = useState(null)
+
   return (
+    <>
     <Modal title={page?.title || 'Signup page'} onClose={onClose} size="lg">
       {loading || !page ? (
         <div className="flex items-center justify-center py-16">
@@ -1148,7 +1159,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
                 {Object.entries(slotsByDay).map(([day, dayData], i) => (
                   <SlotDayRow key={day} day={day} dayData={dayData} isFirst={i === 0}
                     timezone={page.timezone} shootTypes={page.signup_shoot_types}
-                    onDeleteSlot={handleDeleteSlot} />
+                    onDeleteSlot={handleDeleteSlot} onReschedule={setRescheduleSlot} />
                 ))}
               </div>
             </div>
@@ -1171,6 +1182,18 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
         </div>
       )}
     </Modal>
+
+    {rescheduleSlot && (
+      <RescheduleModal
+        slot={rescheduleSlot}
+        allSlots={slots}
+        shootTypes={page.signup_shoot_types}
+        timezone={page.timezone}
+        onClose={() => setRescheduleSlot(null)}
+        onDone={() => { setRescheduleSlot(null); load({ silent: true }) }}
+      />
+    )}
+    </>
   )
 }
 

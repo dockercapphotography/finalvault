@@ -1,12 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Wifi, WifiOff, Clock, Mail, Phone, MessageSquare, Search, StickyNote, ChevronRight, X } from 'lucide-react'
+import { ArrowLeft, Wifi, WifiOff, Clock, Mail, Phone, MessageSquare, Search, StickyNote, ChevronRight, CalendarClock, X } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
 import { getSignupPage, getSlots, claimSignupSlot, unclaimSlot, updateSlotNote, getSessionDeletionImpact, deleteSession } from '../utils/signupApi.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import FilterSortControl from '../components/ui/FilterSortControl.jsx'
 import LiveStatusTimeline from '../components/signup/LiveStatusTimeline.jsx'
+import RescheduleModal from '../components/signup/RescheduleModal.jsx'
 
 // Realtime requires the table to have replication enabled in Supabase
 // (Database -> Replication -> toggle signup_slots on) -- not automatic
@@ -270,7 +271,7 @@ function WalkupRegisterSheet({ slot, shootType, timezone, onClose, onRegistered 
 // signupApi.js -- it only resets the slot itself. Used by both the
 // desktop popover and the mobile bottom sheet below, so the two share
 // identical behavior and only differ in their container.
-function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, compact }) {
+function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, onReschedule, compact }) {
   const [note, setNote] = useState(slot?.photographer_note || '')
   const [savingNote, setSavingNote] = useState(false)
   // 'idle' | 'confirm' | 'checking' | 'impact' | 'unclaiming'
@@ -375,6 +376,18 @@ function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, compact }) {
       )}
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+        <button onClick={() => onReschedule(slot)}
+          className="w-full flex items-center gap-2.5"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', cursor: 'pointer' }}>
+          <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.1)' }}>
+            <CalendarClock size={16} style={{ color: '#6366f1' }} />
+          </div>
+          <span className="text-sm font-medium flex-1 text-left" style={{ color: 'var(--text)' }}>Reschedule</span>
+          <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+        </button>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
         <div className="flex items-center justify-between mb-1">
           <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Note</label>
           {savingNote && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Saving...</span>}
@@ -458,14 +471,14 @@ function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, compact }) {
 // old anchored popover, which no longer had room to look right pinned to
 // a row's corner once it grew a header, three contact buttons, a note,
 // and a dedicated no-show button.
-function SlotActionsModal({ slot, onClose, onUnclaimed, onNoteSaved, shootTypes, timezone }) {
+function SlotActionsModal({ slot, onClose, onUnclaimed, onNoteSaved, onReschedule, shootTypes, timezone }) {
   if (!slot) return null
   return (
     <Modal title={slot.client_name} onClose={onClose} size="sm">
       <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
         {timeLabel(slot.start_time, timezone)} – {timeLabel(slot.end_time, timezone)} · {shootTypes?.find(t => t.id === slot.shoot_type_id)?.name || 'Unknown shoot type'}
       </p>
-      <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} />
+      <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} onReschedule={onReschedule} />
     </Modal>
   )
 }
@@ -473,7 +486,7 @@ function SlotActionsModal({ slot, onClose, onUnclaimed, onNoteSaved, shootTypes,
 // Mobile-only: full slide-up bottom sheet, same content as the desktop
 // popover above (via SlotActionsFields) but in the mobile-appropriate
 // container.
-function SlotActionsSheet({ slot, onClose, onUnclaimed, onNoteSaved, shootTypes, timezone }) {
+function SlotActionsSheet({ slot, onClose, onUnclaimed, onNoteSaved, onReschedule, shootTypes, timezone }) {
   return (
     <BottomSheet open={!!slot} onClose={onClose}>
       {slot && (
@@ -489,7 +502,7 @@ function SlotActionsSheet({ slot, onClose, onUnclaimed, onNoteSaved, shootTypes,
               {timeLabel(slot.start_time, timezone)} – {timeLabel(slot.end_time, timezone)} · {shootTypes?.find(t => t.id === slot.shoot_type_id)?.name || 'Unknown shoot type'}
             </p>
           </div>
-          <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} />
+          <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} onReschedule={onReschedule} />
         </div>
       )}
     </BottomSheet>
@@ -523,6 +536,10 @@ export default function SignupLiveStatus() {
   // and trigger a vibration. Starts null so the very first load never
   // vibrates for slots that were already claimed before the page opened.
   const prevClaimedIdsRef = useRef(null)
+  // Set right before reloading after a reschedule (move or custom time) --
+  // consumed by the very next load() so that action's own refresh never
+  // triggers the chime/vibration meant for a genuinely new claim.
+  const suppressNextChimeRef = useRef(false)
 
   useEffect(() => { load() }, [id])
 
@@ -535,11 +552,12 @@ export default function SignupLiveStatus() {
       const claimedIds = new Set(s.filter(x => x.claimed_at).map(x => x.id))
       if (prevClaimedIdsRef.current) {
         const hasNewClaim = [...claimedIds].some(cid => !prevClaimedIdsRef.current.has(cid))
-        if (hasNewClaim) {
+        if (hasNewClaim && !suppressNextChimeRef.current) {
           if (navigator.vibrate) navigator.vibrate([200, 100, 200])
           playClaimChime()
         }
       }
+      suppressNextChimeRef.current = false
       prevClaimedIdsRef.current = claimedIds
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
@@ -565,6 +583,13 @@ export default function SignupLiveStatus() {
 
   function closeActions() {
     setActionsSlot(null)
+  }
+
+  const [rescheduleSlot, setRescheduleSlot] = useState(null)
+
+  function openReschedule(slot) {
+    closeActions()
+    setRescheduleSlot(slot)
   }
 
   // Realtime subscription -- any insert/update/delete on this page's slots
@@ -721,7 +746,20 @@ export default function SignupLiveStatus() {
 
   const activeDay = days.find(d => d.key === selectedDay)
   const isSelectedDayToday = !!(page && selectedDay === new Date().toLocaleDateString('en-CA', { timeZone: page.timezone }))
-  const sortedSlots = activeDay ? [...activeDay.slots].sort((a, b) => new Date(a.start_time) - new Date(b.start_time)) : []
+
+  const claimedRanges = slots
+    .filter(s => s.claimed_at)
+    .map(s => ({ start: new Date(s.start_time).getTime(), end: new Date(s.end_time).getTime() }))
+
+  function overlapsAnyClaimed(startMs, endMs) {
+    return claimedRanges.some(r => startMs < r.end && r.start < endMs)
+  }
+
+  const sortedSlots = activeDay
+    ? [...activeDay.slots]
+        .filter(s => s.claimed_at || !overlapsAnyClaimed(new Date(s.start_time).getTime(), new Date(s.end_time).getTime()))
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+    : []
   const claimedCount = activeDay ? activeDay.slots.filter(s => s.claimed_at).length : 0
   const searchTerm = searchQuery.trim().toLowerCase()
   const visibleSlots = sortedSlots.filter(s => {
@@ -929,11 +967,23 @@ export default function SignupLiveStatus() {
         )
       )}
 
+      {rescheduleSlot && (
+        <RescheduleModal
+          slot={rescheduleSlot}
+          allSlots={slots}
+          shootTypes={page.signup_shoot_types}
+          timezone={page.timezone}
+          onClose={() => setRescheduleSlot(null)}
+          onDone={() => { setRescheduleSlot(null); suppressNextChimeRef.current = true; load() }}
+        />
+      )}
+
       {actionsSlot && (
         isDesktop ? (
           <SlotActionsModal
             slot={actionsSlot}
             onClose={closeActions}
+            onReschedule={openReschedule}
             shootTypes={page.signup_shoot_types}
             timezone={page.timezone}
             onUnclaimed={() => { closeActions(); load() }}
@@ -943,6 +993,7 @@ export default function SignupLiveStatus() {
           <SlotActionsSheet
             slot={actionsSlot}
             onClose={closeActions}
+            onReschedule={openReschedule}
             shootTypes={page.signup_shoot_types}
             timezone={page.timezone}
             onUnclaimed={() => { closeActions(); load() }}
