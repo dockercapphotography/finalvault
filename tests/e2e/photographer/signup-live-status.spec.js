@@ -255,7 +255,7 @@ test.describe('Live status page — v1.5.2 additions', () => {
     }
   })
 
-  test('marking a claimed slot as no-show frees it back to open, keeping the client and session', async ({ page }) => {
+  test('marking a claimed slot as no-show frees it back to open and deletes the session, keeping the client', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'No-show Test Page' })
     const shootType = await createShootType(signupPage.id)
     const email = `no-show-${crypto.randomUUID().slice(0, 8)}@example.com`
@@ -278,19 +278,20 @@ test.describe('Live status page — v1.5.2 additions', () => {
       await page.goto(`/sessions/signups/${signupPage.id}/status`)
       await waitForReady(page)
 
-      await page.getByTitle('More options').click()
+      await page.getByText('No Show').first().click()
       await page.getByRole('button', { name: 'Mark as no-show' }).click()
       await page.getByRole('button', { name: 'Confirm' }).click()
 
       await expect(page.getByText('No Show').first()).not.toBeVisible({ timeout: 10000 })
       await expect(page.getByText('Open', { exact: true })).toBeVisible()
 
-      // The client record and its session are untouched -- only the slot
-      // itself was reset, per unclaimSlot's own contract in signupApi.js.
+      // The client record stays -- only the session (and the slot's own
+      // claim fields) are cleared. This session had nothing else attached
+      // to it, so no impact warning should have appeared along the way.
       const { data: clientAfter } = await sb().from('clients').select('id').eq('email', email).single()
       expect(clientAfter?.id).toBe(clientBefore.id)
       const { data: sessions } = await sb().from('sessions').select('id').eq('client_id', clientBefore.id)
-      expect(sessions?.length).toBeGreaterThan(0)
+      expect(sessions?.length ?? 0).toBe(0)
     } finally {
       await cleanupSignupPage(signupPage.id)
       await cleanupClientsByEmail([email])
@@ -306,21 +307,22 @@ test.describe('Live status page — v1.5.2 additions', () => {
       await page.goto(`/sessions/signups/${signupPage.id}/status`)
       await waitForReady(page)
 
-      await page.getByTitle('More options').click()
-      await page.getByPlaceholder('e.g. Brought a friend').fill('Brought a friend, wants extra prints')
+      await page.getByText('Note Client').first().click()
+      const noteField = page.getByPlaceholder('e.g. Brought a friend')
+      await noteField.fill('Brought a friend, wants extra prints')
 
-      // Wait for the actual PATCH response, not just the "Save note"
-      // button disappearing -- that button's promise resolves as soon
-      // as the app's own await settles, but the underlying browser
-      // network request can still be in flight at that instant.
-      // Reloading immediately after can abort it mid-flight
-      // (net::ERR_ABORTED / NS_BINDING_ABORTED) before the write lands,
-      // which is exactly what was causing this test to flake.
+      // Wait for the actual PATCH response, not just the "Saving..." label
+      // disappearing -- that state update resolves as soon as the app's
+      // own await settles, but the underlying browser network request can
+      // still be in flight at that instant. Reloading immediately after
+      // can abort it mid-flight (net::ERR_ABORTED / NS_BINDING_ABORTED)
+      // before the write lands -- same flakiness risk as the old explicit
+      // "Save note" button had, now triggered by blur instead of a click.
       await Promise.all([
         page.waitForResponse(res => res.url().includes('/signup_slots') && res.request().method() === 'PATCH'),
-        page.getByRole('button', { name: 'Save note' }).click(),
+        noteField.blur(),
       ])
-      await expect(page.getByRole('button', { name: 'Save note' })).not.toBeVisible({ timeout: 10000 })
+      await expect(page.getByText('Saving...')).not.toBeVisible({ timeout: 10000 })
 
       await page.reload()
       await waitForReady(page)

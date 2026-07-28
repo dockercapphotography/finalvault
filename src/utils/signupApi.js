@@ -268,12 +268,36 @@ export async function deleteAllOpenSlots(signupPageId) {
   if (error) throw error
 }
 
+// Checks what's actually attached to a session before it gets deleted as
+// part of a no-show -- galleries, submitted questionnaires, sent
+// questionnaires, and contracts. Contracts are SET NULL (not
+// cascade-deleted) at the DB level when a session is removed, so they're
+// reported separately as "orphaned" rather than "deleted" -- everything
+// else here genuinely gets deleted by the cascade.
+export async function getSessionDeletionImpact(sessionId) {
+  const [{ count: galleries }, { count: submissions }, { count: questionnaireSends }, { count: contracts }] = await Promise.all([
+    supabase.from('session_galleries').select('*', { count: 'exact', head: true }).eq('session_id', sessionId),
+    supabase.from('session_submissions').select('*', { count: 'exact', head: true }).eq('session_id', sessionId),
+    supabase.from('questionnaire_sends').select('*', { count: 'exact', head: true }).eq('session_id', sessionId),
+    supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('session_id', sessionId),
+  ])
+  return { galleries: galleries ?? 0, submissions: submissions ?? 0, questionnaireSends: questionnaireSends ?? 0, contracts: contracts ?? 0 }
+}
+
+// Deletes the session record itself. session_questionnaires/
+// session_galleries/session_submissions/questionnaire_sends cascade-delete
+// via the DB's own foreign keys; contracts get SET NULL (orphaned, not
+// deleted). Call getSessionDeletionImpact first and get the photographer's
+// confirmation if it reports anything -- this function itself doesn't ask.
+export async function deleteSession(sessionId) {
+  const { error } = await supabase.from('sessions').delete().eq('id', sessionId)
+  if (error) throw error
+}
+
 // Frees a claimed slot back to open, for a no-show or a booking mistake.
-// Deliberately does NOT touch the client or session records created when
-// the slot was originally claimed -- those stay as real business records
-// (the client's contact info, the session itself, which the photographer
-// can still separately mark cancelled in Sessions if they want). This
-// only resets the slot so it can be booked again.
+// Resets the slot's own fields only -- deleting the session it points to
+// (if any) is the caller's job via deleteSession above, since that's a
+// separate, bigger decision that needs its own confirmation.
 export async function unclaimSlot(id) {
   const { error } = await supabase
     .from('signup_slots')
