@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendPushToPhotographer } from '../_shared/sendPush.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -102,6 +103,28 @@ serve(async (req) => {
           subject: `${clientName} signed "${contract.title}" — your counter-signature is needed`,
           html,
         }),
+      })
+    }
+
+    await supabase.from('notifications').insert({
+      photographer_id: contract.photographer_id,
+      type: 'contract_signed',
+      title: `${clientName} signed "${contract.title}"`,
+      body: 'Your counter-signature is needed',
+      url: `/contracts/${contract.id}`,
+    })
+
+    const { data: prefs } = await supabase
+      .from('push_notification_preferences')
+      .select('contract_signed')
+      .eq('photographer_id', contract.photographer_id)
+      .maybeSingle()
+
+    if (prefs?.contract_signed ?? true) {
+      await sendPushToPhotographer(supabase, contract.photographer_id, {
+        title: `${clientName} signed "${contract.title}"`,
+        body: 'Your counter-signature is needed',
+        url: `/contracts/${contract.id}`,
       })
     }
 

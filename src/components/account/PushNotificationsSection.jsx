@@ -5,9 +5,16 @@ import Toggle from '../ui/Toggle.jsx'
 import {
   pushSupported, permissionState, getSubscriptions, getThisDeviceEndpoint,
   subscribe, unsubscribeThisDevice, removeDeviceById, isIOS, isInstalledStandalone,
+  getNotificationPreferences, updateNotificationPreference,
 } from '../../utils/push.js'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
+
+const EVENT_TYPES = [
+  { key: 'claim', label: 'New booking', desc: 'Get notified when a client claims a signup slot' },
+  { key: 'contract_signed', label: 'Contract signed', desc: 'Get notified when a client signs a contract' },
+  { key: 'questionnaire_response', label: 'Questionnaire response', desc: 'Get notified when a client submits a questionnaire' },
+]
 
 export default function PushNotificationsSection({ photographerId }) {
   const [loaded, setLoaded] = useState(false)
@@ -16,6 +23,8 @@ export default function PushNotificationsSection({ photographerId }) {
   const [devices, setDevices] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [preferences, setPreferences] = useState(null)
+  const [prefBusy, setPrefBusy] = useState(null)
 
   const refresh = useCallback(async () => {
     if (!photographerId) return
@@ -31,7 +40,23 @@ export default function PushNotificationsSection({ photographerId }) {
     if (!photographerId || !pushSupported()) { setLoaded(true); return }
     setPermission(permissionState())
     refresh().finally(() => setLoaded(true))
+    getNotificationPreferences(photographerId).then(setPreferences).catch(() => {})
   }, [photographerId, refresh])
+
+  async function handlePreferenceToggle(key, next) {
+    if (prefBusy) return
+    setPrefBusy(key)
+    const previous = preferences
+    setPreferences(p => ({ ...p, [key]: next }))
+    try {
+      await updateNotificationPreference(photographerId, key, next)
+    } catch {
+      setPreferences(previous)
+      setError('Could not save that. Try again.')
+    } finally {
+      setPrefBusy(null)
+    }
+  }
 
   const enabledOnThisDevice = !!thisDeviceEndpoint
 
@@ -76,56 +101,67 @@ export default function PushNotificationsSection({ photographerId }) {
     <SettingsSection
       title="Push Notifications"
       description="Get notified the instant a client claims a signup slot, even if this tab is closed.">
-      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-        {permission === 'denied' ? (
-          <div className="flex items-start gap-2.5 px-5 py-4" style={{ background: 'var(--surface)' }}>
-            <BellOff size={18} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: 1 }} />
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              Notifications are blocked in your browser's site settings. Enable them there, then reload this page.
-            </p>
+      {permission === 'denied' ? (
+        <div className="flex items-start gap-2.5 px-5 py-4" style={{ background: 'var(--surface)' }}>
+          <BellOff size={18} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: 1 }} />
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            Notifications are blocked in your browser's site settings. Enable them there, then reload this page.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: 'none', background: 'var(--surface)' }}>
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Enable on this device</p>
+              {!enabledOnThisDevice && (
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>You'll be asked to allow notifications.</p>
+              )}
+            </div>
+            <div style={{ opacity: busy ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
+              <Toggle checked={enabledOnThisDevice} onChange={handleToggle} />
+            </div>
           </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between px-5 py-4" style={{ background: 'var(--surface)' }}>
+
+          {devices.length > 0 && (
+            <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border)', borderBottom: 'none', background: 'var(--surface)' }}>
+              <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Subscribed devices</p>
+              {devices.map(d => {
+                const isThisDevice = d.endpoint === thisDeviceEndpoint
+                const Icon = /iPhone|Android|mobile/i.test(d.user_agent || '') ? Smartphone : Laptop
+                return (
+                  <div key={d.id} className="flex items-center justify-between py-1.5">
+                    <div className="flex items-center gap-2">
+                      <Icon size={16} style={{ color: 'var(--text-muted)' }} />
+                      <span className="text-sm" style={{ color: 'var(--text)' }}>
+                        {isThisDevice ? 'This device' : (d.user_agent || 'Unknown device')}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveDevice(d.id)}
+                      aria-label="Remove device"
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
+                      <X size={15} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {enabledOnThisDevice && preferences && EVENT_TYPES.map(row => (
+            <div key={row.key} className="flex items-center justify-between px-5 py-4"
+              style={{ borderTop: '1px solid var(--border)', borderBottom: 'none', background: 'var(--surface)' }}>
               <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Enable on this device</p>
-                {!enabledOnThisDevice && (
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>You'll be asked to allow notifications.</p>
-                )}
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
               </div>
-              <div style={{ opacity: busy ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
-                <Toggle checked={enabledOnThisDevice} onChange={handleToggle} />
+              <div style={{ opacity: prefBusy === row.key ? 0.5 : 1, pointerEvents: prefBusy === row.key ? 'none' : 'auto' }}>
+                <Toggle checked={preferences[row.key]} onChange={next => handlePreferenceToggle(row.key, next)} />
               </div>
             </div>
-
-            {devices.length > 0 && (
-              <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Subscribed devices</p>
-                {devices.map(d => {
-                  const isThisDevice = d.endpoint === thisDeviceEndpoint
-                  const Icon = /iPhone|Android|mobile/i.test(d.user_agent || '') ? Smartphone : Laptop
-                  return (
-                    <div key={d.id} className="flex items-center justify-between py-1.5">
-                      <div className="flex items-center gap-2">
-                        <Icon size={16} style={{ color: 'var(--text-muted)' }} />
-                        <span className="text-sm" style={{ color: 'var(--text)' }}>
-                          {isThisDevice ? 'This device' : (d.user_agent || 'Unknown device')}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveDevice(d.id)}
-                        aria-label="Remove device"
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
-                        <X size={15} />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          ))}
+        </>
+      )}
 
       {error && <p className="text-xs mt-2" style={{ color: 'var(--error, #e5484d)' }}>{error}</p>}
 

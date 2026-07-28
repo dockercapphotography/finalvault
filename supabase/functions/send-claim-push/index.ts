@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import webpush from 'npm:web-push@3.6.7'
+import { sendPushToPhotographer } from '../_shared/sendPush.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -63,58 +63,13 @@ serve(async (req) => {
       timeZone: timezone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
     }).format(new Date(slot.start_time))
 
-    const { data: subscriptions, error: subsError } = await supabase
-      .from('push_subscriptions')
-      .select('id, endpoint, p256dh, auth')
-      .eq('photographer_id', photographerId)
-
-    if (subsError) throw subsError
-    if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ ok: true, sent: 0 }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    webpush.setVapidDetails(
-      Deno.env.get('VAPID_SUBJECT')!,
-      Deno.env.get('VAPID_PUBLIC_KEY')!,
-      Deno.env.get('VAPID_PRIVATE_KEY')!,
-    )
-
-    const payload = JSON.stringify({
+    const { sent, cleaned } = await sendPushToPhotographer(supabase, photographerId, {
       title: 'New booking!',
       body: `${slot.client_name || 'A client'} booked ${shootTypeName} — ${timeLabel}`,
       url: `/signup/${slot.signup_pages?.token}/status`,
     })
 
-    let sent = 0
-    const staleIds: string[] = []
-
-    await Promise.all(subscriptions.map(async (sub) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload
-        )
-        sent++
-      } catch (err) {
-        // 404/410 means the push service has permanently invalidated this
-        // subscription (permission revoked, PWA uninstalled, etc.) --
-        // clean it up so push_subscriptions doesn't accumulate dead rows.
-        const statusCode = err?.statusCode
-        if (statusCode === 404 || statusCode === 410) {
-          staleIds.push(sub.id)
-        } else {
-          console.error('Push send failed:', sub.id, err)
-        }
-      }
-    }))
-
-    if (staleIds.length > 0) {
-      await supabase.from('push_subscriptions').delete().in('id', staleIds)
-    }
-
-    return new Response(JSON.stringify({ ok: true, sent, cleaned: staleIds.length }), {
+    return new Response(JSON.stringify({ ok: true, sent, cleaned }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (err) {

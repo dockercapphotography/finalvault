@@ -116,6 +116,35 @@ export async function unsubscribeThisDevice(photographerId) {
   await supabase.from('push_subscriptions').delete().eq('photographer_id', photographerId).eq('endpoint', endpoint)
 }
 
+const PREFERENCE_DEFAULTS = {
+  claim: true,
+  contract_signed: true,
+  questionnaire_response: true,
+  comment: false,
+  favorite: false,
+  download: false,
+}
+
+export async function getNotificationPreferences(photographerId) {
+  const { data, error } = await supabase
+    .from('push_notification_preferences')
+    .select('claim, contract_signed, questionnaire_response, comment, favorite, download')
+    .eq('photographer_id', photographerId)
+    .maybeSingle()
+  if (error) throw error
+  return { ...PREFERENCE_DEFAULTS, ...(data || {}) }
+}
+
+// Upserts a single preference. onConflict targets the primary key
+// directly, since a photographer's row may not exist yet (created
+// lazily on their first change away from the defaults).
+export async function updateNotificationPreference(photographerId, key, value) {
+  const { error } = await supabase
+    .from('push_notification_preferences')
+    .upsert({ photographer_id: photographerId, [key]: value, updated_at: new Date().toISOString() }, { onConflict: 'photographer_id' })
+  if (error) throw error
+}
+
 // Removes a different device's subscription row by id (the ✕ button in the
 // device list) -- can't call sub.unsubscribe() on a device that isn't this
 // one, so this is just a row delete. The next push to that endpoint will
