@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import RescheduleModal from '../components/signup/RescheduleModal.jsx'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { Plus, CalendarDays, X, LayoutList, Columns, Link2, Copy, Check, Trash2, MapPin, Ticket as TicketIcon, Camera,
-  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser } from 'lucide-react'
+  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
+import { formatPlainTimeRange } from '../utils/formatters.js'
 import {
   getSessions, createSession, updateSession, SESSION_TYPES, SESSION_STATUSES,
   getStatusConfig, getPaymentConfig, PAYMENT_STATUSES, formatSessionDate, SESSION_TYPE_ICON,
@@ -418,7 +420,9 @@ function SessionCard({ session, onClick }) {
       )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {session.type}{session.session_date ? ` · ${new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+          {session.type}
+          {session.session_date ? ` · ${new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+          {session.start_time && session.end_time ? ` · ${formatPlainTimeRange(session.start_time, session.end_time)}` : ''}
         </span>
         {paymentCfg && (
           <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: paymentCfg.color + '18', color: paymentCfg.color }}>{paymentCfg.label}</span>
@@ -793,7 +797,7 @@ function ManualAddSlotForm({ page, shootTypes, onAdded }) {
   )
 }
 
-function SlotDayRow({ day, dayData, isFirst, timezone, shootTypes, onDeleteSlot }) {
+function SlotDayRow({ day, dayData, isFirst, timezone, shootTypes, onDeleteSlot, onReschedule }) {
   const [expanded, setExpanded] = useState(false)
   const sorted = [...dayData.slots].sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
 
@@ -827,10 +831,17 @@ function SlotDayRow({ day, dayData, isFirst, timezone, shootTypes, onDeleteSlot 
                     <div style={{ color: 'var(--text-muted)' }}>Open</div>
                   )}
                 </div>
-                {!slot.claimed_at && (
+                {!slot.claimed_at ? (
                   <button onClick={() => onDeleteSlot(slot.id)} title="Delete this open slot"
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: 4, flexShrink: 0 }}>
                     <Trash2 size={13} />
+                  </button>
+                ) : (
+                  <button onClick={() => onReschedule(slot)}
+                    className="flex items-center gap-1 text-xs font-medium"
+                    style={{ color: 'var(--text)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', flexShrink: 0 }}>
+                    <CalendarClock size={12} />
+                    Reschedule
                   </button>
                 )}
               </div>
@@ -981,7 +992,10 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
     setSlots(prev => prev.filter(s => s.id !== slotId))
   }
 
+  const [rescheduleSlot, setRescheduleSlot] = useState(null)
+
   return (
+    <>
     <Modal title={page?.title || 'Signup page'} onClose={onClose} size="lg">
       {loading || !page ? (
         <div className="flex items-center justify-center py-16">
@@ -1148,7 +1162,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
                 {Object.entries(slotsByDay).map(([day, dayData], i) => (
                   <SlotDayRow key={day} day={day} dayData={dayData} isFirst={i === 0}
                     timezone={page.timezone} shootTypes={page.signup_shoot_types}
-                    onDeleteSlot={handleDeleteSlot} />
+                    onDeleteSlot={handleDeleteSlot} onReschedule={setRescheduleSlot} />
                 ))}
               </div>
             </div>
@@ -1171,6 +1185,18 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
         </div>
       )}
     </Modal>
+
+    {rescheduleSlot && (
+      <RescheduleModal
+        slot={rescheduleSlot}
+        allSlots={slots}
+        shootTypes={page.signup_shoot_types}
+        timezone={page.timezone}
+        onClose={() => setRescheduleSlot(null)}
+        onDone={() => { setRescheduleSlot(null); load({ silent: true }) }}
+      />
+    )}
+    </>
   )
 }
 
@@ -1218,7 +1244,30 @@ export default function Sessions() {
   const [showNewSignup, setShowNewSignup] = useState(false)
   const [openSignupPageId, setOpenSignupPageId] = useState(null)
 
-  useEffect(() => { load() }, [])
+  const [photographerId, setPhotographerId] = useState(null)
+
+  useEffect(() => {
+    load()
+    supabase.auth.getUser().then(({ data: { user } }) => setPhotographerId(user?.id ?? null))
+  }, [])
+
+  useEffect(() => {
+    if (!photographerId) return
+    const channel = supabase
+      .channel(`sessions_${photographerId}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'sessions', filter: `photographer_id=eq.${photographerId}` },
+        () => load({ silent: true })
+      )
+      .subscribe()
+
+    const fallbackInterval = setInterval(() => load({ silent: true }), 30_000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(fallbackInterval)
+    }
+  }, [photographerId])
 
   useEffect(() => {
     if (view === 'signups' && signupPages.length === 0) loadSignupPages()
@@ -1233,13 +1282,13 @@ export default function Sessions() {
     finally { setLoadingSignups(false) }
   }
 
-  async function load() {
-    setLoading(true)
+  async function load({ silent = false } = {}) {
+    if (!silent) setLoading(true)
     try {
       const data = await getSessions()
       setSessions(data)
     } catch (err) { console.error(err) }
-    finally { setLoading(false) }
+    finally { if (!silent) setLoading(false) }
   }
 
   async function handleStatusChange(sessionId, newStatus) {
@@ -1396,7 +1445,7 @@ export default function Sessions() {
                           {[
                             session.clients ? `${session.clients.first_name} ${session.clients.last_name}` : null,
                             session.type,
-                            session.session_date ? new Date(session.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null,
+                            session.session_date ? formatSessionDate(session.session_date, session.start_time, session.end_time) : null,
                             session.mode === 'walkup' ? 'Walk-up' : null,
                           ].filter(Boolean).join(' · ')}
                         </p>

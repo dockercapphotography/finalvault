@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.3'
+const VERSION = '1.5.4'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,25 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.4 — July 28, 2026">
+                  <Group label="Live Status page">
+                    <Item>Day-timeline view alongside the existing list -- hour-scale layout, real gaps between shoots, a red now-line. Toggle between List and Timeline any time</Item>
+                    <Item>Reschedule an existing booking -- move it to a different open slot (even a different shoot type) or set a custom time. Won't offer or accept a conflicting time; can email the client an updated confirmation</Item>
+                    <Item>Slot times now show as a full range everywhere, not just a start time</Item>
+                    <Item>Open slots that could never actually be claimed (they'd overlap another booking) no longer show up here</Item>
+                  </Group>
+                  <Group label="Notifications">
+                    <Item>New bell entry for signup slot claims, alongside gallery activity and pending contracts</Item>
+                    <Item>Push notifications now cover contract-signed and questionnaire-response events too, each configurable separately</Item>
+                  </Group>
+                  <Group label="Sessions">
+                    <Item>Sessions, Clients, and Contract/Session detail pages now update live instead of needing a manual reload</Item>
+                    <Item>Session cards and rows now show the actual booked time, not just the date</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed gallery cover images and the account avatar failing to load, caused by a stray outdated copy of the R2 Worker getting deployed by mistake</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.3 — July 24, 2026">
                   <Group label="Live Status page">
                     <Item>Real push notifications for slot claims -- works even with the app closed, not just the tab open. Enable per-device from Account → Notifications</Item>

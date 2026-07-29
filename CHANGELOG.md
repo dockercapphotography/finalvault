@@ -4,6 +4,30 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.4 — July 28, 2026
+
+### New Features
+
+**Live Status page**
+- Day-timeline view alongside the existing list -- hour-scale layout showing real gaps between shoots, Google Calendar-style solid blocks, and a red now-line. Toggle between List and Timeline any time
+- Reschedule an existing booking -- move it to a different open slot (optionally a different shoot type, for a client upgrading their booking) or set a custom time outside the pre-generated slot grid entirely. Available from both the Live Status actions sheet and Sessions -> Signups. Won't offer or accept a time that conflicts with another real booking; optionally emails the client an updated confirmation with a fresh calendar invite
+- All slot times now show as a full range everywhere on this page (and in the Reschedule modal, and on the Sessions page), instead of just a start time
+- The page no longer shows open slots that could never actually be claimed because they overlap a different booking
+
+**Notifications**
+- New in-app notification bell entry for signup slot claims, alongside the existing gallery-activity and pending-contract sources
+- Push notifications now cover contract-signed and questionnaire-response events, not just claims -- each configurable independently from Account -> Notifications
+
+**Sessions**
+- Sessions, Clients, and individual Contract/Session detail pages now update live via realtime, instead of requiring a manual reload to see changes made elsewhere
+- Session cards and rows now show the actual booked time, not just the date
+
+### Bug Fixes
+
+- Fixed gallery cover images and the account avatar failing to load -- a stray, long-outdated copy of the R2 Worker at the repo root was silently picked up by a Wrangler deploy run from the wrong directory, deploying incomplete code missing several routes
+
+---
+
 ## v1.5.3 — July 24, 2026
 
 ### New Features

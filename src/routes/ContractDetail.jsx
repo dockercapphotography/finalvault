@@ -46,8 +46,25 @@ export default function ContractDetail() {
     load()
   }, [id])
 
-  async function load() {
-    setLoading(true)
+  useEffect(() => {
+    const channel = supabase
+      .channel(`contract_${id}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'contracts', filter: `id=eq.${id}` },
+        () => load({ silent: true })
+      )
+      .subscribe()
+
+    const fallbackInterval = setInterval(() => load({ silent: true }), 30_000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(fallbackInterval)
+    }
+  }, [id])
+
+  async function load({ silent = false } = {}) {
+    if (!silent) setLoading(true)
     setError(null)
     try {
       const [c, { data: { user } }] = await Promise.all([
@@ -69,7 +86,7 @@ export default function ContractDetail() {
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 

@@ -1591,22 +1591,20 @@ function NotificationsTab({ user, onSaveState }) {
       <SettingsSection
         title="Activity Digest"
         description="Receive a daily email summary of client activity across your galleries. Only sent when there is new activity since the last digest.">
-        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-          {rows.map((row, i) => (
-            <div key={row.field} className="flex items-center justify-between px-5 py-4"
-              style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
-              </div>
-              <Toggle
-                checked={prefs[row.field]}
-                onChange={val => handleToggle(row.field, val)}
-              />
+        {rows.map((row, i) => (
+          <div key={row.field} className="flex items-center justify-between px-5 py-4"
+            style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', borderBottom: 'none', background: 'var(--surface)' }}>
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
             </div>
-          ))}
-        </div>
-        <div className="px-5 py-3" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+            <Toggle
+              checked={prefs[row.field]}
+              onChange={val => handleToggle(row.field, val)}
+            />
+          </div>
+        ))}
+        <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border)', borderBottom: 'none', background: 'var(--surface)' }}>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             {(() => {
               const utc8 = new Date()

@@ -1,12 +1,14 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Wifi, WifiOff, Clock, Mail, Phone, MessageSquare, MoreVertical, Search, StickyNote, Contact, X } from 'lucide-react'
+import { ArrowLeft, Wifi, WifiOff, Clock, Mail, Phone, MessageSquare, Search, StickyNote, ChevronRight, CalendarClock, X } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
-import { getSignupPage, getSlots, claimSignupSlot, unclaimSlot, updateSlotNote } from '../utils/signupApi.js'
+import { getSignupPage, getSlots, claimSignupSlot, unclaimSlot, updateSlotNote, getSessionDeletionImpact, deleteSession } from '../utils/signupApi.js'
+import { formatTimeRange } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import FilterSortControl from '../components/ui/FilterSortControl.jsx'
+import LiveStatusTimeline from '../components/signup/LiveStatusTimeline.jsx'
+import RescheduleModal from '../components/signup/RescheduleModal.jsx'
 
 // Realtime requires the table to have replication enabled in Supabase
 // (Database -> Replication -> toggle signup_slots on) -- not automatic
@@ -75,8 +77,8 @@ function formatCountdown(ms) {
 }
 
 // Matches Tailwind's md: breakpoint (768px), used elsewhere on this page
-// (e.g. the Contact icon vs. Call/Text/Email split) -- so "desktop" means
-// the same thing everywhere on this page, not just visually via CSS.
+// (e.g. the actions popover vs. sheet split) -- so "desktop" means the
+// same thing everywhere on this page, not just visually via CSS.
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
   useEffect(() => {
@@ -135,7 +137,7 @@ function NowCard({ activeSlot, nextSlot, shootTypes, now, timezone }) {
             {activeSlot.claimed_at ? activeSlot.client_name : 'Open slot'}
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {activeType?.name || 'Unknown shoot type'} · until {timeLabel(activeSlot.end_time, timezone)}
+            {activeType?.name || 'Unknown shoot type'} · {formatTimeRange(activeSlot.start_time, activeSlot.end_time, timezone)}
           </p>
         </div>
       ) : (
@@ -147,7 +149,7 @@ function NowCard({ activeSlot, nextSlot, shootTypes, now, timezone }) {
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Next: <span style={{ color: 'var(--text)', fontWeight: 500 }}>
               {nextSlot.claimed_at ? nextSlot.client_name : (nextType?.name || 'Open slot')}
-            </span> at {timeLabel(nextSlot.start_time, timezone)} ({formatCountdown(new Date(nextSlot.start_time) - now)})
+            </span> {formatTimeRange(nextSlot.start_time, nextSlot.end_time, timezone)} ({formatCountdown(new Date(nextSlot.start_time) - now)})
           </p>
         </div>
       )}
@@ -232,7 +234,7 @@ function WalkupRegisterModal({ slot, shootType, timezone, onClose, onRegistered 
   return (
     <Modal title="Register walk-up" onClose={onClose} size="sm">
       <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-        {shootType?.name || 'Unknown shoot type'} · {timeLabel(slot.start_time, timezone)}
+        {shootType?.name || 'Unknown shoot type'} · {formatTimeRange(slot.start_time, slot.end_time, timezone)}
       </p>
       <WalkupRegisterFields slot={slot} onRegistered={onRegistered} />
     </Modal>
@@ -254,7 +256,7 @@ function WalkupRegisterSheet({ slot, shootType, timezone, onClose, onRegistered 
         </div>
         {slot && (
           <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-            {shootType?.name || 'Unknown shoot type'} · {timeLabel(slot.start_time, timezone)}
+            {shootType?.name || 'Unknown shoot type'} · {formatTimeRange(slot.start_time, slot.end_time, timezone)}
           </p>
         )}
         {slot && <WalkupRegisterFields slot={slot} onRegistered={onRegistered} />}
@@ -270,14 +272,19 @@ function WalkupRegisterSheet({ slot, shootType, timezone, onClose, onRegistered 
 // signupApi.js -- it only resets the slot itself. Used by both the
 // desktop popover and the mobile bottom sheet below, so the two share
 // identical behavior and only differ in their container.
-function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, compact }) {
+function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, onReschedule, compact }) {
   const [note, setNote] = useState(slot?.photographer_note || '')
   const [savingNote, setSavingNote] = useState(false)
-  const [confirmNoShow, setConfirmNoShow] = useState(false)
-  const [unclaiming, setUnclaiming] = useState(false)
+  // 'idle' | 'confirm' | 'checking' | 'impact' | 'unclaiming'
+  const [noShowStep, setNoShowStep] = useState('idle')
+  const [impact, setImpact] = useState(null)
   const [error, setError] = useState(null)
 
+  // Saves automatically on blur rather than requiring an explicit button --
+  // skips the call entirely if nothing actually changed, so tabbing through
+  // the sheet without editing the note doesn't fire a write on every blur.
   async function handleSaveNote() {
+    if (note === (slot?.photographer_note || '')) return
     setSavingNote(true)
     setError(null)
     try {
@@ -290,16 +297,42 @@ function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, compact }) {
     }
   }
 
-  async function handleUnclaim() {
-    setUnclaiming(true)
+  // First confirm click: check whether there's anything real attached to
+  // the session before touching it. Nothing attached -> go straight
+  // through. Something attached -> show exactly what, and wait for a
+  // second explicit confirmation before deleting anything.
+  async function handleConfirmNoShow() {
+    if (!slot.session_id) {
+      await finalizeNoShow()
+      return
+    }
+    setNoShowStep('checking')
     setError(null)
     try {
+      const result = await getSessionDeletionImpact(slot.session_id)
+      const hasData = result.galleries > 0 || result.submissions > 0 || result.questionnaireSends > 0 || result.contracts > 0
+      if (hasData) {
+        setImpact(result)
+        setNoShowStep('impact')
+      } else {
+        await finalizeNoShow()
+      }
+    } catch {
+      setError('Could not check this session before freeing the slot. Try again.')
+      setNoShowStep('confirm')
+    }
+  }
+
+  async function finalizeNoShow() {
+    setNoShowStep('unclaiming')
+    setError(null)
+    try {
+      if (slot.session_id) await deleteSession(slot.session_id)
       await unclaimSlot(slot.id)
       onUnclaimed()
     } catch {
       setError('Could not free up this slot. Try again.')
-    } finally {
-      setUnclaiming(false)
+      setNoShowStep('confirm')
     }
   }
 
@@ -308,47 +341,124 @@ function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, compact }) {
     color: 'var(--text)', borderRadius: 8, padding: compact ? '8px 10px' : '10px 12px',
     fontSize: compact ? 13 : 14, outline: 'none', boxSizing: 'border-box', resize: 'vertical',
   }
+  const contactButtonStyle = {
+    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+    padding: compact ? '10px 6px' : '12px 8px', borderRadius: 10,
+    border: '1px solid var(--border)', textDecoration: 'none', textAlign: 'center',
+    minWidth: 0, overflow: 'hidden',
+  }
 
   return (
     <div className="space-y-3">
-      <div>
-        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Private note</label>
-        {!compact && <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Only you see this — never shown to the client.</p>}
-        <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
-          placeholder="e.g. Brought a friend"
-          style={inputStyle} />
-        <button onClick={handleSaveNote} disabled={savingNote}
-          className="text-xs font-medium mt-1"
-          style={{ color: '#6366f1', background: 'none', border: 'none', cursor: savingNote ? 'default' : 'pointer', padding: 0 }}>
-          {savingNote ? 'Saving...' : 'Save note'}
+      {(slot?.client_phone || slot?.client_email) && (
+        <div className="flex gap-2">
+          {slot.client_phone && (
+            <a href={`tel:${slot.client_phone}`} style={contactButtonStyle}>
+              <Phone size={16} style={{ color: 'var(--text)' }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--text)' }}>Call</span>
+              <span className="text-xs truncate" style={{ color: 'var(--text-muted)', maxWidth: '100%' }}>{slot.client_phone}</span>
+            </a>
+          )}
+          {slot.client_phone && (
+            <a href={`sms:${slot.client_phone}`} style={contactButtonStyle}>
+              <MessageSquare size={16} style={{ color: 'var(--text)' }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--text)' }}>Text</span>
+              <span className="text-xs truncate" style={{ color: 'var(--text-muted)', maxWidth: '100%' }}>{slot.client_phone}</span>
+            </a>
+          )}
+          {slot.client_email && (
+            <a href={`mailto:${slot.client_email}`} style={contactButtonStyle}>
+              <Mail size={16} style={{ color: 'var(--text)' }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--text)' }}>Email</span>
+              <span className="text-xs truncate" style={{ color: 'var(--text-muted)', maxWidth: '100%' }}>{slot.client_email}</span>
+            </a>
+          )}
+        </div>
+      )}
+
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+        <button onClick={() => onReschedule(slot)}
+          className="w-full flex items-center gap-2.5"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', cursor: 'pointer' }}>
+          <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.1)' }}>
+            <CalendarClock size={16} style={{ color: '#6366f1' }} />
+          </div>
+          <span className="text-sm font-medium flex-1 text-left" style={{ color: 'var(--text)' }}>Reschedule</span>
+          <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
         </button>
       </div>
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-        {!confirmNoShow ? (
-          <button onClick={() => setConfirmNoShow(true)}
-            className="text-xs font-medium"
-            style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Note</label>
+          {savingNote && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Saving...</span>}
+        </div>
+        {!compact && <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Only you see this — never shown to the client.</p>}
+        <textarea value={note} onChange={e => setNote(e.target.value)} onBlur={handleSaveNote} rows={2}
+          placeholder="e.g. Brought a friend"
+          style={inputStyle} />
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+        {noShowStep === 'idle' && (
+          <button onClick={() => setNoShowStep('confirm')}
+            className="text-xs font-medium w-full"
+            style={{ color: 'var(--danger)', background: 'var(--surface)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>
             Mark as no-show
           </button>
-        ) : (
+        )}
+
+        {noShowStep === 'confirm' && (
           <div className="space-y-2">
             <p className="text-xs" style={{ color: 'var(--danger)' }}>
-              Reopens the slot for someone else. The client and session stay in your records.
+              Reopens the slot for someone else and permanently deletes the session record. This can't be undone.
             </p>
             <div className="flex items-center gap-2">
-              <button onClick={handleUnclaim} disabled={unclaiming}
+              <button onClick={handleConfirmNoShow}
                 className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
-                style={{ background: 'var(--danger)', color: '#fff', border: 'none', cursor: unclaiming ? 'default' : 'pointer' }}>
-                {unclaiming ? 'Freeing...' : 'Confirm'}
+                style={{ background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                Confirm
               </button>
-              <button onClick={() => setConfirmNoShow(false)}
+              <button onClick={() => setNoShowStep('idle')}
                 className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
                 style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
                 Cancel
               </button>
             </div>
           </div>
+        )}
+
+        {noShowStep === 'checking' && (
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Checking this session...</p>
+        )}
+
+        {noShowStep === 'impact' && impact && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium" style={{ color: 'var(--danger)' }}>This session has real data attached:</p>
+            <ul className="text-xs" style={{ color: 'var(--danger)', paddingLeft: 16, listStyle: 'disc', margin: 0 }}>
+              {impact.galleries > 0 && <li>{impact.galleries} linked {impact.galleries === 1 ? 'gallery' : 'galleries'} (will be unlinked)</li>}
+              {impact.submissions > 0 && <li>{impact.submissions} questionnaire {impact.submissions === 1 ? 'response' : 'responses'} (will be deleted)</li>}
+              {impact.questionnaireSends > 0 && <li>{impact.questionnaireSends} questionnaire {impact.questionnaireSends === 1 ? 'send' : 'sends'} (will be deleted)</li>}
+              {impact.contracts > 0 && <li>{impact.contracts} {impact.contracts === 1 ? 'contract' : 'contracts'} (will be unlinked, not deleted)</li>}
+            </ul>
+            <p className="text-xs" style={{ color: 'var(--danger)' }}>This can't be undone.</p>
+            <div className="flex items-center gap-2">
+              <button onClick={finalizeNoShow}
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                style={{ background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                Delete anyway
+              </button>
+              <button onClick={() => setNoShowStep('idle')}
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {noShowStep === 'unclaiming' && (
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Freeing slot...</p>
         )}
       </div>
 
@@ -357,131 +467,43 @@ function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, compact }) {
   )
 }
 
-// Desktop-only: small anchored popover (portal + real screen coordinates,
-// same technique FilterSortControl's desktop panel and multiSelect
-// dropdown already use elsewhere in the app). Flips to open upward
-// instead of downward when there isn't enough room below the trigger,
-// so it never renders off the bottom of the screen.
-function SlotActionsPopover({ slot, anchorEl, onClose, onUnclaimed, onNoteSaved }) {
-  const [pos, setPos] = useState(null)
-  const popoverRef = useRef(null)
-  const estimatedHeight = 220
-
-  useEffect(() => {
-    function updatePos() {
-      if (!anchorEl) return
-      const rect = anchorEl.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - rect.bottom
-      const openUpward = spaceBelow < estimatedHeight && rect.top > spaceBelow
-      setPos({
-        top: openUpward ? null : rect.bottom + 6,
-        bottom: openUpward ? window.innerHeight - rect.top + 6 : null,
-        right: Math.max(16, window.innerWidth - rect.right),
-      })
-    }
-    updatePos()
-    window.addEventListener('resize', updatePos)
-    return () => window.removeEventListener('resize', updatePos)
-  }, [anchorEl])
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (anchorEl?.contains(e.target)) return
-      if (popoverRef.current?.contains(e.target)) return
-      onClose()
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [anchorEl, onClose])
-
-  if (!slot || !pos) return null
-
-  return createPortal(
-    <div ref={popoverRef}
-      style={{
-        position: 'fixed', top: pos.top ?? undefined, bottom: pos.bottom ?? undefined, right: pos.right,
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 12, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
-        zIndex: 100, padding: 14, width: 260, maxWidth: 'calc(100vw - 32px)',
-        maxHeight: 'calc(100vh - 32px)', overflowY: 'auto',
-      }}>
-      <p className="text-xs font-medium mb-2 truncate" style={{ color: 'var(--text)' }}>{slot.client_name}</p>
-      <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} compact />
-    </div>,
-    document.body
+// Desktop-only: centered modal, same Modal component and convention
+// WalkupRegisterModal already uses elsewhere on this page -- replaces the
+// old anchored popover, which no longer had room to look right pinned to
+// a row's corner once it grew a header, three contact buttons, a note,
+// and a dedicated no-show button.
+function SlotActionsModal({ slot, onClose, onUnclaimed, onNoteSaved, onReschedule, shootTypes, timezone }) {
+  if (!slot) return null
+  return (
+    <Modal title={slot.client_name} onClose={onClose} size="sm">
+      <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+        {formatTimeRange(slot.start_time, slot.end_time, timezone)} · {shootTypes?.find(t => t.id === slot.shoot_type_id)?.name || 'Unknown shoot type'}
+      </p>
+      <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} onReschedule={onReschedule} />
+    </Modal>
   )
 }
 
 // Mobile-only: full slide-up bottom sheet, same content as the desktop
 // popover above (via SlotActionsFields) but in the mobile-appropriate
 // container.
-function SlotActionsSheet({ slot, onClose, onUnclaimed, onNoteSaved }) {
+function SlotActionsSheet({ slot, onClose, onUnclaimed, onNoteSaved, onReschedule, shootTypes, timezone }) {
   return (
     <BottomSheet open={!!slot} onClose={onClose}>
       {slot && (
         <div className="px-5 pb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold truncate" style={{ color: 'var(--text)' }}>{slot.client_name}</h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
-              <X size={18} />
-            </button>
-          </div>
-          <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} />
-        </div>
-      )}
-    </BottomSheet>
-  )
-}
-
-// Mobile-only bottom sheet consolidating Call/Text/Email into one place,
-// opened from a single "Contact" icon -- replaces three separate icons
-// that didn't leave the name/email enough room on a narrow screen.
-// Desktop keeps the three icons inline, unchanged, since there's room.
-function ContactSheet({ slot, onClose }) {
-  const rowStyle = {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px',
-    textDecoration: 'none', color: 'var(--text)',
-  }
-  const iconWrapStyle = {
-    width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-subtle)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  }
-
-  return (
-    <BottomSheet open={!!slot} onClose={onClose}>
-      {slot && (
-        <div className="pb-4">
-          <div className="flex items-center justify-between px-5 pb-2">
-            <h2 className="text-base font-semibold truncate" style={{ color: 'var(--text)' }}>{slot.client_name}</h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
-              <X size={18} />
-            </button>
-          </div>
-          {slot.client_phone && (
-            <a href={`tel:${slot.client_phone}`} style={rowStyle}>
-              <div style={iconWrapStyle}><Phone size={15} style={{ color: 'var(--text-muted)' }} /></div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium" style={{ margin: 0 }}>Call</p>
-                <p className="text-xs truncate" style={{ color: 'var(--text-muted)', margin: 0 }}>{slot.client_phone}</p>
-              </div>
-            </a>
-          )}
-          {slot.client_phone && (
-            <a href={`sms:${slot.client_phone}`} style={rowStyle}>
-              <div style={iconWrapStyle}><MessageSquare size={15} style={{ color: 'var(--text-muted)' }} /></div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium" style={{ margin: 0 }}>Text</p>
-                <p className="text-xs truncate" style={{ color: 'var(--text-muted)', margin: 0 }}>{slot.client_phone}</p>
-              </div>
-            </a>
-          )}
-          <a href={`mailto:${slot.client_email}`} style={rowStyle}>
-            <div style={iconWrapStyle}><Mail size={15} style={{ color: 'var(--text-muted)' }} /></div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium" style={{ margin: 0 }}>Email</p>
-              <p className="text-xs truncate" style={{ color: 'var(--text-muted)', margin: 0 }}>{slot.client_email}</p>
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold truncate" style={{ color: 'var(--text)' }}>{slot.client_name}</h2>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
+                <X size={18} />
+              </button>
             </div>
-          </a>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {formatTimeRange(slot.start_time, slot.end_time, timezone)} · {shootTypes?.find(t => t.id === slot.shoot_type_id)?.name || 'Unknown shoot type'}
+            </p>
+          </div>
+          <SlotActionsFields slot={slot} onUnclaimed={onUnclaimed} onNoteSaved={onNoteSaved} onReschedule={onReschedule} />
         </div>
       )}
     </BottomSheet>
@@ -501,10 +523,13 @@ export default function SignupLiveStatus() {
   const [shootTypeFilters, setShootTypeFilters] = useState([])
   const [walkupSlot, setWalkupSlot] = useState(null)
   const [actionsSlot, setActionsSlot] = useState(null)
-  const [actionsAnchorEl, setActionsAnchorEl] = useState(null)
-  const [contactSlot, setContactSlot] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [viewMode, setViewMode] = useState('list')
+  const [dayChangePulse, setDayChangePulse] = useState(false)
+  const headerRef = useRef(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const hasSetInitialDay = useRef(false)
   const slotRefs = useRef({})
   const hasAutoScrolled = useRef(false)
   // Set of claimed slot ids as of the last load -- diffed on each new load
@@ -512,6 +537,10 @@ export default function SignupLiveStatus() {
   // and trigger a vibration. Starts null so the very first load never
   // vibrates for slots that were already claimed before the page opened.
   const prevClaimedIdsRef = useRef(null)
+  // Set right before reloading after a reschedule (move or custom time) --
+  // consumed by the very next load() so that action's own refresh never
+  // triggers the chime/vibration meant for a genuinely new claim.
+  const suppressNextChimeRef = useRef(false)
 
   useEffect(() => { load() }, [id])
 
@@ -524,11 +553,12 @@ export default function SignupLiveStatus() {
       const claimedIds = new Set(s.filter(x => x.claimed_at).map(x => x.id))
       if (prevClaimedIdsRef.current) {
         const hasNewClaim = [...claimedIds].some(cid => !prevClaimedIdsRef.current.has(cid))
-        if (hasNewClaim) {
+        if (hasNewClaim && !suppressNextChimeRef.current) {
           if (navigator.vibrate) navigator.vibrate([200, 100, 200])
           playClaimChime()
         }
       }
+      suppressNextChimeRef.current = false
       prevClaimedIdsRef.current = claimedIds
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
@@ -549,13 +579,18 @@ export default function SignupLiveStatus() {
   }
 
   function openActions(e, slot) {
-    setActionsAnchorEl(e.currentTarget)
     setActionsSlot(slot)
   }
 
   function closeActions() {
     setActionsSlot(null)
-    setActionsAnchorEl(null)
+  }
+
+  const [rescheduleSlot, setRescheduleSlot] = useState(null)
+
+  function openReschedule(slot) {
+    closeActions()
+    setRescheduleSlot(slot)
   }
 
   // Realtime subscription -- any insert/update/delete on this page's slots
@@ -603,6 +638,60 @@ export default function SignupLiveStatus() {
     const todayMatch = days.find(d => d.key === todayKey)
     setSelectedDay((todayMatch || days[0]).key)
   }, [days, page])
+
+  useEffect(() => {
+    if (!selectedDay) return
+    if (!hasSetInitialDay.current) {
+      hasSetInitialDay.current = true
+      return
+    }
+    setDayChangePulse(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const t = setTimeout(() => setDayChangePulse(false), 180)
+    return () => clearTimeout(t)
+  }, [selectedDay])
+
+  // Swipe left/right to move between day tabs -- much faster than
+  // scrolling back up to the tab strip on a phone mid-event.
+  const touchStartRef = useRef(null)
+
+  // position: sticky can be unreliable on mobile Safari depending on
+  // ancestor scroll/containing-block quirks -- position: fixed is
+  // unambiguous (always pinned to the actual viewport), at the cost of
+  // needing a spacer so content doesn't render underneath it. The spacer's
+  // height is measured live rather than hardcoded, since the header's
+  // real height varies (day-tab row wrapping, title length, etc.).
+  useLayoutEffect(() => {
+    if (!headerRef.current) return
+    const el = headerRef.current
+    const update = () => setHeaderHeight(el.offsetHeight)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [loading])
+
+  function handleContentTouchStart(e) {
+    if (e.touches.length !== 1) return
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+
+  function handleContentTouchEnd(e) {
+    const start = touchStartRef.current
+    touchStartRef.current = null
+    if (!start || days.length < 2) return
+    const end = e.changedTouches[0]
+    const deltaX = end.clientX - start.x
+    const deltaY = end.clientY - start.y
+    // Require real horizontal distance, and clearly more horizontal than
+    // vertical movement, so a diagonal scroll doesn't accidentally flip days.
+    if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return
+    const idx = days.findIndex(d => d.key === selectedDay)
+    if (idx === -1) return
+    const nextIdx = idx + (deltaX < 0 ? 1 : -1)
+    if (nextIdx < 0 || nextIdx >= days.length) return
+    setSelectedDay(days[nextIdx].key)
+  }
 
   // Active ("happening now") and next-up slots, across the whole page --
   // not scoped to whichever day tab is selected, so this stays accurate
@@ -657,7 +746,21 @@ export default function SignupLiveStatus() {
   }
 
   const activeDay = days.find(d => d.key === selectedDay)
-  const sortedSlots = activeDay ? [...activeDay.slots].sort((a, b) => new Date(a.start_time) - new Date(b.start_time)) : []
+  const isSelectedDayToday = !!(page && selectedDay === new Date().toLocaleDateString('en-CA', { timeZone: page.timezone }))
+
+  const claimedRanges = slots
+    .filter(s => s.claimed_at)
+    .map(s => ({ start: new Date(s.start_time).getTime(), end: new Date(s.end_time).getTime() }))
+
+  function overlapsAnyClaimed(startMs, endMs) {
+    return claimedRanges.some(r => startMs < r.end && r.start < endMs)
+  }
+
+  const sortedSlots = activeDay
+    ? [...activeDay.slots]
+        .filter(s => s.claimed_at || !overlapsAnyClaimed(new Date(s.start_time).getTime(), new Date(s.end_time).getTime()))
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+    : []
   const claimedCount = activeDay ? activeDay.slots.filter(s => s.claimed_at).length : 0
   const searchTerm = searchQuery.trim().toLowerCase()
   const visibleSlots = sortedSlots.filter(s => {
@@ -698,7 +801,7 @@ export default function SignupLiveStatus() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      <div className="sticky top-0 z-10" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+      <div ref={headerRef} className="fixed top-0 left-0 right-0 z-10" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <Link to="/sessions" style={{ color: 'var(--text-muted)', display: 'flex' }}>
@@ -745,8 +848,10 @@ export default function SignupLiveStatus() {
           </div>
         )}
       </div>
+      <div style={{ height: headerHeight }} />
 
-      <div className="px-4 py-4">
+      <div className="px-4 py-4" onTouchStart={handleContentTouchStart} onTouchEnd={handleContentTouchEnd}
+        style={{ opacity: dayChangePulse ? 0.4 : 1, transition: 'opacity 150ms ease' }}>
         {slots.length > 0 && (
           <NowCard activeSlot={activeSlot} nextSlot={nextSlot} shootTypes={page.signup_shoot_types} now={now} timezone={page.timezone} />
         )}
@@ -754,10 +859,25 @@ export default function SignupLiveStatus() {
         {activeDay && <ProgressStat claimed={claimedCount} total={activeDay.slots.length} />}
 
         {sortedSlots.length > 0 && (
-          <div className="relative mb-3">
-            <Search size={14} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--text-muted)' }} />
-            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by name or email..."
-              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 10, padding: '9px 12px 9px 34px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+          <div className="flex items-center gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search size={14} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--text-muted)' }} />
+              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by name or email..."
+                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 10, padding: '9px 12px 9px 34px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div className="flex-shrink-0 flex rounded-lg p-0.5" style={{ background: 'var(--bg-subtle)' }}>
+              {['list', 'timeline'].map(mode => (
+                <button key={mode} onClick={() => setViewMode(mode)}
+                  className="text-xs font-medium px-2.5 py-1.5 rounded-md"
+                  style={{
+                    background: viewMode === mode ? 'var(--surface)' : 'transparent',
+                    color: viewMode === mode ? 'var(--text)' : 'var(--text-muted)',
+                    border: 'none', cursor: 'pointer',
+                  }}>
+                  {mode === 'list' ? 'List' : 'Timeline'}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -765,6 +885,18 @@ export default function SignupLiveStatus() {
           <p className="text-sm text-center py-12" style={{ color: 'var(--text-muted)' }}>No slots for this day.</p>
         ) : visibleSlots.length === 0 ? (
           <p className="text-sm text-center py-12" style={{ color: 'var(--text-muted)' }}>No sessions match this filter.</p>
+        ) : viewMode === 'timeline' ? (
+          <LiveStatusTimeline
+            slots={visibleSlots}
+            daySlots={activeDay.slots}
+            shootTypes={page.signup_shoot_types}
+            timezone={page.timezone}
+            now={now}
+            isToday={isSelectedDayToday}
+            registerRef={(id, el) => { if (el) slotRefs.current[id] = el }}
+            onOpenWalkup={setWalkupSlot}
+            onOpenActions={openActions}
+          />
         ) : (
           <div className="space-y-2">
             {visibleSlots.map(slot => {
@@ -775,63 +907,39 @@ export default function SignupLiveStatus() {
               return (
                 <div key={slot.id}
                   ref={el => { if (el) slotRefs.current[slot.id] = el }}
-                  onClick={isRegisterable ? () => setWalkupSlot(slot) : undefined}
+                  onClick={isRegisterable ? () => setWalkupSlot(slot) : slot.claimed_at ? (e => openActions(e, slot)) : undefined}
                   className="flex rounded-xl overflow-hidden"
-                  style={{ border: '1px solid var(--border)', opacity: isOpen && isPast ? 0.45 : 1, cursor: isRegisterable ? 'pointer' : 'default' }}>
+                  style={{ border: '1px solid var(--border)', opacity: isOpen && isPast ? 0.45 : 1, cursor: isRegisterable || slot.claimed_at ? 'pointer' : 'default' }}>
                   <div style={{ width: 4, flexShrink: 0, background: slot.claimed_at ? '#6366f1' : 'var(--border-strong)' }} />
-                  <div className="flex-1 min-w-0 px-4 py-3" style={{ background: 'var(--surface)' }}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{timeLabel(slot.start_time, page.timezone)}</span>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
-                        style={{
-                          background: slot.claimed_at ? 'rgba(99,102,241,0.1)' : 'var(--bg-subtle)',
-                          color: slot.claimed_at ? '#6366f1' : 'var(--text-muted)',
-                        }}>
-                        {slot.claimed_at ? 'Claimed' : 'Open'}
-                      </span>
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{shootType?.name || 'Unknown shoot type'}</p>
-                    {slot.claimed_at ? (
-                      <div className="mt-1.5">
-                        <div className="flex items-end justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{slot.client_name}{slot.client_pronouns && <span className="font-normal" style={{ color: 'var(--text-muted)' }}> ({slot.client_pronouns})</span>}</p>
-                            <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{slot.client_email}{slot.client_phone && ` · ${slot.client_phone}`}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-                            {(slot.client_phone || slot.client_email) && (
-                              <button onClick={() => setContactSlot(slot)} title="Contact" className="md:hidden p-1.5 rounded-lg flex" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-                                <Contact size={13} />
-                              </button>
-                            )}
-                            {slot.client_phone && (
-                              <a href={`tel:${slot.client_phone}`} title="Call" className="hidden md:flex p-1.5 rounded-lg" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
-                                <Phone size={13} />
-                              </a>
-                            )}
-                            {slot.client_phone && (
-                              <a href={`sms:${slot.client_phone}`} title="Text" className="hidden md:flex p-1.5 rounded-lg" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
-                                <MessageSquare size={13} />
-                              </a>
-                            )}
-                            <a href={`mailto:${slot.client_email}`} title="Email" className="hidden md:flex p-1.5 rounded-lg" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
-                              <Mail size={13} />
-                            </a>
-                            <button onClick={e => openActions(e, slot)} title="More options" className="p-1.5 rounded-lg flex" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-                              <MoreVertical size={13} />
-                            </button>
-                          </div>
-                        </div>
-                        {slot.photographer_note && (
-                          <div className="flex items-start gap-1.5 mt-1.5">
-                            <StickyNote size={11} style={{ color: 'var(--text-muted)', marginTop: 2, flexShrink: 0 }} />
-                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{slot.photographer_note}</p>
-                          </div>
-                        )}
+                  <div className="flex-1 min-w-0 px-4 py-3 flex items-center justify-between gap-2" style={{ background: 'var(--surface)' }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{formatTimeRange(slot.start_time, slot.end_time, page.timezone)}</span>
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{
+                            background: slot.claimed_at ? 'rgba(99,102,241,0.1)' : 'var(--bg-subtle)',
+                            color: slot.claimed_at ? '#6366f1' : 'var(--text-muted)',
+                          }}>
+                          {slot.claimed_at ? 'Claimed' : 'Open'}
+                        </span>
                       </div>
-                    ) : isRegisterable && (
-                      <p className="text-xs mt-1.5 font-medium" style={{ color: '#6366f1' }}>Tap to register a walk-up</p>
-                    )}
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{shootType?.name || 'Unknown shoot type'}</p>
+                      {slot.claimed_at ? (
+                        <div className="mt-1.5">
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{slot.client_name}{slot.client_pronouns && <span className="font-normal" style={{ color: 'var(--text-muted)' }}> ({slot.client_pronouns})</span>}</p>
+                          <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{slot.client_email}{slot.client_phone && ` · ${slot.client_phone}`}</p>
+                          {slot.photographer_note && (
+                            <div className="flex items-start gap-1.5 mt-1.5">
+                              <StickyNote size={11} style={{ color: 'var(--text-muted)', marginTop: 2, flexShrink: 0 }} />
+                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{slot.photographer_note}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : isRegisterable && (
+                        <p className="text-xs mt-1.5 font-medium" style={{ color: '#6366f1' }}>Tap to register a walk-up</p>
+                      )}
+                    </div>
+                    {slot.claimed_at && <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
                   </div>
                 </div>
               )
@@ -860,27 +968,39 @@ export default function SignupLiveStatus() {
         )
       )}
 
+      {rescheduleSlot && (
+        <RescheduleModal
+          slot={rescheduleSlot}
+          allSlots={slots}
+          shootTypes={page.signup_shoot_types}
+          timezone={page.timezone}
+          onClose={() => setRescheduleSlot(null)}
+          onDone={() => { setRescheduleSlot(null); suppressNextChimeRef.current = true; load() }}
+        />
+      )}
+
       {actionsSlot && (
         isDesktop ? (
-          <SlotActionsPopover
+          <SlotActionsModal
             slot={actionsSlot}
-            anchorEl={actionsAnchorEl}
             onClose={closeActions}
+            onReschedule={openReschedule}
+            shootTypes={page.signup_shoot_types}
+            timezone={page.timezone}
             onUnclaimed={() => { closeActions(); load() }}
-            onNoteSaved={() => { closeActions(); load() }}
+            onNoteSaved={() => load()}
           />
         ) : (
           <SlotActionsSheet
             slot={actionsSlot}
             onClose={closeActions}
+            onReschedule={openReschedule}
+            shootTypes={page.signup_shoot_types}
+            timezone={page.timezone}
             onUnclaimed={() => { closeActions(); load() }}
-            onNoteSaved={() => { closeActions(); load() }}
+            onNoteSaved={() => load()}
           />
         )
-      )}
-
-      {contactSlot && (
-        <ContactSheet slot={contactSlot} onClose={() => setContactSlot(null)} />
       )}
     </div>
   )

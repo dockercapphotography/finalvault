@@ -135,12 +135,14 @@ test.describe('Live status page', () => {
       // in any real test run, so this exercises the fallback-to-first-day
       // path rather than the matches-today path)
       // .first() for the same NowCard "Next up" collision reason as the
-      // test above -- its "Next: ... at 3:00 PM (...)" text also
-      // contains "3:00 PM" as a substring.
-      await expect(page.getByText('3:00 PM').first()).toBeVisible()
+      // test above. NowCard's range is compact -- the on-the-hour start
+      // (3:00) loses its ":00" and period when it matches the end's period,
+      // rendering "3 - 3:15 PM" -- so the end time is the reliable substring,
+      // not the start.
+      await expect(page.getByText('3:15 PM').first()).toBeVisible()
 
       await day2Tab.click()
-      await expect(page.getByText('3:00 PM').first()).toBeVisible()
+      await expect(page.getByText('3:15 PM').first()).toBeVisible()
     } finally {
       await cleanupSignupPage(signupPage.id)
     }
@@ -255,7 +257,7 @@ test.describe('Live status page — v1.5.2 additions', () => {
     }
   })
 
-  test('marking a claimed slot as no-show frees it back to open, keeping the client and session', async ({ page }) => {
+  test('marking a claimed slot as no-show frees it back to open and deletes the session, keeping the client', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'No-show Test Page' })
     const shootType = await createShootType(signupPage.id)
     const email = `no-show-${crypto.randomUUID().slice(0, 8)}@example.com`
@@ -278,19 +280,20 @@ test.describe('Live status page — v1.5.2 additions', () => {
       await page.goto(`/sessions/signups/${signupPage.id}/status`)
       await waitForReady(page)
 
-      await page.getByTitle('More options').click()
+      await page.getByText(email).first().click()
       await page.getByRole('button', { name: 'Mark as no-show' }).click()
       await page.getByRole('button', { name: 'Confirm' }).click()
 
       await expect(page.getByText('No Show').first()).not.toBeVisible({ timeout: 10000 })
       await expect(page.getByText('Open', { exact: true })).toBeVisible()
 
-      // The client record and its session are untouched -- only the slot
-      // itself was reset, per unclaimSlot's own contract in signupApi.js.
+      // The client record stays -- only the session (and the slot's own
+      // claim fields) are cleared. This session had nothing else attached
+      // to it, so no impact warning should have appeared along the way.
       const { data: clientAfter } = await sb().from('clients').select('id').eq('email', email).single()
       expect(clientAfter?.id).toBe(clientBefore.id)
       const { data: sessions } = await sb().from('sessions').select('id').eq('client_id', clientBefore.id)
-      expect(sessions?.length).toBeGreaterThan(0)
+      expect(sessions?.length ?? 0).toBe(0)
     } finally {
       await cleanupSignupPage(signupPage.id)
       await cleanupClientsByEmail([email])
@@ -300,27 +303,29 @@ test.describe('Live status page — v1.5.2 additions', () => {
   test('a private note can be added to a claimed slot and persists after reload', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Private Note Test Page' })
     const shootType = await createShootType(signupPage.id)
+    const noteClientEmail = 'note-client@example.com'
     await createSlot(signupPage.id, shootType.id, '2026-09-04T19:00:00Z', '2026-09-04T19:15:00Z',
-      { client_name: 'Note Client', client_email: 'note-client@example.com' })
+      { client_name: 'Note Client', client_email: noteClientEmail })
     try {
       await page.goto(`/sessions/signups/${signupPage.id}/status`)
       await waitForReady(page)
 
-      await page.getByTitle('More options').click()
-      await page.getByPlaceholder('e.g. Brought a friend').fill('Brought a friend, wants extra prints')
+      await page.getByText(noteClientEmail).first().click()
+      const noteField = page.getByPlaceholder('e.g. Brought a friend')
+      await noteField.fill('Brought a friend, wants extra prints')
 
-      // Wait for the actual PATCH response, not just the "Save note"
-      // button disappearing -- that button's promise resolves as soon
-      // as the app's own await settles, but the underlying browser
-      // network request can still be in flight at that instant.
-      // Reloading immediately after can abort it mid-flight
-      // (net::ERR_ABORTED / NS_BINDING_ABORTED) before the write lands,
-      // which is exactly what was causing this test to flake.
+      // Wait for the actual PATCH response, not just the "Saving..." label
+      // disappearing -- that state update resolves as soon as the app's
+      // own await settles, but the underlying browser network request can
+      // still be in flight at that instant. Reloading immediately after
+      // can abort it mid-flight (net::ERR_ABORTED / NS_BINDING_ABORTED)
+      // before the write lands -- same flakiness risk as the old explicit
+      // "Save note" button had, now triggered by blur instead of a click.
       await Promise.all([
         page.waitForResponse(res => res.url().includes('/signup_slots') && res.request().method() === 'PATCH'),
-        page.getByRole('button', { name: 'Save note' }).click(),
+        noteField.blur(),
       ])
-      await expect(page.getByRole('button', { name: 'Save note' })).not.toBeVisible({ timeout: 10000 })
+      await expect(page.getByText('Saving...')).not.toBeVisible({ timeout: 10000 })
 
       await page.reload()
       await waitForReady(page)
@@ -380,4 +385,85 @@ test.describe('Live status page — v1.5.2 additions', () => {
       await cleanupSignupPage(signupPage.id)
     }
   })
+
+  // Timeline view shares the exact same onOpenWalkup/onOpenActions
+  // handlers as the List view rows (confirmed by reading the component --
+  // both view modes call the identical functions on click), so these
+  // tests aren't re-proving the full claim/reschedule/walk-up flows
+  // (already covered by the List-view tests above and the reschedule
+  // suite) -- just that Timeline actually renders both slot states and
+  // wires its blocks to the same click targets.
+  test('Timeline view renders both open and claimed slots as blocks', async ({ page }) => {
+    const signupPage = await createSignupPage({ title: 'Timeline Render Test' })
+    const shootType = await createShootType(signupPage.id, { name: 'Timeline Shoot' })
+    await createSlot(signupPage.id, shootType.id, '2026-09-07T19:00:00Z', '2026-09-07T19:30:00Z')
+    await createSlot(signupPage.id, shootType.id, '2026-09-07T20:00:00Z', '2026-09-07T20:30:00Z',
+      { client_name: 'Timeline Claimed', client_email: 'timeline-claimed@example.com' })
+    try {
+      await page.goto(`/sessions/signups/${signupPage.id}/status`)
+      await waitForReady(page)
+
+      await page.getByRole('button', { name: 'Timeline' }).click()
+      await expect(page.locator('p', { hasText: /^Timeline Shoot$/ })).toBeVisible()
+      await expect(page.locator('p', { hasText: /^Timeline Claimed$/ })).toBeVisible()
+    } finally {
+      await cleanupSignupPage(signupPage.id)
+    }
+  })
+
+  test('clicking a claimed block in Timeline view opens the same actions sheet as List view', async ({ page }) => {
+    const signupPage = await createSignupPage({ title: 'Timeline Claimed Click Test' })
+    const shootType = await createShootType(signupPage.id)
+    await createSlot(signupPage.id, shootType.id, '2026-09-08T19:00:00Z', '2026-09-08T19:30:00Z',
+      { client_name: 'Timeline Click Target', client_email: 'timeline-click@example.com' })
+    try {
+      await page.goto(`/sessions/signups/${signupPage.id}/status`)
+      await waitForReady(page)
+
+      await page.getByRole('button', { name: 'Timeline' }).click()
+      await page.locator('p', { hasText: /^Timeline Click Target$/ }).click()
+
+      // The consolidated actions sheet -- same one List view rows open --
+      // shows the private-note field, which is unique to that sheet.
+      await expect(page.getByText('Note', { exact: true })).toBeVisible()
+    } finally {
+      await cleanupSignupPage(signupPage.id)
+    }
+  })
+
+  test('clicking an open block in Timeline view opens walk-up registration', async ({ page }) => {
+    const signupPage = await createSignupPage({ title: 'Timeline Open Click Test' })
+    const shootType = await createShootType(signupPage.id, { name: 'Open Block Shoot' })
+    await createSlot(signupPage.id, shootType.id, '2026-09-09T19:00:00Z', '2026-09-09T19:30:00Z')
+    try {
+      await page.goto(`/sessions/signups/${signupPage.id}/status`)
+      await waitForReady(page)
+
+      await page.getByRole('button', { name: 'Timeline' }).click()
+      await page.locator('p', { hasText: /^Open Block Shoot$/ }).click()
+
+      await expect(page.getByRole('heading', { name: 'Register walk-up' })).toBeVisible()
+    } finally {
+      await cleanupSignupPage(signupPage.id)
+    }
+  })
+
+  test('switching back to List view from Timeline shows the row-based layout again', async ({ page }) => {
+    const signupPage = await createSignupPage({ title: 'Timeline Round Trip Test' })
+    const shootType = await createShootType(signupPage.id, { name: 'Round Trip Shoot' })
+    await createSlot(signupPage.id, shootType.id, '2026-09-09T19:00:00Z', '2026-09-09T19:30:00Z')
+    try {
+      await page.goto(`/sessions/signups/${signupPage.id}/status`)
+      await waitForReady(page)
+
+      await page.getByRole('button', { name: 'Timeline' }).click()
+      await expect(page.locator('p', { hasText: /^Round Trip Shoot$/ })).toBeVisible()
+
+      await page.getByRole('button', { name: 'List' }).click()
+      await expect(page.getByText('Tap to register a walk-up')).toBeVisible()
+    } finally {
+      await cleanupSignupPage(signupPage.id)
+    }
+  })
 })
+
