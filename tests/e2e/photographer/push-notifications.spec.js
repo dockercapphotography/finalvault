@@ -45,13 +45,16 @@ test.describe('Push notifications', () => {
 
   test.beforeEach(async ({ browserName }) => {
     if (browserName !== 'chromium') test.skip()
-    // Clean slate -- any leftover subscription from a prior failed run
-    // would make these tests flaky rather than reliably red/green.
+    // Clean slate -- any leftover subscription/preference row from a
+    // prior failed run would make these tests flaky rather than reliably
+    // red/green.
     await sb.from('push_subscriptions').delete().eq('photographer_id', photographerId)
+    await sb.from('push_notification_preferences').delete().eq('photographer_id', photographerId)
   })
 
   test.afterEach(async () => {
     await sb.from('push_subscriptions').delete().eq('photographer_id', photographerId)
+    await sb.from('push_notification_preferences').delete().eq('photographer_id', photographerId)
   })
 
   // Scopes to the specific SettingsSection whose heading is "Push
@@ -65,6 +68,10 @@ test.describe('Push notifications', () => {
   // real mouse can't visually reach, so force: true is needed here; the
   // checkbox is still the right, functional element (confirmed via the
   // locator resolving to it), just intentionally hidden by design.
+  function preferenceRow(page, label) {
+    return page.getByText(label, { exact: true }).locator('xpath=../..')
+  }
+
   function pushSection(page) {
     return page.locator('div.rounded-xl.overflow-hidden', {
       has: page.getByRole('heading', { name: 'Push Notifications', level: 3 }),
@@ -178,7 +185,7 @@ test.describe('Push notifications', () => {
   test('disabling deletes the push_subscriptions row', async ({ page }) => {
     await gotoNotificationsTab(page)
 
-    const checkbox = pushSection(page).getByRole('checkbox')
+    const checkbox = pushSection(page).getByRole('checkbox').first()
     await checkbox.click({ force: true })
     await expect(pushSection(page).getByText('This device', { exact: true })).toBeVisible({ timeout: 10000 })
 
@@ -216,5 +223,49 @@ test.describe('Push notifications', () => {
       console.log('[debug] push_subscriptions rows:', JSON.stringify(data, null, 2))
     }
     expect(data?.length).toBe(1)
+  })
+
+  test('per-event preference toggles appear once push is enabled, defaulting to on', async ({ page }) => {
+    await gotoNotificationsTab(page)
+
+    await pushSection(page).getByRole('checkbox').click({ force: true })
+    await expect(pushSection(page).getByText('This device', { exact: true })).toBeVisible({ timeout: 10000 })
+
+    // Preferences use lazy row creation -- no push_notification_preferences
+    // row exists yet at this point (nothing's been toggled), so "on by
+    // default" is verified via the UI's own checked state, not the DB.
+    for (const label of ['New booking', 'Contract signed', 'Questionnaire response']) {
+      const row = preferenceRow(page, label)
+      await expect(row).toBeVisible({ timeout: 10000 })
+      await expect(row.getByRole('checkbox')).toBeChecked()
+    }
+  })
+
+  test('toggling a preference off persists to push_notification_preferences', async ({ page }) => {
+    await gotoNotificationsTab(page)
+
+    await pushSection(page).getByRole('checkbox').click({ force: true })
+    await expect(pushSection(page).getByText('This device', { exact: true })).toBeVisible({ timeout: 10000 })
+
+    const contractRow = preferenceRow(page, 'Contract signed')
+    await expect(contractRow).toBeVisible({ timeout: 10000 })
+    await contractRow.getByRole('checkbox').click({ force: true })
+
+    await expect
+      .poll(async () => {
+        const { data } = await sb
+          .from('push_notification_preferences')
+          .select('contract_signed')
+          .eq('photographer_id', photographerId)
+          .maybeSingle()
+        return data?.contract_signed
+      }, { timeout: 15000 })
+      .toBe(false)
+
+    // Untouched toggles stay checked in the UI -- confirms the write
+    // above was scoped to the one preference clicked, not a blanket
+    // overwrite of all three.
+    await expect(preferenceRow(page, 'New booking').getByRole('checkbox')).toBeChecked()
+    await expect(preferenceRow(page, 'Questionnaire response').getByRole('checkbox')).toBeChecked()
   })
 })
