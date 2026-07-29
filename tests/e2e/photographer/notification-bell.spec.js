@@ -98,6 +98,7 @@ test.describe('Notification bell', () => {
 
       await expect(page.getByText('Bell Claimant claimed a slot')).toBeVisible({ timeout: 10000 })
     } finally {
+      await sb().from('notifications').delete().eq('url', `/sessions/signups/${signupPage.id}/status`)
       await cleanupSignupPage(signupPage.id)
       await cleanupClientsByEmail([email])
     }
@@ -117,6 +118,7 @@ test.describe('Notification bell', () => {
 
       await expect(page).toHaveURL(new RegExp(`/sessions/signups/${signupPage.id}/status`), { timeout: 10000 })
     } finally {
+      await sb().from('notifications').delete().eq('url', `/sessions/signups/${signupPage.id}/status`)
       await cleanupSignupPage(signupPage.id)
       await cleanupClientsByEmail([email])
     }
