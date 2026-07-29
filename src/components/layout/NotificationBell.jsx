@@ -231,7 +231,7 @@ export default function NotificationBell({ mobile = false }) {
   if (mobile) {
     return (
       <div className="relative">
-        <button onClick={handleOpen}
+        <button onClick={handleOpen} aria-label="Notifications"
           className="relative p-2 rounded-lg transition-colors"
           style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
@@ -254,7 +254,7 @@ export default function NotificationBell({ mobile = false }) {
 
   return (
     <div className="relative" ref={panelRef}>
-      <button onClick={handleOpen}
+      <button onClick={handleOpen} aria-label="Notifications"
         className="relative p-1 rounded-lg transition-colors"
         style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
         onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
