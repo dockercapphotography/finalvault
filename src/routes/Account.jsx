@@ -1482,6 +1482,7 @@ const BRAND_ICONS = {
   paypal:    <img src={`${BASE_ICON_URL}/paypal.png`}    alt="PayPal"    width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
   kofi:      <img src={`${BASE_ICON_URL}/kofi.png`}      alt="Ko-Fi"     width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
   cashapp:   <img src={`${BASE_ICON_URL}/cashapp.png`}   alt="Cash App"  width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
+  zelle:     <img src={`${BASE_ICON_URL}/zelle.png`}     alt="Zelle"     width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
 }
 
 const SOCIAL_PLATFORMS = [
@@ -1498,6 +1499,7 @@ const PAYMENT_PLATFORMS = [
   { id: 'paypal',  label: 'PayPal',   placeholder: 'https://paypal.me/yourhandle' },
   { id: 'kofi',    label: 'Ko-Fi',    placeholder: 'https://ko-fi.com/yourhandle' },
   { id: 'cashapp', label: 'Cash App', placeholder: 'https://cash.app/$yourhandle' },
+  { id: 'zelle',   label: 'Zelle',    placeholder: 'your-email@example.com or (555) 123-4567', inputType: 'text' },
 ]
 
 function LinksTab({ platforms, dbColumn, onSaveState }) {
@@ -1534,7 +1536,7 @@ function LinksTab({ platforms, dbColumn, onSaveState }) {
           <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 36, height: 36 }}>{BRAND_ICONS[platform.id]}</div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>{platform.label}</p>
-            <input type="url" defaultValue={links[platform.id] || ''} placeholder={platform.placeholder}
+            <input type={platform.inputType || 'url'} defaultValue={links[platform.id] || ''} placeholder={platform.placeholder}
               onBlur={e => handleSave(platform.id, e.target.value.trim())}
               className="w-full text-sm rounded-lg px-3 py-2"
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
