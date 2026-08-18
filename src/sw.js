@@ -15,8 +15,8 @@
 // generateSW -- kept at exact parity with what was already live in
 // production. No new caching behavior was added here.
 
-import { precacheAndRoute } from 'workbox-precaching'
-import { registerRoute } from 'workbox-routing'
+import { precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching'
+import { registerRoute, NavigationRoute } from 'workbox-routing'
 import { NetworkFirst, CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { CacheableResponsePlugin } from 'workbox-cacheable-response'
@@ -26,6 +26,18 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response'
 // precacheAndRoute already handles install-time caching and serving
 // precached assets network-independently.
 precacheAndRoute(self.__WB_MANIFEST)
+
+// Offline navigation fallback (added v1.5.5) -- serves the precached
+// index.html for any same-origin navigation request that can't reach the
+// network, e.g. reloading a page while offline. Without this,
+// precacheAndRoute only serves precached assets by exact URL match, so a
+// page reload while offline hit the browser's default offline error page
+// instead of the app shell. React Router then resolves the route
+// client-side once the shell has loaded, same as any other client-side
+// navigation. Deliberately left out of the v1.5.3 generateSW ->
+// injectManifest switch to keep that change at exact parity with prior
+// production caching behavior -- this is the first addition since then.
+registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')))
 
 // R2 preview images only -- NOT originals, downloads, watermarks, or
 // zip files. Matches the old workbox.runtimeCaching urlPattern exactly.
