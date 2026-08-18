@@ -188,7 +188,7 @@ export async function getClientImages(galleryId) {
   return data
 }
 
-export async function getOrCreateViewer(galleryId, email) {
+export async function getOrCreateViewer(galleryId, email, displayName = null) {
   const storageKey = `fv-viewer-${galleryId}`
   const existing = localStorage.getItem(storageKey)
   if (existing) {
@@ -199,12 +199,16 @@ export async function getOrCreateViewer(galleryId, email) {
       .eq('id', viewerId)
     return JSON.parse(existing)
   }
-  const sessionId = crypto.randomUUID()
-  const { data, error } = await supabase
-    .from('gallery_viewers')
-    .insert({ gallery_id: galleryId, session_id: sessionId, email: email })
-    .select()
-    .single()
+  // Finds an existing viewer for this gallery+email server-side before
+  // creating a new one, so the same person visiting from a different
+  // device/browser (no localStorage entry) reconnects to their existing
+  // favorites/comments/selections instead of starting a disconnected new
+  // viewer identity every time.
+  const { data, error } = await supabase.rpc('get_or_create_gallery_viewer', {
+    p_gallery_id: galleryId,
+    p_email: email,
+    p_display_name: displayName,
+  })
   if (error) throw error
   localStorage.setItem(storageKey, JSON.stringify(data))
   return data
