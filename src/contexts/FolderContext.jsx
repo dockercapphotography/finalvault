@@ -6,6 +6,7 @@ export const FolderContext = createContext({
   folderPath: [],
   onGalleryMoved: () => {},
   onGalleryDeleted: () => {},
+  onGalleryUpdated: () => {},
   onCopyLink: () => {},
 })
 

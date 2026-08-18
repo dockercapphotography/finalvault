@@ -179,7 +179,7 @@ export async function getGalleryImageCount(galleryId) {
 export async function getFolders() {
   const { data, error } = await supabase
     .from('gallery_folders')
-    .select('id, name, parent_id, path, cover_r2_key, cover_focus_x, cover_focus_y, photographer_id, created_at, updated_at')
+    .select('id, name, parent_id, path, cover_r2_key, cover_focus_x, cover_focus_y, photographer_id, created_at, updated_at, sort_by')
     .order('name', { ascending: true })
 
   if (error) throw error
@@ -190,7 +190,7 @@ export async function getFolders() {
 export async function getChildFolders(parentId = null) {
   let query = supabase
     .from('gallery_folders')
-    .select('id, name, parent_id, path, cover_r2_key, cover_focus_x, cover_focus_y, photographer_id, created_at, updated_at')
+    .select('id, name, parent_id, path, cover_r2_key, cover_focus_x, cover_focus_y, photographer_id, created_at, updated_at, sort_by')
     .order('name', { ascending: true })
 
   if (parentId === null) {
@@ -251,6 +251,34 @@ export async function renameFolder(id, name) {
     .from('gallery_folders')
     .update({ name: name.trim(), updated_at: new Date().toISOString() })
     .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Persists a folder's own sort override. Pass null to clear the override
+// and fall back to the photographer's default_gallery_sort.
+export async function updateFolderSort(folderId, sortBy) {
+  const { data, error } = await supabase
+    .from('gallery_folders')
+    .update({ sort_by: sortBy, updated_at: new Date().toISOString() })
+    .eq('id', folderId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Persists the photographer's root-level default sort. Used at root and as
+// the fallback for any folder with no sort_by override set.
+export async function updatePhotographerDefaultSort(photographerId, sortBy) {
+  const { data, error } = await supabase
+    .from('photographers')
+    .update({ default_gallery_sort: sortBy })
+    .eq('id', photographerId)
     .select()
     .single()
 

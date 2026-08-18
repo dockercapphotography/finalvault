@@ -5,7 +5,7 @@ import {Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Circle, Folde
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import FilterSortControl from '../components/ui/FilterSortControl.jsx'
 import PageHeader from '../components/ui/PageHeader.jsx'
-import { getGalleries, getFolders, getTags, createFolder, moveGalleryToFolder } from '../utils/galleryApi.js'
+import { getGalleries, getFolders, getTags, createFolder, moveGalleryToFolder, updateFolderSort, updatePhotographerDefaultSort } from '../utils/galleryApi.js'
 import { getBookmarkedGalleryIds } from '../utils/bookmarkApi.js'
 import { supabase } from '../supabaseClient.js'
 import GalleryGrid from '../components/galleries/GalleryGrid.jsx'
@@ -551,8 +551,9 @@ export default function Dashboard() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(null)
   const [tagFilter, setTagFilter] = useState([])
-  const [sortBy, setSortBy] = useState(() => localStorage.getItem('fv-dashboard-sort') || 'created_desc')
-  useEffect(() => { localStorage.setItem('fv-dashboard-sort', sortBy) }, [sortBy])
+  const [sortBy, setSortBy] = useState('created_desc')
+  const [defaultGallerySort, setDefaultGallerySort] = useState('created_desc')
+  const [photographerId, setPhotographerId] = useState(null)
   const [gridSize, setGridSize] = useState(() => localStorage.getItem('fv-dashboard-grid-size') || 'default')
   useEffect(() => { localStorage.setItem('fv-dashboard-grid-size', gridSize) }, [gridSize])
   const [allTags, setAllTags] = useState([])
@@ -571,6 +572,48 @@ export default function Dashboard() {
   const [currentFolderId, setCurrentFolderId] = useState(null)   // null = root
   const [folderPath, setFolderPath] = useState([])               // [{ id, name }, ...]
   const [newFolderOpen, setNewFolderOpen] = useState(false)
+
+  // Effective sort = current folder's own sort_by override if set, else the
+  // photographer's default_gallery_sort. Recomputes whenever folder
+  // navigation changes, folders reload, or the default sort loads/changes.
+  useEffect(() => {
+    if (currentFolderId) {
+      const folder = folders.find(f => f.id === currentFolderId)
+      setSortBy(folder?.sort_by || defaultGallerySort)
+    } else {
+      setSortBy(defaultGallerySort)
+    }
+  }, [currentFolderId, folders, defaultGallerySort])
+
+  // One-time migration: photographers who had a localStorage sort preference
+  // from before this feature shipped get it pushed up as their new
+  // default_gallery_sort, so nobody's existing preference silently resets.
+  useEffect(() => {
+    if (!photographerId) return
+    if (localStorage.getItem('fv-dashboard-sort-migrated')) return
+    const legacy = localStorage.getItem('fv-dashboard-sort')
+    localStorage.setItem('fv-dashboard-sort-migrated', 'true')
+    if (legacy && legacy !== defaultGallerySort) {
+      updatePhotographerDefaultSort(photographerId, legacy)
+        .then(() => setDefaultGallerySort(legacy))
+        .catch(() => {})
+    }
+  }, [photographerId, defaultGallerySort])
+
+  // Persists a sort change: to the current folder's row if inside a folder,
+  // or to the photographer's default_gallery_sort if at root.
+  function handleSortChange(newSort) {
+    setSortBy(newSort)
+    if (currentFolderId) {
+      updateFolderSort(currentFolderId, newSort)
+        .then(() => setFolders(prev => prev.map(f => f.id === currentFolderId ? { ...f, sort_by: newSort } : f)))
+        .catch(() => setToast({ message: 'Failed to save folder sort', type: 'error' }))
+    } else {
+      updatePhotographerDefaultSort(photographerId, newSort)
+        .then(() => setDefaultGallerySort(newSort))
+        .catch(() => setToast({ message: 'Failed to save default sort', type: 'error' }))
+    }
+  }
 
   useEffect(() => {
     loadData()
@@ -601,7 +644,7 @@ export default function Dashboard() {
         getFolders(),
         getBookmarkedGalleryIds(),
         getTags(),
-        supabase.auth.getUser().then(({ data: { user } }) => supabase.from('photographers').select('first_shared_at').eq('id', user.id).single()),
+        supabase.auth.getUser().then(({ data: { user } }) => { setPhotographerId(user.id); return supabase.from('photographers').select('first_shared_at, default_gallery_sort').eq('id', user.id).single() }),
         supabase.from('watermarks').select('id').limit(1),
         supabase.auth.getSession(),
       ])
@@ -610,6 +653,7 @@ export default function Dashboard() {
       setFolders(foldersData)
       setBookmarkedIds(bIds)
       setFirstSharedAt(photog?.first_shared_at || null)
+      setDefaultGallerySort(photog?.default_gallery_sort || 'created_desc')
       setHasWatermark((watermarks?.length ?? 0) > 0)
       setAuthToken(session?.access_token || null)
     } catch (err) {
@@ -711,6 +755,11 @@ export default function Dashboard() {
     setGalleries(prev => prev.filter(g => g.id !== galleryId))
   }
 
+  // Called when a gallery's info is changed via Quick Edit from the card ⋮ menu
+  function handleGalleryUpdated(updatedGallery) {
+    setGalleries(prev => prev.map(g => g.id === updatedGallery.id ? { ...g, ...updatedGallery } : g))
+  }
+
   const hasFilters = statusFilter || eventDateFilter || expiryFilter || tagFilter.length > 0
 
   // When searching, show all galleries regardless of folder
@@ -759,7 +808,7 @@ export default function Dashboard() {
     }] : []),
     {
       key: 'sort', label: 'Sort by', type: 'sort',
-      value: sortBy, onChange: setSortBy,
+      value: sortBy, onChange: handleSortChange,
       options: DASHBOARD_SORT_OPTIONS.map(o => ({ value: o.id, label: o.label })),
     },
   ]
@@ -768,7 +817,7 @@ export default function Dashboard() {
   const hasImages = galleries.some(g => (g.image_count?.[0]?.count ?? 0) > 0)
   const hasShared = !!firstSharedAt
   const allDone = hasWatermark && hasGallery && hasImages && hasShared
-  const showChecklist = !loading && !checklistDismissed && !allDone
+  const showChecklist = !loading && !error && !checklistDismissed && !allDone
 
   // Cover URL map for folder stacks
   const folderCoverUrls = buildFolderCoverUrls(galleries, authToken)
@@ -831,6 +880,7 @@ export default function Dashboard() {
     folderPath,
     onGalleryMoved: handleGalleryMoved,
     onGalleryDeleted: handleGalleryDeleted,
+    onGalleryUpdated: handleGalleryUpdated,
     onCopyLink: handleCopyLink,
   }
 
@@ -839,7 +889,7 @@ export default function Dashboard() {
     <FolderContext.Provider value={folderContextValue}>
       <div className={`space-y-5 max-w-7xl ${showChecklist ? 'md:pr-80' : ''}`}>
 
-      {!loading && (
+      {!loading && !error && (
         <SetupChecklist
           galleries={galleries}
           hasWatermark={hasWatermark}

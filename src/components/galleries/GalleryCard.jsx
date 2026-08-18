@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Images, Lock, Clock, Bookmark, MoreVertical, FolderInput, Link, Trash2 } from 'lucide-react'
+import { Images, Lock, Clock, Bookmark, MoreVertical, FolderInput, Link, Trash2, Pencil } from 'lucide-react'
 import MovePickerModal from './MovePickerModal.jsx'
+import QuickEditGalleryModal from './QuickEditGalleryModal.jsx'
 import { useDraggable } from '@dnd-kit/core'
 import Badge from '../ui/Badge.jsx'
 import { formatDate } from '../../utils/formatters.js'
@@ -13,12 +14,13 @@ import { useFolderContext } from '../../contexts/FolderContext.jsx'
 
 export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarked: initialBookmarked = false }) {
   const navigate = useNavigate()
-  const { onGalleryMoved, onGalleryDeleted, onCopyLink: ctxCopyLink, folderPath = [] } = useFolderContext()
+  const { onGalleryMoved, onGalleryDeleted, onGalleryUpdated, onCopyLink: ctxCopyLink, folderPath = [] } = useFolderContext()
 
   const [bookmarked, setBookmarked] = useState(initialBookmarked)
   const [bookmarking, setBookmarking] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [moveModalOpen, setMoveModalOpen] = useState(false)
+  const [quickEditOpen, setQuickEditOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const menuRef = useRef(null)
@@ -159,6 +161,15 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
                 style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 170 }}
               >
                 <button
+                  onClick={e => { e.stopPropagation(); setMenuOpen(false); setQuickEditOpen(true) }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
+                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <Pencil size={13} />Quick Edit
+                </button>
+                <button
                   onClick={e => { e.stopPropagation(); setMenuOpen(false); setMoveModalOpen(true) }}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
                   style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
@@ -257,6 +268,7 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-30" style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 170 }}>
+                <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setQuickEditOpen(true) }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left" style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Pencil size={13} />Quick Edit</button>
                 <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setMoveModalOpen(true) }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left" style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><FolderInput size={13} />Move to Folder</button>
                 <button onClick={handleCopyLink} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left" style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Link size={13} />Copy Link</button>
                 <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setConfirmDelete(true) }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left" style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Trash2 size={13} />Delete</button>
@@ -284,6 +296,14 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
           )}
         </div>
       </div>
+
+      {quickEditOpen && (
+        <QuickEditGalleryModal
+          gallery={gallery}
+          onClose={() => setQuickEditOpen(false)}
+          onSaved={updated => onGalleryUpdated(updated)}
+        />
+      )}
 
       <MovePickerModal
         open={moveModalOpen}
