@@ -21,6 +21,7 @@ import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { formatDate } from '../utils/formatters.js'
 import CoverPickerModal from '../components/galleries/CoverPickerModal.jsx'
+import QuickEditGalleryModal from '../components/galleries/QuickEditGalleryModal.jsx'
 import ShareButton from '../components/galleries/ShareButton.jsx'
 import { getActiveWatermark, getWatermarkUrl, getWatermarks } from '../utils/watermarkApi.js'
 import { getSets, createSet, updateSet, deleteSet, saveSetOrder, moveImageToSet, moveImagesToSet } from '../utils/gallerySetApi.js'
@@ -43,6 +44,7 @@ export default function GalleryDetail() {
   const [coverId, setCoverId] = useState(null)
   const [activeWatermark, setActiveWatermark] = useState(null)
   const [showCoverPicker, setShowCoverPicker] = useState(false)
+  const [showQuickEdit, setShowQuickEdit] = useState(false)
   const [coverPickerImage, setCoverPickerImage] = useState(null)
   const [lightboxImage, setLightboxImage] = useState(null)
   const [lightboxIndex, setLightboxIndex] = useState(null)
@@ -91,7 +93,7 @@ export default function GalleryDetail() {
   function closeSheet() { setShowActionSheet(false) }
   const [shareModal, setShareModal] = useState(null)
 
-  const anyModalOpen = showWatermark || showCoverPicker || showActionSheet || !!confirmDeleteSetId || lightboxIndex !== null
+  const anyModalOpen = showWatermark || showCoverPicker || showQuickEdit || showActionSheet || !!confirmDeleteSetId || lightboxIndex !== null
   useScrollLock(anyModalOpen)
 
   const activeSetImages = activeSetId ? images.filter(i => i.set_id === activeSetId) : images
@@ -294,11 +296,21 @@ export default function GalleryDetail() {
     try {
       const params = new URLSearchParams({ size: hires ? 'hires' : 'web' })
       if (!hires && image.watermark_id) params.set('watermark_id', image.watermark_id)
+      // Lets the Worker serve the pre-generated web-size JPEG directly
+      // (fast path) instead of falling back to re-decoding the full-res
+      // original via WASM on every single download -- matches the bulk
+      // multi-select download loop further down in this file, which
+      // already does this correctly.
+      if (!hires && image.web_r2_key) params.set('web_key', encodeURIComponent(image.web_r2_key))
       const resp = await fetch(
         `${workerUrl}/download/${encodeURIComponent(image.original_r2_key)}?${params}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
-      if (!resp.ok) throw new Error('Download failed')
+      if (!resp.ok) {
+        let detail = ''
+        try { detail = (await resp.json())?.error || '' } catch { /* response wasn't JSON */ }
+        throw new Error(detail || `Download failed (${resp.status})`)
+      }
       const blob = await resp.blob()
       const objectUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -768,6 +780,10 @@ export default function GalleryDetail() {
               <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>{gallery.title}</h1>
                 {statusBadge[status]}
+                <button onClick={() => setShowQuickEdit(true)} aria-label="Quick edit gallery info"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 2 }}>
+                  <Pencil size={14} />
+                </button>
               </div>
               {/* Line 1: client name · event name */}
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -1098,6 +1114,14 @@ export default function GalleryDetail() {
         />
       )}
 
+      {showQuickEdit && (
+        <QuickEditGalleryModal
+          gallery={gallery}
+          onClose={() => setShowQuickEdit(false)}
+          onSaved={updated => setGallery(prev => ({ ...prev, ...updated }))}
+        />
+      )}
+
       {showCoverPicker && (
         <CoverPickerModal
           images={images}
@@ -1352,6 +1376,10 @@ export default function GalleryDetail() {
               <div className="flex items-center gap-2 mb-0.5">
                 <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gallery.title}</p>
                 {statusBadge[status]}
+                <button onClick={() => { closeSheet(); setTimeout(() => setShowQuickEdit(true), 300) }} aria-label="Quick edit gallery info"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 2, flexShrink: 0 }}>
+                  <Pencil size={12} />
+                </button>
               </div>
               {/* Line 1: client name · event name */}
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
