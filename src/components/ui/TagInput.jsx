@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Tag } from 'lucide-react'
 
-export default function TagInput({ value = [], onChange, allTags = [], placeholder = 'Add tag...' }) {
+export default function TagInput({ value = [], onChange, allTags = [], placeholder = 'Add tag...', tagColors = {} }) {
   const [input, setInput] = useState('')
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -20,8 +20,15 @@ export default function TagInput({ value = [], onChange, allTags = [], placehold
     if (!clean || value.includes(clean)) return
     onChange([...value, clean])
     setInput('')
-    setOpen(false)
     setActiveIndex(-1)
+    // Deliberately NOT closing the dropdown here -- matches
+    // GallerySettings.jsx's own tag picker, which stays open after each
+    // selection so multiple tags can be added in a row. Closing it (even
+    // paired with a re-focus call) doesn't actually reopen it: the
+    // dropdown's onMouseDown handlers already preventDefault, so the
+    // input never truly loses focus during the click, and a .focus()
+    // call on an already-focused element is a no-op in the browser --
+    // no focus event fires, so open never flips back to true on its own.
     inputRef.current?.focus()
   }
 
@@ -53,7 +60,13 @@ export default function TagInput({ value = [], onChange, allTags = [], placehold
 
   useEffect(() => {
     function handleOutside(e) {
-      if (!containerRef.current?.contains(e.target)) setOpen(false)
+      // composedPath() captures the click's original DOM path at the
+      // moment it was dispatched -- unlike contains(e.target), it's not
+      // affected by the clicked element being removed from the DOM by a
+      // re-render that the click itself triggered (e.g. a tag being
+      // added and disappearing from the suggestion list).
+      const path = e.composedPath ? e.composedPath() : [e.target]
+      if (containerRef.current && !path.includes(containerRef.current)) setOpen(false)
     }
     document.addEventListener('mousedown', handleOutside)
     return () => document.removeEventListener('mousedown', handleOutside)
@@ -69,22 +82,25 @@ export default function TagInput({ value = [], onChange, allTags = [], placehold
           background: 'var(--bg-subtle)', minHeight: 38, cursor: 'text',
         }}
       >
-        {value.map(tag => (
-          <span key={tag} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            background: 'rgba(99,102,241,0.12)', color: '#534AB7',
-            fontSize: 12, padding: '2px 8px', borderRadius: 20,
-            border: '0.5px solid rgba(99,102,241,0.3)',
-          }}>
-            {tag}
-            <button
-              onClick={e => { e.stopPropagation(); removeTag(tag) }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                display: 'flex', alignItems: 'center', color: '#534AB7', opacity: 0.7 }}>
-              <X size={10} />
-            </button>
-          </span>
-        ))}
+        {value.map(tag => {
+          const color = tagColors[tag] || '#6366f1'
+          return (
+            <span key={tag} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+              background: color + '22', color: color,
+              fontSize: 12, padding: '2px 8px', borderRadius: 20,
+              border: `0.5px solid ${color}44`,
+            }}>
+              {tag}
+              <button
+                onClick={e => { e.stopPropagation(); removeTag(tag) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                  display: 'flex', alignItems: 'center', color: 'inherit', opacity: 0.7 }}>
+                <X size={10} />
+              </button>
+            </span>
+          )
+        })}
         <input
           ref={inputRef}
           value={input}
@@ -105,10 +121,12 @@ export default function TagInput({ value = [], onChange, allTags = [], placehold
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 8, marginTop: 3, overflow: 'hidden',
           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          maxHeight: 220, overflowY: 'auto',
         }}>
           {dropdownItems.map((item, i) => {
             const isCreate = item?.create
             const label = isCreate ? item.label : item
+            const dotColor = !isCreate && tagColors[item]
             return (
               <button
                 key={isCreate ? '__create__' : item}
@@ -122,7 +140,9 @@ export default function TagInput({ value = [], onChange, allTags = [], placehold
                 }}>
                 {isCreate
                   ? <><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Create "{label}"</>
-                  : <><Tag size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> {label}</>
+                  : dotColor
+                    ? <><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, display: 'inline-block', flexShrink: 0 }} /> {label}</>
+                    : <><Tag size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> {label}</>
                 }
               </button>
             )

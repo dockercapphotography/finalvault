@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Check, X } from 'lucide-react'
-import { createGallery, linkGalleriesToClient } from '../utils/galleryApi.js'
+import { createGallery, linkGalleriesToClient, getTags, assignTag, createAndAssignTag } from '../utils/galleryApi.js'
 import { getClients } from '../utils/crmApi.js'
 import { createSet } from '../utils/gallerySetApi.js'
 import { getGalleryTemplates } from '../utils/galleryTemplateApi.js'
@@ -10,6 +10,7 @@ import Button from '../components/ui/Button.jsx'
 import ClientPicker from '../components/ui/ClientPicker.jsx'
 import ClientAvatarCircle from '../components/ui/ClientAvatarCircle.jsx'
 import Input from '../components/ui/Input.jsx'
+import TagInput from '../components/ui/TagInput.jsx'
 import { generatePin, generatePassword } from '../utils/secretGenerators.js'
 
 export default function GalleryNew() {
@@ -24,6 +25,8 @@ export default function GalleryNew() {
   const [values, setValues] = useState({ title: '', clientName: '', eventName: '', notes: '', eventDate: '' })
   const [clients, setClients] = useState([])
   const [selectedClientIds, setSelectedClientIds] = useState([])
+  const [allTags, setAllTags] = useState([])
+  const [selectedTagNames, setSelectedTagNames] = useState([])
   const [sets, setSets] = useState([{ name: '' }])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -34,6 +37,7 @@ export default function GalleryNew() {
       .then(data => { setTemplates(data); setLoadingTemplates(false) })
       .catch(() => setLoadingTemplates(false))
     getClients().then(setClients).catch(() => {})
+    getTags().then(setAllTags).catch(() => {})
   }, [])
 
   function handleSelectTemplate(template) {
@@ -99,6 +103,14 @@ export default function GalleryNew() {
       // gallery_clients. Link any additional selected clients the same way.
       for (const clientId of selectedClientIds.slice(1)) {
         await linkGalleriesToClient([gallery.id], clientId)
+      }
+      // Selected tag names may match an existing tag (assign directly,
+      // reusing its row) or be genuinely new (create then assign) -- same
+      // distinction GallerySettings.jsx's tag UI already makes.
+      for (const name of selectedTagNames) {
+        const existing = allTags.find(t => t.name === name)
+        if (existing) await assignTag(gallery.id, existing.id)
+        else await createAndAssignTag(gallery.id, { name })
       }
       for (let i = 0; i < validSets.length; i++) {
         await createSet(gallery.id, validSets[i].name)
@@ -357,6 +369,17 @@ export default function GalleryNew() {
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
               onFocus={e => e.target.style.borderColor = 'var(--border-strong)'}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Tags</label>
+            <TagInput
+              value={selectedTagNames}
+              onChange={setSelectedTagNames}
+              allTags={allTags.map(t => t.name)}
+              tagColors={Object.fromEntries(allTags.map(t => [t.name, t.color || '#6366f1']))}
+              placeholder="Add a tag..."
             />
           </div>
 
