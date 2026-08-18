@@ -61,10 +61,17 @@ export function useImageUpload({ galleryId, photographerId, watermark, setId, on
     setUploadItems(prev => prev.map((item, i) => i === index ? { ...item, ...updates } : item))
   }
 
-  const uploadFiles = useCallback(async (files) => {
+  const uploadFiles = useCallback(async (rawFiles) => {
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
     if (!token) return
+
+    // Natural-sort by filename before assigning sort_order, so numeric
+    // suffixes like '-1', '-2', '-10' land in the right order instead of
+    // whatever order the browser's FileList/drag-drop happened to give.
+    const files = [...rawFiles].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    )
 
     // Check storage capacity before starting
     setStorageError(null)
