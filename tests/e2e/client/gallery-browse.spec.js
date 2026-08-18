@@ -43,6 +43,20 @@ async function createGallery(overrides = {}) {
 }
 
 async function enterGallery(page, shareToken, name = 'testclient@example.com') {
+  // Suppress the first-visit GalleryGuide onboarding overlay (see
+  // GalleryGuide.jsx). It appears ~400ms after the gallery loads via a
+  // setTimeout, and its full-screen empty backdrop div (zIndex:80) can
+  // race with -- and intercept -- clicks meant for the image grid if it
+  // happens to mount first. Pre-seeding the "already seen" localStorage
+  // flag here removes the race entirely, since we're not testing the
+  // guide itself in these tests.
+  await page.addInitScript(() => {
+    const origGetItem = Storage.prototype.getItem
+    Storage.prototype.getItem = function (key) {
+      if (typeof key === 'string' && key.startsWith('fv-guide-seen-')) return 'true'
+      return origGetItem.call(this, key)
+    }
+  })
   await page.goto(`/g/${shareToken}`)
   await expect(page.locator('.animate-spin')).not.toBeAttached({ timeout: 15000 })
   await page.getByPlaceholder('Enter your email to continue').fill(name)
@@ -177,7 +191,7 @@ test.describe('Gallery browse — set tabs', () => {
     }
   })
 
-  test('does not show set tabs when gallery has only one set', async ({ page }) => {
+  test('shows set tab even when gallery has only one set', async ({ page }) => {
     const photographerId = await getPhotographerId()
     const shareToken = `test-browse-${crypto.randomUUID().slice(0, 8)}`
     const { data: gallery } = await sb().from('galleries').insert({
@@ -198,8 +212,9 @@ test.describe('Gallery browse — set tabs', () => {
 
     try {
       await enterGallery(page, shareToken)
-      // With only one set, the tab strip should not render
-      await expect(page.getByRole('button', { name: 'Photos' })).toHaveCount(0)
+      // Tab bar renders even with a single set (v1.5.5) -- consistent
+      // whether a gallery has one collection or several.
+      await expect(page.getByRole('button', { name: 'Photos' })).toBeVisible()
     } finally {
       await sb().from('gallery_viewers').delete().eq('gallery_id', gallery.id)
       await sb().from('gallery_activity_log').delete().eq('gallery_id', gallery.id)

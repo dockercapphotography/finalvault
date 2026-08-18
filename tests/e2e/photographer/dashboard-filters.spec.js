@@ -169,6 +169,12 @@ test.describe('Dashboard — Filters & Sort', () => {
 
     test('dashboard search by tag name surfaces tagged gallery', async ({ page }) => {
       await gotoDashboard(page)
+      // Wait for the initial data load (galleries + tags join) to settle
+      // before searching. The search input itself renders during the
+      // loading state, so typing immediately after gotoDashboard() can
+      // race the async fetch on a slow run -- suspected cause of this
+      // test's intermittent flakiness.
+      await expect(page.locator('.animate-spin')).toHaveCount(0, { timeout: 10000 })
       // Two search inputs exist (desktop + mobile); the mobile one is
       // display:none at this viewport, so :visible scoping picks the
       // right one deterministically.
