@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import RescheduleModal from '../components/signup/RescheduleModal.jsx'
+import MultiSelectPicker from '../components/ui/MultiSelectPicker.jsx'
+import { SlotActionsModal, SlotActionsSheet } from './SignupLiveStatus.jsx'
+import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { Plus, CalendarDays, X, LayoutList, Columns, Link2, Copy, Check, Trash2, MapPin, Ticket as TicketIcon, Camera,
-  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock } from 'lucide-react'
+  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock, Search } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
-import { formatPlainTimeRange } from '../utils/formatters.js'
+import { formatPlainTimeRange, formatTimeRange } from '../utils/formatters.js'
 import {
   getSessions, createSession, updateSession, SESSION_TYPES, SESSION_STATUSES,
   getStatusConfig, getPaymentConfig, PAYMENT_STATUSES, formatSessionDate, SESSION_TYPE_ICON,
@@ -520,6 +523,8 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
   const [name, setName] = useState(shootType.name)
   const [duration, setDuration] = useState(String(shootType.duration_minutes))
   const [sessionType, setSessionType] = useState(shootType.session_type)
+  const [price, setPrice] = useState(shootType.price != null ? String(shootType.price) : '')
+  const [retainerAmount, setRetainerAmount] = useState(shootType.retainer_amount != null ? String(shootType.retainer_amount) : '')
   const [questionnaireIds, setQuestionnaireIds] = useState([])
   const [loadingQuestionnaires, setLoadingQuestionnaires] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -538,6 +543,8 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
     try {
       const updated = await updateShootType(shootType.id, {
         name, durationMinutes: parseInt(duration, 10) || shootType.duration_minutes, sessionType,
+        price: price.trim() === '' ? null : parseFloat(price),
+        retainerAmount: retainerAmount.trim() === '' ? null : parseFloat(retainerAmount),
       })
       await setShootTypeQuestionnaires(shootType.id, questionnaireIds)
       onUpdated(updated)
@@ -564,29 +571,37 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
         </div>
 
         <div>
+          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Price (optional)</p>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: 'var(--text-muted)' }}>$</span>
+            <input type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)}
+              placeholder="0.00"
+              style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px 7px 22px', fontSize: 13, boxSizing: 'border-box' }} />
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Deposit / retainer required (optional)</p>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: 'var(--text-muted)' }}>$</span>
+            <input type="number" min="0" step="0.01" value={retainerAmount} onChange={e => setRetainerAmount(e.target.value)}
+              placeholder="0.00"
+              style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px 7px 22px', fontSize: 13, boxSizing: 'border-box' }} />
+          </div>
+        </div>
+
+        <div>
           <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Questionnaires assigned automatically when someone books this shoot type</p>
           {loadingQuestionnaires ? (
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Loading...</p>
-          ) : allQuestionnaires.length === 0 ? (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No questionnaire templates yet. Create one in Account → Questionnaires.</p>
           ) : (
-            <div className="space-y-1">
-              {allQuestionnaires.map(q => {
-                const selected = questionnaireIds.includes(q.id)
-                return (
-                  <button key={q.id} type="button"
-                    onClick={() => setQuestionnaireIds(prev => selected ? prev.filter(id => id !== q.id) : [...prev, q.id])}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left"
-                    style={{ border: `1.5px solid ${selected ? '#6366f1' : 'var(--border)'}`, background: selected ? 'rgba(99,102,241,0.05)' : 'var(--surface)', cursor: 'pointer' }}>
-                    <div className="w-3.5 h-3.5 rounded flex items-center justify-center shrink-0"
-                      style={{ background: selected ? '#6366f1' : 'var(--surface-raised)', border: selected ? 'none' : '1.5px solid var(--border)' }}>
-                      {selected && <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                    </div>
-                    <span className="text-xs truncate" style={{ color: selected ? '#6366f1' : 'var(--text)', fontWeight: selected ? '500' : '400' }}>{q.name}</span>
-                  </button>
-                )
-              })}
-            </div>
+            <MultiSelectPicker
+              items={allQuestionnaires}
+              selectedIds={questionnaireIds}
+              onChange={setQuestionnaireIds}
+              placeholder="Add a questionnaire..."
+              emptyMessage="No questionnaire templates yet. Create one in Account → Questionnaires."
+            />
           )}
         </div>
 
@@ -608,7 +623,7 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
     <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
       <button onClick={startEditing} className="text-left flex-1 min-w-0" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
         <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{shootType.name}</p>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{shootType.duration_minutes} min · {shootType.session_type}</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{shootType.duration_minutes} min · {shootType.session_type}{shootType.price != null ? ` · $${parseFloat(shootType.price).toFixed(2)}` : ''}</p>
       </button>
       <button onClick={() => onDeleted(shootType.id)} aria-label={`Delete ${shootType.name}`} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: 4 }}>
         <Trash2 size={14} />
@@ -861,16 +876,21 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
   const [newTypeName, setNewTypeName] = useState('')
   const [newTypeDuration, setNewTypeDuration] = useState('15')
   const [newTypeSessionType, setNewTypeSessionType] = useState('Portrait')
+  const [newTypePrice, setNewTypePrice] = useState('')
+  const [newTypeRetainerAmount, setNewTypeRetainerAmount] = useState('')
+  const [newTypeQuestionnaireIds, setNewTypeQuestionnaireIds] = useState([])
   const [address, setAddress] = useState('')
   const [timezone, setTimezone] = useState('America/New_York')
   const [confirmationNote, setConfirmationNote] = useState('')
   const [notificationNote, setNotificationNote] = useState('')
   const [bookingDescription, setBookingDescription] = useState('')
+  const [showPricing, setShowPricing] = useState(true)
   const [copied, setCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [clearingAll, setClearingAll] = useState(false)
   const [questionnaires, setQuestionnaires] = useState([])
+  const [activeTab, setActiveTab] = useState('slots')
 
   useEffect(() => { load() }, [pageId])
 
@@ -902,6 +922,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
       setConfirmationNote(p.confirmation_note || '')
       setNotificationNote(p.notification_note || '')
       setBookingDescription(p.booking_description || '')
+      setShowPricing(p.show_pricing ?? true)
     } catch (err) { console.error(err) }
     finally { if (!silent) setLoading(false) }
   }
@@ -943,14 +964,26 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
     onChanged()
   }
 
+  async function handleToggleShowPricing() {
+    const next = !showPricing
+    setShowPricing(next)
+    const updated = await updateSignupPage(pageId, { showPricing: next })
+    setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
+  }
+
   async function handleAddShootType() {
     if (!newTypeName.trim()) return
     const created = await createShootType({
       signupPageId: pageId, name: newTypeName, durationMinutes: parseInt(newTypeDuration, 10) || 15,
       sessionType: newTypeSessionType, sortOrder: page.signup_shoot_types.length,
+      price: newTypePrice.trim() === '' ? null : parseFloat(newTypePrice),
+      retainerAmount: newTypeRetainerAmount.trim() === '' ? null : parseFloat(newTypeRetainerAmount),
     })
+    if (newTypeQuestionnaireIds.length > 0) {
+      await setShootTypeQuestionnaires(created.id, newTypeQuestionnaireIds)
+    }
     setPage(prev => ({ ...prev, signup_shoot_types: [...prev.signup_shoot_types, created] }))
-    setNewTypeName(''); setNewTypeDuration('15'); setAddingType(false)
+    setNewTypeName(''); setNewTypeDuration('15'); setNewTypePrice(''); setNewTypeRetainerAmount(''); setNewTypeQuestionnaireIds([]); setAddingType(false)
     onChanged()
   }
 
@@ -993,6 +1026,25 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
   }
 
   const [rescheduleSlot, setRescheduleSlot] = useState(null)
+  const [actionsSlot, setActionsSlot] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showGenerator, setShowGenerator] = useState(false)
+  const isDesktop = useMediaQuery('(min-width: 768px)')
+
+  // Cross-day search: matches claimed slots by client name/email across
+  // ALL days at once, not scoped to whichever day happens to be expanded
+  // in the accordion below. Open (unclaimed) slots have no client info to
+  // search by, so they're excluded here -- they're still reachable via
+  // the day-by-day fallback when search is empty.
+  const isSearchingSlots = searchQuery.trim().length > 0
+  const searchResults = isSearchingSlots
+    ? slots
+        .filter(s => s.claimed_at && (
+          s.client_name?.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+          s.client_email?.toLowerCase().includes(searchQuery.trim().toLowerCase())
+        ))
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+    : []
 
   return (
     <>
@@ -1024,6 +1076,126 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
               </div>
             </div>
           </div>
+
+          {/* Tab switcher -- same pill-toggle pattern as RescheduleModal's
+              Move/Custom-time tabs. "Booking slots" is the default since
+              finding/acting on a booking is the primary task; page
+              settings are secondary and don't need to be scrolled past
+              to get there anymore. */}
+          <div className="flex rounded-lg p-0.5" style={{ background: 'var(--bg-subtle)' }}>
+            {[['slots', 'Booking slots'], ['settings', 'Session settings']].map(([key, tabLabel]) => (
+              <button key={key} onClick={() => setActiveTab(key)}
+                className="flex-1 text-xs font-medium px-2.5 py-1.5 rounded-md"
+                style={{
+                  background: activeTab === key ? 'var(--surface)' : 'transparent',
+                  color: activeTab === key ? 'var(--text)' : 'var(--text-muted)',
+                  border: 'none', cursor: 'pointer',
+                }}>
+                {tabLabel}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'slots' && (
+            <div className="space-y-6">
+              {/* Cross-day search -- see isSearchingSlots/searchResults above. */}
+              <div className="relative">
+                <Search size={14} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--text-muted)' }} />
+                <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search bookings by name or email..."
+                  style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px 9px 34px', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+
+              {isSearchingSlots ? (
+                <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                  {searchResults.length === 0 ? (
+                    <p className="text-xs px-4 py-3" style={{ color: 'var(--text-muted)' }}>No bookings match "{searchQuery}".</p>
+                  ) : (
+                    searchResults.map((slot, i) => {
+                      const shootType = page.signup_shoot_types.find(t => t.id === slot.shoot_type_id)
+                      const day = new Date(slot.start_time).toLocaleDateString('en-US', { timeZone: page.timezone, weekday: 'short', month: 'short', day: 'numeric' })
+                      return (
+                        <button key={slot.id} onClick={() => setActionsSlot(slot)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-left text-xs"
+                          style={{ background: 'none', border: 'none', borderTop: i === 0 ? 'none' : '1px solid var(--border)', cursor: 'pointer' }}>
+                          <div className="min-w-0">
+                            <span className="font-medium" style={{ color: 'var(--text)' }}>{slot.client_name}</span>
+                            <div style={{ color: 'var(--text-muted)' }}>
+                              {day}, {formatTimeRange(slot.start_time, slot.end_time, page.timezone)} · {shootType?.name || 'Unknown'}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              ) : (
+              <>
+          {/* Slot generator -- collapsed by default (v1.5.5): creating new
+              slots happens far less often than finding existing ones, so
+              it no longer needs to always be visible here. */}
+          {showGenerator ? (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Generate time slots</label>
+                <button onClick={() => setShowGenerator(false)} className="text-xs font-medium"
+                  style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  Hide
+                </button>
+              </div>
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                <GenerateSlotsForm page={page} shootTypes={page.signup_shoot_types} onGenerated={() => load({ silent: true })} />
+              </div>
+              <div className="mt-2.5">
+                <ManualAddSlotForm page={page} shootTypes={page.signup_shoot_types} onAdded={() => load({ silent: true })} />
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowGenerator(true)} className="text-xs font-medium"
+              style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>
+              + Generate or add time slots
+            </button>
+          )}
+
+
+          {/* Slot summary by day */}
+          {Object.keys(slotsByDay).length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Slots by day</label>
+                {slots.some(s => !s.claimed_at) && !confirmClearAll && (
+                  <button onClick={() => setConfirmClearAll(true)}
+                    className="flex items-center gap-1 text-xs font-medium"
+                    style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <Trash2 size={12} />Clear all open slots
+                  </button>
+                )}
+              </div>
+              {confirmClearAll && (
+                <div className="flex items-center flex-wrap gap-2 mb-1.5 px-3 py-2 rounded-lg" style={{ background: 'var(--danger-subtle)' }}>
+                  <span className="text-xs flex-1" style={{ color: 'var(--danger)' }}>Remove all open slots? Claimed slots won't be affected.</span>
+                  <Button variant="danger" size="sm" onClick={handleClearAllOpenSlots} disabled={clearingAll}>
+                    {clearingAll ? 'Clearing...' : 'Confirm'}
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setConfirmClearAll(false)}>Cancel</Button>
+                </div>
+              )}
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                {Object.entries(slotsByDay).map(([day, dayData], i) => (
+                  <SlotDayRow key={day} day={day} dayData={dayData} isFirst={i === 0}
+                    timezone={page.timezone} shootTypes={page.signup_shoot_types}
+                    onDeleteSlot={handleDeleteSlot} onReschedule={setRescheduleSlot} />
+                ))}
+              </div>
+            </div>
+          )}
+              </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
 
           {/* Booking page description -- shown to clients on the public
               booking page itself, right below the title/venue header.
@@ -1059,6 +1231,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
             </div>
           </div>
 
+
           {/* Booking emails -- per-page, so different events (different
               venues/instructions) can each have their own note rather
               than sharing one account-wide message */}
@@ -1080,6 +1253,17 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
                   style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, outline: 'none', resize: 'vertical' }} />
               </div>
             </div>
+          </div>
+
+          {/* Pricing visibility -- applies to all shoot type prices on this
+              page's public booking page. Defaults on; some photographers
+              may prefer to keep pricing off the public page entirely. */}
+          <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Show pricing publicly</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Displays each shoot type's price to clients on the booking page.</p>
+            </div>
+            <Toggle checked={showPricing} onChange={handleToggleShowPricing} />
           </div>
 
           {/* Shoot types */}
@@ -1114,10 +1298,46 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
                       {SESSION_TYPES.map(st => <option key={st} value={st}>{st}</option>)}
                     </select>
                   </div>
+
+                  <div>
+                    <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Price (optional)</p>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: 'var(--text-muted)' }}>$</span>
+                      <input type="number" min="0" step="0.01" value={newTypePrice} onChange={e => setNewTypePrice(e.target.value)}
+                        placeholder="0.00"
+                        style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px 7px 22px', fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Deposit / retainer required (optional)</p>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: 'var(--text-muted)' }}>$</span>
+                      <input type="number" min="0" step="0.01" value={newTypeRetainerAmount} onChange={e => setNewTypeRetainerAmount(e.target.value)}
+                        placeholder="0.00"
+                        style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px 7px 22px', fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  {/* Questionnaire assignment at creation time (v1.5.5) --
+                      previously only available after creating the shoot
+                      type, via ShootTypeRow's edit mode. Same checklist
+                      UI/pattern, reused here. */}
+                  <div>
+                    <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Questionnaires assigned automatically when someone books this shoot type</p>
+                    <MultiSelectPicker
+                      items={questionnaires}
+                      selectedIds={newTypeQuestionnaireIds}
+                      onChange={setNewTypeQuestionnaireIds}
+                      placeholder="Add a questionnaire..."
+                      emptyMessage="No questionnaire templates yet. Create one in Account → Questionnaires."
+                    />
+                  </div>
+
                   <div className="flex items-center gap-2">
                     <button onClick={handleAddShootType} disabled={!newTypeName.trim()} className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
                       style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>Add</button>
-                    <button onClick={() => setAddingType(false)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                    <button onClick={() => { setAddingType(false); setNewTypeQuestionnaireIds([]) }} className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
                       style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>Cancel</button>
                   </div>
                 </div>
@@ -1125,48 +1345,6 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
             </div>
           </div>
 
-          {/* Slot generator */}
-          <div>
-            <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Generate time slots</label>
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-              <GenerateSlotsForm page={page} shootTypes={page.signup_shoot_types} onGenerated={() => load({ silent: true })} />
-            </div>
-            <div className="mt-2.5">
-              <ManualAddSlotForm page={page} shootTypes={page.signup_shoot_types} onAdded={() => load({ silent: true })} />
-            </div>
-          </div>
-
-          {/* Slot summary by day */}
-          {Object.keys(slotsByDay).length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Slots by day</label>
-                {slots.some(s => !s.claimed_at) && !confirmClearAll && (
-                  <button onClick={() => setConfirmClearAll(true)}
-                    className="flex items-center gap-1 text-xs font-medium"
-                    style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    <Trash2 size={12} />Clear all open slots
-                  </button>
-                )}
-              </div>
-              {confirmClearAll && (
-                <div className="flex items-center flex-wrap gap-2 mb-1.5 px-3 py-2 rounded-lg" style={{ background: 'var(--danger-subtle)' }}>
-                  <span className="text-xs flex-1" style={{ color: 'var(--danger)' }}>Remove all open slots? Claimed slots won't be affected.</span>
-                  <Button variant="danger" size="sm" onClick={handleClearAllOpenSlots} disabled={clearingAll}>
-                    {clearingAll ? 'Clearing...' : 'Confirm'}
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setConfirmClearAll(false)}>Cancel</Button>
-                </div>
-              )}
-              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                {Object.entries(slotsByDay).map(([day, dayData], i) => (
-                  <SlotDayRow key={day} day={day} dayData={dayData} isFirst={i === 0}
-                    timezone={page.timezone} shootTypes={page.signup_shoot_types}
-                    onDeleteSlot={handleDeleteSlot} onReschedule={setRescheduleSlot} />
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Danger zone */}
           <div className="pt-2" style={{ borderTop: '1px solid var(--border)' }}>
@@ -1182,6 +1360,8 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
               </div>
             )}
           </div>
+            </div>
+          )}
         </div>
       )}
     </Modal>
@@ -1195,6 +1375,30 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
         onClose={() => setRescheduleSlot(null)}
         onDone={() => { setRescheduleSlot(null); load({ silent: true }) }}
       />
+    )}
+
+    {actionsSlot && (
+      isDesktop ? (
+        <SlotActionsModal
+          slot={actionsSlot}
+          onClose={() => setActionsSlot(null)}
+          onReschedule={slot => { setActionsSlot(null); setRescheduleSlot(slot) }}
+          shootTypes={page.signup_shoot_types}
+          timezone={page.timezone}
+          onUnclaimed={() => { setActionsSlot(null); load({ silent: true }) }}
+          onNoteSaved={() => load({ silent: true })}
+        />
+      ) : (
+        <SlotActionsSheet
+          slot={actionsSlot}
+          onClose={() => setActionsSlot(null)}
+          onReschedule={slot => { setActionsSlot(null); setRescheduleSlot(slot) }}
+          shootTypes={page.signup_shoot_types}
+          timezone={page.timezone}
+          onUnclaimed={() => { setActionsSlot(null); load({ silent: true }) }}
+          onNoteSaved={() => load({ silent: true })}
+        />
+      )
     )}
     </>
   )

@@ -6,6 +6,10 @@ import { getSignupPage, getSlots, claimSignupSlot, unclaimSlot, updateSlotNote, 
 import { formatTimeRange } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import Modal from '../components/ui/Modal.jsx'
+// Matches Tailwind's md: breakpoint (768px), used elsewhere on this page
+// (e.g. the actions popover vs. sheet split) -- so "desktop" means the
+// same thing everywhere on this page, not just visually via CSS.
+import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import FilterSortControl from '../components/ui/FilterSortControl.jsx'
 import LiveStatusTimeline from '../components/signup/LiveStatusTimeline.jsx'
 import RescheduleModal from '../components/signup/RescheduleModal.jsx'
@@ -74,21 +78,6 @@ function formatCountdown(ms) {
   const hours = Math.floor(mins / 60)
   const rem = mins % 60
   return `in ${hours}h${rem ? ` ${rem}m` : ''}`
-}
-
-// Matches Tailwind's md: breakpoint (768px), used elsewhere on this page
-// (e.g. the actions popover vs. sheet split) -- so "desktop" means the
-// same thing everywhere on this page, not just visually via CSS.
-function useMediaQuery(query) {
-  const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
-  useEffect(() => {
-    const mql = window.matchMedia(query)
-    const handler = () => setMatches(mql.matches)
-    handler()
-    mql.addEventListener('change', handler)
-    return () => mql.removeEventListener('change', handler)
-  }, [query])
-  return matches
 }
 
 function ProgressStat({ claimed, total }) {
@@ -472,7 +461,10 @@ function SlotActionsFields({ slot, onUnclaimed, onNoteSaved, onReschedule, compa
 // old anchored popover, which no longer had room to look right pinned to
 // a row's corner once it grew a header, three contact buttons, a note,
 // and a dedicated no-show button.
-function SlotActionsModal({ slot, onClose, onUnclaimed, onNoteSaved, onReschedule, shootTypes, timezone }) {
+// Exported (v1.5.5) so the Sessions -> Signups detail modal's Booking
+// Slots search can reuse this exact panel instead of a second, slightly-
+// different one.
+export function SlotActionsModal({ slot, onClose, onUnclaimed, onNoteSaved, onReschedule, shootTypes, timezone }) {
   if (!slot) return null
   return (
     <Modal title={slot.client_name} onClose={onClose} size="sm">
@@ -487,7 +479,8 @@ function SlotActionsModal({ slot, onClose, onUnclaimed, onNoteSaved, onReschedul
 // Mobile-only: full slide-up bottom sheet, same content as the desktop
 // popover above (via SlotActionsFields) but in the mobile-appropriate
 // container.
-function SlotActionsSheet({ slot, onClose, onUnclaimed, onNoteSaved, onReschedule, shootTypes, timezone }) {
+// Exported (v1.5.5) -- see SlotActionsModal above.
+export function SlotActionsSheet({ slot, onClose, onUnclaimed, onNoteSaved, onReschedule, shootTypes, timezone }) {
   return (
     <BottomSheet open={!!slot} onClose={onClose}>
       {slot && (

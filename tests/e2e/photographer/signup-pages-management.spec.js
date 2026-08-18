@@ -119,6 +119,7 @@ test.describe('Sign-ups — page management', () => {
     try {
       await goToSignups(page)
       await page.getByText('Shoot Type CRUD Page').click()
+      await page.getByRole('button', { name: 'Session settings' }).click()
       await expect(page.getByText('No shoot types yet.')).toBeVisible()
 
       await page.getByText('+ Add shoot type').click()
@@ -152,7 +153,10 @@ test.describe('Sign-ups — page management', () => {
     try {
       await goToSignups(page)
       await page.getByText('Single Day Gen Page').click()
+      await page.getByRole('button', { name: 'Session settings' }).click()
       await expect(page.getByRole('button', { name: /^Quick Portrait/ })).toBeVisible()
+      await page.getByRole('button', { name: 'Booking slots' }).click()
+      await page.getByText('+ Generate or add time slots').click()
 
       await page.getByText('Start date', { exact: true })
         .locator('xpath=following-sibling::input[@type="date"][1]').fill('2026-09-01')
@@ -172,7 +176,10 @@ test.describe('Sign-ups — page management', () => {
     try {
       await goToSignups(page)
       await page.getByText('Multi Day Gen Page').click()
+      await page.getByRole('button', { name: 'Session settings' }).click()
       await expect(page.getByRole('button', { name: /^Con Portrait/ })).toBeVisible()
+      await page.getByRole('button', { name: 'Booking slots' }).click()
+      await page.getByText('+ Generate or add time slots').click()
 
       await page.getByText('Start date', { exact: true })
         .locator('xpath=following-sibling::input[@type="date"][1]').fill('2026-09-10')
@@ -195,7 +202,10 @@ test.describe('Sign-ups — page management', () => {
     try {
       await goToSignups(page)
       await page.getByText('Manual Add Page').click()
+      await page.getByRole('button', { name: 'Session settings' }).click()
       await expect(page.getByRole('button', { name: /^Manual Shoot/ })).toBeVisible()
+      await page.getByRole('button', { name: 'Booking slots' }).click()
+      await page.getByText('+ Generate or add time slots').click()
 
       await page.getByText('+ Add a single slot manually').click()
       await page.locator('input[type="date"]').last().fill('2026-09-20')
@@ -278,7 +288,12 @@ test.describe('Sign-ups — page management', () => {
     try {
       await goToSignups(page)
       await page.getByText('Questionnaire Link Page').click()
+      await page.getByRole('button', { name: 'Session settings' }).click()
       await page.getByRole('button', { name: /^Questionnaire Shoot/ }).click()
+      // Questionnaire assignment now uses MultiSelectPicker -- open its
+      // dropdown before the questionnaire name becomes clickable (it was
+      // previously an always-visible checkbox list).
+      await page.getByText('Add a questionnaire...').click()
       await expect(page.getByText('Test Questionnaire', { exact: true })).toBeVisible()
       await page.getByText('Test Questionnaire', { exact: true }).click()
       await page.getByRole('button', { name: 'Save' }).click()
