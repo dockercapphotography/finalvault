@@ -703,8 +703,10 @@ export default function ClientGalleryView() {
         )}
       </div>
 
-      {/* Set tabs */}
-      {sets.length > 1 && (
+      {/* Set tabs -- shown even with just one set (v1.5.5) so the tab
+          bar stays consistent whether a gallery has one collection or
+          several, rather than appearing/disappearing based on count. */}
+      {sets.length >= 1 && (
         <div className="overflow-x-auto"
           style={{ borderBottom: `1px solid ${theme.border}`, background: theme.bg }}>
           <div className="flex items-center px-4">
