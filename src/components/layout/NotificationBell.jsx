@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import BottomSheet from './BottomSheet.jsx'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { useState, useEffect, useRef } from 'react'
@@ -52,6 +53,7 @@ function groupByDay(items) {
 }
 
 export default function NotificationBell({ mobile = false }) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -246,7 +248,7 @@ export default function NotificationBell({ mobile = false }) {
         </button>
 
         <BottomSheet open={open} onClose={() => setOpen(false)} maxHeight="75vh">
-          <NotificationPanel groups={groups} loading={loading} items={items} onClose={() => setOpen(false)} pendingContracts={pendingContracts} />
+          <NotificationPanel groups={groups} loading={loading} items={items} onClose={() => setOpen(false)} pendingContracts={pendingContracts} onNavigate={navigate} />
         </BottomSheet>
       </div>
     )
@@ -271,14 +273,14 @@ export default function NotificationBell({ mobile = false }) {
       {open && (
         <div className="absolute top-full left-0 mt-2 rounded-2xl shadow-2xl z-50 overflow-hidden"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: 320, maxHeight: '70vh' }}>
-          <NotificationPanel groups={groups} loading={loading} items={items} pendingContracts={pendingContracts} />
+          <NotificationPanel groups={groups} loading={loading} items={items} pendingContracts={pendingContracts} onClose={() => setOpen(false)} onNavigate={navigate} />
         </div>
       )}
     </div>
   )
 }
 
-function NotificationPanel({ groups, loading, items, onClose, pendingContracts = [] }) {
+function NotificationPanel({ groups, loading, items, onClose, onNavigate, pendingContracts = [] }) {
   return (
     <div className="flex flex-col" style={{ maxHeight: '70vh' }}>
       <div className="px-4 py-3 flex items-center justify-between shrink-0"
@@ -374,8 +376,16 @@ function NotificationPanel({ groups, loading, items, onClose, pendingContracts =
               }
 
               return (
-                <div key={item.id} className="px-4 py-3 flex items-start gap-3"
-                  style={{ borderBottom: '1px solid var(--border)' }}>
+                <button key={item.id}
+                  onClick={() => {
+                    if (!item.gallery_id) return
+                    onClose?.()
+                    onNavigate?.(`/galleries/${item.gallery_id}`)
+                  }}
+                  className="px-4 py-3 flex items-start gap-3 w-full text-left"
+                  style={{ borderBottom: '1px solid var(--border)', background: 'transparent', border: 'none', cursor: item.gallery_id ? 'pointer' : 'default' }}
+                  onMouseEnter={e => { if (item.gallery_id) e.currentTarget.style.background = 'var(--surface-raised)' }}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
                     style={{ background: action.bg }}>
                     <action.Icon size={14} style={{ color: action.color }} />
@@ -394,7 +404,7 @@ function NotificationPanel({ groups, loading, items, onClose, pendingContracts =
                       {item.galleryTitle} · {timeAgo(item.occurred_at)}
                     </p>
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
