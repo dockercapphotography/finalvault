@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Cropper from 'react-easy-crop'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -238,21 +239,41 @@ function AvatarGalleryPickerModal({ galleries, onSelect, onClose }) {
 
 function AvatarChangeControl({ client, avatarUrl, uploadingAvatar, onAvatarUpload, onChooseFromGallery }) {
   const [open, setOpen] = useState(false)
+  const [menuStyle, setMenuStyle] = useState({})
   const ref = useRef(null)
+  const buttonRef = useRef(null)
+  const menuRef = useRef(null)
   const fileInputRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
-    const h = e => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    const h = e => {
+      if (ref.current?.contains(e.target)) return
+      if (menuRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [open])
+
+  // Rendered through a portal (see below) rather than as a normal
+  // absolutely-positioned child, because the header card this sits in has
+  // overflow-hidden -- for a client with a short card (no phone/address/
+  // notes), the dropdown would otherwise get clipped by the card's own
+  // boundary and become invisible/unclickable. Position computed from the
+  // button's own bounding rect, same pattern as ClientPicker.jsx and
+  // MultiSelectPicker.jsx.
+  function handleOpen() {
+    const rect = buttonRef.current.getBoundingClientRect()
+    setMenuStyle({ position: 'fixed', top: rect.bottom + 4, left: rect.left, zIndex: 9999 })
+    setOpen(o => !o)
+  }
 
   return (
     <div ref={ref} className="relative flex-shrink-0">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
         onChange={e => { setOpen(false); onAvatarUpload(e) }} disabled={uploadingAvatar} />
-      <button onClick={() => setOpen(o => !o)} disabled={uploadingAvatar} aria-label="Change photo"
+      <button ref={buttonRef} onClick={handleOpen} disabled={uploadingAvatar} aria-label="Change photo"
         className="relative w-10 h-10 rounded-full group"
         style={{ display: 'block', border: 'none', padding: 0, background: 'none', cursor: uploadingAvatar ? 'not-allowed' : 'pointer' }}>
         {avatarUrl ? (
@@ -270,9 +291,8 @@ function AvatarChangeControl({ client, avatarUrl, uploadingAvatar, onAvatarUploa
             : <Camera size={14} style={{ color: '#fff' }} />}
         </div>
       </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 rounded-xl shadow-lg z-30 overflow-hidden"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 170 }}>
+      {open && createPortal(
+        <div ref={menuRef} className="rounded-xl shadow-lg overflow-hidden" style={{ ...menuStyle, background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 170 }}>
           <button onClick={() => { setOpen(false); fileInputRef.current?.click() }}
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)' }}
@@ -287,7 +307,8 @@ function AvatarChangeControl({ client, avatarUrl, uploadingAvatar, onAvatarUploa
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             Choose from gallery
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -963,6 +984,14 @@ export default function ClientDetail() {
   const [showEdit, setShowEdit] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [copiedField, setCopiedField] = useState(null)
+
+  async function handleCopyField(field, value) {
+    if (!value) return
+    await navigator.clipboard.writeText(value)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(prev => (prev === field ? null : prev)), 2000)
+  }
   const [cropSrc, setCropSrc] = useState(null)
   const [allTags, setAllTags] = useState([])
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -1150,7 +1179,12 @@ export default function ClientDetail() {
                 <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Mail size={11} />Email
                 </span>
-                <span className="text-xs truncate" style={{ color: '#6366f1' }}>{client.email}</span>
+                <span className="text-xs truncate flex-1" style={{ color: '#6366f1' }}>{client.email}</span>
+                <button onClick={e => { e.preventDefault(); e.stopPropagation(); handleCopyField('email', client.email) }}
+                  aria-label="Copy email" className="flex-shrink-0"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}>
+                  {copiedField === 'email' ? <Check size={12} /> : <Copy size={12} />}
+                </button>
               </a>
             )}
             {client.phone && (
@@ -1160,7 +1194,12 @@ export default function ClientDetail() {
                 <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Phone size={11} />Phone
                 </span>
-                <span className="text-xs" style={{ color: 'var(--text)' }}>{formatPhone(client.phone)}</span>
+                <span className="text-xs flex-1" style={{ color: 'var(--text)' }}>{formatPhone(client.phone)}</span>
+                <button onClick={e => { e.preventDefault(); e.stopPropagation(); handleCopyField('phone', client.phone) }}
+                  aria-label="Copy phone" className="flex-shrink-0"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}>
+                  {copiedField === 'phone' ? <Check size={12} /> : <Copy size={12} />}
+                </button>
               </a>
             )}
             {(client.address || client.city) && (
@@ -1169,9 +1208,14 @@ export default function ClientDetail() {
                 <span className="text-xs flex-shrink-0 pt-px" style={{ color: 'var(--text-muted)', width: 64, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <MapPin size={11} />Address
                 </span>
-                <span className="text-xs" style={{ color: 'var(--text)', lineHeight: 1.5 }}>
+                <span className="text-xs flex-1" style={{ color: 'var(--text)', lineHeight: 1.5 }}>
                   {[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')}
                 </span>
+                <button onClick={() => handleCopyField('address', [client.address, client.city, client.state, client.zip].filter(Boolean).join(', '))}
+                  aria-label="Copy address" className="flex-shrink-0"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}>
+                  {copiedField === 'address' ? <Check size={12} /> : <Copy size={12} />}
+                </button>
               </div>
             )}
             {client.notes && (
