@@ -69,6 +69,7 @@ export async function updateSignupPage(id, updates) {
   if (updates.confirmationNote !== undefined) mapped.confirmation_note = updates.confirmationNote?.trim() || null
   if (updates.notificationNote !== undefined) mapped.notification_note = updates.notificationNote?.trim() || null
   if (updates.bookingDescription !== undefined) mapped.booking_description = updates.bookingDescription?.trim() || null
+  if (updates.showPricing !== undefined) mapped.show_pricing = updates.showPricing
 
   const { data, error } = await supabase
     .from('signup_pages')
@@ -87,7 +88,7 @@ export async function deleteSignupPage(id) {
 
 // ── Shoot Types ──────────────────────────────────────────────────────────────
 
-export async function createShootType({ signupPageId, name, durationMinutes, sessionType, description, sortOrder }) {
+export async function createShootType({ signupPageId, name, durationMinutes, sessionType, description, sortOrder, price, retainerAmount }) {
   const { data, error } = await supabase
     .from('signup_shoot_types')
     .insert({
@@ -97,6 +98,8 @@ export async function createShootType({ signupPageId, name, durationMinutes, ses
       session_type: sessionType || 'Portrait',
       description: description?.trim() || null,
       sort_order: sortOrder ?? 0,
+      price: price === '' || price == null ? null : price,
+      retainer_amount: retainerAmount === '' || retainerAmount == null ? null : retainerAmount,
     })
     .select()
     .single()
@@ -111,6 +114,8 @@ export async function updateShootType(id, updates) {
   if (updates.sessionType !== undefined) mapped.session_type = updates.sessionType
   if (updates.description !== undefined) mapped.description = updates.description?.trim() || null
   if (updates.sortOrder !== undefined) mapped.sort_order = updates.sortOrder
+  if (updates.price !== undefined) mapped.price = updates.price === '' || updates.price == null ? null : updates.price
+  if (updates.retainerAmount !== undefined) mapped.retainer_amount = updates.retainerAmount === '' || updates.retainerAmount == null ? null : updates.retainerAmount
 
   const { data, error } = await supabase
     .from('signup_shoot_types')

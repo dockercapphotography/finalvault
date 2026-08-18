@@ -130,6 +130,20 @@ function ShootTypeStep({ shootTypes, onSelect }) {
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.duration_minutes} minutes</p>
             {t.description && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{t.description}</p>}
           </div>
+          {(t.price != null || t.retainer_amount != null) && (
+            <div className="ml-auto flex-shrink-0 text-right">
+              {t.price != null && (
+                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                  Price: ${parseFloat(t.price).toFixed(2)}
+                </p>
+              )}
+              {t.retainer_amount != null && (
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  ${parseFloat(t.retainer_amount).toFixed(2)} deposit required
+                </p>
+              )}
+            </div>
+          )}
         </button>
       ))}
     </div>
