@@ -124,7 +124,16 @@ function QRCodeModal({ gallery, onClose }) {
 }
 
 function EmailComposerModal({ gallery, onClose }) {
-  const [to, setTo] = useState('')
+  // Pre-fills with the linked client's email(s) if this gallery has any
+  // -- gallery.gallery_clients already carries email via the existing
+  // join in getGallery(), so no extra fetch is needed here. Clients with
+  // no email on file are just skipped, not left as a blank entry.
+  const [to, setTo] = useState(() =>
+    (gallery.gallery_clients || [])
+      .map(gc => gc.clients?.email)
+      .filter(Boolean)
+      .join(', ')
+  )
   const [subject, setSubject] = useState(`Your gallery is ready — ${gallery.title}`)
   const [message, setMessage] = useState('')
   const [includePassword, setIncludePassword] = useState(!!gallery.require_password)
