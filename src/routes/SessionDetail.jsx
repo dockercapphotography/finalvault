@@ -52,7 +52,21 @@ function TimeSelect({ label, value, onChange }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const listRef = useRef(null)
-  const selectedLabel = value ? TIME_OPTIONS.find(o => o.value === value)?.label : null
+  // If the current value isn't on the fixed 15-minute grid (e.g. a
+  // signup-page booking landed on :40), inject it as an extra option so
+  // it still displays correctly instead of silently falling back to "--".
+  const options = value && !TIME_OPTIONS.some(o => o.value === value)
+    ? [...TIME_OPTIONS, {
+        value,
+        label: (() => {
+          const [hh, mm] = value.split(':').map(Number)
+          const hour12 = hh % 12 || 12
+          const ampm = hh < 12 ? 'AM' : 'PM'
+          return `${hour12}:${String(mm).padStart(2, '0')} ${ampm}`
+        })(),
+      }].sort((a, b) => a.value.localeCompare(b.value))
+    : TIME_OPTIONS
+  const selectedLabel = value ? options.find(o => o.value === value)?.label : null
 
   // Close on outside click
   useEffect(() => {
@@ -102,7 +116,7 @@ function TimeSelect({ label, value, onChange }) {
             onMouseLeave={e => e.currentTarget.style.background = !value ? 'rgba(99,102,241,0.06)' : 'transparent'}>
             —
           </div>
-          {TIME_OPTIONS.map(o => (
+          {options.map(o => (
             <div
               key={o.value}
               data-selected={o.value === value ? 'true' : 'false'}
