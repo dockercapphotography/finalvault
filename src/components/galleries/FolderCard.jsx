@@ -4,6 +4,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { renameFolder, deleteFolderTree, getFolderTreeCounts, updateFolderCover, getFolderImages, moveFolder } from '../../utils/galleryApi.js'
 import { supabase } from '../../supabaseClient.js'
 import MovePickerModal from './MovePickerModal.jsx'
+import PortalMenu from '../ui/PortalMenu.jsx'
 import { useFolderContext } from '../../contexts/FolderContext.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
@@ -433,7 +434,6 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
     return invalid
   }, [folder, allFolders])
 
-  const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [renameName, setRenameName] = useState(folder.name)
   const [renameLoading, setRenameLoading] = useState(false)
@@ -444,7 +444,6 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
   const [showCoverPicker, setShowCoverPicker] = useState(false)
   const [showMovePicker, setShowMovePicker] = useState(false)
   const [folderCoverUrl, setFolderCoverUrl] = useState(null)
-  const menuRef = useRef(null)
   const renameInputRef = useRef(null)
 
   const { setNodeRef, isOver } = useDroppable({
@@ -460,13 +459,6 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
       .catch(() => {})
     return () => { cancelled = true }
   }, [folder.cover_r2_key])
-
-  useEffect(() => {
-    if (!menuOpen) return
-    function handler(e) { if (!menuRef.current?.contains(e.target)) setMenuOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [menuOpen])
 
   useEffect(() => {
     if (renaming) { renameInputRef.current?.focus(); renameInputRef.current?.select() }
@@ -525,9 +517,8 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
           border: isOver ? '2px solid #6366f1' : '1px solid var(--border)',
           boxShadow: isOver ? '0 0 0 4px rgba(99,102,241,0.15)' : undefined,
           transition: 'border-color 0.15s, box-shadow 0.15s',
-          zIndex: menuOpen ? 20 : undefined,
         }}
-        onClick={() => !menuOpen && !renaming && !deleteConfirm && onNavigate?.(folder)}
+        onClick={() => !renaming && !deleteConfirm && onNavigate?.(folder)}
         onMouseEnter={e => { if (!isOver) e.currentTarget.style.borderColor = 'var(--border-strong)' }}
         onMouseLeave={e => { if (!isOver) e.currentTarget.style.borderColor = 'var(--border)' }}
       >
@@ -562,61 +553,37 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
         {/* ⋮ menu — sits outside the cover area's own overflow-hidden box (which exists
             only to clip the cover image to its rounded corners) so the dropdown isn't
             clipped when it's taller than the remaining space in the cover area. */}
-        <div ref={menuRef} className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
-          <button
-            onClick={() => setMenuOpen(v => !v)}
-            className="w-7 h-7 rounded-full flex items-center justify-center"
-            style={{
-              background: menuOpen ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)',
-              color: '#fff', border: 'none', cursor: 'pointer', backdropFilter: 'blur(4px)',
-            }}
-          >
-            <MoreVertical size={13} />
-          </button>
-
-          {menuOpen && (
-            <div
-              className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-30"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 160 }}
-            >
-              <button
-                onClick={() => { setMenuOpen(false); setRenaming(true); setRenameName(folder.name) }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <Pencil size={13} />Rename
-              </button>
-              <button
-                onClick={() => { setMenuOpen(false); setShowCoverPicker(true) }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <ImageIcon size={13} />Set Cover
-              </button>
-              <button
-                onClick={() => { setMenuOpen(false); setShowMovePicker(true) }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <FolderInput size={13} />Move to...
-              </button>
-              <button
-                onClick={() => { setMenuOpen(false); handleDeleteConfirm() }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <Trash2 size={13} />Delete
-              </button>
-            </div>
-          )}
+        <div className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
+          <PortalMenu
+            trigger={<MoreVertical size={13} />}
+            triggerClassName="w-7 h-7 rounded-full flex items-center justify-center"
+            triggerStyle={{ background: 'rgba(0,0,0,0.35)', color: '#fff', cursor: 'pointer', backdropFilter: 'blur(4px)' }}
+            triggerLabel="Folder menu"
+            items={[
+              { label: 'Rename', icon: <Pencil size={13} />, onClick: () => { setRenaming(true); setRenameName(folder.name) } },
+              { label: 'Set Cover', icon: <ImageIcon size={13} />, onClick: () => setShowCoverPicker(true) },
+              { label: 'Move to...', icon: <FolderInput size={13} />, onClick: () => setShowMovePicker(true) },
+              {
+                label: 'Delete', icon: <Trash2 size={13} />, danger: true,
+                onClick: handleDeleteConfirm,
+                confirm: async () => {
+                  const counts = await getFolderTreeCounts(folder.id)
+                  const parts = [
+                    counts.subfolderCount > 0 && `${counts.subfolderCount} ${counts.subfolderCount === 1 ? 'folder' : 'folders'}`,
+                    counts.galleryCount > 0 && `${counts.galleryCount} ${counts.galleryCount === 1 ? 'gallery' : 'galleries'}`,
+                  ].filter(Boolean)
+                  return {
+                    title: `Delete "${folder.name}"?`,
+                    message: parts.length > 0
+                      ? `This will also delete ${parts.join(' and ')}. This cannot be undone.`
+                      : 'This cannot be undone.',
+                    confirmLabel: 'Delete',
+                    onConfirm: handleDelete,
+                  }
+                },
+              },
+            ]}
+          />
         </div>
 
         {/* Body */}

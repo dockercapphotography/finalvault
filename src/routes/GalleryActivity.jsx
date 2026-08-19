@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Eye, Heart, HeartOff, MessageCircle, Download, Package, CheckCircle, X, ChevronLeft, ChevronRight, MoreVertical, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient.js'
 import { getFolderAncestors, buildGalleryCrumbs, addPhotographerReply } from '../utils/galleryApi.js'
+import PortalMenu from '../components/ui/PortalMenu.jsx'
 import { formatDate } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
@@ -136,17 +137,8 @@ function FavoritesLightbox({ images, startIndex, authToken, onClose }) {
 
 // ── Panel Content ─────────────────────────────────────────────────────────────
 function PanelContent({ viewer, color, lastUpdated, sortedFaves, totalImages, authToken, onClose, onOpenLightbox, onDeleted, galleryId }) {
-  const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuOpen) return
-    function handler(e) { if (!menuRef.current?.contains(e.target)) setMenuOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [menuOpen])
 
   async function handleDelete() {
     setDeleting(true)
@@ -191,32 +183,27 @@ function PanelContent({ viewer, color, lastUpdated, sortedFaves, totalImages, au
         </div>
 
         {/* ⋮ menu */}
-        <div ref={menuRef} className="relative flex-shrink-0">
-          <button
-            onClick={() => setMenuOpen(v => !v)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-            style={{
-              background: menuOpen ? 'var(--surface-raised)' : 'transparent',
-              color: 'var(--text-muted)', border: 'none', cursor: 'pointer',
-            }}>
-            <MoreVertical size={16} />
-          </button>
-
-          {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-10"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 180 }}>
-              <button
-                onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <Trash2 size={14} />
-                Delete
-              </button>
-
-            </div>
-          )}
+        <div className="relative flex-shrink-0">
+          <PortalMenu
+            trigger={<MoreVertical size={16} />}
+            triggerClassName="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            triggerStyle={{ background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}
+            triggerLabel="Favorites menu"
+            items={[
+              {
+                label: 'Delete favorites list',
+                icon: <Trash2 size={14} />,
+                danger: true,
+                onClick: () => setConfirmDelete(true),
+                confirm: {
+                  title: `Delete ${viewer.email || viewer.display_name}'s favorites?`,
+                  message: `All ${sortedFaves.length} favorited images will be removed. This cannot be undone.`,
+                  confirmLabel: 'Delete',
+                  onConfirm: handleDelete,
+                },
+              },
+            ]}
+          />
         </div>
       </div>
 

@@ -78,6 +78,7 @@ setVisible(false)
       {/* Sheet */}
       <div
         ref={sheetRef}
+        data-testid="bottom-sheet"
         className="fixed left-0 right-0 bottom-0 z-50 flex flex-col rounded-t-2xl"
         onClick={e => e.stopPropagation()}
         style={{

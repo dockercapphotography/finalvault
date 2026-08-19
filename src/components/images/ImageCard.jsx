@@ -147,6 +147,12 @@ export default function ImageCard({
       icon: <Trash2 size={13} />,
       danger: true,
       onClick: handleDelete,
+      confirm: {
+        title: `Delete "${image.file_name || 'this image'}"?`,
+        message: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+        onConfirm: handleDelete,
+      },
     },
   ]
 
@@ -235,6 +241,7 @@ export default function ImageCard({
         >
           <PortalMenu
             items={simplified ? simplifiedMenuItems : menuItems}
+            triggerLabel="Image menu"
             trigger={
               <button
                 className="p-1.5 rounded-lg"

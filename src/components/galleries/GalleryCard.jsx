@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Images, Lock, Clock, Bookmark, MoreVertical, FolderInput, Link, Trash2, Pencil } from 'lucide-react'
 import MovePickerModal from './MovePickerModal.jsx'
 import QuickEditGalleryModal from './QuickEditGalleryModal.jsx'
+import PortalMenu from '../ui/PortalMenu.jsx'
 import { useDraggable } from '@dnd-kit/core'
 import Badge from '../ui/Badge.jsx'
 import { formatDate } from '../../utils/formatters.js'
@@ -18,13 +19,10 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
 
   const [bookmarked, setBookmarked] = useState(initialBookmarked)
   const [bookmarking, setBookmarking] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [moveModalOpen, setMoveModalOpen] = useState(false)
   const [quickEditOpen, setQuickEditOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const menuRef = useRef(null)
-  const mobileMenuRef = useRef(null)
 
   // dnd-kit draggable — desktop (mouse) only
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -32,14 +30,23 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
     data: { type: 'gallery', gallery },
   })
 
-  useEffect(() => {
-    if (!menuOpen) return
-    function handler(e) {
-      if (!menuRef.current?.contains(e.target) && !mobileMenuRef.current?.contains(e.target)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [menuOpen])
+  // ⋮ menu items -- PortalMenu owns open/close state, outside-click
+  // detection, and (mobile) the bottom-sheet rendering internally now.
+  const galleryMenuItems = [
+    { label: 'Quick Edit', icon: <Pencil size={13} />, onClick: () => setQuickEditOpen(true) },
+    { label: 'Move to Folder', icon: <FolderInput size={13} />, onClick: () => setMoveModalOpen(true) },
+    { label: 'Copy Link', icon: <Link size={13} />, onClick: () => (onCopyLink || ctxCopyLink)?.(gallery.share_token) },
+    {
+      label: 'Delete', icon: <Trash2 size={13} />, danger: true,
+      onClick: () => setConfirmDelete(true),
+      confirm: {
+        title: `Delete "${gallery.title}"?`,
+        message: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+        onConfirm: handleDelete,
+      },
+    },
+  ]
 
   const isExpired = gallery.expires_at && new Date(gallery.expires_at) < new Date()
   const status = !gallery.is_active ? 'inactive' : isExpired ? 'expired' : 'active'
@@ -65,15 +72,8 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
     finally { setBookmarking(false) }
   }
 
-  function handleCopyLink(e) {
-    e.stopPropagation()
-    setMenuOpen(false)
-    const copyFn = onCopyLink || ctxCopyLink
-    copyFn?.(gallery.share_token)
-  }
-
   async function handleDelete(e) {
-    e.stopPropagation()
+    e?.stopPropagation()
     setDeleting(true)
     try {
       await deleteGallery(gallery.id)
@@ -98,8 +98,9 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
         {...listeners}
         {...attributes}
         style={{ ...dragStyle, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '0.75rem', overflow: 'hidden', cursor: isDragging ? 'grabbing' : 'pointer', position: 'relative', touchAction: 'none' }}
+        data-gallery-id={gallery.id}
         className="transition-all hover:shadow-md hidden md:block"
-        onClick={() => !menuOpen && !confirmDelete && !isDragging && navigate(`/galleries/${gallery.id}`, { state: { folderPath } })}
+        onClick={() => !confirmDelete && !isDragging && navigate(`/galleries/${gallery.id}`, { state: { folderPath } })}
         onMouseEnter={e => { if (!isDragging) e.currentTarget.style.borderColor = 'var(--border-strong)' }}
         onMouseLeave={e => { if (!isDragging) e.currentTarget.style.borderColor = 'var(--border)' }}
       >
@@ -136,68 +137,19 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
 
           {/* ⋮ menu */}
           <div
-            ref={menuRef}
             className="absolute top-3"
             style={{ right: gallery.require_password ? 40 : 12, zIndex: 10 }}
             onClick={e => e.stopPropagation()}
             onMouseDown={e => e.stopPropagation()}
             onPointerDown={e => e.stopPropagation()}
           >
-            <button
-              onClick={() => { setMenuOpen(v => !v); setConfirmDelete(false) }}
-              aria-label="Gallery menu"
-              className="w-7 h-7 rounded-full flex items-center justify-center"
-              style={{
-                background: menuOpen ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)',
-                color: '#fff', border: 'none', cursor: 'pointer', backdropFilter: 'blur(4px)',
-              }}
-            >
-              <MoreVertical size={13} />
-            </button>
-
-            {menuOpen && (
-              <div
-                className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-30"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 170 }}
-              >
-                <button
-                  onClick={e => { e.stopPropagation(); setMenuOpen(false); setQuickEditOpen(true) }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <Pencil size={13} />Quick Edit
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); setMenuOpen(false); setMoveModalOpen(true) }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <FolderInput size={13} />Move to Folder
-                </button>
-                <button
-                  onClick={handleCopyLink}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <Link size={13} />Copy Link
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); setMenuOpen(false); setConfirmDelete(true) }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-                  style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <Trash2 size={13} />Delete
-                </button>
-              </div>
-            )}
+            <PortalMenu
+              trigger={<MoreVertical size={13} />}
+              triggerClassName="w-7 h-7 rounded-full flex items-center justify-center"
+              triggerStyle={{ background: 'rgba(0,0,0,0.35)', color: '#fff', cursor: 'pointer', backdropFilter: 'blur(4px)' }}
+              triggerLabel="Gallery menu"
+              items={galleryMenuItems}
+            />
           </div>
         </div>
 
@@ -250,8 +202,9 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
       {/* Mobile card — identical but not draggable (touch conflicts with scroll) */}
       <div
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '0.75rem', overflow: 'hidden', cursor: 'pointer' }}
+        data-gallery-id={gallery.id}
         className="transition-all hover:shadow-md block md:hidden"
-        onClick={() => !menuOpen && !confirmDelete && navigate(`/galleries/${gallery.id}`, { state: { folderPath } })}
+        onClick={() => !confirmDelete && navigate(`/galleries/${gallery.id}`, { state: { folderPath } })}
         onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
         onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
       >
@@ -262,18 +215,14 @@ export default function GalleryCard({ gallery, coverUrl, onCopyLink, isBookmarke
             <Bookmark size={13} fill={bookmarked ? '#fff' : 'none'} />
           </button>
           {gallery.require_password && <div className="absolute top-3 right-3 p-1.5 rounded-full" style={{ background: 'var(--surface)' }}><Lock size={11} style={{ color: 'var(--text-muted)' }} /></div>}
-          <div ref={mobileMenuRef} className="absolute top-3" style={{ right: gallery.require_password ? 40 : 12 }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => { setMenuOpen(v => !v); setConfirmDelete(false) }} aria-label="Gallery menu" className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: menuOpen ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)', color: '#fff', border: 'none', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
-              <MoreVertical size={13} />
-            </button>
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 rounded-xl shadow-lg overflow-hidden z-30" style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 170 }}>
-                <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setQuickEditOpen(true) }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left" style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Pencil size={13} />Quick Edit</button>
-                <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setMoveModalOpen(true) }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left" style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><FolderInput size={13} />Move to Folder</button>
-                <button onClick={handleCopyLink} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left" style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Link size={13} />Copy Link</button>
-                <button onClick={e => { e.stopPropagation(); setMenuOpen(false); setConfirmDelete(true) }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left" style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Trash2 size={13} />Delete</button>
-              </div>
-            )}
+          <div className="absolute top-3" style={{ right: gallery.require_password ? 40 : 12 }} onClick={e => e.stopPropagation()}>
+            <PortalMenu
+              trigger={<MoreVertical size={13} />}
+              triggerClassName="w-7 h-7 rounded-full flex items-center justify-center"
+              triggerStyle={{ background: 'rgba(0,0,0,0.35)', color: '#fff', cursor: 'pointer', backdropFilter: 'blur(4px)' }}
+              triggerLabel="Gallery menu"
+              items={galleryMenuItems}
+            />
           </div>
         </div>
         <div className="p-4">

@@ -1,11 +1,19 @@
 /**
- * PortalMenu — a self-contained context menu rendered via React portal.
+ * PortalMenu — a self-contained context menu.
  *
- * Renders into document.body so it's never clipped by overflow-hidden parents
- * or trapped by stacking contexts. Auto-flips left/up when near viewport edges.
- * Closes on outside click, Escape, and scroll.
+ * Desktop: renders as a portal-positioned dropdown, unchanged from before --
+ * auto-flips left/up when near viewport edges, closes on outside click,
+ * Escape, and scroll.
  *
- * Usage:
+ * Mobile (< 768px): renders as a BottomSheet instead of a dropdown, since a
+ * fixed-width dropdown can still run out of room to flip on a narrow
+ * viewport. Items with a `children` submenu (e.g. "Move to Set", "Download"
+ * -> Web Size/Original) don't expand inline -- tapping one closes the sheet
+ * and opens a PickerModal (same reliable centered-modal pattern already
+ * used for MovePickerModal's folder picker) with that item's children as
+ * a flat option list.
+ *
+ * Usage (unchanged):
  *   <PortalMenu trigger={<button>•••</button>} items={[
  *     { label: 'Download', icon: <Download size={13} />, onClick: () => {} },
  *     { label: 'Delete', icon: <Trash2 size={13} />, onClick: () => {}, danger: true },
@@ -16,8 +24,11 @@
  *   ]} />
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, cloneElement } from 'react'
 import { createPortal } from 'react-dom'
+import { useMediaQuery } from '../../hooks/useMediaQuery.js'
+import BottomSheet from '../layout/BottomSheet.jsx'
+import PickerModal from './PickerModal.jsx'
 
 const MENU_WIDTH = 168
 const ITEM_HEIGHT = 38
@@ -40,21 +51,34 @@ function calcPosition(triggerRect, itemCount, dividers = 0) {
   return { top, left }
 }
 
-export default function PortalMenu({ trigger, items, triggerClassName, triggerStyle }) {
+export default function PortalMenu({ trigger, items, triggerClassName, triggerStyle, triggerLabel }) {
+  const isDesktop = useMediaQuery('(min-width: 768px)')
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const [submenuLeft, setSubmenuLeft] = useState(false)
   const [activeSubmenu, setActiveSubmenu] = useState(null)
+  const [mobileSubmenuItem, setMobileSubmenuItem] = useState(null)
+  const [confirmingItem, setConfirmingItem] = useState(null)
+  // Resolved { title, message, confirmLabel, cancelLabel, onConfirm }
+  // once an async confirm() function has finished loading -- null while
+  // still loading (confirmingItem is truthy but this isn't yet).
+  const [confirmData, setConfirmData] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
+  const confirmRequestRef = useRef(0)
   const triggerRef = useRef(null)
   const menuRef = useRef(null)
 
   const close = useCallback(() => {
     setOpen(false)
     setActiveSubmenu(null)
+    setConfirmingItem(null)
+    setConfirmData(null)
+    setConfirmLoading(false)
+    confirmRequestRef.current++
   }, [])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !isDesktop) return
     const onDown = (e) => {
       if (!menuRef.current?.contains(e.target) && !triggerRef.current?.contains(e.target)) close()
     }
@@ -68,12 +92,13 @@ export default function PortalMenu({ trigger, items, triggerClassName, triggerSt
       document.removeEventListener('keydown', onKey)
       window.removeEventListener('scroll', onScroll, true)
     }
-  }, [open, close])
+  }, [open, isDesktop, close])
 
   function handleTriggerClick(e) {
     e.stopPropagation()
     e.preventDefault()
     if (open) { close(); return }
+    if (!isDesktop) { setOpen(true); return }
     const rect = triggerRef.current.getBoundingClientRect()
     const itemCount = items.filter(i => i.type !== 'divider').length
     const dividers = items.filter(i => i.type === 'divider').length
@@ -94,16 +119,153 @@ export default function PortalMenu({ trigger, items, triggerClassName, triggerSt
     close()
   }
 
+  function handleMobileItemClick(item) {
+    if (item.children) {
+      // Close the sheet, then open the flat-list picker modal for this
+      // item's children -- matches the existing MovePickerModal pattern
+      // (a reliable centered modal) rather than a cramped inline flyout.
+      setOpen(false)
+      setMobileSubmenuItem(item)
+      return
+    }
+    if (item.confirm) {
+      // Swap this same open sheet's content to a confirm view, rather
+      // than closing and showing a separate confirm UI elsewhere.
+      setConfirmingItem(item)
+      if (typeof item.confirm === 'function') {
+        const requestId = ++confirmRequestRef.current
+        setConfirmLoading(true)
+        setConfirmData(null)
+        Promise.resolve(item.confirm())
+          .then(resolved => {
+            if (confirmRequestRef.current !== requestId) return // stale/cancelled
+            setConfirmData(resolved)
+            setConfirmLoading(false)
+          })
+          .catch(err => {
+            if (confirmRequestRef.current !== requestId) return
+            console.error('PortalMenu: confirm() failed', err)
+            setConfirmLoading(false)
+            setConfirmingItem(null) // fall back to the item list
+          })
+      } else {
+        setConfirmData(item.confirm)
+      }
+      return
+    }
+    item.onClick?.()
+    close()
+  }
+
+  function handleCancelConfirm() {
+    confirmRequestRef.current++ // invalidate any in-flight confirm() call
+    setConfirmingItem(null)
+    setConfirmData(null)
+    setConfirmLoading(false)
+  }
+
+  function handleConfirm() {
+    const data = confirmData
+    close()
+    data?.onConfirm?.()
+  }
+
+  const trigger_ = (
+    <div
+      ref={triggerRef}
+      className={triggerClassName}
+      style={triggerStyle}
+      onClick={handleTriggerClick}
+      role="button"
+      tabIndex={0}
+      aria-label={triggerLabel}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTriggerClick(e) } }}
+    >
+      {trigger}
+    </div>
+  )
+
+  if (!isDesktop) {
+    const gridItems = items.filter(item => item.type !== 'divider')
+    return (
+      <>
+        {trigger_}
+        <BottomSheet open={open} onClose={close}>
+          {confirmingItem && confirmLoading ? (
+            <div className="flex items-center justify-center" style={{ padding: '32px 16px' }}>
+              <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
+            </div>
+          ) : confirmingItem && confirmData ? (
+            <div style={{ padding: '4px 16px 16px' }}>
+              <p className="text-sm font-medium mb-1" style={{ color: confirmingItem.danger ? 'var(--danger)' : 'var(--text)' }}>
+                {confirmData.title}
+              </p>
+              {confirmData.message && (
+                <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>{confirmData.message}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleConfirm}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                  style={{
+                    background: confirmingItem.danger ? 'var(--danger)' : 'var(--text)',
+                    color: '#fff', border: 'none', cursor: 'pointer',
+                  }}>
+                  {confirmData.confirmLabel || 'Confirm'}
+                </button>
+                <button
+                  onClick={handleCancelConfirm}
+                  className="flex-1 py-2.5 rounded-xl text-sm"
+                  style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                  {confirmData.cancelLabel || 'Cancel'}
+                </button>
+              </div>
+            </div>
+          ) : gridItems.length === 1 ? (
+            <div style={{ padding: '4px 16px 16px' }}>
+              <button
+                onClick={() => handleMobileItemClick(gridItems[0])}
+                className="w-full flex items-center gap-3 py-3.5 px-4 rounded-xl"
+                style={{
+                  background: gridItems[0].danger ? 'var(--danger-subtle)' : 'var(--bg-subtle)',
+                  border: '1px solid var(--border)', cursor: 'pointer',
+                }}
+              >
+                {gridItems[0].icon && cloneElement(gridItems[0].icon, { size: 18, style: { color: gridItems[0].danger ? 'var(--danger)' : 'var(--text)' } })}
+                <span className="text-sm font-medium" style={{ color: gridItems[0].danger ? 'var(--danger)' : 'var(--text)' }}>{gridItems[0].label}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3" style={{ padding: '4px 16px 16px' }}>
+              {gridItems.map(item => (
+                <button
+                  key={item.label}
+                  onClick={() => handleMobileItemClick(item)}
+                  className="flex flex-col items-center gap-2 py-4 rounded-xl"
+                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                >
+                  {item.icon && cloneElement(item.icon, { size: 22, style: { color: item.danger ? 'var(--danger)' : 'var(--text)' } })}
+                  <span className="text-xs font-medium text-center" style={{ color: item.danger ? 'var(--danger)' : 'var(--text-muted)' }}>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </BottomSheet>
+        <PickerModal
+          open={!!mobileSubmenuItem}
+          onClose={() => setMobileSubmenuItem(null)}
+          title={mobileSubmenuItem?.label}
+          options={mobileSubmenuItem?.children ?? []}
+        />
+      </>
+    )
+  }
+
   return (
     <>
-      <div
-        ref={triggerRef}
-        className={triggerClassName}
-        style={triggerStyle}
-        onClick={handleTriggerClick}
-      >
-        {trigger}
-      </div>
+      {trigger_}
 
       {open && createPortal(
         <div

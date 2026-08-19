@@ -3,6 +3,7 @@ import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import {ArrowLeft, BarChart2, Check, ChevronLeft, ChevronRight, Copy, Droplets, ExternalLink, ImageIcon, LayoutGrid, Link as LinkIcon, Mail, MoreVertical, Pencil, Plus, QrCode, Settings, SlidersHorizontal, Trash2, Upload, X} from 'lucide-react'
+import PortalMenu from '../components/ui/PortalMenu.jsx'
 import { getGallery, updateGallery, getFolderAncestors, buildGalleryCrumbs } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
 import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
@@ -57,8 +58,6 @@ export default function GalleryDetail() {
   const [confirmDeleteSetId, setConfirmDeleteSetId] = useState(null)
   const [dragSetId, setDragSetId] = useState(null)
   const [dragOverSetId, setDragOverSetId] = useState(null)
-  const [setMenuOpenId, setSetMenuOpenId] = useState(null)
-  const [setMenuPos, setSetMenuPos] = useState({ top: 0, left: 0 })
   const [showWatermark, setShowWatermark] = useState(false)
   const [watermarkTarget, setWatermarkTarget] = useState(null)
   const [watermarks, setWatermarks] = useState([])
@@ -886,59 +885,38 @@ export default function GalleryDetail() {
 
                       {/* ••• set menu button */}
                       <div className="relative">
-                        <button
-                          data-set-menu-btn="true"
-                          onClick={e => {
-                            e.stopPropagation()
-                            const rect = e.currentTarget.getBoundingClientRect()
-                            setSetMenuPos({ top: rect.bottom + 6, left: rect.left })
-                            setSetMenuOpenId(prev => prev === set.id ? null : set.id)
-                          }}
-                          className="flex items-center justify-center px-1.5 transition-colors"
-                          style={{
+                        <PortalMenu
+                          trigger={<MoreVertical size={12} />}
+                          triggerLabel={`${set.name} set options`}
+                          triggerClassName="flex items-center justify-center px-1.5 transition-colors"
+                          triggerStyle={{
                             height: 32,
                             background: activeSetId === set.id ? '#5558e3' : 'var(--surface-raised)',
                             color: activeSetId === set.id ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)',
                             border: `1px solid ${activeSetId === set.id ? '#6366f1' : 'var(--border)'}`,
                             cursor: 'pointer',
                             borderRadius: '0 8px 8px 0',
-                          }}>
-                          <MoreVertical size={12} />
-                        </button>
-
-                        {setMenuOpenId === set.id && (
-                          <div className="fixed rounded-xl shadow-xl overflow-hidden"
-                            style={{ top: setMenuPos.top, left: setMenuPos.left, background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 160, zIndex: 1000 }}>
-                            <button onClick={() => { setEditingSet(set.id); setEditSetName(set.name); setSetMenuOpenId(null) }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
-                              style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                              <Pencil size={13} style={{ color: 'var(--text-muted)' }} /> Rename
-                            </button>
-                            {activeSetImages.length > 0 && (
-                              <button onClick={() => { handleOpenWatermark(null); setSetMenuOpenId(null) }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
-                                style={{ color: 'var(--text)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <Droplets size={13} style={{ color: 'var(--text-muted)' }} /> Watermark set
-                              </button>
-                            )}
-                            {sets.length > 1 && (
-                              <>
-                                <div style={{ borderTop: '1px solid var(--border)' }} />
-                                <button onClick={() => { setConfirmDeleteSetId(set.id); setSetMenuOpenId(null) }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
-                                  style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-subtle)'}
-                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                  <Trash2 size={13} /> Delete set
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        )}
+                          }}
+                          items={[
+                            { label: 'Rename', icon: <Pencil size={13} />, onClick: () => { setEditingSet(set.id); setEditSetName(set.name) } },
+                            ...(activeSetImages.length > 0 ? [
+                              { label: 'Watermark set', icon: <Droplets size={13} />, onClick: () => handleOpenWatermark(null) },
+                            ] : []),
+                            ...(sets.length > 1 ? [
+                              { type: 'divider' },
+                              {
+                                label: 'Delete set', icon: <Trash2 size={13} />, danger: true,
+                                onClick: () => setConfirmDeleteSetId(set.id),
+                                confirm: {
+                                  title: `Delete "${set.name}"?`,
+                                  message: 'All images in this set will also be permanently deleted. This cannot be undone.',
+                                  confirmLabel: 'Delete',
+                                  onConfirm: () => handleDeleteSet(set.id),
+                                },
+                              },
+                            ] : []),
+                          ]}
+                        />
                       </div>
                     </div>
                   )}
