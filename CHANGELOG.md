@@ -4,6 +4,46 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.5 — August 19, 2026
+
+### New Features
+
+**Sign-Ups**
+- Detail modal redesigned around two tabs -- Booking Slots (default) and Session Settings -- instead of one long scrolling page
+- Cross-day search by client name/email finds a booking across every day on the page at once, instead of hunting through the day accordion; results open the same actions sheet Live Status already uses (notes, no-show, reschedule)
+- Slot generator (both the date-range generator and manual single-slot add) collapsed behind a link instead of always taking up space
+- Questionnaires can be assigned to a shoot type at creation time, not just afterward
+- Per-shoot-type price and deposit/retainer amount, shown on the public booking page and carried into the resulting session automatically; a page-level toggle controls whether pricing is shown publicly at all
+
+**Galleries**
+- Tags assignable directly on the Gallery Info step at creation, not just afterward
+- Quick Edit (title, client, event name/date, notes) reachable from both the gallery detail page and the dashboard card's ⋮ menu, without opening full Settings
+- Per-folder sort persistence -- each folder can pin its own sort order, or fall back to an account-wide default
+- Gallery collections/set tabs now always show, even when a gallery has only one set, for visual consistency
+- Notifications for views, downloads, favorites, and comments are now clickable and take you straight to the relevant gallery
+
+**Account**
+- Zelle added as a payment option under Account → Links
+
+**Mobile**
+- Every "⋮" menu across the app (galleries, folders, images, client favorites, gallery sets) now opens as a bottom sheet on mobile instead of a dropdown that could run off-screen near an edge -- all sharing one underlying component, so this is consistent everywhere rather than page-by-page
+- A menu with several options shows as a 3-column icon grid; a menu with just one option shows as a single full-width row
+- Any "Delete X" action now confirms in the same sheet you tapped it from, instead of closing and showing a separate confirmation elsewhere -- including folder deletion, which shows the real number of subfolders/galleries that would also be removed (fetched live, with a brief loading state) rather than a generic warning
+- Choosing from a longer list within a menu (e.g. moving an image to a different set) now opens the same reliable picker pattern already used for moving a gallery to a folder, instead of a cramped inline flyout
+
+### Bug Fixes
+
+- Fixed single-image web-size downloads intermittently failing on large originals -- the single-image path was missing a parameter the bulk download path already had, causing it to fall back to a much slower in-browser conversion instead of the pre-generated file
+- Fixed a client's favorites/comments/selections splitting across two separate identities if they revisited from a different device or browser -- viewer records are now matched by gallery + email before creating a new one
+- Fixed newly uploaded images sometimes sorting in the wrong order when filenames included numbers (e.g. "-10" sorting before "-2")
+- Fixed the Getting Started checklist appearing on a genuine data-load error, indistinguishable from a brand-new account
+- Fixed the client contact avatar's "Upload photo / Choose from gallery" dropdown getting clipped on shorter client cards; added one-tap copy buttons to email, phone, and address
+- Fixed a session's start/end time occasionally showing as "--" when it came from a signup booking that landed off the normal 15-minute grid
+- The gallery share email now pre-fills the "To" field with the linked client's email when one exists
+- The app now falls back to the cached shell instead of the browser's default offline error page when reloaded without a connection
+
+---
+
 ## v1.5.4 — July 28, 2026
 
 ### New Features

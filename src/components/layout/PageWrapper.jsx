@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.4'
+const VERSION = '1.5.5'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,33 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.5 — August 19, 2026">
+                  <Group label="Sign-Ups">
+                    <Item>Detail modal redesigned around two tabs -- Booking Slots and Session Settings -- instead of one long page</Item>
+                    <Item>Cross-day search finds a booking by name/email across every day at once</Item>
+                    <Item>Slot generator collapsed behind a link instead of always showing</Item>
+                    <Item>Questionnaires assignable to a shoot type at creation time</Item>
+                    <Item>Per-shoot-type price and deposit, shown on the public booking page and carried into the session automatically</Item>
+                  </Group>
+                  <Group label="Galleries">
+                    <Item>Tags assignable at gallery creation, not just afterward</Item>
+                    <Item>Quick Edit reachable from the detail page and the dashboard card's ⋮ menu</Item>
+                    <Item>Per-folder sort persistence</Item>
+                    <Item>Set tabs always show, even with just one set</Item>
+                    <Item>Activity notifications are now clickable, taking you to the relevant gallery</Item>
+                  </Group>
+                  <Group label="Mobile">
+                    <Item>Every ⋮ menu across the app now opens as a bottom sheet instead of a dropdown that could run off-screen</Item>
+                    <Item>"Delete X" actions confirm in the same sheet, including folder deletion showing real counts of what would be removed</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed single-image web-size downloads intermittently failing on large originals</Item>
+                    <Item>Fixed a client's favorites splitting across identities when revisiting from a different device</Item>
+                    <Item>Fixed newly uploaded images occasionally sorting in the wrong order</Item>
+                    <Item>Fixed the Getting Started checklist appearing on a genuine data-load error</Item>
+                    <Item>Fixed the client avatar dropdown getting clipped on shorter cards; added copy buttons to contact fields</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.4 — July 28, 2026">
                   <Group label="Live Status page">
                     <Item>Day-timeline view alongside the existing list -- hour-scale layout, real gaps between shoots, a red now-line. Toggle between List and Timeline any time</Item>
