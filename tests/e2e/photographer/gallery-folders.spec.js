@@ -77,8 +77,11 @@ async function openFolderMenu(page, folderName) {
   const card = page.locator('.rounded-xl').filter({
     has: page.locator('h3').filter({ hasText: folderName }),
   }).first()
-  // The ⋮ button is a rounded-full button in the cover area
-  const menuBtn = card.locator('button.rounded-full').first()
+  // Precise aria-label match (added via PortalMenu's triggerLabel prop)
+  // instead of a generic .rounded-full class selector, which is likely
+  // shared by other circular elements in the card (e.g. a cover thumbnail)
+  // and could grab the wrong one.
+  const menuBtn = card.getByRole('button', { name: 'Folder menu', exact: true })
   await menuBtn.click()
   // Wait for dropdown — Rename always appears first in the folder ⋮ menu
   await expect(page.getByRole('button', { name: 'Rename' }).first()).toBeVisible({ timeout: 3000 })
@@ -93,11 +96,13 @@ async function openGalleryMenu(page, galleryTitle) {
   await titleEl.scrollIntoViewIfNeeded()
   await page.waitForTimeout(200)
 
-  // GalleryCard renders two "Gallery menu" buttons — desktop (hidden md:block) and
-  // mobile (block md:hidden). On desktop viewport, the mobile button is display:none
+  // GalleryCard renders two "Gallery menu" triggers — desktop (hidden md:block) and
+  // mobile (block md:hidden). On desktop viewport, the mobile one is display:none
   // but still in the DOM. getByRole without visible filter finds the mobile one first.
-  // Use page.locator with :visible pseudo-class to get only the rendered button.
-  const menuBtn = page.locator('button[aria-label="Gallery menu"]:visible').first()
+  // Use page.locator with :visible pseudo-class to get only the rendered one. Not
+  // tag-constrained to `button` -- PortalMenu's trigger wrapper is a div with
+  // role="button", not a literal <button>.
+  const menuBtn = page.locator('[aria-label="Gallery menu"]:visible').first()
   await expect(menuBtn).toBeVisible({ timeout: 5000 })
   await menuBtn.hover()
   await page.waitForTimeout(150)

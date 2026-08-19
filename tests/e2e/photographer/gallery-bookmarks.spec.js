@@ -18,6 +18,13 @@ async function getPhotographerId() {
 
 test.use({ storageState: 'tests/.auth/photographer.json' })
 
+// Set tabs render as "<name> (<count>)" -- matches the bare name too, for
+// the (rare) zero-images case, but not any other trigger/label that
+// happens to start with the same name (e.g. "Previews set options").
+function setTabName(name) {
+  return new RegExp('^' + name + String.raw`( \(\d+\))?` + '$')
+}
+
 async function createTestGalleryWithSets(photographerId) {
   const uid = crypto.randomUUID().slice(0, 8)
   const { data: gallery, error } = await sb().from('galleries').insert({
@@ -94,7 +101,7 @@ test.describe('Gallery image bookmarks — state sync', () => {
 
   test('bookmark icon reflects bookmarked state after switching sets and back', async ({ page }) => {
     await page.goto(`/galleries/${gallery.id}`)
-    await expect(page.getByRole('button', { name: setA.name })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: setTabName(setA.name) })).toBeVisible({ timeout: 15000 })
 
     const bookmarkBtn = page.getByRole('button', { name: 'Bookmark image' }).first()
     await expect(bookmarkBtn).toBeVisible({ timeout: 10000 })
@@ -102,8 +109,8 @@ test.describe('Gallery image bookmarks — state sync', () => {
     await expect(page.getByRole('button', { name: 'Remove bookmark' }).first()).toBeVisible({ timeout: 5000 })
 
     // Switch to the other (empty) set, then back
-    await page.getByRole('button', { name: setB.name }).click()
-    await page.getByRole('button', { name: setA.name }).click()
+    await page.getByRole('button', { name: setTabName(setB.name) }).click()
+    await page.getByRole('button', { name: setTabName(setA.name) }).click()
 
     // Bookmark state should still show as bookmarked, not reset
     await expect(page.getByRole('button', { name: 'Remove bookmark' }).first()).toBeVisible({ timeout: 5000 })
@@ -111,7 +118,7 @@ test.describe('Gallery image bookmarks — state sync', () => {
 
   test('bookmark persists in the database after toggling', async ({ page }) => {
     await page.goto(`/galleries/${gallery.id}`)
-    await expect(page.getByRole('button', { name: setA.name })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: setTabName(setA.name) })).toBeVisible({ timeout: 15000 })
 
     const bookmarkBtn = page.getByRole('button', { name: 'Bookmark image' }).first()
     await bookmarkBtn.click()
@@ -123,7 +130,7 @@ test.describe('Gallery image bookmarks — state sync', () => {
 
   test('unbookmarking removes it from the database', async ({ page }) => {
     await page.goto(`/galleries/${gallery.id}`)
-    await expect(page.getByRole('button', { name: setA.name })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: setTabName(setA.name) })).toBeVisible({ timeout: 15000 })
 
     const bookmarkBtn = page.getByRole('button', { name: 'Bookmark image' }).first()
     await bookmarkBtn.click()

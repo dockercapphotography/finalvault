@@ -288,12 +288,17 @@ test.describe('Client Favorites — Activity Page', () => {
       // We find it by locating the header div (first child of the panel with a border-bottom style)
       // and clicking its button.
       const panelHeader = panel.locator('div').filter({ hasText: email }).first()
-      await panelHeader.locator('button').last().click()
+      // getByRole, not a `button` tag selector -- PortalMenu's trigger
+      // wrapper is a div with role="button", not a literal <button>.
+      await panelHeader.getByRole('button').last().click()
 
-      // The dropdown renders outside normal flow but inside the panel's DOM tree.
-      // Wait for it to appear then click the Delete option.
-      await expect(panel.getByText('Delete', { exact: true })).toBeVisible({ timeout: 3000 })
-      await panel.getByText('Delete', { exact: true }).click()
+      // PortalMenu's desktop dropdown renders via createPortal directly into
+      // document.body -- it is NOT a descendant of the panel element (unlike
+      // the pre-migration implementation this comment used to describe).
+      // Un-scoped to the page rather than the panel.
+      // Label is "Delete favorites list", not bare "Delete" (renamed in v1.5.5).
+      await expect(page.getByText('Delete favorites list', { exact: true })).toBeVisible({ timeout: 3000 })
+      await page.getByText('Delete favorites list', { exact: true }).click()
 
       // Confirm dialog: two buttons appear — "Delete" (confirm) and "Cancel".
       // Click the first one (the red Delete button).
