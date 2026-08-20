@@ -149,7 +149,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: `FinalVault <noreply@dockercapphotography.com>`,
+          from: `FinalVault <noreply@mail.final-vault.app>`,
           to: [user.email],
           subject,
           html,
@@ -181,7 +181,7 @@ serve(async (req) => {
   }
 })
 
-const BASE_URL = 'https://finalvault.dockercapphotography.com/brand-icons'
+const BASE_URL = 'https://final-vault.app/brand-icons'
 const ACTION_ICONS: Record<string, { img: string; label: string }> = {
   favorite:        { label: 'Favorited an image',     img: `${BASE_URL}/digest-favorite.png` },
   comment:         { label: 'Left a comment',         img: `${BASE_URL}/digest-comment.png` },
@@ -197,7 +197,7 @@ function buildDigestHtml({ senderName, byGallery, totalEvents, galleryCount, sin
   galleryCount: number
   since: Date
 }) {
-  const appUrl = 'https://finalvault.dockercapphotography.com'
+  const appUrl = 'https://final-vault.app'
 
   const sinceStr = since.getTime() === 0
     ? 'all time'

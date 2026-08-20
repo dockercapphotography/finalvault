@@ -238,7 +238,7 @@ serve(async (req) => {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: `${senderName} <noreply@dockercapphotography.com>`,
+          from: `${senderName} <noreply@mail.final-vault.app>`,
           to: [clientEmail],
           subject: `Signed contract: ${contract.title}`,
           html: confirmedHtml(clientFirstName),
@@ -252,7 +252,7 @@ serve(async (req) => {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: `FinalVault <noreply@dockercapphotography.com>`,
+          from: `FinalVault <noreply@mail.final-vault.app>`,
           to: [photographerEmail],
           subject: `Fully signed: ${contract.title}`,
           html: confirmedHtml(contract.photographers?.display_name || 'there'),

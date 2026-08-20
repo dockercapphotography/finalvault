@@ -1294,7 +1294,7 @@ const PREVIEW_DATA = {
   '{{client_email}}':      'jane.smith@example.com',
   '{{gallery_name}}':      'Spring Portrait Session',
   '{{gallery_title}}':     'Spring Portrait Session',
-  '{{gallery_url}}':       'https://finalvault.dockercapphotography.com/g/example',
+  '{{gallery_url}}':       'https://final-vault.app/g/example',
   '{{photographer_name}}': 'Nick Porterfield',
   '{{my_name}}':           'Nick Porterfield',
   '{{business_name}}':        'Docker Cap Photography',
@@ -1470,7 +1470,7 @@ function EmailTemplatesTab({ onSaveState }) {
 
 // ── Brand Icons ───────────────────────────────────────────────────────────────
 
-const BASE_ICON_URL = 'https://finalvault.dockercapphotography.com/brand-icons'
+const BASE_ICON_URL = 'https://final-vault.app/brand-icons'
 const BRAND_ICONS = {
   instagram: <img src={`${BASE_ICON_URL}/instagram.png`} alt="Instagram" width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,
   facebook:  <img src={`${BASE_ICON_URL}/facebook.png`}  alt="Facebook"  width="36" height="36" style={{ borderRadius: 8, display: 'block' }} />,

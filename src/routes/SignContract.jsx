@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient.js'
 import { CheckCircle, AlertCircle, Loader } from 'lucide-react'
 
-const APP_URL = 'https://finalvault.dockercapphotography.com'
+const APP_URL = 'https://final-vault.app'
 
 // Fetch contract by sign_token using anon client (no auth needed)
 async function getContractByToken(token) {

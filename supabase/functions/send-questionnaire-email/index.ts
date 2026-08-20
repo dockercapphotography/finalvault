@@ -71,7 +71,7 @@ serve(async (req) => {
       ? `${workerUrl}/logo/${encodeURIComponent(photographer.logo_r2_key)}`
       : null
     const clientName = `${client.first_name} ${client.last_name}`
-    const formUrl = 'https://finalvault.dockercapphotography.com/submit/' + session.submit_token + (questionnaireId ? '?q=' + questionnaireId : '')
+    const formUrl = 'https://final-vault.app/submit/' + session.submit_token + (questionnaireId ? '?q=' + questionnaireId : '')
 
     // Format session date if present
     let sessionDateStr = ''
@@ -105,7 +105,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${senderName} <noreply@dockercapphotography.com>`,
+        from: `${senderName} <noreply@mail.final-vault.app>`,
         to: [client.email],
         subject: `Action needed — ${session.name}`,
         html,

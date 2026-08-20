@@ -135,7 +135,7 @@ serve(async (req) => {
     const logoUrl = photographer?.logo_r2_key
       ? `${workerUrl}/logo/${encodeURIComponent(photographer.logo_r2_key)}`
       : null
-    const galleryUrl = `https://finalvault.dockercapphotography.com/g/${gallery.share_token}`
+    const galleryUrl = `https://final-vault.app/g/${gallery.share_token}`
 
     const expiryDateStr = gallery.expires_at
       ? new Date(gallery.expires_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -212,7 +212,7 @@ serve(async (req) => {
       })
 
       const { res, data } = await sendWithRetry({
-        from: `${senderName} <noreply@dockercapphotography.com>`,
+        from: `${senderName} <noreply@mail.final-vault.app>`,
         to: [email],
         subject: finalSubject,
         html,
@@ -328,7 +328,7 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, clientName, eventNa
   paymentLinks: Record<string, string>
 }) {
   const allLinks = { ...socialLinks, ...paymentLinks }
-  const BASE_URL = 'https://finalvault.dockercapphotography.com/brand-icons'
+  const BASE_URL = 'https://final-vault.app/brand-icons'
   const linkIconsHtml = Object.entries(allLinks)
     .filter(([_, url]) => url)
     .map(([id, url]) => {

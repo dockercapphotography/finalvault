@@ -70,7 +70,7 @@ serve(async (req) => {
 
     const senderName = photographer?.business_name || photographer?.display_name || 'Your Photographer'
     const clientName = `${contract.clients.first_name} ${contract.clients.last_name}`
-    const appUrl = 'https://finalvault.dockercapphotography.com'
+    const appUrl = 'https://final-vault.app'
     const signUrl = `${appUrl}/sign/${contract.sign_token}`
 
     // Build the email HTML
@@ -89,7 +89,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${senderName} <noreply@dockercapphotography.com>`,
+        from: `${senderName} <noreply@mail.final-vault.app>`,
         to: [contract.clients.email],
         subject: `Please sign: ${contract.title}`,
         html,

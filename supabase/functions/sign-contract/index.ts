@@ -74,7 +74,7 @@ serve(async (req) => {
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
     const senderName = contract.photographers?.business_name || contract.photographers?.display_name || 'FinalVault'
     const clientName = contract.clients ? `${contract.clients.first_name} ${contract.clients.last_name}` : 'Your client'
-    const appUrl = 'https://finalvault.dockercapphotography.com'
+    const appUrl = 'https://final-vault.app'
 
     // Get photographer email
     const { data: { user: photographer } } = await supabase.auth.admin.getUserById(contract.photographer_id)
@@ -98,7 +98,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: `FinalVault <noreply@dockercapphotography.com>`,
+          from: `FinalVault <noreply@mail.final-vault.app>`,
           to: [photographerEmail],
           subject: `${clientName} signed "${contract.title}" — your counter-signature is needed`,
           html,

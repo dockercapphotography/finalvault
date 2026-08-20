@@ -19,7 +19,7 @@ serve(async (req) => {
 
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
     const workerUrl = Deno.env.get('R2_WORKER_URL') || 'https://finalvault-worker.sitranephotography.workers.dev'
-    const appUrl = 'https://finalvault.dockercapphotography.com'
+    const appUrl = 'https://final-vault.app'
     const now = new Date()
 
     // Find all active galleries with expiry warnings enabled and an expiry date set
@@ -131,7 +131,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: `${senderName} <noreply@dockercapphotography.com>`,
+            from: `${senderName} <noreply@mail.final-vault.app>`,
             to: [viewer.email],
             subject,
             html,

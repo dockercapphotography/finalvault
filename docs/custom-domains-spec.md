@@ -141,6 +141,81 @@ client-facing) and the `claim_signup_slot` RPC's `v_session_url` (the link insid
 *photographer's own* new-booking notification email, pointing back to their internal
 session view — also correctly stays on the main domain).
 
+### 3.5 Registrar-guided setup instructions
+
+Full automation (configuring the CNAME on the photographer's behalf via each
+registrar's API) was considered and explicitly ruled out -- it's a real,
+separate integration project per registrar (OAuth, write access to someone's
+DNS, ongoing maintenance as each registrar's API changes), disproportionate
+to what a solo-developer platform needs to solve here. Instead, the goal is
+getting close to foolproof for the common case through better guidance, not
+automation.
+
+**Registrar prioritization: GoDaddy and Squarespace Domains.** Confirmed via
+Pixieset's own help center (Aug 2026) -- Pixieset, solving this identical
+problem for the identical photographer audience, built dedicated
+registrar-specific guides for exactly these two (plus a since-retired Google
+Domains guide, now folded into Squarespace after that acquisition) and
+nothing else; everything else falls back to their one generic guide. This is
+materially stronger evidence than general small-business registrar
+market-share data (which would have suggested Namecheap over Squarespace as
+the #2 priority) -- a direct competitor's actual documentation investment for
+the same audience beats an inference from unrelated-market statistics.
+Namecheap and Cloudflare Registrar remain reasonable future candidates if
+real usage data (e.g. asked at setup time, or support ticket patterns)
+justifies expanding beyond these two.
+
+**Facts pulled from Pixieset's own guides, worth carrying into both our
+implementation and the in-app copy:**
+
+- They use **CNAME** for the connection, matching our own subdomain-first
+  plan (§3.1) exactly -- no surprises there.
+- Every guide carries an explicit **warning to never modify or delete
+  existing MX records** -- doing so breaks the photographer's email. Worth
+  a prominent warning in our own UI copy, not just in support docs, since
+  this is a real way someone could hurt themselves.
+- Guides instruct deleting **conflicting existing A/CNAME records** on the
+  same host before adding the new one -- this maps directly to the
+  pre-flight DNS check below (item 2): what we're checking for is exactly
+  this class of conflict.
+- SSL/DNS propagation is quoted as **up to 48 hours** -- a concrete number
+  worth reusing in our own polling-UX copy (see open question 5.3) rather
+  than a vaguer "some time."
+- One edge case worth stealing directly: **the registrar someone bought a
+  domain from isn't always where its DNS is actually managed** (e.g.
+  purchased at GoDaddy, actually hosted at Bluehost). Someone could follow
+  the wrong guide entirely without realizing it. Worth a plain callout in
+  the UI ("Not sure where your DNS is managed? ...") before they pick a
+  guide, not just embedded in the guide text itself.
+
+**What "guided" means in practice, in rough priority order:**
+
+1. **Registrar-specific instructions for GoDaddy and Squarespace, generic
+   instructions otherwise.** Ask (or let them pick from a short list) which
+   registrar they use, then show that provider's actual DNS-tab location
+   and field names for these two, falling back to a generic "add a CNAME
+   record" guide for everyone else. This is the single highest-leverage
+   piece -- the same pattern Vercel/Netlify use for exactly this problem,
+   and now validated by Pixieset's own registrar choices for this specific
+   audience.
+2. **Pre-flight DNS check.** Before they're asked to add anything, do a live
+   DNS lookup on the subdomain they're about to use and flag likely
+   conflicts (an existing A/CNAME record already there -- see Pixieset's
+   own guides above) *before* they submit, rather than only surfacing a
+   failure after the fact with no clear cause.
+3. **Specific failure states in the status polling** (extends §3.3's status
+   endpoint and resolves open question 5.4 below) -- distinguish and
+   plain-language-translate the actual common failure modes: record not
+   found yet, wrong record type, still propagating (just needs more time,
+   up to 48 hours per Pixieset's own stated figure), CAA record blocking
+   issuance. Not one undifferentiated "pending" spinner that leaves someone
+   unsure whether to wait or that they did something wrong.
+4. **Manual fallback for the rest.** For registrars without a specific guide,
+   or a photographer who's genuinely stuck despite good instructions -- a
+   clear "still not working? send us a screenshot of your DNS settings" path.
+   A reasonable, low-effort escape hatch rather than trying to engineer away
+   every edge case.
+
 ## 4. Non-goals (v1)
 
 - Apex/root domain support (subdomains only, see §3.1)
@@ -149,6 +224,11 @@ session view — also correctly stays on the main domain).
   client-facing public links)
 - Any billing/paid-tier gating (out of scope for this spec; a product decision for
   later if ever relevant)
+- Direct registrar API integration (OAuth-based automatic DNS configuration) — see
+  §3.5; guided instructions instead, this is a disproportionate build for a
+  solo-developer platform
+- Registrar-specific guides beyond GoDaddy and Squarespace at launch (see §3.5) —
+  Namecheap and Cloudflare Registrar are reasonable future candidates, not v1
 
 ## 5. Open questions
 
@@ -161,15 +241,15 @@ session view — also correctly stays on the main domain).
    `photographers.default_gallery_sort` and other account-level settings already
    live in `Account.jsx`. Confirm before building.
 3. **Polling UX while SSL provisions.** Cert issuance can take from minutes to (rarely)
-   hours per Cloudflare's own docs. Does the UI need an explicit "check status" button,
-   automatic polling, or both? Precedent elsewhere in the app: none directly
-   analogous — worth a quick mockup before building.
-4. **Removal/error recovery UX.** What happens if a photographer's DNS is misconfigured
-   and Cloudflare returns a validation error — do we surface Cloudflare's raw error
-   text, or translate common failure modes (missing CNAME, CAA record blocking,
-   propagation still pending) into plain-language guidance? Pixieset's docs suggest
-   these are the actual common failure modes in practice, so probably worth
-   pattern-matching on them specifically rather than showing raw API errors.
+   hours per Cloudflare's own docs; Pixieset quotes up to 48 hours for their own
+   propagation + SSL process, a useful concrete number for our own copy. Does the UI
+   need an explicit "check status" button, automatic polling, or both? Precedent
+   elsewhere in the app: none directly analogous — worth a quick mockup before
+   building; the 48-hour figure at least gives us a number to design the waiting
+   state around.
+4. **Removal/error recovery UX.** ~~What happens if a photographer's DNS is
+   misconfigured...~~ **Resolved — see §3.5.** Translate common failure modes into
+   plain-language guidance rather than showing raw Cloudflare API errors.
 
 ## 6. Suggested build sequence
 
@@ -179,6 +259,8 @@ session view — also correctly stays on the main domain).
 3. `manage-custom-domain` Edge Function (create/status/delete).
 4. Account settings UI: add domain, show CNAME instructions, status indicator,
    remove domain.
-5. `getPublicBaseUrl()` helper + the six call-site swaps.
-6. End-to-end test with a real domain Nick owns, including the DNS propagation /
+5. Registrar-guided instructions (§3.5) — GoDaddy and Squarespace guides, pre-flight
+   DNS check, specific failure-state messaging, manual fallback path.
+6. `getPublicBaseUrl()` helper + the six call-site swaps.
+7. End-to-end test with a real domain Nick owns, including the DNS propagation /
    cert issuance wait.
