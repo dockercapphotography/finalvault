@@ -954,6 +954,8 @@ function ProfileTab({ user, onSaveState }) {
           {securityMsg && <p className="text-sm" style={{ color: securityMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{securityMsg.text}</p>}
         </div>
       </SettingsSection>
+
+      <CustomDomainSection photographerId={user?.id} />
     </div>
   )
 }
@@ -1620,7 +1622,6 @@ function NotificationsTab({ user, onSaveState }) {
       </SettingsSection>
 
       <PushNotificationsSection photographerId={user?.id} />
-      <CustomDomainSection photographerId={user?.id} />
     </div>
   )
 }
