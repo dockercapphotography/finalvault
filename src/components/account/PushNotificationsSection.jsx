@@ -68,10 +68,14 @@ export default function PushNotificationsSection({ photographerId }) {
       if (next) {
         const result = await subscribe(photographerId, VAPID_PUBLIC_KEY)
         if (!result.ok) {
-          // requestPermission() resolved to 'denied' or was dismissed --
-          // re-read the real permission state rather than assuming, since
-          // the browser won't let us re-prompt after a denial.
-          setPermission(permissionState())
+          if (result.reason === 'service-worker-unavailable') {
+            setError('Push notifications aren\u2019t available right now. Try refreshing the page.')
+          } else {
+            // requestPermission() resolved to 'denied' or was dismissed --
+            // re-read the real permission state rather than assuming, since
+            // the browser won't let us re-prompt after a denial.
+            setPermission(permissionState())
+          }
         }
       } else {
         await unsubscribeThisDevice(photographerId)

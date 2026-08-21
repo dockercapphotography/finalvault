@@ -48,6 +48,19 @@ export function pushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
+// navigator.serviceWorker.ready never resolves at all if registration
+// itself failed -- a browser extension blocking it, a corporate policy, a
+// transient browser bug, anything -- and without a bound on the wait, that
+// silently and permanently hides this entire feature with no error shown
+// to the user (found via a stuck Playwright run: registration failing in
+// dev mode left every caller of .ready hanging forever).
+async function serviceWorkerReady(timeoutMs = 2000) {
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise(resolve => setTimeout(() => resolve(null), timeoutMs)),
+  ])
+}
+
 // Current permission state: 'default' | 'granted' | 'denied'
 export function permissionState() {
   if (!('Notification' in window)) return 'unsupported'
@@ -68,7 +81,8 @@ export async function getSubscriptions(photographerId) {
 // used to highlight "this device" in the list without a server round trip.
 export async function getThisDeviceEndpoint() {
   if (!pushSupported()) return null
-  const reg = await navigator.serviceWorker.ready
+  const reg = await serviceWorkerReady()
+  if (!reg) return null
   const sub = await reg.pushManager.getSubscription()
   return sub?.endpoint || null
 }
@@ -79,7 +93,10 @@ export async function subscribe(photographerId, vapidPublicKey) {
     return { ok: false, reason: permission }
   }
 
-  const reg = await navigator.serviceWorker.ready
+  const reg = await serviceWorkerReady()
+  if (!reg) {
+    return { ok: false, reason: 'service-worker-unavailable' }
+  }
   const sub = await reg.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
@@ -108,7 +125,8 @@ export async function subscribe(photographerId, vapidPublicKey) {
 // Unsubscribes this device specifically (used by the toggle).
 export async function unsubscribeThisDevice(photographerId) {
   if (!pushSupported()) return
-  const reg = await navigator.serviceWorker.ready
+  const reg = await serviceWorkerReady()
+  if (!reg) return
   const sub = await reg.pushManager.getSubscription()
   if (!sub) return
   const endpoint = sub.endpoint
