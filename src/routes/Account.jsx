@@ -920,6 +920,8 @@ function ProfileTab({ user, onSaveState }) {
         </div>
       </SettingsSection>
 
+      <CustomDomainSection photographerId={user?.id} />
+
       {storageInfo && (
         <SettingsSection title="Storage" description="Your current storage usage and plan.">
           <div className="px-5 py-4 space-y-2">
@@ -954,8 +956,6 @@ function ProfileTab({ user, onSaveState }) {
           {securityMsg && <p className="text-sm" style={{ color: securityMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{securityMsg.text}</p>}
         </div>
       </SettingsSection>
-
-      <CustomDomainSection photographerId={user?.id} />
     </div>
   )
 }
