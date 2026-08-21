@@ -8,6 +8,7 @@ import { Plus, CalendarDays, X, LayoutList, Columns, Link2, Copy, Check, Trash2,
   Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock, Search } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
+import { getPublicBaseUrl } from '../utils/publicBaseUrl.js'
 import { formatPlainTimeRange, formatTimeRange } from '../utils/formatters.js'
 import {
   getSessions, createSession, updateSession, SESSION_TYPES, SESSION_STATUSES,
@@ -1003,7 +1004,9 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
     onClose()
   }
 
-  const bookingUrl = page ? `${window.location.origin}/book/${page.token}` : ''
+  const [baseUrl, setBaseUrl] = useState(window.location.origin)
+  useEffect(() => { getPublicBaseUrl().then(setBaseUrl) }, [])
+  const bookingUrl = page ? `${baseUrl}/book/${page.token}` : ''
 
   function handleCopyLink() {
     navigator.clipboard.writeText(bookingUrl)

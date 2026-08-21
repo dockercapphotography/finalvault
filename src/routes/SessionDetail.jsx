@@ -30,6 +30,7 @@ import BottomSheet from '../components/layout/BottomSheet.jsx'
 import GalleryPicker from '../components/ui/GalleryPicker.jsx'
 import ClientPicker from '../components/ui/ClientPicker.jsx'
 import * as XLSX from 'xlsx'
+import { getPublicBaseUrl } from '../utils/publicBaseUrl.js'
 
 // ── Time options (15-min increments) ─────────────────────────────────────────
 const TIME_OPTIONS = (() => {
@@ -1330,7 +1331,6 @@ export default function SessionDetail() {
             const qid = sq.questionnaire_id
             const qname = sq.questionnaire_templates?.name || 'Unknown template'
             const count = submissionCounts[qid] || 0
-            const formUrl = `${window.location.origin}/submit/${session.submit_token}?q=${qid}`
             const isSending = sendingForm === qid
             const isSent = sentForm === qid
             const isCopied = copiedQ === qid
@@ -1352,6 +1352,8 @@ export default function SessionDetail() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   {/* Copy link */}
                   <button onClick={async () => {
+                    const baseUrl = await getPublicBaseUrl()
+                    const formUrl = `${baseUrl}/submit/${session.submit_token}?q=${qid}`
                     try {
                       await navigator.clipboard.writeText(formUrl)
                       setCopiedQ(qid)

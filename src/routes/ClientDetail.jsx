@@ -8,6 +8,7 @@ import {
   AlertCircle, Ban, CalendarDays, Link2, Copy, RefreshCw, Check, Search,
   Lock, Unlock, ShieldAlert
 } from 'lucide-react'
+import { getPublicBaseUrl } from '../utils/publicBaseUrl.js'
 import TagInput from '../components/ui/TagInput.jsx'
 import PlainField from '../components/ui/PlainField.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
@@ -881,8 +882,10 @@ function PortalLinkCard({ client, onToast, onTokenChange }) {
   const [confirmRegen, setConfirmRegen] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
+  const [baseUrl, setBaseUrl] = useState(window.location.origin)
+  useEffect(() => { getPublicBaseUrl().then(setBaseUrl) }, [])
   const portalUrl = client.portal_token
-    ? `${window.location.origin}/client/${client.portal_token}`
+    ? `${baseUrl}/client/${client.portal_token}`
     : null
 
   async function handleGenerate() {

@@ -15,6 +15,7 @@ import { FolderContext } from '../contexts/FolderContext.jsx'
 import FolderCard from '../components/galleries/FolderCard.jsx'
 import Button from '../components/ui/Button.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import { getPublicBaseUrl } from '../utils/publicBaseUrl.js'
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -668,8 +669,9 @@ export default function Dashboard() {
     setChecklistDismissed(true)
   }
 
-  function handleCopyLink(shareToken) {
-    navigator.clipboard.writeText(`${window.location.origin}/g/${shareToken}`)
+  async function handleCopyLink(shareToken) {
+    const baseUrl = await getPublicBaseUrl()
+    navigator.clipboard.writeText(`${baseUrl}/g/${shareToken}`)
     setToast({ message: 'Gallery link copied!', type: 'success' })
   }
 
