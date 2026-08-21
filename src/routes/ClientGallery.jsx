@@ -153,6 +153,7 @@ export default function ClientGallery() {
   const [logoUrl, setLogoUrl] = useState(null)
 
   const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [password, setPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -207,18 +208,17 @@ export default function ClientGallery() {
   async function handleNameSubmit() {
     if (!email.trim()) return
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Please enter a valid email address.')
+      setEmailError('Please enter a valid email address.')
       return
     }
-    setError(null)
+    setEmailError('')
     setSubmitting(true)
     try {
       const viewer = await getOrCreateViewer(gallery.id, email.trim())
       if (gallery.require_password) setStage('password')
       else navigate(`/g/${token}/view${window.location.search}`, { replace: true })
     } catch {
-      setStage('name')
-      setError('Something went wrong. Please try again.')
+      setEmailError('Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -268,11 +268,14 @@ export default function ClientGallery() {
       <div className="space-y-3">
         <InputField
           value={email}
-          onChange={setEmail}
+          onChange={v => { setEmail(v); setEmailError('') }}
           type="email"
           placeholder="Enter your email to continue"
           autoFocus
         />
+        {emailError && (
+          <p className="text-sm text-center" style={{ color: '#f87171' }}>{emailError}</p>
+        )}
         <GateButton onClick={handleNameSubmit} loading={submitting || !email.trim()}>
           View Gallery <ArrowRight size={16} />
         </GateButton>
