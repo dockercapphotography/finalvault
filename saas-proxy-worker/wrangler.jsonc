@@ -1,0 +1,10 @@
+{
+  "name": "finalvault-saas-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2025-01-01"
+
+  // No bindings, secrets, or routes here — the Worker Route (*/* on the
+  // final-vault.app zone) is configured in the Cloudflare dashboard, not
+  // in this file, since it's shared zone-level routing rather than
+  // something this Worker owns on its own.
+}
