@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import {CheckCircle, Copy, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
+import CustomDomainSection from '../components/account/CustomDomainSection.jsx'
 import WebImageBackfillSection from '../components/account/WebImageBackfillSection.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
@@ -1619,6 +1620,7 @@ function NotificationsTab({ user, onSaveState }) {
       </SettingsSection>
 
       <PushNotificationsSection photographerId={user?.id} />
+      <CustomDomainSection photographerId={user?.id} />
     </div>
   )
 }
