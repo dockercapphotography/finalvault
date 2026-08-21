@@ -72,6 +72,35 @@ async function waitForReady(page) {
   await expect(page.locator('.animate-spin')).not.toBeAttached({ timeout: 15000 })
 }
 
+// The tests below need a slot time that's reliably in the future (so the
+// booking page actually shows it) and reliably renders as "3:00 PM" once
+// the app formats it in America/New_York -- these tests broke once the
+// original hardcoded 2026-08-1X dates in this file passed into the past.
+//
+// A fixed UTC hour won't do: America/New_York is UTC-4 during EDT (roughly
+// Mar-Nov) but UTC-5 during EST, so "19:00 UTC" only equals 3:00 PM ET for
+// about 8 months of the year. This computes the real offset for the target
+// date via Intl, so the fixture stays correct regardless of when the suite
+// actually runs.
+function nyUtcOffsetMinutes(approxDate) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', timeZoneName: 'longOffset',
+  }).formatToParts(approxDate)
+  const raw = parts.find(p => p.type === 'timeZoneName').value // e.g. "GMT-04:00"
+  const match = raw.match(/GMT([+-])(\d{2}):(\d{2})/)
+  const sign = match[1] === '-' ? -1 : 1
+  return sign * (parseInt(match[2], 10) * 60 + parseInt(match[3], 10))
+}
+
+function futureThreePmSlot(daysFromNow) {
+  const base = new Date()
+  base.setUTCDate(base.getUTCDate() + daysFromNow)
+  const offsetMin = nyUtcOffsetMinutes(base)
+  const start = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 15, 0, 0) - offsetMin * 60000)
+  const end = new Date(start.getTime() + 15 * 60000)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
 test.describe('Public booking page', () => {
   test('invalid token shows the link-not-valid message', async ({ page }) => {
     await page.goto('/book/not-a-real-token')
@@ -94,7 +123,8 @@ test.describe('Public booking page', () => {
   test('a single shoot type skips the picker, going straight to times', async ({ page }) => {
     const signupPage = await createSignupPage()
     const shootType = await createShootType(signupPage.id)
-    const slot = await createSlot(signupPage.id, shootType.id, '2026-08-15T19:00:00Z', '2026-08-15T19:15:00Z')
+    const { start, end } = futureThreePmSlot(5)
+    const slot = await createSlot(signupPage.id, shootType.id, start, end)
     try {
       await page.goto(`/book/${signupPage.token}`)
       await waitForReady(page)
@@ -122,7 +152,8 @@ test.describe('Public booking page', () => {
   test('shows the booking page description, except on the success screen', async ({ page }) => {
     const signupPage = await createSignupPage({ booking_description: 'Thanks for your interest in booking with me!' })
     const shootType = await createShootType(signupPage.id)
-    await createSlot(signupPage.id, shootType.id, '2026-08-15T19:00:00Z', '2026-08-15T19:15:00Z')
+    const { start, end } = futureThreePmSlot(6)
+    await createSlot(signupPage.id, shootType.id, start, end)
     try {
       await page.goto(`/book/${signupPage.token}`)
       await waitForReady(page)
@@ -135,7 +166,8 @@ test.describe('Public booking page', () => {
   test('full flow: pick a time, fill details, and confirm to a success screen', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Happy Path Test Page' })
     const shootType = await createShootType(signupPage.id, { name: 'Cosplay Portrait' })
-    await createSlot(signupPage.id, shootType.id, '2026-08-16T19:00:00Z', '2026-08-16T19:15:00Z')
+    const { start, end } = futureThreePmSlot(7)
+    await createSlot(signupPage.id, shootType.id, start, end)
     const email = `booking-happy-${crypto.randomUUID().slice(0, 8)}@example.com`
 
     try {
@@ -166,7 +198,8 @@ test.describe('Public booking page', () => {
   test('a slot claimed by someone else mid-flow shows a conflict message', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Race Condition Test Page' })
     const shootType = await createShootType(signupPage.id)
-    const slot = await createSlot(signupPage.id, shootType.id, '2026-08-17T19:00:00Z', '2026-08-17T19:15:00Z')
+    const { start, end } = futureThreePmSlot(8)
+    const slot = await createSlot(signupPage.id, shootType.id, start, end)
     const raceWinnerEmail = `race-winner-${crypto.randomUUID().slice(0, 8)}@example.com`
     const loserEmail = `race-loser-${crypto.randomUUID().slice(0, 8)}@example.com`
 
