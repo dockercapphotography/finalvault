@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.5'
+const VERSION = '1.5.6'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,16 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.6 — August 21, 2026">
+                  <Group label="Custom domains">
+                    <Item>Point your own domain at client-facing links instead of the default FinalVault domain -- covers gallery, booking, client portal, and questionnaire links, in the app and in emails</Item>
+                    <Item>Guided setup with registrar-specific instructions for GoDaddy and Squarespace, plus automatic status checking while DNS propagates</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed an invalid email at a gallery's entry screen showing a dead-end message with no way to try again</Item>
+                    <Item>Fixed push notifications not working in some cases due to a service worker registration issue</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.5 — August 19, 2026">
                   <Group label="Sign-Ups">
                     <Item>Detail modal redesigned around two tabs -- Booking Slots and Session Settings -- instead of one long page</Item>

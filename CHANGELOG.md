@@ -4,6 +4,30 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.6 — August 21, 2026
+
+### New Features
+
+**Custom domains**
+- Point your own domain (e.g. `book.yourstudio.com`) at client-facing links instead of the default FinalVault domain -- covers gallery, booking, client portal, and questionnaire submit links, in both the app and the emails that carry them
+- Guided setup: registrar-specific CNAME instructions for GoDaddy and Squarespace Domains (verified against each platform's own current docs), a generic fallback for everyone else, and automatic + manual status checking while DNS propagates
+- Plain-language error messages when DNS isn't configured correctly yet, instead of raw Cloudflare error text
+- Confirmation required before removing a configured domain
+
+### Infrastructure
+
+- Migrated the app's primary domain from `finalvault.dockercapphotography.com` to `final-vault.app`; every existing link continues to resolve indefinitely, nothing was redirected or retired
+- Email sending moved to a dedicated subdomain (`mail.final-vault.app`) with fresh SPF/DKIM/DMARC, isolated from the app's own domain
+
+### Bug Fixes
+
+- Fixed an invalid email at a client gallery's entry screen showing a dead-end "Gallery unavailable" message with no way to correct it and try again
+- Fixed the service worker crashing entirely in local development -- an offline-navigation feature added in v1.5.5 threw on a URL that's only precached in production builds, which silently killed everything registered after it in the same script, including push notification handling
+- Fixed `navigator.serviceWorker.ready` having no timeout anywhere it was awaited -- if service worker registration ever failed for any reason, the entire Push Notifications section would vanish permanently with no error shown
+- Fixed 3 pre-existing signup-booking end-to-end tests that had been failing since their fixture dates passed into the past; timezone-safe fixture generation replaces the hardcoded dates
+
+---
+
 ## v1.5.5 — August 19, 2026
 
 ### New Features

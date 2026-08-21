@@ -51,6 +51,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Client Portal** — generate a single, durable link for each client showing all their galleries, contracts, and outstanding questionnaires in one place; regenerate anytime to revoke an old link; optionally protect the whole portal with a password, with automatic escalating lockout after repeated wrong attempts and a manual reset if a client gets stuck
 - **Session Signup Pages** — create a public, shareable booking page per event with its own venue, timezone, and shoot types; clients pick a time and book themselves, which atomically creates the client (or matches an existing one) and a real session, with automatic questionnaire assignment, database-enforced double-booking prevention across overlapping shoot types, and calendar-ready confirmation emails (Google Calendar link + .ics); optional per-shoot-type pricing and deposit shown to clients before they book
 - **Live status page** — a dedicated, mobile-friendly view for checking bookings on the go: a "Happening now" card shows the current or next session with a countdown, search and Booked-only filtering, a day-timeline view alongside the list, private per-slot notes, one-tap call/text/email, mark-as-no-show to free up a slot without losing the client record, registering a walk-up client directly against an open slot (creates a real booking identical to a public signup), and rescheduling an existing booking to a different open slot or a custom time (with conflict prevention and an optional updated confirmation email to the client); real push notifications for new claims, contract signatures, and questionnaire responses, each independently configurable, delivered even when the app is closed, with per-device enable/disable; an in-app notification bell alongside gallery activity and pending contracts
+- **Custom domains** — point your own domain (e.g. `book.yourstudio.com`) at your client-facing links instead of the default FinalVault domain; guided CNAME setup with registrar-specific instructions, live status checking, and plain-language error messages if DNS isn’t configured correctly yet
 
 ### For Clients
 
@@ -78,6 +79,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 | Image Storage | Cloudflare R2 |
 | Image Processing | `@cf-wasm/photon` (worker-side) + Canvas API (client-side) |
 | Deployment | Cloudflare Pages |
+| Custom domains | Cloudflare for SaaS + Workers (fallback-origin bridge) |
 | Email | Resend |
 | Scheduling | pg_cron (daily digest + expiry reminders) |
 | Testing | Playwright (371 end-to-end tests) |
@@ -157,12 +159,26 @@ RESEND_API_KEY
 R2_WORKER_URL
 ```
 
-**6. Run locally**
+**6. (Optional) Custom domains feature**
+
+Requires Cloudflare for SaaS enabled on your zone, plus a small proxy Worker -- Cloudflare Pages doesn't accept traffic routed through Cloudflare for SaaS's fallback-origin mechanism directly, so this Worker bridges the two:
+```bash
+cd saas-proxy-worker
+npx wrangler deploy
+```
+
+Then configure the Worker as your Cloudflare for SaaS Fallback Origin (via an originless DNS record + a zone-wide Worker Route), and set these secrets on the `manage-custom-domain` Edge Function:
+```
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ZONE_ID
+```
+
+**7. Run locally**
 ```bash
 npm run dev
 ```
 
-**7. Deploy frontend**
+**8. Deploy frontend**
 
 Connect the repo to Cloudflare Pages. It deploys automatically on push to `main`.
 
