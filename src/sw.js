@@ -37,7 +37,24 @@ precacheAndRoute(self.__WB_MANIFEST)
 // navigation. Deliberately left out of the v1.5.3 generateSW ->
 // injectManifest switch to keep that change at exact parity with prior
 // production caching behavior -- this is the first addition since then.
-registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')))
+//
+// Wrapped in try/catch: in dev mode, vite-plugin-pwa's manifest stub is an
+// empty array (precacheAndRoute([]) above), so 'index.html' is never
+// actually precached -- createHandlerBoundToURL() then throws. Since this
+// runs at the service worker's top level, not inside an event handler, an
+// unguarded throw here crashes the ENTIRE script's evaluation and silently
+// disables everything below it too, including the push notification
+// handlers at the bottom of this file (found via a stuck Playwright run:
+// registration failing left every push feature dead in dev, not just the
+// offline fallback). In production the real build injects a full manifest
+// including index.html, so the try always succeeds there -- this only
+// changes dev-mode behavior, where there's no offline fallback (fine,
+// since the dev server is always reachable anyway).
+try {
+  registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')))
+} catch (err) {
+  console.warn('[sw] Skipping offline navigation fallback -- index.html not precached (expected in dev mode):', err)
+}
 
 // R2 preview images only -- NOT originals, downloads, watermarks, or
 // zip files. Matches the old workbox.runtimeCaching urlPattern exactly.
