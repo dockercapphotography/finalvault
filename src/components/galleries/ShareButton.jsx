@@ -4,6 +4,7 @@ import { X, Copy, Mail, Link, QrCode, Check, ChevronDown, Plus, Trash2 } from 'l
 import { supabase } from '../../supabaseClient.js'
 import QRCode from 'https://esm.sh/qrcode@1.5.3'
 import PortalMenu from '../ui/PortalMenu.jsx'
+import { getPublicBaseUrl } from '../../utils/publicBaseUrl.js'
 
 function parseEmails(raw) {
   return [...new Set(
@@ -38,7 +39,9 @@ function CopyField({ label, value }) {
 }
 
 function DirectLinkModal({ gallery, onClose }) {
-  const galleryUrl = `${window.location.origin}/g/${gallery.share_token}`
+  const [baseUrl, setBaseUrl] = useState(window.location.origin)
+  useEffect(() => { getPublicBaseUrl().then(setBaseUrl) }, [])
+  const galleryUrl = `${baseUrl}/g/${gallery.share_token}`
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
       style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
@@ -70,7 +73,9 @@ function DirectLinkModal({ gallery, onClose }) {
 
 function QRCodeModal({ gallery, onClose }) {
   const canvasRef = useRef(null)
-  const galleryUrl = `${window.location.origin}/g/${gallery.share_token}`
+  const [baseUrl, setBaseUrl] = useState(window.location.origin)
+  useEffect(() => { getPublicBaseUrl().then(setBaseUrl) }, [])
+  const galleryUrl = `${baseUrl}/g/${gallery.share_token}`
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -145,7 +150,9 @@ function EmailComposerModal({ gallery, onClose }) {
   // Insert-template dropdown is now handled by PortalMenu, which manages its own open state.
   const [showTemplateManager, setShowTemplateManager] = useState(false)
 
-  const galleryUrl = `${window.location.origin}/g/${gallery.share_token}`
+  const [baseUrl, setBaseUrl] = useState(window.location.origin)
+  useEffect(() => { getPublicBaseUrl().then(setBaseUrl) }, [])
+  const galleryUrl = `${baseUrl}/g/${gallery.share_token}`
   const emails = parseEmails(to)
 
   useEffect(() => {
