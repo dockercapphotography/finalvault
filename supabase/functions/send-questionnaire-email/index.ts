@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -71,7 +72,8 @@ serve(async (req) => {
       ? `${workerUrl}/logo/${encodeURIComponent(photographer.logo_r2_key)}`
       : null
     const clientName = `${client.first_name} ${client.last_name}`
-    const formUrl = 'https://final-vault.app/submit/' + session.submit_token + (questionnaireId ? '?q=' + questionnaireId : '')
+    const baseUrl = await getPublicBaseUrl(supabase, user.id)
+    const formUrl = baseUrl + '/submit/' + session.submit_token + (questionnaireId ? '?q=' + questionnaireId : '')
 
     // Format session date if present
     let sessionDateStr = ''

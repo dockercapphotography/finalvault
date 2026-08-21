@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +20,6 @@ serve(async (req) => {
 
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
     const workerUrl = Deno.env.get('R2_WORKER_URL') || 'https://finalvault-worker.sitranephotography.workers.dev'
-    const appUrl = 'https://final-vault.app'
     const now = new Date()
 
     // Find all active galleries with expiry warnings enabled and an expiry date set
@@ -96,7 +96,7 @@ serve(async (req) => {
         }
       }
 
-      const galleryUrl = `${appUrl}/g/${gallery.share_token}`
+      const galleryUrl = `${await getPublicBaseUrl(supabase, gallery.photographer_id)}/g/${gallery.share_token}`
       const expiryDateStr = expiresAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
       const eventDateStr = gallery.event_date
         ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })

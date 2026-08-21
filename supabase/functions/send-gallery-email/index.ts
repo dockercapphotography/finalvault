@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -135,7 +136,7 @@ serve(async (req) => {
     const logoUrl = photographer?.logo_r2_key
       ? `${workerUrl}/logo/${encodeURIComponent(photographer.logo_r2_key)}`
       : null
-    const galleryUrl = `https://final-vault.app/g/${gallery.share_token}`
+    const galleryUrl = `${await getPublicBaseUrl(supabase, gallery.photographer_id)}/g/${gallery.share_token}`
 
     const expiryDateStr = gallery.expires_at
       ? new Date(gallery.expires_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })

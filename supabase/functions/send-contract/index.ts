@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -70,7 +71,7 @@ serve(async (req) => {
 
     const senderName = photographer?.business_name || photographer?.display_name || 'Your Photographer'
     const clientName = `${contract.clients.first_name} ${contract.clients.last_name}`
-    const appUrl = 'https://final-vault.app'
+    const appUrl = await getPublicBaseUrl(supabase, user.id)
     const signUrl = `${appUrl}/sign/${contract.sign_token}`
 
     // Build the email HTML
