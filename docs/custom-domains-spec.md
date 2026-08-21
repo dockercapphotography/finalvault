@@ -3,6 +3,10 @@
 **Status:** Draft — not yet started, candidate for v1.5.6
 **Author:** Nick Porterfield + Claude
 **Date:** August 17, 2026
+**Update (Aug 2026):** FinalVault's primary domain has since migrated from
+`finalvault.dockercapphotography.com` to `final-vault.app` (see Phase 0 of the
+v1.5.6 build). Domain references below have been updated to match; the
+underlying design is unchanged.
 
 ---
 
@@ -11,9 +15,9 @@
 Every photographer's client-facing links today look like:
 
 ```
-https://finalvault.dockercapphotography.com/g/69d77f4622f34cb281cea...
-https://finalvault.dockercapphotography.com/book/9f3a1c...
-https://finalvault.dockercapphotography.com/client/8e21b0...
+https://final-vault.app/g/69d77f4622f34cb281cea...
+https://final-vault.app/book/9f3a1c...
+https://final-vault.app/client/8e21b0...
 ```
 
 Regardless of which photographer sent the link, the client sees FinalVault's domain,
@@ -32,13 +36,13 @@ than a typical multi-tenant custom-domain feature:
    identifies "which photographer / which gallery" entirely from the token in the
    URL path. The app never needs to know or care which domain served the request —
    a request to `book.janesmithphotography.com/g/abc123` and a request to
-   `finalvault.dockercapphotography.com/g/abc123` resolve identically once they reach
+   `final-vault.app/g/abc123` resolve identically once they reach
    the app. This means **no new routing logic is needed at the application layer.**
 2. **Public pages are already unauthenticated and use the anon Supabase client.**
    `ClientGalleryView.jsx`, `SignupBooking.jsx`, etc. call Supabase directly via
    `supabaseAnon`, which always targets the same Supabase project URL regardless of
    what domain served the frontend. There's no session/cookie tied to
-   `finalvault.dockercapphotography.com` that would break under a different host.
+   `final-vault.app` that would break under a different host.
 
 Confirmed via `pg_get_functiondef`/codebase read (Aug 17, 2026) — this isn't assumed,
 it's checked against the live app.
@@ -57,7 +61,7 @@ confirmed via their own help docs (Aug 17, 2026 web search).
 - Available on Cloudflare's Free/Pro/Business plans, not Enterprise-only. 100
   hostnames included, then $0.10/hostname/month, up to 50,000 on pay-as-you-go.
   Trivial cost even at 100+ photographers.
-- One-time setup on the `dockercapphotography.com` zone: enable Cloudflare for SaaS,
+- One-time setup on the `final-vault.app` zone: enable Cloudflare for SaaS,
   configure a fallback origin (where custom-hostname traffic gets routed — the
   existing Cloudflare Pages deployment).
 - Per-photographer: create a "custom hostname" via Cloudflare's API when they add a
@@ -118,7 +122,7 @@ originate from a Postgres function.
 
 This is the part that's easy to miss. Six places in the codebase currently build
 client-facing URLs from `window.location.origin` — which is *always*
-`finalvault.dockercapphotography.com`, because that's the domain the photographer's
+`final-vault.app`, because that's the domain the photographer's
 own dashboard is served from, regardless of any custom domain they've set up for
 their *clients*:
 
@@ -140,6 +144,42 @@ photographer's own login flow, always on the main FinalVault domain, never
 client-facing) and the `claim_signup_slot` RPC's `v_session_url` (the link inside the
 *photographer's own* new-booking notification email, pointing back to their internal
 session view — also correctly stays on the main domain).
+
+### 3.6 Fallback origin: requires a Worker bridge, not direct Pages
+
+**Discovered during Phase 1 end-to-end testing (Aug 2026), not anticipated in
+the original design above.** Pointing the Cloudflare for SaaS Fallback Origin
+directly at the Pages-served domain (`final-vault.app`) does not work — it
+produces a Cloudflare 522 (connection timed out) for any custom hostname
+other than `final-vault.app` itself.
+
+**Why:** Cloudflare Pages only accepts requests whose Host header matches one
+of its own configured Custom Domains. It has no way to know about
+photographers' individual custom domains (e.g. `book.janesmithphotography.com`)
+since those exist only as Cloudflare for SaaS Custom Hostnames on the
+`final-vault.app` zone, never registered with Pages itself.
+
+**Fix (Cloudflare's own documented pattern for this exact combination):**
+a small Worker (`saas-proxy-worker/`) sits as the actual Fallback Origin and
+forwards every request — regardless of which hostname it arrived on — to the
+Pages deployment's own `*.pages.dev` hostname, which Pages always accepts
+regardless of Host header. Concretely:
+
+- An "originless" DNS record (`origin.final-vault.app`, `AAAA 100::`,
+  proxied) — Cloudflare's documented convention for "no real server, a
+  Worker handles this."
+- Fallback Origin (SSL/TLS → Custom Hostnames) set to `origin.final-vault.app`,
+  not `final-vault.app`.
+- The `customers.final-vault.app` CNAME target (§5, open question 1) also
+  points to `origin.final-vault.app`, matching Cloudflare's own recommended
+  pattern of CNAME target → fallback origin.
+- A zone-wide Worker Route (`*/*` → `finalvault-saas-proxy`) — this
+  necessarily applies to *all* traffic on the zone, not just custom-hostname
+  traffic, since Cloudflare for SaaS routing can't be scoped more narrowly
+  than the zone.
+
+Since FinalVault's own routing is entirely token-based (§2), this Worker is
+purely a network-level bridge — no app logic runs in it.
 
 ### 3.5 Registrar-guided setup instructions
 
@@ -232,10 +272,11 @@ implementation and the in-app copy:**
 
 ## 5. Open questions
 
-1. **CNAME target naming.** Something like `customers.finalvault.dockercapphotography.com`
-   (a dedicated, documented target) vs. pointing directly at the Cloudflare Pages
-   fallback origin. A dedicated target is slightly more setup but more flexible if
-   the underlying hosting ever changes.
+1. ~~**CNAME target naming.**~~ **Resolved.** `customers.final-vault.app` — a
+   dedicated indirection target, per the reasoning above (decoupled from
+   hosting internals). Photographers CNAME to this; it is never shown as the
+   literal serving domain. See §3.6 for what this target actually is under
+   the hood (not a direct Pages record — see below).
 2. **UI location.** Account → a new "Custom domain" section seems like the natural
    fit (global to the photographer, not per-gallery), consistent with how
    `photographers.default_gallery_sort` and other account-level settings already
@@ -253,8 +294,9 @@ implementation and the in-app copy:**
 
 ## 6. Suggested build sequence
 
-1. Cloudflare account-level setup (enable Cloudflare for SaaS on the zone, fallback
-   origin) — one-time, manual, not app code.
+1. Cloudflare account-level setup (enable Cloudflare for SaaS on the zone,
+   fallback origin) — one-time, manual, not app code. Requires the Worker
+   bridge in §3.6, not a direct Pages fallback origin.
 2. `photographer_domains` migration.
 3. `manage-custom-domain` Edge Function (create/status/delete).
 4. Account settings UI: add domain, show CNAME instructions, status indicator,
