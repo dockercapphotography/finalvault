@@ -1,8 +1,8 @@
 # Async ZIP Job Queue — Design Spec ("Tier 3")
 
-**Status:** Draft — not yet started
+**Status:** Ready to build — spike complete, all open questions resolved (Aug 22, 2026)
 **Author:** Nick Porterfield + Claude
-**Date:** June 24, 2026
+**Date:** June 24, 2026 (spec), spike + decisions Aug 21-22, 2026
 **Supersedes:** The streaming-Worker fix shipped June 24, 2026 (see "Why this is still needed" below)
 
 ---
@@ -174,29 +174,36 @@ the existing share-token read policies on other gallery-adjacent tables.
 
 ---
 
-## 7. Open questions to resolve before building
+## 7. Open questions — ALL RESOLVED (Aug 22, 2026)
 
-1. **Keep a synchronous fallback for small galleries?** If yes, what's the threshold
-   (image count or total bytes) below which we still use today's streaming
-   `/download-zip` for instant gratification, versus always going through the queue?
-2. **Polling vs. email-only?** Should the app also poll `GET /zip-jobs/:id` while the
-   tab stays open (showing live progress if the person doesn't close the page), or is
-   email-only sufficient? Polling adds complexity but improves UX for the common case
-   of someone who just waits a few minutes instead of actually leaving.
-3. **Multipart upload part-size tuning.** R2 multipart parts must be at least 5MiB
-   (except the last). Need to batch images into parts that satisfy this minimum
-   without holding too many images in memory before flushing a part — this is the
-   one piece of real engineering risk in the spec and deserves a prototype/spike
-   before committing to exact part-batching logic.
-3. **Retry/backoff policy** for individual image fetch failures within a Workflow
-   step — how many retries, what backoff, and at what point does a single missing
-   image get skipped vs. failing the whole job?
-4. **R2 lifecycle rule expiration window** — 7 days suggested above; confirm this
-   matches photographer expectations (could tie to the gallery's own `expires_at` if
-   shorter).
-5. **Concurrent job limits per gallery/photographer** — should a person be blocked
-   from queueing a second hi-res job while one is already in progress for the same
-   gallery, to avoid wasted duplicate work?
+~~**Multipart upload part-size tuning.**~~ RESOLVED via spike (Aug 21, 2026, see
+`~/code/zip-workflow-spike`, now deleted): batching logic confirmed working —
+fold any trailing remainder under the 5MiB minimum into the previous part.
+Also surfaced a real constraint not originally anticipated: Workflow step
+OUTPUTS are capped at 1MiB, so raw image bytes must never be returned from a
+step — each fetch step must write bytes straight to an R2 scratch key and
+return only small metadata (key, size, crc).
+
+1. ~~**Keep a synchronous fallback for small galleries?**~~ DECIDED: yes. Sync
+   streaming `/download-zip` stays for galleries under **25 images AND 250MB**
+   (whichever threshold hits first); everything else goes through the async
+   queue.
+2. ~~**Polling vs. email-only?**~~ DECIDED: email-only. No live in-app progress
+   polling — `GET /zip-jobs/:id` isn't needed for polling (may still be useful
+   for other purposes, e.g. a photographer-facing job list, but not required
+   for the core flow).
+3. ~~**Retry/backoff policy**~~ DECIDED: skip-and-continue. A per-image fetch
+   step that exhausts Workflows' default retry config gets skipped (noted,
+   not fatal) rather than failing the whole job. Use Workflows' built-in
+   default retry config for `step.do()` — no custom retry/backoff tuning.
+4. ~~**R2 lifecycle rule expiration window**~~ DECIDED: 7 days flat, as
+   originally suggested (not tied to gallery's own `expires_at`).
+5. ~~**Concurrent job limits per gallery/photographer**~~ DECIDED: no
+   server-side blocking or staleness/orphaned-job logic. Handle the realistic
+   case (accidental double-click) client-side only — disable the "Download
+   All (Hi-Res)" button immediately after it's clicked, for that page
+   session. A genuinely separate second request (different tab, different
+   person, hours later) is allowed to run in parallel.
 
 ---
 
