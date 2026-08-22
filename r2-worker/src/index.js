@@ -8,6 +8,12 @@ import { handleWatermarkUpload, handleWatermarkServe, handleLogoServe } from './
 import { handleAvatarServe } from './handlers/avatar.js'
 import { handlePdfUpload } from './handlers/upload-pdf.js'
 import { handleContractPdf } from './handlers/contract-pdf.js'
+import { handleZipJobs } from './handlers/zip-jobs.js'
+
+// Re-exported so the Workflows binding (see wrangler.jsonc) can find the
+// class -- Cloudflare's Workflows runtime looks for the named export in
+// the final bundled Worker script.
+export { ZipQueueWorkflow } from './workflows/zipQueueWorkflow.js'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -68,6 +74,12 @@ export default {
         const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
         if (!success) return rateLimitedResponse()
         return await handleZip(request, env, CORS_HEADERS)
+      }
+
+      if (request.method === 'POST' && pathname === '/zip-jobs') {
+        const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
+        if (!success) return rateLimitedResponse()
+        return await handleZipJobs(request, env, CORS_HEADERS)
       }
 
       // Contract PDF download -- same rate-limit bucket as image downloads,
