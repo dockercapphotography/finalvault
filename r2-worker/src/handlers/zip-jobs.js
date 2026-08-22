@@ -180,6 +180,109 @@ export async function handleZipJobs(request, env, corsHeaders) {
   return jsonResponse({ ok: true, jobId: job.id }, 200, corsHeaders)
 }
 
+/**
+ * GET /zip-jobs/:id
+ *
+ * Status poll endpoint. Not used by the core email-only flow (no in-app
+ * polling, per spec decision), but kept for other uses -- e.g. a future
+ * photographer-facing job list.
+ *
+ * Auth model: possessing the job's UUID is treated as authorization,
+ * same as every other unguessable-token flow in this app (share tokens,
+ * contract sign tokens). No separate share-token/JWT check needed here.
+ */
+export async function handleZipJobStatus(request, env, corsHeaders, jobId) {
+  const resp = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/zip_jobs?id=eq.${jobId}&select=id,status,image_count,images_completed,skipped_images,error_message,expires_at`,
+    { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+  )
+  const rows = await resp.json()
+  const job = rows?.[0]
+  if (!job) {
+    return jsonResponse({ ok: false, error: 'Job not found' }, 404, corsHeaders)
+  }
+
+  return jsonResponse({
+    ok: true,
+    id: job.id,
+    status: job.status,
+    imageCount: job.image_count,
+    imagesCompleted: job.images_completed,
+    skippedCount: Array.isArray(job.skipped_images) ? job.skipped_images.length : 0,
+    errorMessage: job.error_message,
+    expiresAt: job.expires_at,
+  }, 200, corsHeaders)
+}
+
+/**
+ * GET /zip-jobs/:id/download
+ *
+ * Resolves to the finished R2 object once status = 'ready'. Same
+ * unguessable-UUID-as-auth model as handleZipJobStatus above -- this is
+ * what the "your download is ready" email links to.
+ */
+export async function handleZipJobDownload(request, env, corsHeaders, jobId) {
+  const resp = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/zip_jobs?id=eq.${jobId}&select=id,status,gallery_id,download_r2_key,error_message,expires_at`,
+    { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+  )
+  const rows = await resp.json()
+  const job = rows?.[0]
+  if (!job) {
+    return jsonResponse({ ok: false, error: 'Job not found' }, 404, corsHeaders)
+  }
+
+  if (job.status === 'expired' || (job.expires_at && new Date(job.expires_at) < new Date())) {
+    if (job.status !== 'expired') {
+      // Lazily mark it -- the R2 lifecycle rule handles actually deleting
+      // the object; this just keeps the DB row consistent in the meantime.
+      await fetch(`${env.SUPABASE_URL}/rest/v1/zip_jobs?id=eq.${job.id}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: env.SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'expired' }),
+      })
+    }
+    return jsonResponse({ ok: false, error: 'This download has expired', status: 'expired' }, 410, corsHeaders)
+  }
+
+  if (job.status === 'queued' || job.status === 'processing') {
+    return jsonResponse({ ok: false, error: 'Your download is not ready yet', status: job.status }, 409, corsHeaders)
+  }
+
+  if (job.status === 'failed') {
+    return jsonResponse(
+      { ok: false, error: job.error_message || 'This download failed to complete.', status: 'failed' },
+      422,
+      corsHeaders
+    )
+  }
+
+  // status === 'ready'
+  let obj
+  try {
+    obj = await env.BUCKET.get(job.download_r2_key)
+  } catch (err) {
+    console.error('R2 fetch error for zip job download:', err)
+    return jsonResponse({ ok: false, error: 'Failed to fetch file' }, 500, corsHeaders)
+  }
+  if (!obj) {
+    // Shouldn't happen while status is 'ready' and before expiry, but
+    // handle it gracefully rather than a raw 500 if it ever does.
+    console.error(`zip_jobs ${job.id} is 'ready' but R2 object missing: ${job.download_r2_key}`)
+    return jsonResponse({ ok: false, error: 'File not found' }, 404, corsHeaders)
+  }
+
+  const headers = new Headers(corsHeaders)
+  headers.set('Content-Type', 'application/zip')
+  headers.set('Content-Disposition', `attachment; filename="gallery-${job.gallery_id}.zip"`)
+  headers.set('Cache-Control', 'private, no-cache')
+  return new Response(obj.body, { status: 200, headers })
+}
+
 function jsonResponse(body, status, corsHeaders) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }

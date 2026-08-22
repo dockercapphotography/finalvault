@@ -8,7 +8,7 @@ import { handleWatermarkUpload, handleWatermarkServe, handleLogoServe } from './
 import { handleAvatarServe } from './handlers/avatar.js'
 import { handlePdfUpload } from './handlers/upload-pdf.js'
 import { handleContractPdf } from './handlers/contract-pdf.js'
-import { handleZipJobs } from './handlers/zip-jobs.js'
+import { handleZipJobs, handleZipJobStatus, handleZipJobDownload } from './handlers/zip-jobs.js'
 
 // Re-exported so the Workflows binding (see wrangler.jsonc) can find the
 // class -- Cloudflare's Workflows runtime looks for the named export in
@@ -80,6 +80,18 @@ export default {
         const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
         if (!success) return rateLimitedResponse()
         return await handleZipJobs(request, env, CORS_HEADERS)
+      }
+
+      if (request.method === 'GET' && pathname.startsWith('/zip-jobs/') && pathname.endsWith('/download')) {
+        const { success } = await env.RATE_LIMIT_DOWNLOAD.limit({ key: ip })
+        if (!success) return rateLimitedResponse()
+        const jobId = pathname.split('/')[2]
+        return await handleZipJobDownload(request, env, CORS_HEADERS, jobId)
+      }
+
+      if (request.method === 'GET' && pathname.startsWith('/zip-jobs/') && !pathname.endsWith('/download')) {
+        const jobId = pathname.split('/')[2]
+        return await handleZipJobStatus(request, env, CORS_HEADERS, jobId)
       }
 
       // Contract PDF download -- same rate-limit bucket as image downloads,
