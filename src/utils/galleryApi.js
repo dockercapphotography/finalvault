@@ -1,6 +1,50 @@
 import { supabase } from '../supabaseClient.js'
 import { supabaseAnon } from '../supabaseClientAnon.js'
 
+// Sync/async threshold for hi-res ZIP downloads (spec section 7,
+// question 1, decided Aug 22, 2026): below BOTH limits, stream
+// synchronously via /download-zip for instant gratification. At or
+// above EITHER one, queue an async job via /zip-jobs instead --
+// "whichever hits first." Mirrors the identical constants/logic in
+// clientApi.js -- kept as a separate copy rather than a shared import
+// since galleryApi.js and clientApi.js are deliberately split by auth
+// model (JWT vs. anon/share-token) and don't otherwise share code.
+export const SYNC_ZIP_MAX_IMAGES = 25
+export const SYNC_ZIP_MAX_BYTES = 250 * 1024 * 1024 // 250MB
+
+export function shouldQueueHiresZip(imageCount, totalBytes) {
+  return imageCount > SYNC_ZIP_MAX_IMAGES || totalBytes > SYNC_ZIP_MAX_BYTES
+}
+
+/**
+ * Queues an async hi-res ZIP job (Tier 3) for a photographer downloading
+ * their own gallery from the dashboard -- the JWT-authenticated
+ * counterpart to clientApi.js's queueHiresZip (which uses a share token).
+ * Same POST /zip-jobs endpoint, just the other auth branch it already
+ * supports. Notifies the photographer's own account email. Returns
+ * { ok, jobId }.
+ */
+export async function queueHiresZipAsPhotographer(galleryId, imageKeys, fileNames) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session.access_token
+  const notifyEmail = session.user.email
+  const workerUrl = import.meta.env.VITE_R2_WORKER_URL
+
+  const resp = await fetch(`${workerUrl}/zip-jobs`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ galleryId, imageKeys, fileNames, notifyEmail }),
+  })
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to queue download')
+  }
+  return resp.json()
+}
+
 function generateShareToken() {
   return crypto.randomUUID().replace(/-/g, '')
 }

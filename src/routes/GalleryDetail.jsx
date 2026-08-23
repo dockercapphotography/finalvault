@@ -4,7 +4,7 @@ import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import {ArrowLeft, BarChart2, Check, ChevronLeft, ChevronRight, Copy, Droplets, ExternalLink, ImageIcon, LayoutGrid, Link as LinkIcon, Mail, MoreVertical, Pencil, Plus, QrCode, Settings, SlidersHorizontal, Trash2, Upload, X} from 'lucide-react'
 import PortalMenu from '../components/ui/PortalMenu.jsx'
-import { getGallery, updateGallery, getFolderAncestors, buildGalleryCrumbs } from '../utils/galleryApi.js'
+import { getGallery, updateGallery, getFolderAncestors, buildGalleryCrumbs, queueHiresZipAsPhotographer, shouldQueueHiresZip } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
 import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
 import { deleteFromR2, uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
@@ -324,11 +324,33 @@ export default function GalleryDetail() {
 
   async function doPhotographerZipDownload(selected, hires) {
     const total = selected.length
+    const keys = selected.map(i => i.original_r2_key)
+    const names = selected.map(i => hires ? i.file_name : i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
+
+    // Hi-res downloads above the sync threshold (25 images AND 250MB,
+    // whichever hits first) queue an async job instead of streaming the
+    // whole ZIP into a single blob response -- same threshold as the
+    // client-facing gallery view, see clientApi.js.
+    if (hires) {
+      const estimatedTotalBytes = selected.reduce((sum, i) => sum + (i.file_size || 0), 0)
+      if (shouldQueueHiresZip(total, estimatedTotalBytes)) {
+        setDownloadingZip(true)
+        setZipProgress({ queued: true, hires: true })
+        try {
+          await queueHiresZipAsPhotographer(id, keys, names)
+        } catch (err) {
+          console.error(err)
+        } finally {
+          await new Promise(r => setTimeout(r, 3000))
+          setDownloadingZip(false); setZipProgress(null)
+        }
+        return
+      }
+    }
+
     setDownloadingZip(true)
     setZipProgress({ current: 0, total, hires })
     try {
-      const keys = selected.map(i => i.original_r2_key)
-      const names = selected.map(i => hires ? i.file_name : i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
 
       if (hires) {
         // Hires: worker handles it — raw originals, no processing
@@ -1219,6 +1241,23 @@ export default function GalleryDetail() {
           style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
           <div className="w-full max-w-xs rounded-2xl p-6 space-y-5"
             style={{ background: '#1e1e1e', border: '1px solid #333' }}>
+            {zipProgress.queued ? (
+              <div className="flex flex-col items-center gap-3 pt-1">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(34,197,94,0.15)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="font-semibold text-sm" style={{ color: '#f0f0f0' }}>
+                    We're preparing your download
+                  </p>
+                  <p className="text-xs" style={{ color: '#9ca3af' }}>
+                    This gallery is large enough that we'll email you when it's ready. You can close this window.
+                  </p>
+                </div>
+              </div>
+            ) : (
+            <>
             <div className="flex flex-col items-center gap-3 pt-1">
               <div className="w-12 h-12 rounded-full flex items-center justify-center"
                 style={{ background: 'rgba(99,102,241,0.1)' }}>
@@ -1254,12 +1293,9 @@ export default function GalleryDetail() {
                 </div>
               </div>
             )}
-            {zipProgress.hires && zipProgress.current < zipProgress.total && (
-              <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
-                <div className="h-full rounded-full animate-pulse" style={{ width: '60%', background: '#6366f1' }} />
-              </div>
-            )}
             <p className="text-xs text-center" style={{ color: '#4b5563' }}>Please keep this window open until complete.</p>
+            </>
+            )}
           </div>
         </div>
       )}
