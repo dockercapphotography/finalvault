@@ -5,6 +5,7 @@ import Cropper from 'react-easy-crop'
 import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
 import CustomDomainSection from '../components/account/CustomDomainSection.jsx'
 import WebImageBackfillSection from '../components/account/WebImageBackfillSection.jsx'
+import ZipJobMonitorSection from '../components/account/ZipJobMonitorSection.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
   getWatermarks, uploadWatermark, updateWatermark,
@@ -2199,7 +2200,12 @@ export default function Account() {
       )}
       {activeTab === 'notifications' && <NotificationsTab user={user} onSaveState={setSaveState} />}
       {activeTab === 'tags'          && <TagsTab onSaveState={setSaveState} />}
-      {activeTab === 'maintenance'   && isAdmin && <WebImageBackfillSection user={user} />}
+      {activeTab === 'maintenance' && isAdmin && (
+        <div className="space-y-6">
+          <WebImageBackfillSection user={user} />
+          <ZipJobMonitorSection />
+        </div>
+      )}
       {activeTab === 'admin'         && isAdmin && <Admin />}
 
       <SaveIndicator state={saveState} />

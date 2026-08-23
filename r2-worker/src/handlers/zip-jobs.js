@@ -213,6 +213,7 @@ export async function handleZipJobs(request, env, corsHeaders) {
           started_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
           expires_at: existingJob.expires_at,
+          dedup_source_job_id: existingJob.id,
         }),
       }
     )
