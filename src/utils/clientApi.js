@@ -49,6 +49,21 @@ export async function getPhotographerName(photographerId) {
   return data?.business_name || data?.display_name || null
 }
 
+/**
+ * Photographer's own account email, for the one case where a client-facing
+ * page needs it: preview mode has no gallery_viewers record (no name-gate
+ * runs when a photographer previews their own gallery), so there's no
+ * viewer email to notify when a hi-res download queues async. Scoped
+ * through gallery_id server-side, see sql/028.
+ */
+export async function getGalleryPhotographerEmail(galleryId) {
+  const { data, error } = await supabase.rpc('get_gallery_photographer_email', {
+    p_gallery_id: galleryId,
+  })
+  if (error) return null
+  return data || null
+}
+
 export async function getPhotographerBranding(photographerId) {
   const { data } = await supabase
     .from('photographers')
@@ -406,6 +421,44 @@ export async function downloadOriginal(originalR2Key, fileName, shareToken = nul
  * @param {Array<string|null>} webKeys - image.web_r2_key values, used for the size='web' fast path (pre-generated JPEG, skips server-side WASM processing)
  * @param {function} onProgress       - called with (current, total) after each image
  */
+// Sync/async threshold for hi-res ZIP downloads (spec section 7,
+// question 1, decided Aug 22, 2026): below BOTH limits, stream
+// synchronously via /download-zip for instant gratification. At or
+// above EITHER one, queue an async job via /zip-jobs instead --
+// "whichever hits first."
+export const SYNC_ZIP_MAX_IMAGES = 25
+export const SYNC_ZIP_MAX_BYTES = 250 * 1024 * 1024 // 250MB
+
+export function shouldQueueHiresZip(imageCount, totalBytes) {
+  return imageCount > SYNC_ZIP_MAX_IMAGES || totalBytes > SYNC_ZIP_MAX_BYTES
+}
+
+/**
+ * Queues an async hi-res ZIP job (Tier 3) instead of streaming it
+ * synchronously -- used once a gallery crosses the threshold above.
+ * The person gets an email at notifyEmail when it's ready instead of
+ * waiting on this request. Returns { ok, jobId }.
+ */
+export async function queueHiresZip(shareToken, imageKeys, fileNames, notifyEmail, viewerId, downloadPin = null) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Share-Token': shareToken,
+  }
+  if (downloadPin) headers['X-Download-Pin'] = downloadPin
+
+  const resp = await fetch(`${WORKER_URL}/zip-jobs`, {
+    method: 'POST',
+    headers,
+    credentials: 'omit',
+    body: JSON.stringify({ imageKeys, fileNames, notifyEmail, viewerId }),
+  })
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to queue download')
+  }
+  return resp.json()
+}
+
 export async function downloadZip(galleryId, shareToken, imageKeys, fileNames = [], galleryTitle = 'gallery', downloadPin = null, size = 'hires', watermarkIds = [], webKeys = [], onProgress = null) {
   if (size === 'web') {
     return downloadZipClientSide(imageKeys, fileNames, galleryTitle, shareToken, downloadPin, watermarkIds, webKeys, onProgress)
