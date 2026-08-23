@@ -8,7 +8,7 @@ import {
   getGalleryByToken, getClientImages, getViewerFromSession,
   getViewerFavorites, toggleFavorite, getComments, addComment,
   getPreviewUrl, downloadWebSize, downloadHiRes, downloadZip, verifyDownloadPin, logActivity,
-  getClientSets
+  getClientSets, queueHiresZip, shouldQueueHiresZip, getGalleryPhotographerEmail
 } from '../utils/clientApi.js'
 import { getTheme } from '../utils/themes.js'
 
@@ -374,7 +374,34 @@ function formatBytes(bytes) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(0)} MB`
 }
 
-function ZipProgressModal({ hires, progress, total, bytes, totalBytes }) {
+function ZipProgressModal({ hires, progress, total, bytes, totalBytes, queued, notifyEmail }) {
+  // Async hi-res path (spec section 6): once a job is queued, there's no
+  // progress to show -- just confirm and let the person close the page.
+  if (queued) {
+    return (
+      <div className="fixed inset-0 z-60 flex items-center justify-center px-4"
+        style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+        <div className="w-full max-w-xs rounded-2xl p-6 space-y-5"
+          style={{ background: '#1e1e1e', border: '1px solid #333' }}>
+          <div className="flex flex-col items-center gap-3 pt-1">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{ background: 'rgba(34,197,94,0.15)' }}>
+              <Download size={22} style={{ color: '#22c55e' }} />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="font-semibold text-sm" style={{ color: '#f0f0f0' }}>
+                We're preparing your download
+              </p>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
+                You'll get an email at {notifyEmail} when it's ready. You can close this page.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const pct = total > 0 && progress != null ? Math.round((progress / total) * 100) : 0
   const done = progress != null && progress >= total
 
@@ -446,11 +473,6 @@ function ZipProgressModal({ hires, progress, total, bytes, totalBytes }) {
             <div className="flex justify-end text-xs" style={{ color: '#6b7280' }}>
               <span>{bytePct}%</span>
             </div>
-          </div>
-        )}
-        {hires && !hiresDone && !hasByteProgress && (
-          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#2a2a2a' }}>
-            <div className="h-full rounded-full animate-pulse" style={{ width: '60%', background: '#6366f1' }} />
           </div>
         )}
 
@@ -607,6 +629,37 @@ export default function ClientGalleryView() {
     const estimatedTotalBytes = hires
       ? images.reduce((sum, i) => sum + (i.file_size || 0), 0)
       : 0
+
+    // Hi-res downloads above the sync threshold (25 images AND 250MB,
+    // whichever hits first) queue an async job instead of streaming --
+    // spec section 7, question 1. Small galleries keep the instant
+    // synchronous path below.
+    if (hires && shouldQueueHiresZip(total, estimatedTotalBytes)) {
+      // Preview mode has no gallery_viewers record -- no name-gate runs
+      // when a photographer previews their own gallery -- so fall back
+      // to their own account email in that case.
+      let notifyEmail = viewer?.email
+      if (!notifyEmail && isPreview) {
+        notifyEmail = await getGalleryPhotographerEmail(gallery.id)
+      }
+      if (!notifyEmail) {
+        console.error('No email available to notify for async ZIP download')
+        return
+      }
+
+      setDownloadingZip(true)
+      setZipProgress({ queued: true, notifyEmail })
+      try {
+        const keys = images.map(i => i.original_r2_key)
+        const names = images.map(i => i.file_name)
+        await queueHiresZip(token, keys, names, notifyEmail, viewer?.id || null, pin)
+        if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_all_queued')
+        await new Promise(r => setTimeout(r, 3000))
+      } catch (err) { console.error(err) }
+      finally { setDownloadingZip(false); setZipProgress(null) }
+      return
+    }
+
     setDownloadingZip(true)
     setZipProgress({ current: 0, total, hires, bytes: 0, totalBytes: estimatedTotalBytes })
     try {
@@ -799,6 +852,8 @@ export default function ClientGalleryView() {
           total={zipProgress.total}
           bytes={zipProgress.bytes}
           totalBytes={zipProgress.totalBytes}
+          queued={zipProgress.queued}
+          notifyEmail={zipProgress.notifyEmail}
         />
       )}
 
