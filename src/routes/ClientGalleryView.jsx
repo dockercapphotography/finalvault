@@ -8,7 +8,7 @@ import {
   getGalleryByToken, getClientImages, getViewerFromSession,
   getViewerFavorites, toggleFavorite, getComments, addComment,
   getPreviewUrl, downloadWebSize, downloadHiRes, downloadZip, verifyDownloadPin, logActivity,
-  getClientSets, queueHiresZip, shouldQueueHiresZip, getGalleryPhotographerEmail
+  getClientSets, queueZip, shouldQueueZip, getGalleryPhotographerEmail
 } from '../utils/clientApi.js'
 import { getTheme } from '../utils/themes.js'
 
@@ -622,19 +622,18 @@ export default function ClientGalleryView() {
 
   async function doZipDownload(pin = null, hires = false) {
     const total = images.length
-    // For hi-res, track progress in bytes (downloaded so far vs. estimated
-    // total from known file sizes) rather than a photo count, since the
-    // archive streams back as one continuous response rather than
-    // one-request-per-photo like the web-size path.
-    const estimatedTotalBytes = hires
-      ? images.reduce((sum, i) => sum + (i.file_size || 0), 0)
-      : 0
+    const size = hires ? 'hires' : 'web'
+    // Threshold is measured against ORIGINAL file sizes for both hi-res
+    // and web-size (same 25 images / 250MB threshold reused as-is, per
+    // the v1.5.8 decision) -- computed regardless of size now, not just
+    // for hires.
+    const estimatedTotalBytes = images.reduce((sum, i) => sum + (i.file_size || 0), 0)
 
-    // Hi-res downloads above the sync threshold (25 images AND 250MB,
-    // whichever hits first) queue an async job instead of streaming --
-    // spec section 7, question 1. Small galleries keep the instant
-    // synchronous path below.
-    if (hires && shouldQueueHiresZip(total, estimatedTotalBytes)) {
+    // Downloads above the sync threshold (25 images AND 250MB, whichever
+    // hits first) queue an async job instead of processing inline --
+    // spec section 7, question 1, extended to web-size in v1.5.8. Small
+    // galleries keep the instant synchronous path below.
+    if (shouldQueueZip(total, estimatedTotalBytes)) {
       // Preview mode has no gallery_viewers record -- no name-gate runs
       // when a photographer previews their own gallery -- so fall back
       // to their own account email in that case.
@@ -652,7 +651,7 @@ export default function ClientGalleryView() {
       try {
         const keys = images.map(i => i.original_r2_key)
         const names = images.map(i => i.file_name)
-        await queueHiresZip(token, keys, names, notifyEmail, viewer?.id || null, pin)
+        await queueZip(token, keys, names, notifyEmail, viewer?.id || null, size, pin)
         if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_all_queued')
         await new Promise(r => setTimeout(r, 3000))
       } catch (err) { console.error(err) }

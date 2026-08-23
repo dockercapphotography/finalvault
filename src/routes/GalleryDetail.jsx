@@ -4,7 +4,7 @@ import { useScrollLock } from '../hooks/useScrollLock.js'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import {ArrowLeft, BarChart2, Check, ChevronLeft, ChevronRight, Copy, Droplets, ExternalLink, ImageIcon, LayoutGrid, Link as LinkIcon, Mail, MoreVertical, Pencil, Plus, QrCode, Settings, SlidersHorizontal, Trash2, Upload, X} from 'lucide-react'
 import PortalMenu from '../components/ui/PortalMenu.jsx'
-import { getGallery, updateGallery, getFolderAncestors, buildGalleryCrumbs, queueHiresZipAsPhotographer, shouldQueueHiresZip } from '../utils/galleryApi.js'
+import { getGallery, updateGallery, getFolderAncestors, buildGalleryCrumbs, queueZipAsPhotographer, shouldQueueZip } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
 import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
 import { deleteFromR2, uploadToR2, buildOriginalKey, buildPreviewKey } from '../utils/r2.js'
@@ -326,26 +326,26 @@ export default function GalleryDetail() {
     const total = selected.length
     const keys = selected.map(i => i.original_r2_key)
     const names = selected.map(i => hires ? i.file_name : i.file_name.replace(/\.[^.]+$/, '_web.jpg'))
+    const size = hires ? 'hires' : 'web'
 
-    // Hi-res downloads above the sync threshold (25 images AND 250MB,
-    // whichever hits first) queue an async job instead of streaming the
-    // whole ZIP into a single blob response -- same threshold as the
-    // client-facing gallery view, see clientApi.js.
-    if (hires) {
-      const estimatedTotalBytes = selected.reduce((sum, i) => sum + (i.file_size || 0), 0)
-      if (shouldQueueHiresZip(total, estimatedTotalBytes)) {
-        setDownloadingZip(true)
-        setZipProgress({ queued: true, hires: true })
-        try {
-          await queueHiresZipAsPhotographer(id, keys, names)
-        } catch (err) {
-          console.error(err)
-        } finally {
-          await new Promise(r => setTimeout(r, 3000))
-          setDownloadingZip(false); setZipProgress(null)
-        }
-        return
+    // Downloads above the sync threshold (25 images AND 250MB, whichever
+    // hits first) queue an async job instead of processing inline --
+    // same threshold as the client-facing gallery view, see clientApi.js.
+    // v1.5.8: extended from hi-res-only to cover web-size too, measured
+    // against the same original file sizes either way.
+    const estimatedTotalBytes = selected.reduce((sum, i) => sum + (i.file_size || 0), 0)
+    if (shouldQueueZip(total, estimatedTotalBytes)) {
+      setDownloadingZip(true)
+      setZipProgress({ queued: true, hires })
+      try {
+        await queueZipAsPhotographer(id, keys, names, size)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        await new Promise(r => setTimeout(r, 3000))
+        setDownloadingZip(false); setZipProgress(null)
       }
+      return
     }
 
     setDownloadingZip(true)

@@ -32,6 +32,13 @@
  *      (scratchKey, size, crc, name). Confirmed via spike (Aug 21, 2026,
  *      see git history) that Workflow step OUTPUTS are capped at 1MiB --
  *      raw image bytes must never be returned from a step.
+ *      v1.5.8: size='web' branches this step -- if the image has a
+ *      web_r2_key, fetch that pre-generated JPEG directly (fast path,
+ *      no processing). Otherwise fetch the original and run it through
+ *      processWebImage() (resize to 2048px long edge + watermark
+ *      composite), same fallback processing download.js/zip.js already
+ *      do per-image. Confirmed via spike (Aug 23, 2026) that this WASM
+ *      call behaves correctly inside a Workflow step.do().
  *      Per the skip-and-continue decision: if a fetch step exhausts
  *      Workflows' default retries, it's caught here in run() (not
  *      inside the step) and recorded as skipped rather than failing
@@ -49,10 +56,11 @@
  */
 
 import { WorkflowEntrypoint } from 'cloudflare:workers'
+import { fetchWatermarkById, processWebImage } from '../utils/imageProcess.js'
 
 export class ZipQueueWorkflow extends WorkflowEntrypoint {
   async run(event, step) {
-    const { jobId, imageKeys, fileNames } = event.payload
+    const { jobId, imageKeys, fileNames, size = 'hires', watermarkIds = [], webKeys = [] } = event.payload
     const runPrefix = `zip-jobs/scratch/${jobId}`
     const zipKey = `zip-jobs/${jobId}.zip`
     // R2 multipart requires every non-final part to be the EXACT SAME
@@ -82,19 +90,53 @@ export class ZipQueueWorkflow extends WorkflowEntrypoint {
       const fileName = fileNames[i] || key.split('/').pop() || `image-${i}`
       const scratchKey = `${runPrefix}/image-${i}.bin`
 
+      const webKey = webKeys[i] || null
+      const watermarkId = watermarkIds[i] || null
+      const outputName = size === 'web' && !fileName.endsWith('_web.jpg')
+        ? fileName.replace(/\.[^.]+$/, '_web.jpg')
+        : fileName
+
       try {
         const result = await step.do(`fetch-image-${i}`, async () => {
-          const obj = await this.env.BUCKET.get(key)
-          if (!obj) throw new Error('Image not found in R2')
-          const bytes = new Uint8Array(await obj.arrayBuffer())
+          let bytes
+
+          if (size === 'web') {
+            if (webKey) {
+              // Fast path -- pre-generated web JPEG, no processing needed.
+              const obj = await this.env.BUCKET.get(webKey)
+              if (!obj) throw new Error('web_r2_key not found in R2')
+              bytes = new Uint8Array(await obj.arrayBuffer())
+            } else {
+              // Fallback -- fetch original, resize + watermark via Photon.
+              const obj = await this.env.BUCKET.get(key)
+              if (!obj) throw new Error('Image not found in R2')
+              const inputBytes = new Uint8Array(await obj.arrayBuffer())
+              const wmConfig = watermarkId ? await fetchWatermarkById(watermarkId, this.env) : null
+              try {
+                bytes = await processWebImage(inputBytes, wmConfig)
+              } catch (wasmErr) {
+                if (wasmErr.message?.includes('unreachable')) {
+                  await new Promise(r => setTimeout(r, 100))
+                  bytes = await processWebImage(inputBytes, wmConfig)
+                } else {
+                  throw wasmErr
+                }
+              }
+            }
+          } else {
+            const obj = await this.env.BUCKET.get(key)
+            if (!obj) throw new Error('Image not found in R2')
+            bytes = new Uint8Array(await obj.arrayBuffer())
+          }
+
           const crc = await crc32(bytes)
           await this.env.BUCKET.put(scratchKey, bytes)
-          return { scratchKey, size: bytes.length, crc, name: fileName }
+          return { scratchKey, size: bytes.length, crc, name: outputName }
         })
         fetched.push(result)
       } catch (err) {
         console.error(`Image fetch exhausted retries, skipping: ${key}`, err)
-        skippedImages.push({ key, fileName, error: String(err?.message || err) })
+        skippedImages.push({ key, fileName: outputName, error: String(err?.message || err) })
       }
     }
 

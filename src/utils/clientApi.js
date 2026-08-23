@@ -421,25 +421,31 @@ export async function downloadOriginal(originalR2Key, fileName, shareToken = nul
  * @param {Array<string|null>} webKeys - image.web_r2_key values, used for the size='web' fast path (pre-generated JPEG, skips server-side WASM processing)
  * @param {function} onProgress       - called with (current, total) after each image
  */
-// Sync/async threshold for hi-res ZIP downloads (spec section 7,
-// question 1, decided Aug 22, 2026): below BOTH limits, stream
-// synchronously via /download-zip for instant gratification. At or
-// above EITHER one, queue an async job via /zip-jobs instead --
-// "whichever hits first."
+// Sync/async threshold for ZIP downloads (spec section 7, question 1,
+// decided Aug 22, 2026 for hi-res; reused as-is for web-size per the
+// v1.5.8 decision, Aug 23, 2026): below BOTH limits, stream/process
+// synchronously for instant gratification. At or above EITHER one,
+// queue an async job via /zip-jobs instead -- "whichever hits first."
+// Threshold is measured against ORIGINAL file sizes for both sizes, not
+// estimated web-output size, since that's what's known up front.
 export const SYNC_ZIP_MAX_IMAGES = 25
 export const SYNC_ZIP_MAX_BYTES = 250 * 1024 * 1024 // 250MB
 
-export function shouldQueueHiresZip(imageCount, totalBytes) {
+export function shouldQueueZip(imageCount, totalBytes) {
   return imageCount > SYNC_ZIP_MAX_IMAGES || totalBytes > SYNC_ZIP_MAX_BYTES
 }
 
 /**
- * Queues an async hi-res ZIP job (Tier 3) instead of streaming it
- * synchronously -- used once a gallery crosses the threshold above.
- * The person gets an email at notifyEmail when it's ready instead of
- * waiting on this request. Returns { ok, jobId }.
+ * Queues an async ZIP job (Tier 3) instead of processing it synchronously
+ * -- used once a gallery crosses the threshold above. The person gets an
+ * email at notifyEmail when it's ready instead of waiting on this
+ * request. Returns { ok, jobId }.
+ *
+ * v1.5.8: `size` ('hires' | 'web') is the only new thing the client sends
+ * -- watermarkIds/webKeys are looked up server-side from gallery_images,
+ * not sent from here, so this stays simple regardless of size.
  */
-export async function queueHiresZip(shareToken, imageKeys, fileNames, notifyEmail, viewerId, downloadPin = null) {
+export async function queueZip(shareToken, imageKeys, fileNames, notifyEmail, viewerId, size = 'hires', downloadPin = null) {
   const headers = {
     'Content-Type': 'application/json',
     'X-Share-Token': shareToken,
@@ -450,7 +456,7 @@ export async function queueHiresZip(shareToken, imageKeys, fileNames, notifyEmai
     method: 'POST',
     headers,
     credentials: 'omit',
-    body: JSON.stringify({ imageKeys, fileNames, notifyEmail, viewerId }),
+    body: JSON.stringify({ imageKeys, fileNames, notifyEmail, viewerId, size }),
   })
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}))
