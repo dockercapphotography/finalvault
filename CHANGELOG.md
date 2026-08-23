@@ -4,6 +4,21 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.7 — August 23, 2026
+
+### New Features
+
+**Large gallery downloads**
+- Full-resolution ZIP downloads for large galleries (over 25 images or 250MB) now process in the background -- you'll get an email with a download link when it's ready, instead of waiting on the page or risking a timeout. Available both from a client's gallery page and from your own dashboard.
+- Smaller galleries keep the same instant download as before -- nothing changes there.
+- Download links stay valid for 7 days.
+
+### Bug Fixes
+
+- Fixed a progress indicator during full-resolution ZIP preparation that could appear stalled instead of showing that work was still in progress
+
+---
+
 ## v1.5.6 — August 21, 2026
 
 ### New Features

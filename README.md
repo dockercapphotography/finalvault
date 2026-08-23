@@ -8,9 +8,9 @@
 
 Own your delivery experience. No monthly SaaS fees. No compromises.
 
-[Live App](https://finalvault.dockercapphotography.com) · [Report a Bug](https://github.com/dockercapphotography/finalvault/issues) · [Request a Feature](https://github.com/dockercapphotography/finalvault/issues)
+[Live App](https://final-vault.app) · [Report a Bug](https://github.com/dockercapphotography/finalvault/issues) · [Request a Feature](https://github.com/dockercapphotography/finalvault/issues)
 
-![Tests](https://img.shields.io/badge/tests-370%20passing-22c55e?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-395%20passing-22c55e?style=flat-square)
 ![Cloudflare Pages](https://img.shields.io/badge/deployed-Cloudflare%20Pages-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![Supabase](https://img.shields.io/badge/database-Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
 
@@ -33,7 +33,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **8 color themes** — Light, Dark, Slate, Dusk, Ember, Sage, Blush, Noir — applied per gallery
 - **Watermarking** — upload watermark images, configure opacity/position/scale, apply per image, set, or in bulk
 - **Gallery templates** — save your preferred settings as a reusable template for faster gallery creation
-- **Flexible downloads** — three independent download types: gallery display (WebP preview), web-size JPEG (generated at upload time, served directly), and full-resolution original
+- **Flexible downloads** — three independent download types: gallery display (WebP preview), web-size JPEG (generated at upload time, served directly), and full-resolution original; full-resolution ZIP downloads of large galleries (over 25 images or 250MB) process in the background with an email link when ready, from either the client-facing gallery or your own dashboard
 - **Access controls** — gallery password, download PIN, expiry date, active/inactive toggle
 - **Expiry reminders** — automatically email clients before their gallery expires (1, 3, 7, 14, or 30 days warning)
 - **Activity feed** — see who viewed, favorited, downloaded, and commented across all galleries
@@ -61,7 +61,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Full-screen lightbox** — pinch-to-zoom, double-tap, swipe navigation, body scroll lock
 - **Favorites** — heart individual images; your photographer can see your picks
 - **Comments** — leave notes on specific images, including from inside the lightbox; the photographer can reply, and each client only sees their own comments and the photographer's replies
-- **Downloads** — web-size JPEG or full-resolution original, individual or full-gallery ZIP
+- **Downloads** — web-size JPEG or full-resolution original, individual or full-gallery ZIP; large full-resolution ZIPs are prepared in the background with an email link when ready
 - **Client Portal** — a single link showing all of your galleries (grouped by session, with search/sort/filter once you have several), contracts awaiting or already signed with downloadable PDFs, and any outstanding questionnaires; password- or PIN-protected galleries show their access code directly in the portal with one-click copy, and open in a new tab so the code stays visible while you browse
 - **iOS native downloads** — save directly to Photos via the system share sheet
 - **Right-click and drag protection** on preview images
