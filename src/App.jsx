@@ -21,6 +21,7 @@ import ClientGalleryView from './routes/ClientGalleryView.jsx'
 import Login from './routes/Login.jsx'
 import PrivacyPolicy from './routes/PrivacyPolicy.jsx'
 import SignContract from './routes/SignContract.jsx'
+import DownloadZip from './routes/DownloadZip.jsx'
 import TermsOfService from './routes/TermsOfService.jsx'
 import ClientPortalGalleries from './routes/ClientPortalGalleries.jsx'
 import ClientPortalContracts from './routes/ClientPortalContracts.jsx'
@@ -131,6 +132,7 @@ export default function App() {
       <Route path="/g/:token/view" element={<ClientGalleryView />} />
 
       <Route path="/sign/:token" element={<SignContract />} />
+      <Route path="/download/:jobId" element={<DownloadZip />} />
       <Route path="/submit/:token" element={<SubmitForm />} />
       <Route path="/client/:token" element={<ClientPortalRedirect />} />
       <Route path="/book/:token" element={<SignupBooking />} />
