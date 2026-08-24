@@ -27,7 +27,7 @@ export async function getQuestionnaireTemplate(id) {
   return data
 }
 
-export async function createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName }) {
+export async function createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName, redirectUrl, redirectLabel, redirectAuto, redirectDelaySeconds }) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
     .from('questionnaire_templates')
@@ -40,6 +40,10 @@ export async function createQuestionnaireTemplate({ name, headerText, requireAgr
       confirmation_message: confirmationMessage || null,
       collect_email: collectEmail || false,
       collect_name: collectName || false,
+      redirect_url: redirectUrl || null,
+      redirect_label: redirectLabel || null,
+      redirect_auto: redirectAuto || false,
+      redirect_delay_seconds: redirectDelaySeconds || 5,
       updated_at: new Date().toISOString(),
     })
     .select()
@@ -48,7 +52,7 @@ export async function createQuestionnaireTemplate({ name, headerText, requireAgr
   return data
 }
 
-export async function updateQuestionnaireTemplate(id, { name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName }) {
+export async function updateQuestionnaireTemplate(id, { name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName, redirectUrl, redirectLabel, redirectAuto, redirectDelaySeconds }) {
   const { data, error } = await supabase
     .from('questionnaire_templates')
     .update({
@@ -59,6 +63,10 @@ export async function updateQuestionnaireTemplate(id, { name, headerText, requir
       confirmation_message: confirmationMessage || null,
       collect_email: collectEmail || false,
       collect_name: collectName || false,
+      redirect_url: redirectUrl || null,
+      redirect_label: redirectLabel || null,
+      redirect_auto: redirectAuto || false,
+      redirect_delay_seconds: redirectDelaySeconds || 5,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

@@ -72,6 +72,15 @@ export class ZipQueueWorkflow extends WorkflowEntrypoint {
     // total part/subrequest count reasonable for large galleries.
     const PART_SIZE = 8 * 1024 * 1024
 
+    // v1.5.8: how often to write images_completed back to zip_jobs while
+    // processing. NOT updated every single image -- that would add a full
+    // Supabase REST round-trip per photo, meaningfully slowing large
+    // galleries (500+ images) for a progress ping that isn't required for
+    // job correctness. Every 10 images (plus always the last one) gives
+    // genuinely live progress in the monitor UI without multiplying
+    // request volume.
+    const PROGRESS_UPDATE_INTERVAL = 10
+
     await step.do('mark-processing', async () => {
       await updateJob(this.env, jobId, {
         status: 'processing',
@@ -137,6 +146,23 @@ export class ZipQueueWorkflow extends WorkflowEntrypoint {
       } catch (err) {
         console.error(`Image fetch exhausted retries, skipping: ${key}`, err)
         skippedImages.push({ key, fileName: outputName, error: String(err?.message || err) })
+      }
+
+      // Progress update -- deliberately OUTSIDE step.do(). Wrapping this
+      // in its own step would double the Workflow's total step count for
+      // large galleries and add durability/checkpoint overhead for
+      // something that's not required for job correctness. Uses
+      // fetched.length directly (not a separately incremented counter),
+      // so if this ever re-fires on a Workflow replay, it just writes the
+      // same correct value again -- never double-counts. Best-effort: a
+      // failed progress ping should never fail the whole job.
+      const isLastImage = i === imageKeys.length - 1
+      if (fetched.length % PROGRESS_UPDATE_INTERVAL === 0 || isLastImage) {
+        try {
+          await updateJob(this.env, jobId, { images_completed: fetched.length })
+        } catch (err) {
+          console.error('Progress update failed (non-fatal):', err)
+        }
       }
     }
 
@@ -286,6 +312,7 @@ export class ZipQueueWorkflow extends WorkflowEntrypoint {
         images_completed: fetched.length,
         skipped_images: skippedImages,
         completed_at: new Date().toISOString(),
+        final_size_bytes: zipResult.totalSize,
       })
     })
 

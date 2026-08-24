@@ -713,3 +713,26 @@ export async function addPhotographerReply(galleryId, imageId, body) {
   if (error) throw error
   return data
 }
+
+/**
+ * Manually expires a ready zip_jobs row -- Maintenance tab debugging
+ * tool only. Deletes the underlying R2 file AND marks every job sharing
+ * that file 'expired' (see handleZipJobExpire in the worker for why --
+ * dedup means multiple job rows can point at one R2 object). Returns
+ * { ok, expiredCount }.
+ */
+export async function expireZipJob(jobId) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session.access_token
+  const workerUrl = import.meta.env.VITE_R2_WORKER_URL
+
+  const resp = await fetch(`${workerUrl}/zip-jobs/${jobId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to expire job')
+  }
+  return resp.json()
+}

@@ -8,6 +8,8 @@ import { formatDate } from '../utils/formatters.js'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
+import PaginationFooter from '../components/ui/PaginationFooter.jsx'
+import { usePagination } from '../hooks/usePagination.js'
 
 const ACTION_CONFIG = {
   view:            { icon: Eye,          label: 'Viewed gallery',        color: '#6366f1' },
@@ -452,6 +454,8 @@ export default function GalleryActivity() {
   const [gallery, setGallery] = useState(null)
   const [folderAncestors, setFolderAncestors] = useState([])
   const [activity, setActivity] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [stats, setStats] = useState({ views: 0, favorites: 0, downloads: 0, uniqueViewers: 0 })
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [authToken, setAuthToken] = useState(null)
@@ -459,58 +463,29 @@ export default function GalleryActivity() {
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
 
-  useEffect(() => { load() }, [id])
+  const pagination = usePagination({ totalCount, initialPageSize: 25, resetKey: `${id}|${filter}` })
+  const { page, setPage, pageSize, setPageSize, totalPages, from, to, rangeStart, rangeEnd } = pagination
 
-  async function load() {
+  // Gallery info + auth token load once per gallery. Stats are lifetime
+  // totals for the WHOLE gallery (not scoped to the current filter tab
+  // or page) so they only need to refresh when the gallery itself
+  // changes -- not on every page/filter click.
+  useEffect(() => { loadGallery(); loadStats() }, [id])
+  // The feed itself IS scoped to page/filter -- server-side, via the
+  // gallery_activity_feed view (see sql/032) -- so it reloads whenever
+  // any of those change.
+  useEffect(() => { loadFeed() }, [id, filter, page, pageSize])
+
+  async function loadGallery() {
     try {
-      setLoading(true)
-      const [{ data: { session } }, { data: g }, { data: logs }, { data: replies }] = await Promise.all([
+      const [{ data: { session } }, { data: g }] = await Promise.all([
         supabase.auth.getSession(),
         supabase.from('galleries')
           .select('id, title, folder_id, image_count:gallery_images!gallery_images_gallery_id_fkey(count)')
           .eq('id', id).single(),
-        supabase
-          .from('gallery_activity_log')
-          .select(`
-            id, action, occurred_at, image_id, viewer_id, metadata,
-            gallery_viewers (email, display_name),
-            gallery_images (file_name, preview_r2_key)
-          `)
-          .eq('gallery_id', id)
-          .order('occurred_at', { ascending: false })
-          .limit(200),
-        // Photographer replies live in gallery_comments, not
-        // gallery_activity_log -- that table has no concept of a
-        // photographer action at all (no photographer_id column, no
-        // authenticated INSERT policy), and retrofitting it would mean a
-        // real schema change. Reading replies directly from
-        // gallery_comments (RLS: 031_gallery_comments_photographer_select.sql)
-        // and merging them into the same list is simpler and means replies
-        // persist properly -- no synthetic client-only rows.
-        supabase
-          .from('gallery_comments')
-          .select('id, body, created_at, image_id, gallery_images (file_name, preview_r2_key)')
-          .eq('gallery_id', id)
-          .not('photographer_id', 'is', null)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .limit(200),
       ])
       setAuthToken(session?.access_token || null)
       setGallery(g)
-
-      const replyEntries = (replies || []).map(r => ({
-        id: `reply-${r.id}`,
-        action: 'reply',
-        occurred_at: r.created_at,
-        image_id: r.image_id,
-        viewer_id: null,
-        metadata: { comment_body: r.body },
-        gallery_viewers: null,
-        gallery_images: r.gallery_images || null,
-      }))
-      const mergedLogs = [...(logs || []), ...replyEntries]
-        .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))
       // Folder context: prefer what GalleryDetail relayed via navigation
       // state, otherwise fetch fresh from the gallery's folder_id. Fetching
       // as a fallback keeps the breadcrumb correct even on a direct link
@@ -520,10 +495,89 @@ export default function GalleryActivity() {
       } else if (g?.folder_id !== undefined) {
         getFolderAncestors(g.folder_id).then(setFolderAncestors).catch(() => setFolderAncestors([]))
       }
-      setActivity(mergedLogs.map(log => ({
-        ...log,
-        comment_body: log.metadata?.comment_body || null
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  // Lifetime totals for the whole gallery -- deliberately queried
+  // straight against gallery_activity_log (not the paginated feed view,
+  // and not derived from whatever page happens to be in state), so these
+  // stay accurate regardless of which page/filter the feed below is on.
+  // This is also a real improvement over the old behavior: the previous
+  // version derived these from an array capped at .limit(200), so a
+  // gallery with more than 200 combined events/replies had silently
+  // undercounted stats. These are true totals now.
+  async function loadStats() {
+    try {
+      const [viewsRes, favRes, dlSingleRes, dlAllRes, viewerRes] = await Promise.all([
+        supabase.from('gallery_activity_log').select('id', { count: 'exact', head: true }).eq('gallery_id', id).eq('action', 'view'),
+        supabase.from('gallery_activity_log').select('id', { count: 'exact', head: true }).eq('gallery_id', id).eq('action', 'favorite'),
+        supabase.from('gallery_activity_log').select('id', { count: 'exact', head: true }).eq('gallery_id', id).eq('action', 'download_single'),
+        supabase.from('gallery_activity_log').select('id', { count: 'exact', head: true }).eq('gallery_id', id).eq('action', 'download_all'),
+        // Narrow payload (just the viewer identity fields, not full rows)
+        // for the unique-viewers count -- still needs real rows rather
+        // than a count() since "unique" requires deduping actual values,
+        // which PostgREST can't do server-side without an RPC.
+        supabase.from('gallery_activity_log')
+          .select('gallery_viewers(email, display_name)')
+          .eq('gallery_id', id)
+          .not('viewer_id', 'is', null),
+      ])
+      const uniqueViewers = new Set(
+        (viewerRes.data || [])
+          .map(r => r.gallery_viewers?.email || r.gallery_viewers?.display_name)
+          .filter(Boolean)
+      ).size
+      setStats({
+        views: viewsRes.count || 0,
+        favorites: favRes.count || 0,
+        downloads: (dlSingleRes.count || 0) + (dlAllRes.count || 0),
+        uniqueViewers,
+      })
+    } catch (err) {
+      console.error('Failed to load activity stats:', err)
+    }
+  }
+
+  // The feed itself -- paginated + filtered server-side against
+  // gallery_activity_feed (sql/032), which unions gallery_activity_log
+  // and photographer replies from gallery_comments into one orderable
+  // resource. Each row is reshaped into the same {gallery_viewers,
+  // gallery_images} nested shape the render code below already expects,
+  // so nothing past this function needed to change.
+  async function loadFeed() {
+    try {
+      setLoading(true)
+      let query = supabase
+        .from('gallery_activity_feed')
+        .select('id, action, occurred_at, image_id, viewer_id, metadata, viewer_email, viewer_display_name, image_file_name, image_preview_r2_key, comment_body', { count: 'exact' })
+        .eq('gallery_id', id)
+        .order('occurred_at', { ascending: false })
+        .range(from, to)
+
+      if (filter === 'download') query = query.in('action', ['download_single', 'download_all'])
+      else if (filter !== 'all') query = query.eq('action', filter)
+
+      const { data, count, error } = await query
+      if (error) throw error
+
+      setActivity((data || []).map(row => ({
+        id: row.id,
+        action: row.action,
+        occurred_at: row.occurred_at,
+        image_id: row.image_id,
+        viewer_id: row.viewer_id,
+        metadata: row.metadata,
+        comment_body: row.comment_body,
+        gallery_viewers: (row.viewer_email || row.viewer_display_name)
+          ? { email: row.viewer_email, display_name: row.viewer_display_name }
+          : null,
+        gallery_images: row.image_file_name
+          ? { file_name: row.image_file_name, preview_r2_key: row.image_preview_r2_key }
+          : null,
       })))
+      setTotalCount(count || 0)
     } catch (err) {
       console.error(err)
     } finally {
@@ -538,12 +592,13 @@ export default function GalleryActivity() {
       await addPhotographerReply(id, log.image_id || null, replyText.trim())
       setReplyText('')
       setReplyingTo(null)
-      // Refetch through the real load() path rather than splicing a local
-      // object into state -- this guarantees what's shown immediately
-      // after sending matches exactly what a reload would show, since
-      // it's the same query either way. Replies are persisted for real in
-      // gallery_comments, so this isn't just a client-side illusion.
-      await load()
+      // A new reply is the newest event in the gallery -- jump back to
+      // page 1 so it's actually visible, then refetch that page for
+      // real rather than splicing a local object into state. Replies
+      // are persisted for real in gallery_comments, so this isn't just
+      // a client-side illusion.
+      if (page === 0) await loadFeed()
+      else setPage(0)
     } catch (err) {
       console.error(err)
     } finally {
@@ -551,16 +606,11 @@ export default function GalleryActivity() {
     }
   }
 
-  const filtered = filter === 'all'
-    ? activity
-    : activity.filter(a => a.action === filter || (filter === 'download' && a.action.startsWith('download')))
-
-  const stats = {
-    views: activity.filter(a => a.action === 'view').length,
-    favorites: activity.filter(a => a.action === 'favorite').length,
-    downloads: activity.filter(a => a.action.startsWith('download')).length,
-    uniqueViewers: new Set(activity.map(a => a.gallery_viewers?.email ? a.gallery_viewers.email : a.gallery_viewers?.display_name).filter(Boolean)).size,
-  }
+  // Filtering now happens server-side in loadFeed() (see gallery_id/
+  // action query above) -- `activity` IS already the filtered, current
+  // page. `filtered` kept as an alias purely so the render code below
+  // (unchanged) doesn't need every reference renamed.
+  const filtered = activity
 
   const totalImages = gallery?.image_count?.[0]?.count ?? null
 
@@ -704,6 +754,12 @@ export default function GalleryActivity() {
           })}
         </div>
       )}
+
+      <PaginationFooter
+        page={page} setPage={setPage}
+        pageSize={pageSize} setPageSize={setPageSize}
+        totalPages={totalPages} rangeStart={rangeStart} rangeEnd={rangeEnd} totalCount={totalCount}
+      />
     </div>
   )
 }

@@ -8,7 +8,7 @@ import { handleWatermarkUpload, handleWatermarkServe, handleLogoServe } from './
 import { handleAvatarServe } from './handlers/avatar.js'
 import { handlePdfUpload } from './handlers/upload-pdf.js'
 import { handleContractPdf } from './handlers/contract-pdf.js'
-import { handleZipJobs, handleZipJobStatus, handleZipJobDownload } from './handlers/zip-jobs.js'
+import { handleZipJobs, handleZipJobStatus, handleZipJobDownload, handleZipJobExpire } from './handlers/zip-jobs.js'
 
 // Re-exported so the Workflows binding (see wrangler.jsonc) can find the
 // class -- Cloudflare's Workflows runtime looks for the named export in
@@ -92,6 +92,12 @@ export default {
       if (request.method === 'GET' && pathname.startsWith('/zip-jobs/') && !pathname.endsWith('/download')) {
         const jobId = pathname.split('/')[2]
         return await handleZipJobStatus(request, env, CORS_HEADERS, jobId)
+      }
+
+      // v1.5.8: manual expire (Maintenance tab, photographer JWT only)
+      if (request.method === 'DELETE' && pathname.startsWith('/zip-jobs/') && pathname.split('/').length === 3) {
+        const jobId = pathname.split('/')[2]
+        return await handleZipJobExpire(request, env, CORS_HEADERS, jobId)
       }
 
       // Contract PDF download -- same rate-limit bucket as image downloads,

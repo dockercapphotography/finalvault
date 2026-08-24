@@ -26,6 +26,7 @@ async function getSessionByToken(token, questionnaireId) {
       .select(`
         id, name, header_text, require_agreement, agreement_label,
         confirmation_message, collect_email, collect_name,
+        redirect_url, redirect_label, redirect_auto, redirect_delay_seconds,
         questionnaire_questions ( id, type, label, options, required, sort_order )
       `)
       .eq('id', questionnaireId)
@@ -104,6 +105,34 @@ function ErrorScreen({ message }) {
 
 function ConfirmScreen({ session, confirmationMessage }) {
   const studioName = session.photographers?.business_name || session.photographers?.display_name || 'Your Photographer'
+  const tmpl = session.questionnaire_templates
+  const redirectUrl = tmpl?.redirect_url || null
+  const redirectLabel = tmpl?.redirect_label || 'Continue'
+  const redirectAuto = !!tmpl?.redirect_auto
+  const redirectDelaySeconds = tmpl?.redirect_delay_seconds || 5
+
+  // Auto-redirect is an enhancement on top of the button, never a
+  // replacement for it (decision, Aug 2026: always show the
+  // confirmation screen + button; auto-redirect just additionally
+  // navigates after a visible countdown, with a way to cancel it) --
+  // this guarantees the client sees their submission actually went
+  // through before anything happens automatically, and a slow network
+  // can't cause a premature navigation since this only starts counting
+  // down once the confirmation screen itself has already rendered
+  // (i.e. after the submission insert has already resolved).
+  const [secondsLeft, setSecondsLeft] = useState(redirectDelaySeconds)
+  const [autoCancelled, setAutoCancelled] = useState(false)
+
+  useEffect(() => {
+    if (!redirectUrl || !redirectAuto || autoCancelled) return
+    if (secondsLeft <= 0) {
+      window.location.href = redirectUrl
+      return
+    }
+    const t = setTimeout(() => setSecondsLeft(s => s - 1), 1000)
+    return () => clearTimeout(t)
+  }, [secondsLeft, redirectUrl, redirectAuto, autoCancelled])
+
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
@@ -121,6 +150,27 @@ function ConfirmScreen({ session, confirmationMessage }) {
           {confirmationMessage || `${studioName} will be in touch when your photos are ready.`}
         </p>
 
+        {redirectUrl && (
+          <div style={{ marginTop: 4 }}>
+            <a href={redirectUrl}
+              style={{
+                display: 'block', width: '100%', boxSizing: 'border-box', padding: '15px 20px', borderRadius: 12,
+                fontSize: 16, fontWeight: 700, textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                background: '#6366f1', color: '#fff',
+              }}>
+              {redirectLabel}
+            </a>
+            {redirectAuto && !autoCancelled && secondsLeft > 0 && (
+              <p style={{ fontSize: 13, color: '#9ca3af', margin: '12px 0 0', fontFamily: 'system-ui, sans-serif' }}>
+                Redirecting in {secondsLeft}s &middot;{' '}
+                <button onClick={() => setAutoCancelled(true)}
+                  style={{ background: 'none', border: 'none', padding: 0, color: '#6366f1', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
+                  Cancel
+                </button>
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

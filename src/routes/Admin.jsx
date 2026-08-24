@@ -4,6 +4,8 @@ import { Users, Database, Shield, ChevronDown, Check, X, Plus, Pencil } from 'lu
 import { supabase } from '../supabaseClient.js'
 import Badge from '../components/ui/Badge.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import PaginationFooter from '../components/ui/PaginationFooter.jsx'
+import { usePagination } from '../hooks/usePagination.js'
 import { formatDate } from '../utils/formatters.js'
 
 function formatBytes(bytes) {
@@ -235,6 +237,19 @@ export default function Admin() {
     !search || (p.display_name || p.id).toLowerCase().includes(search.toLowerCase())
   )
 
+  // Client-side pagination over the already-fetched photographer list --
+  // unlike zip_jobs (which grows unbounded per download click), the
+  // photographer roster is small/bounded (one row per signup), and the
+  // storage/gallery-count stats already require fetching every
+  // photographer's data in one shot regardless of which page is shown.
+  // Real server-side range() pagination here would mean restructuring
+  // those joined aggregate queries to scope by a page-window of
+  // photographer ids -- not worth it for a bounded admin list; slicing
+  // what's already in memory gets the same "don't show 500 rows at
+  // once" UX for a fraction of the complexity.
+  const pagination = usePagination({ totalCount: filtered.length, initialPageSize: 10, resetKey: search })
+  const pageItems = filtered.slice(pagination.from, pagination.to + 1)
+
   const totalStorage = Object.values(storage).reduce((sum, s) => sum + (s.bytes_used || 0), 0)
 
   if (loading) return (
@@ -313,7 +328,7 @@ export default function Admin() {
           <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
             {filtered.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No users found</div>
-            ) : filtered.map((p, i) => {
+            ) : pageItems.map((p, i) => {
               const storageRow = storage[p.id]
               const tier = tiers.find(t => t.id === storageRow?.tier_id)
               const bytesUsed = storageRow?.bytes_used || 0
@@ -374,6 +389,13 @@ export default function Admin() {
               )
             })}
           </div>
+
+          <PaginationFooter
+            page={pagination.page} setPage={pagination.setPage}
+            pageSize={pagination.pageSize} setPageSize={pagination.setPageSize}
+            totalPages={pagination.totalPages} rangeStart={pagination.rangeStart} rangeEnd={pagination.rangeEnd}
+            totalCount={filtered.length}
+          />
         </div>
       )}
 

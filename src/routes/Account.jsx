@@ -1813,6 +1813,47 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
   const [saving, setSaving] = useState(false)
   const [templateId, setTemplateId] = useState(template?.id || null)
 
+  // Post-submission redirect (v1.5.8) -- "follow us on Instagram" after
+  // a questionnaire submits. Destination reuses whichever social links
+  // the photographer already configured under Account > Social Links
+  // (SOCIAL_PLATFORMS, same module-level constant that tab uses)
+  // rather than asking them to re-type a URL, with a "Custom URL"
+  // fallback for anything not covered by that list (a Google Reviews
+  // link, a specific post, their website).
+  const [redirectEnabled, setRedirectEnabled] = useState(!!template?.redirect_url)
+  const [redirectPlatform, setRedirectPlatform] = useState('custom')
+  const [redirectUrl, setRedirectUrl] = useState(template?.redirect_url || '')
+  const [redirectLabel, setRedirectLabel] = useState(template?.redirect_label || '')
+  const [redirectAuto, setRedirectAuto] = useState(template?.redirect_auto || false)
+  const [redirectDelaySeconds, setRedirectDelaySeconds] = useState(template?.redirect_delay_seconds || 5)
+  const [socialLinks, setSocialLinks] = useState({})
+  const [loadingSocialLinks, setLoadingSocialLinks] = useState(true)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { setLoadingSocialLinks(false); return }
+      supabase.from('photographers').select('social_links').eq('id', user.id).single()
+        .then(({ data }) => { setSocialLinks(data?.social_links || {}); setLoadingSocialLinks(false) })
+    })
+  }, [])
+
+  // Once social links are loaded, figure out whether the saved
+  // redirect_url matches one of them (so the dropdown preselects the
+  // right platform on edit) or falls back to "Custom".
+  useEffect(() => {
+    if (loadingSocialLinks || !template?.redirect_url) return
+    const match = SOCIAL_PLATFORMS.find(p => socialLinks[p.id] === template.redirect_url)
+    setRedirectPlatform(match ? match.id : 'custom')
+  }, [loadingSocialLinks])
+
+  function handleRedirectPlatformChange(platformId) {
+    setRedirectPlatform(platformId)
+    if (platformId === 'custom') return
+    const platform = SOCIAL_PLATFORMS.find(p => p.id === platformId)
+    setRedirectUrl(socialLinks[platformId] || '')
+    setRedirectLabel(`Follow us on ${platform.label}`)
+  }
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -1830,10 +1871,17 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
     if (!name.trim()) return
     setSaving(true)
     try {
+      const payload = {
+        name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName,
+        redirectUrl: redirectEnabled ? redirectUrl.trim() || null : null,
+        redirectLabel: redirectEnabled ? (redirectLabel.trim() || 'Continue') : null,
+        redirectAuto: redirectEnabled ? redirectAuto : false,
+        redirectDelaySeconds: redirectEnabled ? redirectDelaySeconds : 5,
+      }
       if (templateId) {
-        await updateQuestionnaireTemplate(templateId, { name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName })
+        await updateQuestionnaireTemplate(templateId, payload)
       } else {
-        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName })
+        const created = await createQuestionnaireTemplate(payload)
         setTemplateId(created.id)
       }
       onSaveState('saved')
@@ -1845,7 +1893,13 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
     if (!templateId) {
       // Save template first so we have an ID
       try {
-        const created = await createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName })
+        const created = await createQuestionnaireTemplate({
+          name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName,
+          redirectUrl: redirectEnabled ? redirectUrl.trim() || null : null,
+          redirectLabel: redirectEnabled ? (redirectLabel.trim() || 'Continue') : null,
+          redirectAuto: redirectEnabled ? redirectAuto : false,
+          redirectDelaySeconds: redirectEnabled ? redirectDelaySeconds : 5,
+        })
         setTemplateId(created.id)
         const q = await createQuestion(created.id, { ...data, sortOrder: questions.length })
         setQuestions(prev => [...prev, q])
@@ -1958,7 +2012,62 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
             />
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Shown on the confirmation screen after the form is submitted.</p>
           </div>
-          <Button onClick={handleSaveHeader} disabled={saving || !name.trim()}>
+
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Redirect after submission</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Send people somewhere after they submit -- e.g. your Instagram</p>
+              </div>
+              <Toggle checked={redirectEnabled} onChange={val => setRedirectEnabled(val)} />
+            </div>
+
+            {redirectEnabled && (
+              <div className="space-y-3 mt-2">
+                <div>
+                  <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Destination</label>
+                  <select value={redirectPlatform} onChange={e => handleRedirectPlatformChange(e.target.value)}
+                    className="w-full text-sm rounded-lg px-3 py-2" style={{ border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text)' }}>
+                    {SOCIAL_PLATFORMS.filter(p => socialLinks[p.id]).map(p => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                    <option value="custom">Custom URL</option>
+                  </select>
+                  {!loadingSocialLinks && SOCIAL_PLATFORMS.every(p => !socialLinks[p.id]) && (
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                      No social links configured yet -- add them under Account &gt; Social Links, or enter a custom URL below.
+                    </p>
+                  )}
+                </div>
+
+                {redirectPlatform === 'custom' && (
+                  <Input label="URL" value={redirectUrl} onChange={setRedirectUrl} placeholder="https://..." />
+                )}
+
+                <Input label="Button text" value={redirectLabel} onChange={setRedirectLabel} placeholder="Follow us on Instagram" />
+
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Auto-redirect</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Automatically send them there after a short countdown, instead of waiting for a click</p>
+                  </div>
+                  <Toggle checked={redirectAuto} onChange={setRedirectAuto} />
+                </div>
+
+                {redirectAuto && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm" style={{ color: 'var(--text)' }}>Delay</label>
+                    <input type="number" min={1} max={30} value={redirectDelaySeconds}
+                      onChange={e => setRedirectDelaySeconds(Math.min(30, Math.max(1, Number(e.target.value) || 1)))}
+                      className="w-16 text-sm rounded-lg px-2 py-1.5" style={{ border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text)' }} />
+                    <span className="text-sm" style={{ color: 'var(--text-muted)' }}>seconds</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <Button onClick={handleSaveHeader} disabled={saving || !name.trim() || (redirectEnabled && !redirectUrl.trim())}>
             {saving ? 'Saving...' : 'Save Details'}
           </Button>
         </div>

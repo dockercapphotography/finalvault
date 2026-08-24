@@ -177,7 +177,7 @@ export async function handleZipJobs(request, env, corsHeaders) {
   // adopts the existing file instead of re-running the whole Workflow.
   const imageKeysHash = await hashImageKeys(imageKeys, size)
   const dedupResp = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/zip_jobs?gallery_id=eq.${galleryId}&size=eq.${size}&image_keys_hash=eq.${imageKeysHash}&status=eq.ready&expires_at=gt.${new Date().toISOString()}&select=id,download_r2_key,expires_at,images_completed,skipped_images&order=created_at.desc&limit=1`,
+    `${env.SUPABASE_URL}/rest/v1/zip_jobs?gallery_id=eq.${galleryId}&size=eq.${size}&image_keys_hash=eq.${imageKeysHash}&status=eq.ready&expires_at=gt.${new Date().toISOString()}&select=id,download_r2_key,expires_at,images_completed,skipped_images,final_size_bytes&order=created_at.desc&limit=1`,
     { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
   )
   const dedupRows = await dedupResp.json()
@@ -214,6 +214,7 @@ export async function handleZipJobs(request, env, corsHeaders) {
           completed_at: new Date().toISOString(),
           expires_at: existingJob.expires_at,
           dedup_source_job_id: existingJob.id,
+          final_size_bytes: existingJob.final_size_bytes,
         }),
       }
     )
@@ -415,6 +416,83 @@ export async function handleZipJobDownload(request, env, corsHeaders, jobId) {
   headers.set('Content-Disposition', `attachment; filename="gallery-${job.gallery_id}-${sizeSuffix}.zip"`)
   headers.set('Cache-Control', 'private, no-cache')
   return new Response(obj.body, { status: 200, headers })
+}
+
+/**
+ * DELETE /zip-jobs/:id
+ *
+ * Manually expires a job -- photographer-only, JWT auth (this is a
+ * Maintenance-tab debugging tool, not something clients ever see).
+ *
+ * IMPORTANT: because of the v1.5.8 dedup feature, multiple job rows can
+ * point at the SAME download_r2_key -- a dedup "cache hit" job never
+ * builds its own file, it just adopts an existing ready job's R2 object.
+ * If this only deleted the R2 object for the ONE row the person clicked,
+ * every sibling job still marked 'ready' would silently break the next
+ * time someone used their (now-dead) download link -- the DB would say
+ * ready, the file would be gone.
+ *
+ * So this looks up every 'ready' job sharing the same download_r2_key
+ * (there's no meaningful case for two DIFFERENT gallery_ids sharing an
+ * r2_key, but scoping the query by gallery_id too costs nothing and
+ * rules it out entirely), marks ALL of them 'expired' in one update, and
+ * deletes the R2 object exactly once. Jobs that are already
+ * expired/failed/queued/processing are untouched -- there's nothing to
+ * free for those.
+ */
+export async function handleZipJobExpire(request, env, corsHeaders, jobId) {
+  const auth = await verifyJWT(request)
+  if (!auth.valid) {
+    return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
+  }
+
+  const jobResp = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/zip_jobs?id=eq.${jobId}&select=id,gallery_id,status,download_r2_key,galleries(photographer_id)`,
+    { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+  )
+  const jobRows = await jobResp.json()
+  const job = jobRows?.[0]
+  if (!job) {
+    return jsonResponse({ ok: false, error: 'Job not found' }, 404, corsHeaders)
+  }
+  if (job.galleries?.photographer_id !== auth.userId) {
+    return jsonResponse({ ok: false, error: 'Access denied' }, 403, corsHeaders)
+  }
+  if (job.status !== 'ready' || !job.download_r2_key) {
+    return jsonResponse({ ok: false, error: 'Only a ready job can be manually expired' }, 400, corsHeaders)
+  }
+
+  // Best-effort R2 delete -- if this fails, still mark the DB rows
+  // expired rather than leaving the person stuck with no way to clear a
+  // job whose R2 object may already be gone (e.g. cleaned up by the
+  // lifecycle rule in a race with this request).
+  try {
+    await env.BUCKET.delete(job.download_r2_key)
+  } catch (err) {
+    console.error(`R2 delete failed for ${job.download_r2_key}:`, err)
+  }
+
+  const updateResp = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/zip_jobs?gallery_id=eq.${job.gallery_id}&download_r2_key=eq.${encodeURIComponent(job.download_r2_key)}&status=eq.ready`,
+    {
+      method: 'PATCH',
+      headers: {
+        apikey: env.SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({ status: 'expired' }),
+    }
+  )
+  if (!updateResp.ok) {
+    const errText = await updateResp.text()
+    console.error('zip_jobs expire update failed:', errText)
+    return jsonResponse({ ok: false, error: 'R2 file deleted but failed to update job records' }, 500, corsHeaders)
+  }
+  const expiredJobs = await updateResp.json()
+
+  return jsonResponse({ ok: true, expiredCount: expiredJobs.length }, 200, corsHeaders)
 }
 
 function jsonResponse(body, status, corsHeaders) {
