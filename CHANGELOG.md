@@ -4,6 +4,29 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.8 — August 23, 2026
+
+### New Features
+
+**Web-size ZIP downloads for large galleries**
+- Web-size (watermarked) ZIP downloads for large galleries (over 25 images or 250MB) now process in the background too, matching the behavior full-resolution downloads already had since v1.5.7 -- you'll get an email with a download link when it's ready instead of waiting on the page.
+- Repeated download requests for the exact same set of photos reuse an already-prepared ZIP instead of rebuilding it from scratch, so a second person requesting the same download gets it almost instantly and no extra storage is used.
+
+**Post-submission redirect for questionnaires**
+- Send people somewhere after they submit a questionnaire -- your Instagram, a Google Reviews link, your website, anywhere -- with an optional short auto-redirect countdown instead of requiring a click.
+- Destination can be picked from your existing Account > Social Links, or entered as a custom URL.
+
+**Zip job monitor (Maintenance)**
+- New admin tool showing recent hi-res and web-size download jobs across all galleries -- status, real file size, and whether each was a fresh build or reused an existing file (dedup). Supports manually expiring a completed download early to free up storage, including any other download links that pointed at the same file.
+
+### Bug Fixes
+
+- Fixed a progress indicator during large-gallery ZIP preparation that could appear frozen even though work was still progressing in the background
+- Fixed an accessibility issue where paginated list views could render every row twice in the page (once visibly, once hidden) -- screen readers would announce duplicate content
+- Fixed a rare timing issue where switching filters on a paginated list in quick succession could briefly show results from the previous filter instead of the current one
+
+---
+
 ## v1.5.7 — August 23, 2026
 
 ### New Features
