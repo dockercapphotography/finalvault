@@ -566,6 +566,75 @@ test.describe('Walk-up submission form', () => {
   })
 })
 
+// ── v1.5.8: post-submission redirect ("follow us on Instagram") ────────────
+
+test.describe('Walk-up submission form — post-submission redirect', () => {
+  let session
+  let questionnaire
+
+  test.afterEach(async () => {
+    await deleteTestSession(session.id)
+    await deleteTestQuestionnaireTemplate(questionnaire.id)
+  })
+
+  test('shows the configured button after submitting, pointing at the right URL', async ({ page }) => {
+    questionnaire = await createTestQuestionnaireTemplate({
+      redirect_url: 'https://instagram.com/pwtestaccount',
+      redirect_label: 'Follow us on Instagram',
+      redirect_auto: false,
+    })
+    session = await createTestSession({ mode: 'walkup', status: 'booked' })
+    await sb().from('session_questionnaires').insert({ session_id: session.id, questionnaire_id: questionnaire.id })
+
+    await page.goto(`/submit/${session.submit_token}?q=${questionnaire.id}`)
+    await expect(page.getByText(session.name).first()).toBeVisible({ timeout: 8000 })
+    await page.getByRole('button', { name: 'Submit' }).click()
+    await expect(page.getByText("You're all set!")).toBeVisible({ timeout: 8000 })
+
+    const link = page.getByRole('link', { name: 'Follow us on Instagram' })
+    await expect(link).toBeVisible({ timeout: 5000 })
+    await expect(link).toHaveAttribute('href', 'https://instagram.com/pwtestaccount')
+  })
+
+  test('no button appears when the template has no redirect configured', async ({ page }) => {
+    questionnaire = await createTestQuestionnaireTemplate() // redirect_url left null
+    session = await createTestSession({ mode: 'walkup', status: 'booked' })
+    await sb().from('session_questionnaires').insert({ session_id: session.id, questionnaire_id: questionnaire.id })
+
+    await page.goto(`/submit/${session.submit_token}?q=${questionnaire.id}`)
+    await expect(page.getByText(session.name).first()).toBeVisible({ timeout: 8000 })
+    await page.getByRole('button', { name: 'Submit' }).click()
+    await expect(page.getByText("You're all set!")).toBeVisible({ timeout: 8000 })
+    await expect(page.locator('a')).toHaveCount(0)
+  })
+
+  test('auto-redirect shows a live countdown, and Cancel genuinely stops it', async ({ page }) => {
+    questionnaire = await createTestQuestionnaireTemplate({
+      redirect_url: 'https://instagram.com/pwtestaccount',
+      redirect_label: 'Follow us on Instagram',
+      redirect_auto: true,
+      redirect_delay_seconds: 10, // generous window so the test isn't racing the timer
+    })
+    session = await createTestSession({ mode: 'walkup', status: 'booked' })
+    await sb().from('session_questionnaires').insert({ session_id: session.id, questionnaire_id: questionnaire.id })
+
+    await page.goto(`/submit/${session.submit_token}?q=${questionnaire.id}`)
+    await expect(page.getByText(session.name).first()).toBeVisible({ timeout: 8000 })
+    await page.getByRole('button', { name: 'Submit' }).click()
+    await expect(page.getByText("You're all set!")).toBeVisible({ timeout: 8000 })
+
+    await expect(page.getByText(/Redirecting in \d+s/)).toBeVisible({ timeout: 5000 })
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByText(/Redirecting in \d+s/)).not.toBeVisible({ timeout: 3000 })
+
+    // Wait past where the original 10s delay would have fired -- confirms
+    // Cancel genuinely stopped the timer rather than just hiding the
+    // countdown text while navigation still happened underneath.
+    await page.waitForTimeout(3000)
+    await expect(page).toHaveURL(new RegExp(`/submit/${session.submit_token}`))
+  })
+})
+
 // ── Session questionnaire assignment ─────────────────────────────────────────
 
 test.describe('Session questionnaire assignment', () => {

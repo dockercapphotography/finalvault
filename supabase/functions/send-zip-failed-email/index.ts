@@ -50,7 +50,7 @@ serve(async (req) => {
     const { data: job, error: jobError } = await supabase
       .from('zip_jobs')
       .select(`
-        id, notify_email, requested_by_photographer_id,
+        id, notify_email, requested_by_photographer_id, size,
         galleries ( id, title, photographer_id, share_token )
       `)
       .eq('id', jobId)
@@ -94,7 +94,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: `${senderName} <noreply@mail.final-vault.app>`,
         to: [job.notify_email],
-        subject: `We ran into a problem preparing your download — ${galleryTitle}`,
+        subject: `We ran into a problem preparing your ${job.size === 'web' ? 'web-size' : 'hi-res'} download — ${galleryTitle}`,
         html,
       }),
     })

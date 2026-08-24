@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import crypto from 'node:crypto'
 import { enterGalleryAsClient, FIXTURE_GALLERY } from '../../fixtures/fixtures.js'
 
 // ── Tier 3 async hi-res ZIP queue ───────────────────────────────────────────
@@ -78,6 +79,20 @@ async function insertImages(gallery, count, fileSizeEach = 500000) {
   if (error) throw new Error(error.message)
 }
 
+// Mirrors hashImageKeys() in r2-worker/src/handlers/zip-jobs.js EXACTLY --
+// same input format (`${size}|${sortedKeys.join(',')}`), same algorithm
+// (SHA-256), same hex encoding. Node's crypto.createHash gives identical
+// output to the worker's Web Crypto crypto.subtle.digest for the same
+// input, since it's the same standard hash function either way -- this
+// lets tests seed a zip_jobs row whose image_keys_hash the real endpoint
+// will actually recognize as a match, without needing to drive a real
+// Workflow run first just to get a 'ready' job to dedupe against.
+function computeImageKeysHash(imageKeys, size) {
+  const sorted = [...imageKeys].sort()
+  const input = `${size}|${sorted.join(',')}`
+  return crypto.createHash('sha256').update(input).digest('hex')
+}
+
 async function cleanupGallery(galleryId) {
   await sb().from('zip_jobs').delete().eq('gallery_id', galleryId)
   await sb().from('gallery_images').delete().eq('gallery_id', galleryId)
@@ -93,6 +108,15 @@ async function clickHighResDownload(page) {
   await stickyHeader.waitFor({ state: 'visible', timeout: 10000 })
   await stickyHeader.getByRole('button').last().click()
   await page.getByText(/High Resolution|High Res/).click()
+}
+
+async function clickWebSizeDownload(page) {
+  await page.evaluate(() => window.scrollTo({ top: 800, behavior: 'instant' }))
+  await page.waitForTimeout(500)
+  const stickyHeader = page.locator('div.sticky')
+  await stickyHeader.waitFor({ state: 'visible', timeout: 10000 })
+  await stickyHeader.getByRole('button').last().click()
+  await page.getByText('Web Size').click()
 }
 
 test.describe.configure({ mode: 'serial' })
@@ -201,5 +225,148 @@ test.describe('Async hi-res ZIP queue — PIN gate', () => {
     await page.waitForTimeout(1000)
     const { data: jobsAfter } = await sb().from('zip_jobs').select('id').eq('gallery_id', gallery.id)
     expect(jobsAfter).toHaveLength(1)
+  })
+})
+
+// ── v1.5.8: async web-size ZIP queue ────────────────────────────────────────
+//
+// Same threshold, same endpoint, same Workflow as hi-res -- these tests
+// mirror the hi-res ones above but confirm the size='web' branch of the
+// same code path (queueZip / shouldQueueZip / POST /zip-jobs) works too.
+
+test.describe('Async web-size ZIP queue — over-threshold gallery queues instead', () => {
+  let gallery
+  const IMAGE_COUNT = 26 // one over the 25-image threshold
+
+  test.beforeEach(async () => {
+    gallery = await createGallery()
+    await insertImages(gallery, IMAGE_COUNT)
+  })
+
+  test.afterEach(async () => {
+    await cleanupGallery(gallery.id)
+  })
+
+  test('over-threshold web-size download shows the queued confirmation, not a browser download', async ({ page }) => {
+    await enterGalleryAsClient(page, gallery.share_token)
+
+    let downloadFired = false
+    page.on('download', () => { downloadFired = true })
+
+    await clickWebSizeDownload(page)
+
+    await expect(page.getByText(/preparing your download/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/You'll get an email/i)).toBeVisible()
+
+    // Give it a moment to see if a download event fires anyway -- it shouldn't.
+    await page.waitForTimeout(1500)
+    expect(downloadFired).toBe(false)
+  })
+
+  test('over-threshold web-size download creates a real zip_jobs row with size=web', async ({ page }) => {
+    await enterGalleryAsClient(page, gallery.share_token)
+    await clickWebSizeDownload(page)
+    await expect(page.getByText(/preparing your download/i)).toBeVisible({ timeout: 10000 })
+
+    await page.waitForTimeout(1000)
+    const { data: jobs } = await sb().from('zip_jobs').select('*').eq('gallery_id', gallery.id)
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].size).toBe('web')
+    expect(jobs[0].image_count).toBe(IMAGE_COUNT)
+    expect(jobs[0].notify_email).toBe('testclient@example.com')
+    expect(['queued', 'processing', 'ready']).toContain(jobs[0].status)
+  })
+})
+
+// ── v1.5.8: content-based dedup ─────────────────────────────────────────────
+//
+// Testing this against a REAL Workflow-built job would mean waiting out a
+// full multi-minute run just to get something to dedupe against -- exactly
+// the cost this suite's scope note above already avoids for hi-res. Instead,
+// these seed a completed 'ready' job directly with a hash computed the same
+// way the real endpoint computes it (see computeImageKeysHash above), which
+// exercises the real dedup LOOKUP-AND-ADOPT logic in POST /zip-jobs without
+// needing a real Workflow run first.
+
+test.describe('Async ZIP queue — content-based dedup', () => {
+  let gallery
+  const IMAGE_COUNT = 26
+
+  test.beforeEach(async () => {
+    gallery = await createGallery()
+    await insertImages(gallery, IMAGE_COUNT)
+  })
+
+  test.afterEach(async () => {
+    await cleanupGallery(gallery.id)
+  })
+
+  test('identical web-size download adopts an existing ready job instead of running a fresh Workflow', async ({ page }) => {
+    const { data: images } = await sb().from('gallery_images').select('original_r2_key').eq('gallery_id', gallery.id)
+    const imageKeys = images.map(i => i.original_r2_key)
+    const hash = computeImageKeysHash(imageKeys, 'web')
+
+    const { data: sourceJob, error } = await sb().from('zip_jobs').insert({
+      gallery_id: gallery.id,
+      size: 'web',
+      image_count: IMAGE_COUNT,
+      images_completed: IMAGE_COUNT,
+      image_keys_hash: hash,
+      status: 'ready',
+      download_r2_key: `zip-jobs/test-dedup-${crypto.randomUUID()}.zip`,
+      notify_email: 'someone-else@example.com',
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
+    }).select().single()
+    if (error) throw new Error(error.message)
+
+    await enterGalleryAsClient(page, gallery.share_token)
+    await clickWebSizeDownload(page)
+    await expect(page.getByText(/preparing your download/i)).toBeVisible({ timeout: 10000 })
+
+    // Give the request a moment to land, then verify the adopted job.
+    await page.waitForTimeout(1500)
+    const { data: jobs } = await sb().from('zip_jobs').select('*').eq('gallery_id', gallery.id).order('created_at', { ascending: true })
+    expect(jobs).toHaveLength(2)
+
+    const adoptedJob = jobs.find(j => j.id !== sourceJob.id)
+    expect(adoptedJob).toBeTruthy()
+    expect(adoptedJob.dedup_source_job_id).toBe(sourceJob.id)
+    expect(adoptedJob.status).toBe('ready')
+    expect(adoptedJob.download_r2_key).toBe(sourceJob.download_r2_key)
+    // Capped at the SOURCE job's real expiry, not a fresh 7 days from now
+    expect(new Date(adoptedJob.expires_at).getTime()).toBe(new Date(sourceJob.expires_at).getTime())
+  })
+
+  test('a different image selection does NOT dedupe against an unrelated ready job', async ({ page }) => {
+    // Seed a ready job for a hash that does NOT match this gallery's real
+    // image keys -- confirms the lookup is a genuine hash match, not just
+    // "any ready job on this gallery+size".
+    const bogusHash = computeImageKeysHash(['not/a/real/key.jpg'], 'web')
+    await sb().from('zip_jobs').insert({
+      gallery_id: gallery.id,
+      size: 'web',
+      image_count: 1,
+      images_completed: 1,
+      image_keys_hash: bogusHash,
+      status: 'ready',
+      download_r2_key: `zip-jobs/test-unrelated-${crypto.randomUUID()}.zip`,
+      notify_email: 'someone-else@example.com',
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+
+    await enterGalleryAsClient(page, gallery.share_token)
+    await clickWebSizeDownload(page)
+    await expect(page.getByText(/preparing your download/i)).toBeVisible({ timeout: 10000 })
+
+    await page.waitForTimeout(1500)
+    const { data: jobs } = await sb().from('zip_jobs').select('*').eq('gallery_id', gallery.id)
+    expect(jobs).toHaveLength(2) // the seeded unrelated job + a real new one
+    const newJob = jobs.find(j => j.notify_email === 'testclient@example.com')
+    expect(newJob).toBeTruthy()
+    expect(newJob.dedup_source_job_id).toBeNull()
   })
 })

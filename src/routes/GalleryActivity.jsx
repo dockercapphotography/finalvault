@@ -466,6 +466,13 @@ export default function GalleryActivity() {
   const pagination = usePagination({ totalCount, initialPageSize: 25, resetKey: `${id}|${filter}` })
   const { page, setPage, pageSize, setPageSize, totalPages, from, to, rangeStart, rangeEnd } = pagination
 
+  // Same out-of-order-response guard as ZipJobMonitorSection's loadJobs
+  // -- filter clicks and pagination can each independently trigger a
+  // refetch in quick succession; without this, a stale earlier request
+  // resolving after a newer one would silently overwrite correct,
+  // more-recent filtered results.
+  const feedRequestSeq = useRef(0)
+
   // Gallery info + auth token load once per gallery. Stats are lifetime
   // totals for the WHOLE gallery (not scoped to the current filter tab
   // or page) so they only need to refresh when the gallery itself
@@ -547,6 +554,7 @@ export default function GalleryActivity() {
   // gallery_images} nested shape the render code below already expects,
   // so nothing past this function needed to change.
   async function loadFeed() {
+    const mySeq = ++feedRequestSeq.current
     try {
       setLoading(true)
       let query = supabase
@@ -561,6 +569,9 @@ export default function GalleryActivity() {
 
       const { data, count, error } = await query
       if (error) throw error
+
+      // A newer request has since started -- this response is stale.
+      if (mySeq !== feedRequestSeq.current) return
 
       setActivity((data || []).map(row => ({
         id: row.id,
@@ -581,7 +592,7 @@ export default function GalleryActivity() {
     } catch (err) {
       console.error(err)
     } finally {
-      setLoading(false)
+      if (mySeq === feedRequestSeq.current) setLoading(false)
     }
   }
 

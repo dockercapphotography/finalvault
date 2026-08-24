@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, AlertTriangle, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import { expireZipJob } from '../../utils/galleryApi.js'
@@ -131,6 +131,16 @@ export default function ZipJobMonitorSection() {
   const [expiring, setExpiring] = useState(false)
   const [expireTarget, setExpireTarget] = useState(null)
 
+  // Guards against out-of-order async responses -- e.g. typing into
+  // search fires a fetch, then quickly changing the size filter fires a
+  // second fetch; if the FIRST (now-stale) request happens to resolve
+  // AFTER the second one due to network jitter, it would otherwise
+  // silently overwrite the correct, more recent filtered results with
+  // stale data. Each loadJobs() call increments this and captures its
+  // own sequence number; the response is only applied if no newer
+  // request has started in the meantime.
+  const requestSeq = useRef(0)
+
   const pagination = usePagination({
     totalCount,
     initialPageSize: 10,
@@ -158,6 +168,7 @@ export default function ZipJobMonitorSection() {
   }
 
   async function loadJobs() {
+    const mySeq = ++requestSeq.current
     setLoading(true)
     let query = supabase
       .from('zip_jobs')
@@ -170,6 +181,11 @@ export default function ZipJobMonitorSection() {
     if (search.trim()) query = query.ilike('galleries.title', `%${search.trim()}%`)
 
     const { data, count, error } = await query
+
+    // A newer request has since started -- this response is stale,
+    // discard it rather than let it clobber more recent, correct state.
+    if (mySeq !== requestSeq.current) return
+
     if (error) { console.error('Failed to load zip_jobs:', error); setLoading(false); return }
     setJobs(data || [])
     setTotalCount(count || 0)
@@ -222,7 +238,7 @@ export default function ZipJobMonitorSection() {
         </div>
 
         <div className="flex flex-wrap gap-2 mb-4">
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status"
             className="text-xs rounded-lg px-2.5 py-1.5" style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}>
             <option value="all">All statuses</option>
             <option value="queued">Queued</option>
@@ -231,7 +247,7 @@ export default function ZipJobMonitorSection() {
             <option value="failed">Failed</option>
             <option value="expired">Expired</option>
           </select>
-          <select value={sizeFilter} onChange={e => setSizeFilter(e.target.value)}
+          <select value={sizeFilter} onChange={e => setSizeFilter(e.target.value)} aria-label="Filter by size"
             className="text-xs rounded-lg px-2.5 py-1.5" style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}>
             <option value="all">Hi-res + web</option>
             <option value="hires">Hi-res only</option>
@@ -247,83 +263,79 @@ export default function ZipJobMonitorSection() {
               ? 'No download jobs yet.'
               : 'No jobs match these filters.'}
           </p>
-        ) : (
-          <>
-            {/* Desktop/tablet: table */}
-            <div className="hidden md:block overflow-x-auto -mx-5">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Gallery', 'Type', 'Status', 'Progress', 'Size', 'Source', 'Timing', ''].map(h => (
-                      <th key={h} className="text-left font-medium px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.map((j, idx) => {
-                    const skippedCount = Array.isArray(j.skipped_images) ? j.skipped_images.length : 0
-                    const progress = j.status === 'queued'
-                      ? '—'
-                      : `${j.images_completed}/${j.image_count}${skippedCount ? ` (${skippedCount} skip.)` : ''}`
-                    return (
-                      <tr key={j.id} style={{ borderBottom: idx === jobs.length - 1 ? 'none' : '1px solid var(--border)' }}>
-                        <td className="px-2 py-2" style={{ color: 'var(--text)' }}>{j.galleries?.title || 'Deleted gallery'}</td>
-                        <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{j.size === 'web' ? 'Web' : 'Hi-res'}</td>
-                        <td className="px-2 py-2"><StatusBadge status={j.status} styles={JOB_STATUS_STYLE} /></td>
-                        <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{progress}</td>
-                        <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatBytes(j.final_size_bytes)}</td>
-                        <td className="px-2 py-2 whitespace-nowrap"><SourceBadge isDedup={!!j.dedup_source_job_id} /></td>
-                        <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)', lineHeight: 1.35 }}>
-                          <div>{timeAgo(j.created_at)}</div>
-                          {j.status === 'ready' && <div style={{ fontSize: '10px' }}>exp. {timeUntil(j.expires_at)}</div>}
-                        </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-right">
-                          {j.status === 'ready' && (
-                            <button onClick={() => setExpireTarget(j)}
-                              className="text-xs font-medium px-2 py-1 rounded-lg"
-                              style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-                              Expire
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile: stacked cards, no horizontal scroll */}
-            <div className="md:hidden flex flex-col gap-2">
-              {jobs.map(j => {
-                const skippedCount = Array.isArray(j.skipped_images) ? j.skipped_images.length : 0
-                const progress = j.status === 'queued'
-                  ? '—'
-                  : `${j.images_completed}/${j.image_count}${skippedCount ? ` (${skippedCount} skip.)` : ''}`
-                return (
-                  <div key={j.id} className="rounded-xl px-3 py-3" style={{ border: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <p className="text-sm font-medium leading-tight" style={{ color: 'var(--text)' }}>{j.galleries?.title || 'Deleted gallery'}</p>
-                      <div className="shrink-0"><StatusBadge status={j.status} styles={JOB_STATUS_STYLE} /></div>
-                    </div>
-                    <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-                      {j.size === 'web' ? 'Web' : 'Hi-res'} &middot; {progress} &middot; {timeAgo(j.created_at)}
-                    </p>
-                    <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                      <SourceBadge isDedup={!!j.dedup_source_job_id} />
-                      {j.status === 'ready' && (
-                        <button onClick={() => setExpireTarget(j)}
-                          className="text-xs font-medium px-2.5 py-1 rounded-lg"
-                          style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-                          Expire
-                        </button>
-                      )}
-                    </div>
+        ) : isMobile ? (
+          <div className="flex flex-col gap-2">
+            {jobs.map(j => {
+              const skippedCount = Array.isArray(j.skipped_images) ? j.skipped_images.length : 0
+              const progress = j.status === 'queued'
+                ? '—'
+                : `${j.images_completed}/${j.image_count}${skippedCount ? ` (${skippedCount} skip.)` : ''}`
+              return (
+                <div key={j.id} className="rounded-xl px-3 py-3" style={{ border: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <p className="text-sm font-medium leading-tight" style={{ color: 'var(--text)' }}>{j.galleries?.title || 'Deleted gallery'}</p>
+                    <div className="shrink-0"><StatusBadge status={j.status} styles={JOB_STATUS_STYLE} /></div>
                   </div>
-                )
-              })}
-            </div>
-          </>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+                    {j.size === 'web' ? 'Web' : 'Hi-res'} &middot; {progress} &middot; {timeAgo(j.created_at)}
+                  </p>
+                  <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                    <SourceBadge isDedup={!!j.dedup_source_job_id} />
+                    {j.status === 'ready' && (
+                      <button onClick={() => setExpireTarget(j)}
+                        className="text-xs font-medium px-2.5 py-1 rounded-lg"
+                        style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                        Expire
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="overflow-x-auto -mx-5">
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {['Gallery', 'Type', 'Status', 'Progress', 'Size', 'Source', 'Timing', ''].map(h => (
+                    <th key={h} className="text-left font-medium px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((j, idx) => {
+                  const skippedCount = Array.isArray(j.skipped_images) ? j.skipped_images.length : 0
+                  const progress = j.status === 'queued'
+                    ? '—'
+                    : `${j.images_completed}/${j.image_count}${skippedCount ? ` (${skippedCount} skip.)` : ''}`
+                  return (
+                    <tr key={j.id} style={{ borderBottom: idx === jobs.length - 1 ? 'none' : '1px solid var(--border)' }}>
+                      <td className="px-2 py-2" style={{ color: 'var(--text)' }}>{j.galleries?.title || 'Deleted gallery'}</td>
+                      <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{j.size === 'web' ? 'Web' : 'Hi-res'}</td>
+                      <td className="px-2 py-2"><StatusBadge status={j.status} styles={JOB_STATUS_STYLE} /></td>
+                      <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{progress}</td>
+                      <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatBytes(j.final_size_bytes)}</td>
+                      <td className="px-2 py-2 whitespace-nowrap"><SourceBadge isDedup={!!j.dedup_source_job_id} /></td>
+                      <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)', lineHeight: 1.35 }}>
+                        <div>{timeAgo(j.created_at)}</div>
+                        {j.status === 'ready' && <div style={{ fontSize: '10px' }}>exp. {timeUntil(j.expires_at)}</div>}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap text-right">
+                        {j.status === 'ready' && (
+                          <button onClick={() => setExpireTarget(j)}
+                            className="text-xs font-medium px-2 py-1 rounded-lg"
+                            style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
+                            Expire
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
 
         <PaginationFooter

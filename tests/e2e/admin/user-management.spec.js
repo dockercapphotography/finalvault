@@ -204,3 +204,85 @@ test.describe('Admin — Tier Management', () => {
     }
   })
 })
+
+// ── v1.5.8: pagination (client-side slice over the fetched roster) ─────────
+
+async function waitForPhotographerRow(id) {
+  for (let i = 0; i < 10; i++) {
+    const { data } = await sb().from('photographers').select('id').eq('id', id).maybeSingle()
+    if (data) return
+    await new Promise(r => setTimeout(r, 300))
+  }
+  throw new Error(`Photographer row never appeared for ${id}`)
+}
+
+test.describe('Admin — User Management pagination', () => {
+  const createdUserIds = []
+  const PAGE_TEST_COUNT = 11 // one more than a full page (default page size 10)
+
+  test.beforeAll(async () => {
+    for (let i = 0; i < PAGE_TEST_COUNT; i++) {
+      const email = `pw-page-test-${i}-${Date.now()}@example.com`
+      const { data, error } = await sb().auth.admin.createUser({
+        email,
+        password: 'PlaywrightPageTest123!',
+        email_confirm: true,
+      })
+      if (error) throw new Error(error.message)
+      createdUserIds.push(data.user.id)
+      // Real signup trigger chain (handle_new_user -> photographers insert)
+      // -- same as the "assigns a default storage tier on signup" test
+      // above -- creates the row asynchronously enough to need a brief
+      // wait before it's safe to update display_name on it.
+      await waitForPhotographerRow(data.user.id)
+      await sb().from('photographers').update({ display_name: `PW Page Test ${i}` }).eq('id', data.user.id)
+    }
+  })
+
+  test.afterAll(async () => {
+    for (const id of createdUserIds) {
+      await sb().from('photographer_storage').delete().eq('photographer_id', id)
+      await sb().from('photographers').delete().eq('id', id)
+      await sb().auth.admin.deleteUser(id)
+    }
+  })
+
+  test('search narrows to seeded accounts, showing a real page count', async ({ page }) => {
+    await goToAdmin(page)
+    await page.locator('input[placeholder*="Search"]').fill('PW Page Test')
+    await expect(page.getByText('PW Page Test 0')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(`Showing 1–10 of ${PAGE_TEST_COUNT}`)).toBeVisible()
+    await expect(page.getByText('Page 1 of 2')).toBeVisible()
+  })
+
+  test('Next advances to the second page and shows the remainder', async ({ page }) => {
+    await goToAdmin(page)
+    await page.locator('input[placeholder*="Search"]').fill('PW Page Test')
+    await expect(page.getByText('Page 1 of 2')).toBeVisible({ timeout: 5000 })
+
+    await page.getByRole('button', { name: 'Next page' }).click()
+    await expect(page.getByText(`Showing 11–${PAGE_TEST_COUNT} of ${PAGE_TEST_COUNT}`)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Page 2 of 2')).toBeVisible()
+    // Note: which specific seeded account lands on page 2 isn't asserted
+    // here -- Admin.jsx's photographer query has no ORDER BY, so row
+    // order isn't guaranteed by the app. The counts above are the real
+    // contract this test cares about.
+  })
+
+  test('changing search resets back to page 1', async ({ page }) => {
+    await goToAdmin(page)
+    await page.locator('input[placeholder*="Search"]').fill('PW Page Test')
+    await expect(page.getByText('Page 1 of 2')).toBeVisible({ timeout: 5000 })
+    await page.getByRole('button', { name: 'Next page' }).click()
+    await expect(page.getByText('Page 2 of 2')).toBeVisible({ timeout: 5000 })
+
+    // Narrow the search further -- "PW Page Test 2" (not "...Test 1",
+    // which is a substring of "...Test 10" and would correctly match
+    // both under the app's substring search, defeating the point of
+    // this assertion). Should land back on page 1, not stay stuck on a
+    // now out-of-range page 2.
+    await page.locator('input[placeholder*="Search"]').fill('PW Page Test 2')
+    await expect(page.getByText('PW Page Test 2', { exact: true })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/Page \d+ of \d+/)).not.toBeVisible()
+  })
+})

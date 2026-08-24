@@ -52,7 +52,7 @@ serve(async (req) => {
     const { data: job, error: jobError } = await supabase
       .from('zip_jobs')
       .select(`
-        id, notify_email, image_count, images_completed, skipped_images,
+        id, notify_email, image_count, images_completed, skipped_images, size,
         galleries ( title, photographer_id )
       `)
       .eq('id', jobId)
@@ -92,6 +92,7 @@ serve(async (req) => {
       includedCount,
       totalCount: job.image_count,
       skippedCount,
+      size: job.size || 'hires',
     })
 
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
@@ -104,7 +105,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: `${senderName} <noreply@mail.final-vault.app>`,
         to: [job.notify_email],
-        subject: `Your download is ready — ${galleryTitle}`,
+        subject: `Your ${job.size === 'web' ? 'web-size' : 'hi-res'} download is ready — ${galleryTitle}`,
         html,
       }),
     })
@@ -129,7 +130,7 @@ serve(async (req) => {
   }
 })
 
-function buildEmailHtml({ senderName, logoUrl, galleryTitle, downloadUrl, includedCount, totalCount, skippedCount }: {
+function buildEmailHtml({ senderName, logoUrl, galleryTitle, downloadUrl, includedCount, totalCount, skippedCount, size }: {
   senderName: string
   logoUrl: string | null
   galleryTitle: string
@@ -137,7 +138,9 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, downloadUrl, includ
   includedCount: number
   totalCount: number
   skippedCount: number
+  size: string
 }) {
+  const photoDescriptor = size === 'web' ? 'web-size, watermarked photo' : 'full-resolution photo'
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -169,7 +172,7 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, downloadUrl, includ
         <tr>
           <td style="padding:28px 40px;">
             <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.6;">
-              Your ZIP of ${includedCount} full-resolution photo${includedCount === 1 ? '' : 's'} is ready to download.
+              Your ZIP of ${includedCount} ${photoDescriptor}${includedCount === 1 ? '' : 's'} is ready to download.
               ${skippedCount > 0
                 ? `<br><br><strong>${skippedCount} photo${skippedCount === 1 ? '' : 's'} could not be included</strong> after repeated attempts to retrieve ${skippedCount === 1 ? 'it' : 'them'} -- everything else downloaded successfully.`
                 : ''
