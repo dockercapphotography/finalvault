@@ -31,6 +31,8 @@ import ClientPortalRedirect from './routes/ClientPortalRedirect.jsx'
 import SignupBooking from './routes/SignupBooking.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
 import SignupLiveStatus from './routes/SignupLiveStatus.jsx'
+import CustomDomainRoot from './routes/CustomDomainRoot.jsx'
+import { isAppHost } from './utils/isAppHost.js'
 
 const RECOVERY_KEY = 'fv-password-recovery'
 
@@ -87,9 +89,11 @@ export default function App() {
       } />
 
       <Route path="/" element={
-        <ProtectedRoute session={session}>
-          <PageWrapper session={session}><Dashboard /></PageWrapper>
-        </ProtectedRoute>
+        isAppHost()
+          ? <ProtectedRoute session={session}>
+              <PageWrapper session={session}><Dashboard /></PageWrapper>
+            </ProtectedRoute>
+          : <CustomDomainRoot />
       } />
       <Route path="/galleries/new" element={
         <ProtectedRoute session={session}>
