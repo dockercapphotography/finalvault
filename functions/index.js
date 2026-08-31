@@ -68,7 +68,13 @@ class HeadRewriter {
 export async function onRequestGet(context) {
   const { request, env, next } = context
   const url = new URL(request.url)
-  const hostname = url.hostname
+  // Custom-domain traffic passes through saas-proxy-worker, which
+  // rewrites the request's actual hostname to *.pages.dev before it
+  // ever reaches this Function -- X-Forwarded-Host carries the real
+  // original hostname through that hop. Falls back to url.hostname for
+  // requests that never went through the proxy at all (direct
+  // final-vault.app / *.pages.dev traffic).
+  const hostname = request.headers.get('X-Forwarded-Host') || url.hostname
 
   // The app's own domains never serve a microsite at "/" -- that's the
   // dashboard/login. Skip the lookup entirely for those.

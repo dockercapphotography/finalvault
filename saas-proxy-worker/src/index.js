@@ -22,8 +22,18 @@ const PAGES_ORIGIN = 'finalvault.pages.dev'
 export default {
   async fetch(request) {
     const url = new URL(request.url)
+    const originalHostname = url.hostname
     url.hostname = PAGES_ORIGIN
+
     const proxied = new Request(url.toString(), request)
+
+    // Preserve the original hostname the request actually arrived on --
+    // once url.hostname is rewritten above, that information is gone
+    // from the outgoing request's URL/Host header entirely. Downstream
+    // consumers (e.g. the SEO Pages Function, which needs to know which
+    // photographer's custom domain this is) read this header instead.
+    proxied.headers.set('X-Forwarded-Host', originalHostname)
+
     return fetch(proxied)
   },
 }
