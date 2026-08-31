@@ -4,6 +4,7 @@ import {CheckCircle, Copy, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Up
 import Cropper from 'react-easy-crop'
 import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
 import CustomDomainSection from '../components/account/CustomDomainSection.jsx'
+import MicrositeSection from '../components/account/MicrositeSection.jsx'
 import WebImageBackfillSection from '../components/account/WebImageBackfillSection.jsx'
 import ZipJobMonitorSection from '../components/account/ZipJobMonitorSection.jsx'
 import { supabase } from '../supabaseClient.js'
@@ -922,6 +923,8 @@ function ProfileTab({ user, onSaveState }) {
       </SettingsSection>
 
       <CustomDomainSection photographerId={user?.id} />
+
+      <MicrositeSection />
 
       {storageInfo && (
         <SettingsSection title="Storage" description="Your current storage usage and plan.">

@@ -115,6 +115,29 @@ export default function PortalMenu({ trigger, items, triggerClassName, triggerSt
       setActiveSubmenu(activeSubmenu === item.label ? null : item.label)
       return
     }
+    if (item.confirm) {
+      setConfirmingItem(item)
+      if (typeof item.confirm === "function") {
+        const requestId = ++confirmRequestRef.current
+        setConfirmLoading(true)
+        setConfirmData(null)
+        Promise.resolve(item.confirm())
+          .then(resolved => {
+            if (confirmRequestRef.current !== requestId) return // stale/cancelled
+            setConfirmData(resolved)
+            setConfirmLoading(false)
+          })
+          .catch(err => {
+            if (confirmRequestRef.current !== requestId) return
+            console.error("PortalMenu: confirm() failed", err)
+            setConfirmLoading(false)
+            setConfirmingItem(null)
+          })
+      } else {
+        setConfirmData(item.confirm)
+      }
+      return
+    }
     item.onClick?.()
     close()
   }
@@ -274,7 +297,7 @@ export default function PortalMenu({ trigger, items, triggerClassName, triggerSt
             position: 'fixed',
             top: pos.top,
             left: pos.left,
-            width: MENU_WIDTH,
+            width: confirmingItem ? 240 : MENU_WIDTH,
             zIndex: 9999,
             background: 'var(--surface)',
             border: '1px solid var(--border)',
@@ -284,7 +307,36 @@ export default function PortalMenu({ trigger, items, triggerClassName, triggerSt
           }}
           onClick={e => e.stopPropagation()}
         >
-          {items.map((item, i) => {
+          {confirmingItem ? (
+            confirmLoading ? (
+              <div className="flex items-center justify-center" style={{ padding: '20px 14px' }}>
+                <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
+              </div>
+            ) : confirmData ? (
+              <div style={{ padding: '12px 14px' }}>
+                <p className="text-sm font-medium mb-1" style={{ color: confirmingItem.danger ? 'var(--danger)' : 'var(--text)' }}>
+                  {confirmData.title}
+                </p>
+                {confirmData.message && (
+                  <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>{confirmData.message}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConfirm}
+                    className="flex-1 py-2 rounded-lg text-xs font-medium"
+                    style={{ background: confirmingItem.danger ? 'var(--danger)' : 'var(--text)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                    {confirmData.confirmLabel || 'Confirm'}
+                  </button>
+                  <button
+                    onClick={handleCancelConfirm}
+                    className="flex-1 py-2 rounded-lg text-xs"
+                    style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    {confirmData.cancelLabel || 'Cancel'}
+                  </button>
+                </div>
+              </div>
+            ) : null
+          ) : items.map((item, i) => {
             if (item.type === 'divider') {
               return <div key={i} style={{ borderTop: '1px solid var(--border)', margin: '2px 0' }} />
             }

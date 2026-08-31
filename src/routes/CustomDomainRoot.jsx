@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getSiteByHostname } from '../utils/micrositeApi.js'
 import MicrositePlaceholder from './MicrositePlaceholder.jsx'
+import MicrositeRenderer from '../components/microsite/MicrositeRenderer.jsx'
 
 // Rendered as the "/" route element whenever isAppHost() is false — i.e.
 // the request arrived on a photographer's custom domain, not
@@ -24,17 +25,7 @@ export default function CustomDomainRoot() {
   }
 
   if (site.type === 'microsite') {
-    // TODO: full themed public renderer — the editor (Content/Design tabs,
-    // section variants, accent/font/shape tokens) hasn't been built yet,
-    // so there's no real photographer-facing way to get a microsites row
-    // to enabled=true today. This branch is unreachable in production
-    // until that editor ships; placeholder-style rendering here is a safe,
-    // honest fallback rather than pretending the themed renderer exists.
-    return <MicrositePlaceholder site={{
-      business_name: site.studio_name,
-      business_email: site.contact_email,
-      accent_color: site.accent_color,
-    }} />
+    return <MicrositeRenderer site={site} />
   }
 
   // type === 'not_found' — domain isn't recognized or isn't active.

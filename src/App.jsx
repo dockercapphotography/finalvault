@@ -33,6 +33,8 @@ import PageWrapper from './components/layout/PageWrapper.jsx'
 import SignupLiveStatus from './routes/SignupLiveStatus.jsx'
 import CustomDomainRoot from './routes/CustomDomainRoot.jsx'
 import { isAppHost } from './utils/isAppHost.js'
+import MicrositeEditor from './routes/MicrositeEditor.jsx'
+import MicrositePreviewPage from './routes/MicrositePreviewPage.jsx'
 
 const RECOVERY_KEY = 'fv-password-recovery'
 
@@ -172,6 +174,16 @@ export default function App() {
       <Route path="/sessions/signups/:id/status" element={
         <ProtectedRoute session={session}>
           <SignupLiveStatus />
+        </ProtectedRoute>
+      } />
+      <Route path="/website" element={
+        <ProtectedRoute session={session}>
+          <MicrositeEditor />
+        </ProtectedRoute>
+      } />
+      <Route path="/website/preview" element={
+        <ProtectedRoute session={session}>
+          <MicrositePreviewPage />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />

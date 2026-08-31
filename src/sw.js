@@ -15,6 +15,14 @@
 // generateSW -- kept at exact parity with what was already live in
 // production. No new caching behavior was added here.
 
+// Suppresses Workbox's own verbose dev-mode console logging (every
+// precache check, route match, and cache update) without disabling the
+// service worker itself -- devOptions.enabled stays true in
+// vite.config.js. Workbox's logger checks this flag at the moment each
+// log would fire (during actual fetch handling), not once at import
+// time, so this being first is what matters, not import hoisting order.
+self.__WB_DISABLE_DEV_LOGS = true
+
 import { precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching'
 import { registerRoute, NavigationRoute } from 'workbox-routing'
 import { NetworkFirst, CacheFirst } from 'workbox-strategies'

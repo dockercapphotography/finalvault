@@ -1,4 +1,4 @@
-export default function Toggle({ checked, onChange, label, description }) {
+export default function Toggle({ checked, onChange, label, description, testId }) {
   return (
     <label className="flex items-start gap-3 cursor-pointer">
       <div className="relative mt-0.5 shrink-0">
@@ -7,6 +7,7 @@ export default function Toggle({ checked, onChange, label, description }) {
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           className="sr-only"
+          data-testid={testId}
         />
         <div
           className="w-8 h-4 rounded-full transition-colors"

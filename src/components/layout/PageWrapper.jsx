@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.8'
+const VERSION = '1.5.9'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,21 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.9 — August 31, 2026">
+                  <Group label="FinalVault Microsite">
+                    <Item>A full one-page website for your studio, live at your custom domain -- Hero, About, Gallery, Pricing, Testimonials, and Contact, each with multiple layouts to choose from</Item>
+                    <Item>Seven built-in themes plus a custom accent color picker, with automatic contrast handling</Item>
+                    <Item>Live preview while you edit, on both desktop and mobile</Item>
+                    <Item>Turn any section on or off -- its editing fields hide too, so it's always clear what's actually live</Item>
+                    <Item>Editing from a phone now has its own dedicated navigation, replacing a desktop-only layout that didn't fit a narrow screen</Item>
+                  </Group>
+                  <Group label="Social share previews">
+                    <Item>Sharing your microsite link now shows a real preview card with your studio name, description, and hero photo</Item>
+                  </Group>
+                  <Group label="Account page">
+                    <Item>Custom Domain and Website sections reorganized for clarity, with consistent status indicators</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.8 — August 23, 2026">
                   <Group label="Web-size ZIP downloads for large galleries">
                     <Item>Web-size downloads for large galleries now process in the background too, just like full-resolution downloads already do -- you'll get an email when it's ready</Item>

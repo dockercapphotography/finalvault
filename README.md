@@ -53,6 +53,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Session Signup Pages** — create a public, shareable booking page per event with its own venue, timezone, and shoot types; clients pick a time and book themselves, which atomically creates the client (or matches an existing one) and a real session, with automatic questionnaire assignment, database-enforced double-booking prevention across overlapping shoot types, and calendar-ready confirmation emails (Google Calendar link + .ics); optional per-shoot-type pricing and deposit shown to clients before they book
 - **Live status page** — a dedicated, mobile-friendly view for checking bookings on the go: a "Happening now" card shows the current or next session with a countdown, search and Booked-only filtering, a day-timeline view alongside the list, private per-slot notes, one-tap call/text/email, mark-as-no-show to free up a slot without losing the client record, registering a walk-up client directly against an open slot (creates a real booking identical to a public signup), and rescheduling an existing booking to a different open slot or a custom time (with conflict prevention and an optional updated confirmation email to the client); real push notifications for new claims, contract signatures, and questionnaire responses, each independently configurable, delivered even when the app is closed, with per-device enable/disable; an in-app notification bell alongside gallery activity and pending contracts
 - **Custom domains** — point your own domain (e.g. `book.yourstudio.com`) at your client-facing links instead of the default FinalVault domain; guided CNAME setup with registrar-specific instructions, live status checking, and plain-language error messages if DNS isn’t configured correctly yet
+- **FinalVault Microsite** — a full one-page website for your studio, live at your custom domain; Hero, About, Gallery, Pricing, Testimonials, and Contact sections, each with multiple layout variants; seven built-in color themes plus a custom accent color picker; live preview while you edit, on desktop and mobile; and social share previews so your link looks right the moment someone shares it
 
 ### For Clients
 
@@ -83,7 +84,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 | Custom domains | Cloudflare for SaaS + Workers (fallback-origin bridge) |
 | Email | Resend |
 | Scheduling | pg_cron (daily digest + expiry reminders) |
-| Testing | Playwright (371 end-to-end tests) |
+| Testing | Playwright (434 end-to-end tests) |
 | Icons | Lucide React |
 
 ---
@@ -192,7 +193,7 @@ npx playwright install
 npx playwright test
 ```
 
-571 end-to-end tests covering auth, client gallery access, photographer workflows, gallery guide, category tags, dashboard sort/filter, uploads, and admin.
+434 end-to-end tests covering auth, client gallery access, photographer workflows, gallery guide, category tags, dashboard sort/filter, uploads, the microsite editor and public preview, and admin.
 
 ---
 
@@ -217,6 +218,8 @@ npx playwright test
 | `storage_tiers` | Storage plan definitions |
 | `gallery_tags` | Per-photographer tag library with custom colors |
 | `gallery_tag_assignments` | Many-to-many tag assignments to galleries |
+| `photographer_domains` | Custom domain configuration and Cloudflare verification status |
+| `microsites` | One-page studio website content, theme, and section settings |
 
 All tables use Row Level Security (RLS). Photographers access only their own data. Clients access galleries via share token through anon RLS policies.
 
@@ -231,6 +234,7 @@ finalvault/
 │   ├── handlers/                # upload, preview, download, zip, watermark
 │   ├── middleware/              # JWT auth, share token validation
 │   └── utils/                  # Image processing (resize, watermark, encode)
+├── functions/                    # Cloudflare Pages Function — server-side SEO meta tag injection
 ├── supabase/functions/          # Edge Functions — email delivery, digest, expiry reminders
 ├── sql/                         # Incremental database migrations (001–019)
 └── src/

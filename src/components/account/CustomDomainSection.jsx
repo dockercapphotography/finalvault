@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Copy, Check } from 'lucide-react'
+import { Copy, Check, Globe } from 'lucide-react'
 import SettingsSection from '../ui/SettingsSection.jsx'
 import { supabase } from '../../supabaseClient.js'
 
@@ -76,7 +76,7 @@ function translateVerificationErrors(messages, domain) {
   }
 }
 
-async function callManageCustomDomain(method, body) {
+export async function callManageCustomDomain(method, body) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('Not signed in')
   const res = await fetch(
@@ -213,7 +213,8 @@ export default function CustomDomainSection({ photographerId }) {
   return (
     <SettingsSection
       title="Custom domain"
-      description="Use your own domain for client-facing links instead of final-vault.app.">
+      description="Use your own domain for client-facing links instead of final-vault.app."
+      action={uiState !== 'empty' && <StatusBadge state={uiState} />}>
       <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
 
         {uiState === 'empty' && (
@@ -243,11 +244,32 @@ export default function CustomDomainSection({ photographerId }) {
           </>
         )}
 
-        {uiState !== 'empty' && domain && (
+        {uiState === 'active' && domain && (
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Globe size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <a href={`https://${domain.domain}`} target="_blank" rel="noopener noreferrer"
+                  className="text-sm font-medium" style={{ color: 'var(--text)', textDecoration: 'none' }}>
+                  {domain.domain}
+                </a>
+              </div>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)', marginLeft: 22 }}>
+                Client-facing links now use this domain.
+              </p>
+            </div>
+            <button
+              onClick={() => setConfirmingRemove(true)}
+              style={{ fontSize: 13, fontWeight: 500, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--danger)', background: 'var(--danger-subtle)', color: 'var(--danger)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              Remove domain
+            </button>
+          </div>
+        )}
+
+        {(uiState === 'pending' || uiState === 'attention') && domain && (
           <>
-            <div className="flex items-center gap-2 mb-4">
+            <div className="mb-4">
               <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{domain.domain}</span>
-              <StatusBadge state={uiState} />
             </div>
 
             {(uiState === 'pending' || uiState === 'attention') && (
@@ -283,12 +305,6 @@ export default function CustomDomainSection({ photographerId }) {
                 Just added the record? This can take a few minutes to catch up — try checking again shortly.
               </p>
             )}
-            {uiState === 'active' && (
-              <p className="text-xs mb-3.5" style={{ color: 'var(--text-muted)' }}>
-                Client-facing links now use this domain.
-              </p>
-            )}
-
             <div className="flex gap-2">
               {uiState !== 'active' && (
                 <button
@@ -300,7 +316,7 @@ export default function CustomDomainSection({ photographerId }) {
               )}
               <button
                 onClick={() => setConfirmingRemove(true)}
-                style={{ fontSize: 13, padding: '8px 14px', borderRadius: 8, border: uiState === 'active' ? '1px solid var(--border)' : 'none', background: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                style={{ fontSize: 13, fontWeight: 500, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--danger)', background: 'var(--danger-subtle)', color: 'var(--danger)', cursor: 'pointer' }}>
                 Remove domain
               </button>
             </div>

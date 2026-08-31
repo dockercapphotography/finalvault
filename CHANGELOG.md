@@ -4,6 +4,27 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.9 — August 31, 2026
+
+### New Features
+
+**FinalVault Microsite**
+- A full one-page website for your studio, live at your custom domain -- Hero, About, Gallery, Pricing, Testimonials, and Contact sections, each with multiple layout variants to choose from
+- Seven built-in color themes plus a full custom accent color picker, with automatic contrast handling so text and buttons stay readable against any color you pick
+- Live preview while you edit, on both desktop (side-by-side) and mobile (a dedicated full-screen preview you can jump in and out of)
+- Section-by-section visibility toggles -- turn any section on or off, and its editing fields hide too so it's always clear what's actually live
+- "Book a Shoot" can link directly to one of your existing booking pages
+- Editing your site from a phone has its own dedicated bottom navigation (Content / Design / Preview), instead of a desktop-only layout that didn't fit a narrow screen
+- Social media links, an optional dark-mode logo, and precise focal-point control over how every photo crops throughout the site
+
+**Social share previews**
+- Sharing your microsite link on Instagram, iMessage, or Facebook now shows a real preview card with your studio name, a description, and your actual hero photo -- instead of a blank or generic-looking link
+
+**Account page**
+- The Custom Domain and Website sections were reorganized for clarity -- status now lives consistently in each section's header, and "Manage website" is disabled until a custom domain is configured, since the site has nowhere to go live without one
+
+---
+
 ## v1.5.8 — August 23, 2026
 
 ### New Features

@@ -194,6 +194,35 @@ export const test = base.extend({
     await sb.from('galleries').delete().eq('id', gallery.id)
   },
 
+  // The microsites table is one row per photographer (not something we
+  // can freely create/delete per test the way galleries work). Snapshots
+  // whatever state exists before the test runs, lets the test make any
+  // changes it needs via the UI, then restores that exact snapshot after
+  // -- or deletes the row entirely if none existed before, letting
+  // getMyMicrosite's own auto-create logic produce a clean default next
+  // time it's needed.
+  testMicrosite: async ({}, use) => {
+    const sb = adminClient()
+    const { data: { users } } = await sb.auth.admin.listUsers()
+    const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
+    if (!user) throw new Error('Test photographer user not found in Supabase')
+
+    const { data: existing } = await sb
+      .from('microsites')
+      .select('*')
+      .eq('photographer_id', user.id)
+      .maybeSingle()
+
+    await use({ photographerId: user.id })
+
+    if (existing) {
+      const { id, ...rest } = existing
+      await sb.from('microsites').update(rest).eq('id', id)
+    } else {
+      await sb.from('microsites').delete().eq('photographer_id', user.id)
+    }
+  },
+
   // Like testGallery but with allow_proofing enabled (requires allow_favorites: true)
   testGalleryWithProofing: async ({}, use) => {
     const sb = adminClient()

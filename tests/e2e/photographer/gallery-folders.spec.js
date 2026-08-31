@@ -325,7 +325,7 @@ test.describe('Gallery Folders', () => {
       await page.getByRole('button', { name: 'Delete' }).click()
 
       // Warning text appears in the card body confirm area — shows folder name with counts
-      await expect(page.getByText(/Delete "Full Folder" and its/)).toBeVisible({ timeout: 5000 })
+      await expect(page.getByText(/This will also delete/)).toBeVisible({ timeout: 5000 })
       await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
 

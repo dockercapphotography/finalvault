@@ -301,9 +301,15 @@ test.describe('Client Favorites — Activity Page', () => {
       await page.getByText('Delete favorites list', { exact: true }).click()
 
       // Confirm dialog: two buttons appear — "Delete" (confirm) and "Cancel".
-      // Click the first one (the red Delete button).
-      await expect(panel.getByRole('button', { name: 'Delete' })).toBeVisible({ timeout: 3000 })
-      await panel.getByRole('button', { name: 'Delete' }).first().click()
+      // Same as the dropdown items above, this renders via createPortal
+      // into document.body, not as a descendant of the panel -- so this
+      // is un-scoped to the page, not the panel. exact: true avoids
+      // matching the client card button, whose accessible name contains
+      // this test's own seeded email ("delete-card@example.com") --
+      // Playwright's default name matching is a case-insensitive substring
+      // match, and that email happens to contain "delete".
+      await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeVisible({ timeout: 3000 })
+      await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
       // Panel closes and card is removed
       await expect(desktopPanel(page)).not.toBeVisible({ timeout: 5000 })

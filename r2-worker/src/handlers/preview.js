@@ -1,5 +1,6 @@
 import { verifyJWT } from '../middleware/auth.js'
 import { verifyShareToken } from '../middleware/shareToken.js'
+import { verifyMicrositeAccess } from '../middleware/micrositeAccess.js'
 
 /**
  * GET /preview/:key
@@ -28,7 +29,16 @@ export async function handlePreview(request, env, corsHeaders) {
   // never original.js or zip.js.
   const allowExpiredPreview = url.searchParams.get('allow_expired') === '1'
 
-  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken) {
+  // Public microsite request -- no client-supplied secret. Legitimacy is
+  // verified entirely server-side by verifyMicrositeAccess() against
+  // whether this exact key belongs to a currently-enabled microsite
+  // (hero image, gallery source, or a testimonial photo). Deliberately
+  // separate from the share-token path above: reusing a gallery's own
+  // share_token here would leak full private-gallery access (including a
+  // password-gate bypass) to anyone viewing the public site.
+  const isMicrositeRequest = url.searchParams.get('microsite') === '1'
+
+  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest) {
     return jsonResponse({ ok: false, error: 'Authentication required' }, 401, corsHeaders)
   }
 
@@ -42,7 +52,7 @@ export async function handlePreview(request, env, corsHeaders) {
     const auth = await verifyJWT(authRequest)
     if (!auth.valid) return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
     photographerId = auth.userId
-  } else {
+  } else if (hasShareHeader || queryShareToken) {
     // Client access — share token from header or query param
     const tokenRequest = queryShareToken
       ? new Request(request.url, {
@@ -54,6 +64,11 @@ export async function handlePreview(request, env, corsHeaders) {
     const shareAuth = await verifyShareToken(tokenRequest, env, false, allowExpiredPreview)
     if (!shareAuth.valid) return jsonResponse({ ok: false, error: shareAuth.error }, 403, corsHeaders)
     photographerId = shareAuth.photographerId
+  } else {
+    // Public microsite access
+    const micrositeAuth = await verifyMicrositeAccess(key, env)
+    if (!micrositeAuth.valid) return jsonResponse({ ok: false, error: micrositeAuth.error }, 403, corsHeaders)
+    photographerId = micrositeAuth.photographerId
   }
 
   if (!key.startsWith(`photographers/${photographerId}/`)) {

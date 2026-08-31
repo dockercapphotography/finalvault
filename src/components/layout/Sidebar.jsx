@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { Images, Settings, Bookmark, Users, CalendarDays } from 'lucide-react'
 import NotificationBell from './NotificationBell.jsx'
+import MobileBottomNav from './MobileBottomNav.jsx'
 
 const baseNavItems = [
   { to: '/', label: 'Galleries', icon: Images, end: true },
@@ -61,38 +62,7 @@ export default function Sidebar() {
       </aside>
 
       {/* ── Mobile bottom nav ── */}
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-evenly"
-        style={{
-          background: 'var(--surface)',
-          borderTop: '1px solid var(--border)',
-          height: 60,
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}
-      >
-        {[
-          { to: '/', label: 'Galleries', icon: Images, end: true },
-          { to: '/clients', label: 'Clients', icon: Users },
-          { to: '/sessions', label: 'Sessions', icon: CalendarDays },
-          { to: '/bookmarked', label: 'Bookmarked', icon: Bookmark },
-          { to: '/account', label: 'Account', icon: Settings },
-        ].map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
-            style={({ isActive }) => ({
-              color: isActive ? 'var(--text)' : 'var(--text-muted)',
-              fontWeight: isActive ? '500' : '400',
-              gap: 3,
-            })}
-          >
-            <Icon size={18} />
-            <span style={{ fontSize: 10 }}>{label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <MobileBottomNav items={navItems} />
     </>
   )
 }

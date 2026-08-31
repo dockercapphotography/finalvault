@@ -6,6 +6,7 @@ import { handleDelete } from './handlers/delete.js'
 import { handleZip } from './handlers/zip.js'
 import { handleWatermarkUpload, handleWatermarkServe, handleLogoServe } from './handlers/watermark.js'
 import { handleAvatarServe } from './handlers/avatar.js'
+import { handleMicrositeHeroServe } from './handlers/micrositeHero.js'
 import { handlePdfUpload } from './handlers/upload-pdf.js'
 import { handleContractPdf } from './handlers/contract-pdf.js'
 import { handleZipJobs, handleZipJobStatus, handleZipJobDownload, handleZipJobExpire } from './handlers/zip-jobs.js'
@@ -127,6 +128,9 @@ export default {
       }
       if (request.method === 'GET' && pathname.startsWith('/avatar/')) {
         return await handleAvatarServe(request, env, CORS_HEADERS)
+      }
+      if (request.method === 'GET' && pathname.startsWith('/microsite-hero/')) {
+        return await handleMicrositeHeroServe(request, env, CORS_HEADERS)
       }
 
       // ── PDF upload (internal — service role key auth) ──
