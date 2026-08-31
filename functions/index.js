@@ -115,8 +115,13 @@ export async function onRequestGet(context) {
   }
 
   const title = site.studio_name || 'Photography'
+  // Priority order per Nick: not every photographer turns on the About
+  // section, but a tagline is the most likely thing to actually be set,
+  // followed by the Hero subheading (also front-and-center on the page),
+  // then the About section's own subheading, before falling back to a
+  // generic message.
   const description = truncate(
-    site.about_subheading || site.tagline || site.bio || `Professional photography by ${title}`,
+    site.tagline || site.hero_subheading || site.about_subheading || `Professional photography by ${title}`,
     160
   )
   const imageUrl = site.hero_image_key

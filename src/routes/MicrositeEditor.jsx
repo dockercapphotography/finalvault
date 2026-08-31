@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink } from 'lucide-react'
 import { getMyMicrosite, updateMyMicrosite } from '../utils/micrositeApi.js'
+import { callManageCustomDomain } from '../components/account/CustomDomainSection.jsx'
 import { getGalleries } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
 import MicrositeImagePicker from '../components/microsite/MicrositeImagePicker.jsx'
@@ -573,6 +574,7 @@ export default function MicrositeEditor() {
   const [showAboutFocalModal, setShowAboutFocalModal] = useState(false)
   const [accountLogoKey, setAccountLogoKey] = useState(null)
   const [accountAllSessionsToken, setAccountAllSessionsToken] = useState(null)
+  const [liveDomain, setLiveDomain] = useState(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadingLogoDark, setUploadingLogoDark] = useState(false)
   const [showDarkLogoSection, setShowDarkLogoSection] = useState(false)
@@ -620,6 +622,9 @@ export default function MicrositeEditor() {
     load()
     getGalleries().then(setGalleries).catch(() => setGalleries([]))
     getSignupPages().then(setSignupPages).catch(() => setSignupPages([]))
+    // Only used to decide whether "View live site" has anywhere to link
+    // to -- a missing/pending domain just hides the affordance below.
+    callManageCustomDomain('GET').then(setLiveDomain).catch(() => setLiveDomain(null))
   }, [])
 
   // Load every curated pairing's fonts once, so each option below can
@@ -928,6 +933,12 @@ export default function MicrositeEditor() {
             <ArrowLeft size={18} />
           </button>
           <h1 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Website</h1>
+          {liveDomain?.status === 'active' && site.enabled && (
+            <a href={`https://${liveDomain.domain}`} target="_blank" rel="noopener noreferrer" title="View live site"
+              style={{ display: 'flex', alignItems: 'center', color: 'var(--text-muted)', flexShrink: 0 }}>
+              <ExternalLink size={15} />
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {isDirty && saveState !== 'saving' && (

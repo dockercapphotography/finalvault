@@ -37,14 +37,14 @@ export default function MicrositeSection() {
         )
       }
     >
-      <div className="px-5 py-4 flex items-center justify-between gap-4" style={{ background: 'var(--surface)' }}>
-        <div className="min-w-0">
+      <div className="px-5 py-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4" style={{ background: 'var(--surface)' }}>
+        <div className="min-w-0 w-full sm:w-auto">
           {hasDomain ? (
             <>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <Globe size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 <a href={`https://${domain.domain}`} target="_blank" rel="noopener noreferrer"
-                  className="text-sm font-medium" style={{ color: 'var(--text)', textDecoration: 'none' }}>
+                  className="text-sm font-medium truncate" style={{ color: 'var(--text)', textDecoration: 'none' }}>
                   {domain.domain}
                 </a>
               </div>
