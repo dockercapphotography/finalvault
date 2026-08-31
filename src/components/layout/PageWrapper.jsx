@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.9'
+const VERSION = '1.5.10'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,15 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.10 — August 31, 2026">
+                  <Group label="Microsite favicon">
+                    <Item>Upload a custom favicon for your microsite -- shown in the browser tab when clients visit your custom domain, instead of always showing the FinalVault icon</Item>
+                  </Group>
+                  <Group label="All-sessions booking link">
+                    <Item>A single copyable link that aggregates every one of your active Signup Pages -- share one link instead of a separate one per event</Item>
+                    <Item>Goes straight to the booking page when only one session is open, or shows a chooser listing each one with its dates when more than one is</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.9 — August 31, 2026">
                   <Group label="FinalVault Microsite">
                     <Item>A full one-page website for your studio, live at your custom domain -- Hero, About, Gallery, Pricing, Testimonials, and Contact, each with multiple layouts to choose from</Item>

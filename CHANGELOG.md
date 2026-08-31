@@ -4,6 +4,20 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.10 — August 31, 2026
+
+### New Features
+
+**Microsite favicon**
+- Upload a custom favicon for your microsite (Website → Content → Branding) -- shown in the browser tab when clients visit your custom domain, instead of always showing the FinalVault icon
+
+**All-sessions booking link**
+- A single copyable link (Sessions → Sign-ups) that aggregates every one of your active Signup Pages -- share one link instead of a separate one per event
+- Auto-redirects straight to the booking page when only one session is currently open
+- Shows a chooser listing each open session with its title, venue, and dates when more than one is open; sessions with no open times left still show, marked as such, instead of disappearing
+
+---
+
 ## v1.5.9 — August 31, 2026
 
 ### New Features
