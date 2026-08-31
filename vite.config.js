@@ -29,7 +29,15 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.js',
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Default is 2 MiB -- the main JS bundle crossed that with this
+        // session's added code (microsite editor/renderer, all bundled
+        // into the one main chunk since nothing here route-splits yet).
+        // This is a hard build failure, not a warning, when exceeded.
+        // 5 MB gives headroom without being excessive; proper code-
+        // splitting (React.lazy on heavier routes) is the real long-term
+        // fix, tracked separately, not something to rush as a hotfix.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
       },
       // Registration is already handled manually in index.html
       // (navigator.serviceWorker.register('/sw.js')) -- disable the
