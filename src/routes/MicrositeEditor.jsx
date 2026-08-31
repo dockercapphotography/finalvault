@@ -572,12 +572,16 @@ export default function MicrositeEditor() {
   }, [site?.gallery_source_type, site?.gallery_source_gallery_id, site?.gallery_source_image_keys])
   const [showAboutFocalModal, setShowAboutFocalModal] = useState(false)
   const [accountLogoKey, setAccountLogoKey] = useState(null)
+  const [accountAllSessionsToken, setAccountAllSessionsToken] = useState(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadingLogoDark, setUploadingLogoDark] = useState(false)
   const [showDarkLogoSection, setShowDarkLogoSection] = useState(false)
+  const [uploadingFavicon, setUploadingFavicon] = useState(false)
+  const [showFaviconSection, setShowFaviconSection] = useState(false)
   const saveTimeoutRef = useRef(null)
   const logoInputRef = useRef(null)
   const logoDarkInputRef = useRef(null)
+  const faviconInputRef = useRef(null)
   const savedSnapshotRef = useRef(null)
   const navigate = useNavigate()
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
@@ -599,8 +603,9 @@ export default function MicrositeEditor() {
         let merged = micrositeData
         if (user) {
           const { data: photographer } = await supabase
-            .from('photographers').select('logo_r2_key, social_links').eq('id', user.id).maybeSingle()
+            .from('photographers').select('logo_r2_key, social_links, all_sessions_token').eq('id', user.id).maybeSingle()
           setAccountLogoKey(photographer?.logo_r2_key || null)
+          setAccountAllSessionsToken(photographer?.all_sessions_token || null)
           // social_links is read-only here -- lives on photographers, not
           // microsites, merged in for display/preview only. Safe: handleSave's
           // explicit field list never includes it, so it can't get written back.
@@ -718,6 +723,55 @@ export default function MicrositeEditor() {
     }
   }
 
+  async function handleFaviconSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploadingFavicon(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { user } } = await supabase.auth.getUser()
+      // Clean up the previous favicon file, if any, before uploading the new one.
+      if (site.favicon_r2_key) {
+        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(site.favicon_r2_key)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
+        }).catch(() => {})
+      }
+      const ext = file.name.split('.').pop()
+      // Same photographers/{id}/logos/ prefix as the logo/dark logo overrides --
+      // that's what makes this servable via the existing public /logo/:key
+      // worker route with no worker changes.
+      const r2Key = `photographers/${user.id}/logos/microsite-favicon-${crypto.randomUUID()}.${ext}`
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('key', r2Key)
+      const resp = await fetch(`${WORKER_URL}/watermark-upload`, {
+        method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, body: formData
+      })
+      const result = await resp.json()
+      if (!result.ok) throw new Error(result.error || 'Upload failed')
+      patch({ favicon_r2_key: r2Key })
+    } catch (err) {
+      console.error('Favicon upload error:', err)
+    } finally {
+      setUploadingFavicon(false)
+    }
+  }
+
+  async function handleFaviconRemove() {
+    if (!site.favicon_r2_key) return
+    setUploadingFavicon(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch(`${WORKER_URL}/delete/${encodeURIComponent(site.favicon_r2_key)}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
+      }).catch(() => {})
+      patch({ favicon_r2_key: null })
+    } finally {
+      setUploadingFavicon(false)
+    }
+  }
+
   async function handleAboutPhotoSelect(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -797,9 +851,10 @@ export default function MicrositeEditor() {
         hero_show_primary_btn, hero_show_secondary_btn,
         about_title, about_subheading, gallery_title, gallery_subheading,
         pricing_title, pricing_subheading, testimonials_title, testimonials_subheading,
-        contact_title, contact_subheading, logo_dark_r2_key,
+        contact_title, contact_subheading, logo_dark_r2_key, favicon_r2_key,
         gallery_image_focus, show_about, show_gallery, show_testimonials, show_contact,
         booking_signup_page_id,
+        booking_show_all_sessions,
       } = site
       const saved = await updateMyMicrosite({
         studio_name, tagline, bio, hero_image_key, contact_email,
@@ -816,9 +871,10 @@ export default function MicrositeEditor() {
         hero_show_primary_btn, hero_show_secondary_btn,
         about_title, about_subheading, gallery_title, gallery_subheading,
         pricing_title, pricing_subheading, testimonials_title, testimonials_subheading,
-        contact_title, contact_subheading, logo_dark_r2_key,
+        contact_title, contact_subheading, logo_dark_r2_key, favicon_r2_key,
         gallery_image_focus, show_about, show_gallery, show_testimonials, show_contact,
         booking_signup_page_id,
+        booking_show_all_sessions,
       })
       setSite(saved)
       savedSnapshotRef.current = JSON.stringify(saved)
@@ -855,12 +911,12 @@ export default function MicrositeEditor() {
     // iframe sees -- never mutate `site` itself, or a Save would bake
     // the account logo in as a permanent per-site override that goes
     // stale the next time the account logo changes.
-    const previewPayload = { ...site, logo_r2_key: site.logo_r2_key || accountLogoKey }
+    const previewPayload = { ...site, logo_r2_key: site.logo_r2_key || accountLogoKey, all_sessions_token: accountAllSessionsToken }
     previewIframeRef.current?.contentWindow?.postMessage(
       { type: 'microsite-preview-update', site: previewPayload },
       window.location.origin
     )
-  }, [site, accountLogoKey])
+  }, [site, accountLogoKey, accountAllSessionsToken])
 
   if (!site) return null
 
@@ -956,6 +1012,32 @@ export default function MicrositeEditor() {
               </button>
             </div>
           )}
+          {(site.favicon_r2_key || showFaviconSection) ? (
+            <div className="px-5 py-4 flex items-center gap-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+              <LogoPreview r2Key={site.favicon_r2_key} />
+              <div className="flex flex-col gap-2">
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {site.favicon_r2_key ? 'Favicon set' : 'Optional — shown in the browser tab on your custom domain. Square works best. Falls back to the FinalVault icon if not set.'}
+                </p>
+                <button onClick={() => faviconInputRef.current?.click()} disabled={uploadingFavicon} className="self-start text-sm font-medium px-3 py-1.5 rounded-lg text-left"
+                  style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                  {uploadingFavicon ? 'Uploading…' : site.favicon_r2_key ? 'Replace' : 'Upload a favicon'}
+                </button>
+                {site.favicon_r2_key && (
+                  <button onClick={handleFaviconRemove} disabled={uploadingFavicon} className="text-sm text-left" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Remove
+                  </button>
+                )}
+                <input ref={faviconInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/x-icon,image/vnd.microsoft.icon" style={{ display: 'none' }} onChange={handleFaviconSelect} />
+              </div>
+            </div>
+          ) : (
+            <div className="px-5 py-3" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+              <button onClick={() => setShowFaviconSection(true)} className="text-sm font-medium" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                + Add a favicon
+              </button>
+            </div>
+          )}
         </SettingsSection>
 
         <SettingsSection title="Hero" description="The headline and main photo shown at the top of your site.">
@@ -1045,19 +1127,29 @@ export default function MicrositeEditor() {
               <div className="pl-1">
                 <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Links to</label>
                 <select
-                  value={site.booking_signup_page_id || ''}
-                  onChange={e => patch({ booking_signup_page_id: e.target.value || null })}
+                  value={site.booking_show_all_sessions ? '__all__' : (site.booking_signup_page_id || '')}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (v === '__all__') {
+                      patch({ booking_signup_page_id: null, booking_show_all_sessions: true })
+                    } else {
+                      patch({ booking_signup_page_id: v || null, booking_show_all_sessions: false })
+                    }
+                  }}
                   style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}
                 >
                   <option value="">Contact section (default)</option>
+                  <option value="__all__">All active sessions</option>
                   {signupPages.map(p => (
                     <option key={p.id} value={p.id}>{p.title}{p.is_active === false ? ' (inactive)' : ''}</option>
                   ))}
                 </select>
                 <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                  {signupPages.length === 0
-                    ? 'No signup pages yet — create one under Sessions to link here.'
-                    : "Links straight to that signup page's public booking link instead of scrolling to Contact."}
+                  {site.booking_show_all_sessions
+                    ? 'Links to a page listing every active session — jumps straight to it instead if only one is active.'
+                    : signupPages.length === 0
+                      ? 'No signup pages yet — create one under Sessions to link here.'
+                      : "Links straight to that signup page's public booking link instead of scrolling to Contact."}
                 </p>
               </div>
             )}

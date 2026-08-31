@@ -21,6 +21,7 @@ import {
   getSignupPages, getSignupPage, createSignupPage, updateSignupPage, deleteSignupPage,
   createShootType, updateShootType, deleteShootType, generateSlots, getSlots, deleteSlot,
   createManualSlot, deleteAllOpenSlots, getShootTypeQuestionnaires, setShootTypeQuestionnaires,
+  getMyAllSessionsToken,
 } from '../utils/signupApi.js'
 import { COMMON_TIMEZONES } from '../utils/timezoneApi.js'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
@@ -1450,6 +1451,9 @@ export default function Sessions() {
   const [loadingSignups, setLoadingSignups] = useState(false)
   const [showNewSignup, setShowNewSignup] = useState(false)
   const [openSignupPageId, setOpenSignupPageId] = useState(null)
+  const [allSessionsToken, setAllSessionsToken] = useState(null)
+  const [allSessionsBaseUrl, setAllSessionsBaseUrl] = useState(window.location.origin)
+  const [allSessionsCopied, setAllSessionsCopied] = useState(false)
 
   const [photographerId, setPhotographerId] = useState(null)
 
@@ -1478,6 +1482,10 @@ export default function Sessions() {
 
   useEffect(() => {
     if (view === 'signups' && signupPages.length === 0) loadSignupPages()
+    if (view === 'signups' && allSessionsToken === null) {
+      getMyAllSessionsToken().then(setAllSessionsToken).catch(() => {})
+      getPublicBaseUrl().then(setAllSessionsBaseUrl).catch(() => {})
+    }
   }, [view])
 
   async function loadSignupPages() {
@@ -1487,6 +1495,15 @@ export default function Sessions() {
       setSignupPages(data)
     } catch (err) { console.error(err) }
     finally { setLoadingSignups(false) }
+  }
+
+  const allSessionsUrl = allSessionsToken ? `${allSessionsBaseUrl}/book/all/${allSessionsToken}` : ''
+
+  function handleCopyAllSessionsLink() {
+    if (!allSessionsUrl) return
+    navigator.clipboard.writeText(allSessionsUrl)
+    setAllSessionsCopied(true)
+    setTimeout(() => setAllSessionsCopied(false), 1500)
   }
 
   async function load({ silent = false } = {}) {
@@ -1675,6 +1692,22 @@ export default function Sessions() {
       {/* Sign-ups view */}
       {view === 'signups' && (
         <div className="max-w-4xl">
+          {allSessionsToken && (
+            <div className="rounded-xl p-3 mb-4 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3"
+              style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.25)' }}>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Link2 size={14} style={{ color: '#6366f1', flexShrink: 0 }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>All active sessions</p>
+                  <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{allSessionsUrl}</p>
+                </div>
+              </div>
+              <button onClick={handleCopyAllSessionsLink} className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center justify-center gap-1 shrink-0 w-full sm:w-auto"
+                style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                {allSessionsCopied ? <Check size={12} /> : <Copy size={12} />}{allSessionsCopied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
           <SignupPagesView
             pages={signupPages}
             loading={loadingSignups}

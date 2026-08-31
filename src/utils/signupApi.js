@@ -26,6 +26,17 @@ export async function getSignupPages() {
   })
 }
 
+export async function getMyAllSessionsToken() {
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase
+    .from('photographers')
+    .select('all_sessions_token')
+    .eq('id', user.id)
+    .single()
+  if (error) throw error
+  return data.all_sessions_token
+}
+
 export async function getSignupPage(id) {
   const { data, error } = await supabase
     .from('signup_pages')

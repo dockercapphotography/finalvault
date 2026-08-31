@@ -29,6 +29,7 @@ import ClientPortalContractDetail from './routes/ClientPortalContractDetail.jsx'
 import ClientPortalQuestionnaires from './routes/ClientPortalQuestionnaires.jsx'
 import ClientPortalRedirect from './routes/ClientPortalRedirect.jsx'
 import SignupBooking from './routes/SignupBooking.jsx'
+import AllSessionsBooking from './routes/AllSessionsBooking.jsx'
 import PageWrapper from './components/layout/PageWrapper.jsx'
 import SignupLiveStatus from './routes/SignupLiveStatus.jsx'
 import CustomDomainRoot from './routes/CustomDomainRoot.jsx'
@@ -142,6 +143,7 @@ export default function App() {
       <Route path="/submit/:token" element={<SubmitForm />} />
       <Route path="/client/:token" element={<ClientPortalRedirect />} />
       <Route path="/book/:token" element={<SignupBooking />} />
+      <Route path="/book/all/:token" element={<AllSessionsBooking />} />
       <Route path="/client/:token/galleries" element={<ClientPortalGalleries />} />
       <Route path="/client/:token/contracts" element={<ClientPortalContracts />} />
       <Route path="/client/:token/contracts/:contractId" element={<ClientPortalContractDetail />} />

@@ -917,9 +917,12 @@ function HeroButtons({ site, hasGallery }) {
   // postMessage, which only has booking_signup_page_id -- so resolve
   // it client-side here whenever the token is missing but the id is
   // present. Falls back to #contact if the lookup fails or finds
-  // nothing, same as when no signup page is linked at all.
+  // nothing, same as when no signup page is linked at all. Skipped
+  // entirely when booking_show_all_sessions is set -- that mode links
+  // to the standalone /book/all/:token page instead of any one page.
   const [resolvedToken, setResolvedToken] = useState(site.booking_signup_page_token || null)
   useEffect(() => {
+    if (site.booking_show_all_sessions) return
     if (site.booking_signup_page_token) {
       setResolvedToken(site.booking_signup_page_token)
       return
@@ -934,12 +937,16 @@ function HeroButtons({ site, hasGallery }) {
       .then(({ data }) => { if (!cancelled && data) setResolvedToken(data) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [site.booking_signup_page_token, site.booking_signup_page_id])
+  }, [site.booking_signup_page_token, site.booking_signup_page_id, site.booking_show_all_sessions])
+
+  const primaryHref = site.booking_show_all_sessions
+    ? (site.all_sessions_token ? `/book/all/${site.all_sessions_token}` : '#contact')
+    : (resolvedToken ? `/book/${resolvedToken}` : "#contact")
 
   if (!showPrimary && !showSecondary) return null
   return (
     <div className="ms-hero-cta">
-      {showPrimary && <a href={resolvedToken ? `/book/${resolvedToken}` : "#contact"} className="ms-btn ms-btn--primary">Book a Shoot</a>}
+      {showPrimary && <a href={primaryHref} className="ms-btn ms-btn--primary">Book a Shoot</a>}
       {showSecondary && <a href="#gallery" className="ms-btn ms-btn--outline">View Gallery</a>}
     </div>
   )
