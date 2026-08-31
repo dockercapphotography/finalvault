@@ -123,11 +123,17 @@ export async function onRequestGet(context) {
     ? `${R2_WORKER_URL}/microsite-hero/${encodeURIComponent(site.hero_image_key)}`
     : null
 
+  // url.toString() would still show finalvault.pages.dev here -- same
+  // proxy rewrite that required X-Forwarded-Host for the RPC lookup
+  // above applies to the request's URL as a whole, not just the
+  // hostname variable. Rebuilds the page URL using the corrected host.
+  const correctedUrl = new URL(url.pathname + url.search, `https://${hostname}`)
+
   const rewriter = new HTMLRewriter().on('head', new HeadRewriter({
     title,
     description,
     imageUrl,
-    pageUrl: url.toString(),
+    pageUrl: correctedUrl.toString(),
   }))
 
   return rewriter.transform(response)
