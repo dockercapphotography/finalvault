@@ -12,6 +12,19 @@ function sb() {
 test.use({ storageState: 'tests/.auth/photographer.json' })
 test.describe.configure({ mode: 'serial' })
 
+// The assertions below expect the test account's display_name to
+// already read "Test Studio" -- previously that only held by
+// coincidence, left over from watermark.spec.js's "saves display
+// name on blur" test having run earlier in some prior suite run.
+// Set it explicitly here so this file doesn't silently depend on
+// cross-file test order or leftover state from a previous run.
+test.beforeAll(async () => {
+  const { data: { users } } = await sb().auth.admin.listUsers()
+  const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
+  if (!user) throw new Error('Test photographer not found')
+  await sb().from('photographers').update({ display_name: 'Test Studio' }).eq('id', user.id)
+})
+
 async function goToAdmin(page) {
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Admin Panel' })).toBeVisible({ timeout: 10000 })
@@ -28,6 +41,12 @@ async function goToTiersTab(page) {
 test.describe('Admin — User Management', () => {
   test('lists all photographers', async ({ page }) => {
     await goToAdmin(page)
+    // The photographer roster has grown past the admin list's
+    // 10-per-page client-side pagination (no explicit sort order on
+    // the query either), so "Test Studio" isn't guaranteed to land
+    // on page 1 anymore -- search for it explicitly, same as
+    // 'search filters the photographer list' below.
+    await page.locator('input[placeholder*="Search"]').fill('Test Studio')
     await expect(page.getByText('Test Studio')).toBeVisible()
     await expect(page.getByText(/galleries/).first()).toBeVisible()
   })
@@ -111,6 +130,8 @@ test.describe('Admin — Tier Management', () => {
 
   test('tier changes are reflected in the photographer list', async ({ page }) => {
     await goToAdmin(page)
+    // Same pagination caveat as 'lists all photographers' above.
+    await page.locator('input[placeholder*="Search"]').fill('Test Studio')
     await expect(page.getByText('Test Studio')).toBeVisible()
     await expect(page.locator('select').first()).toBeAttached()
   })
