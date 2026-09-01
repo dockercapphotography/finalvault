@@ -38,3 +38,4 @@ tests/.auth/
 test-results.txt
 *.bak
 supabase/.temp/
+patch_*.py
