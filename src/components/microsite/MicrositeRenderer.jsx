@@ -1077,35 +1077,93 @@ function TestimonialsStack({ testimonials }) {
 }
 
 function TestimonialsSpotlight({ testimonials }) {
-  const [i, setI] = useState(0)
-  const t = testimonials[i % testimonials.length]
+  const [index, setIndex] = useState(0)
+  // Non-null exactly while a slide transition is in flight: the two
+  // testimonials involved (fromT = the one being left, toT = the one
+  // arriving), which direction, and whether the "animate" flip has
+  // happened yet (see goTo below for why that's a separate step).
+  const [transition, setTransition] = useState(null)
+  const trackRef = useRef(null)
   const hasMultiple = testimonials.length > 1
-  function prevT() { setI(idx => (idx - 1 + testimonials.length) % testimonials.length) }
-  function nextT() { setI(idx => (idx + 1) % testimonials.length) }
+  const current = testimonials[index % testimonials.length]
+
+  function renderCard(t) {
+    return (
+      <div className="ms-t-spotlight-content">
+        {t.photo_gallery_image_key && (
+          <img className="ms-t-avatar ms-t-avatar--large" src={previewUrl(t.photo_gallery_image_key)} alt=""
+            style={{ objectPosition: `${(t.photo_focus_x ?? 0.5) * 100}% ${(t.photo_focus_y ?? 0.5) * 100}%` }} />
+        )}
+        <blockquote>&ldquo;{t.quote}&rdquo;</blockquote>
+        <div className="ms-t-who">{t.name}{t.session_type ? ` — ${t.session_type}` : ''}</div>
+      </div>
+    )
+  }
+
+  function goTo(nextIndex, dir) {
+    if (transition) return // a transition's already running -- ignore, don't try to interrupt/re-target it
+    const fromT = current
+    const toT = testimonials[nextIndex % testimonials.length]
+    setTransition({ fromT, toT, dir, animate: false })
+    setIndex(nextIndex)
+    // Two animation frames before flipping to the "end" position: the
+    // first commits the "start" position (transition disabled, so it's
+    // just a plain instant style change matching what was already on
+    // screen) and lets the browser actually PAINT it; only then do we
+    // turn the transition on and move to the end position. Flipping
+    // both in the same tick risks the browser coalescing them into one
+    // paint with no visible animation at all.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTransition(prev => (prev ? { ...prev, animate: true } : prev))
+      })
+    })
+  }
+
+  function prevT() { goTo((index - 1 + testimonials.length) % testimonials.length, -1) }
+  function nextT() { goTo((index + 1) % testimonials.length, 1) }
+
+  function onTrackTransitionEnd(e) {
+    if (e.target !== trackRef.current || e.propertyName !== 'transform') return
+    setTransition(null)
+  }
+
+  // Exactly 2 slides while transitioning (old + new, ordered so the
+  // visible motion matches the arrow/dot used), 1 at rest -- both
+  // testimonials are actually on screen and moving together for the
+  // whole transition, matching how the reference site's Bootstrap
+  // carousel does it, rather than the outgoing one just vanishing.
+  const slides = transition
+    ? (transition.dir === 1 ? [transition.fromT, transition.toT] : [transition.toT, transition.fromT])
+    : [current]
+  const trackStyle = transition
+    ? {
+        width: '200%',
+        transform: transition.animate
+          ? (transition.dir === 1 ? 'translateX(-50%)' : 'translateX(0%)')
+          : (transition.dir === 1 ? 'translateX(0%)' : 'translateX(-50%)'),
+        transition: transition.animate ? 'transform .6s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
+      }
+    : { width: '100%', transform: 'translateX(0%)', transition: 'none' }
+
   return (
     <div className="ms-t-spotlight">
-      {/* Prev/next used to be absolutely positioned against the WHOLE
-          container below (avatar+quote+name+dots), whose total height
-          changes with every testimonial's quote length -- that's what
-          made the arrows visibly jump between slides. Making them flex
-          siblings of just the content block means they're always
-          centered against the current testimonial's own content, not
-          an anchor that includes the dots row underneath it. */}
+      {/* Prev/next are flex siblings of the track (not absolutely
+          positioned against the whole section), so they stay centered
+          against the current testimonial's own content rather than a
+          taller anchor that also includes the dots row below. */}
       <div className="ms-t-spotlight-row">
         {hasMultiple && (
           <button className="ms-t-spotlight-nav ms-t-spotlight-prev" onClick={prevT} aria-label="Previous testimonial"><ChevronLeft size={20} /></button>
         )}
-        {/* key={i} remounts this on every slide change, which is what
-            actually triggers the fade/slide-in CSS animation below --
-            without a key change React just mutates the same DOM nodes'
-            text/src in place and nothing animates. */}
-        <div className="ms-t-spotlight-content" key={i}>
-          {t.photo_gallery_image_key && (
-            <img className="ms-t-avatar ms-t-avatar--large" src={previewUrl(t.photo_gallery_image_key)} alt=""
-              style={{ objectPosition: `${(t.photo_focus_x ?? 0.5) * 100}% ${(t.photo_focus_y ?? 0.5) * 100}%` }} />
-          )}
-          <blockquote>&ldquo;{t.quote}&rdquo;</blockquote>
-          <div className="ms-t-who">{t.name}{t.session_type ? ` — ${t.session_type}` : ''}</div>
+        <div className="ms-t-spotlight-track-wrap">
+          <div className="ms-t-spotlight-track" ref={trackRef} style={trackStyle} onTransitionEnd={onTrackTransitionEnd}>
+            {slides.map((t, idx) => (
+              <div className="ms-t-spotlight-slide" key={idx} style={{ flex: `0 0 ${100 / slides.length}%` }}>
+                {renderCard(t)}
+              </div>
+            ))}
+          </div>
         </div>
         {hasMultiple && (
           <button className="ms-t-spotlight-nav ms-t-spotlight-next" onClick={nextT} aria-label="Next testimonial"><ChevronRight size={20} /></button>
@@ -1114,7 +1172,7 @@ function TestimonialsSpotlight({ testimonials }) {
       {hasMultiple && (
         <div className="ms-t-dots">
           {testimonials.map((_, idx) => (
-            <span key={idx} className={idx === i ? 'active' : ''} onClick={() => setI(idx)} />
+            <span key={idx} className={idx === index ? 'active' : ''} onClick={() => idx !== index && goTo(idx, idx > index ? 1 : -1)} />
           ))}
         </div>
       )}
