@@ -4,6 +4,27 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.11 — September 1, 2026
+
+### Bug Fixes
+
+**Microsite Testimonials**
+- Fixed the Spotlight layout's transition being abrupt instead of smooth -- rebuilt as a true cross-slide, with the outgoing and incoming testimonial sliding together fully off and on screen instead of jump-cutting
+- Fixed the Ticker layout scrolling at a fixed speed regardless of content length; it now paces itself to the actual content and pauses on hover so it can be read
+- Fixed testimonials left incomplete in the editor (started but never finished) rendering publicly as an empty quote and a blank name
+- Added a Cancel button to the testimonial editor -- previously, starting a new testimonial with no way to back out left it stuck open indefinitely; an incomplete entry is now also dropped automatically on Save instead of ever reaching the public site
+- Restyled the Spotlight layout's prev/next navigation as padded circular buttons that no longer shift position as testimonial length changes
+- Fixed the Stack and Paired layouts stretching a lone card on an incomplete last row to fill the extra width, instead of keeping it centered at its normal size
+- Fixed the Testimonials section header sitting misaligned relative to the content below it
+
+**Microsite Editor**
+- Fixed the "Choose from Gallery" image picker loading thumbnails slowly, one at a time, via individual authenticated fetches -- thumbnails now load in parallel like the rest of the app
+
+**Microsite Layout**
+- Normalized section max-width across the site's layout containers (previously inconsistent between 640px and 680px) to a single 1180px, so content no longer feels cramped on wider screens
+
+---
+
 ## v1.5.10 — August 31, 2026
 
 ### New Features

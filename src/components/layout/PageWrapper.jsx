@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.10'
+const VERSION = '1.5.11'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,23 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.11 — September 1, 2026">
+                  <Group label="Microsite Testimonials">
+                    <Item>Spotlight transition rebuilt as a true cross-slide -- old and new testimonial now slide together fully off and on screen instead of jump-cutting</Item>
+                    <Item>Ticker now paces its scroll speed to the actual content, and pauses on hover so it can be read</Item>
+                    <Item>Fixed incomplete testimonials (started but never finished) rendering publicly as an empty quote and blank name</Item>
+                    <Item>Added a Cancel button to the testimonial editor -- a new entry no longer gets stuck open with no way out, and drops automatically on Save if left incomplete</Item>
+                    <Item>Spotlight's prev/next buttons are now padded circular controls that no longer shift position as testimonial length changes</Item>
+                    <Item>Fixed the Stack and Paired layouts stretching a lone last-row card instead of keeping it centered at its normal size</Item>
+                    <Item>Fixed the Testimonials section header sitting misaligned relative to the content below it</Item>
+                  </Group>
+                  <Group label="Microsite Editor">
+                    <Item>The gallery image picker now loads thumbnails in parallel instead of one at a time -- noticeably faster</Item>
+                  </Group>
+                  <Group label="Microsite Layout">
+                    <Item>Normalized section max-width across layout containers to a single 1180px, fixing content that felt cramped on wider screens</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.10 — August 31, 2026">
                   <Group label="Microsite favicon">
                     <Item>Upload a custom favicon for your microsite -- shown in the browser tab when clients visit your custom domain, instead of always showing the FinalVault icon</Item>

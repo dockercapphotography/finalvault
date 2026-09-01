@@ -10,7 +10,7 @@ Own your delivery experience. No monthly SaaS fees. No compromises.
 
 [Live App](https://final-vault.app) · [Report a Bug](https://github.com/dockercapphotography/finalvault/issues) · [Request a Feature](https://github.com/dockercapphotography/finalvault/issues)
 
-![Tests](https://img.shields.io/badge/tests-441%20passing-22c55e?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-455%20passing-22c55e?style=flat-square)
 ![Cloudflare Pages](https://img.shields.io/badge/deployed-Cloudflare%20Pages-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![Supabase](https://img.shields.io/badge/database-Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
 
