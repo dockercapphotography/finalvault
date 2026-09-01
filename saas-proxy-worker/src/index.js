@@ -34,6 +34,22 @@ export default {
     // photographer's custom domain this is) read this header instead.
     proxied.headers.set('X-Forwarded-Host', originalHostname)
 
-    return fetch(proxied)
+    // Every custom domain's traffic collapses onto this one *.pages.dev
+    // URL once url.hostname is rewritten above -- so Cloudflare's edge
+    // cache, keyed on that rewritten URL, has no way to tell
+    // photographers' domains apart for a shared path like "/". Left on
+    // default caching behavior, a document response cached from one
+    // photographer's "/" request (whether stale after a new deploy, or
+    // simply the wrong photographer's SEO-rewritten HTML) could get
+    // served to a visitor on a completely different custom domain.
+    // Bypass the edge cache specifically for document navigations (the
+    // HTML shell); hashed static assets (/assets/*.js, *.css) are left
+    // alone and keep Cloudflare Pages' normal long-lived immutable
+    // caching -- their filenames already change on every build, so
+    // there's no staleness risk there to begin with.
+    const isDocumentRequest = request.headers.get('sec-fetch-dest') === 'document'
+      || (request.method === 'GET' && (request.headers.get('accept') || '').includes('text/html'))
+
+    return fetch(proxied, isDocumentRequest ? { cf: { cacheTtl: 0, cacheEverything: false } } : {})
   },
 }

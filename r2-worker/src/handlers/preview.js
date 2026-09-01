@@ -93,7 +93,23 @@ export async function handlePreview(request, env, corsHeaders) {
 
     const headers = new Headers(corsHeaders)
     headers.set('Content-Type', object.httpMetadata?.contentType || 'image/webp')
-    headers.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=86400')
+    // Public, unauthenticated-legitimacy requests (a microsite's own
+    // gallery/hero/testimonial photos, a booking page's cover photo) are
+    // identical for every visitor -- nothing here is scoped to who's
+    // asking, verification only checks whether the key legitimately
+    // belongs to a currently-enabled/active public page. The photographer-
+    // JWT and share-token branches genuinely are viewer-scoped and stay
+    // private. Marking every branch `private` (the prior blanket setting)
+    // meant Cloudflare's edge could never cache the public ones: every
+    // visitor to a microsite triggered a fresh Supabase verification
+    // round-trip *and* R2 fetch for every image on the page, every time.
+    const isPublicRequest = isMicrositeRequest || isBookingCoverRequest
+    headers.set(
+      'Cache-Control',
+      isPublicRequest
+        ? 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400'
+        : 'private, max-age=3600, stale-while-revalidate=86400'
+    )
     headers.set('ETag', object.httpEtag || '')
 
     // Derive a download filename from the R2 key, forcing .jpg extension
