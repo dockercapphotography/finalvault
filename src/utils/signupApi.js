@@ -81,6 +81,10 @@ export async function updateSignupPage(id, updates) {
   if (updates.notificationNote !== undefined) mapped.notification_note = updates.notificationNote?.trim() || null
   if (updates.bookingDescription !== undefined) mapped.booking_description = updates.bookingDescription?.trim() || null
   if (updates.showPricing !== undefined) mapped.show_pricing = updates.showPricing
+  if (updates.coverPattern !== undefined) mapped.cover_pattern = updates.coverPattern
+  if (updates.coverImageR2Key !== undefined) mapped.cover_image_r2_key = updates.coverImageR2Key
+  if (updates.coverFocusX !== undefined) mapped.cover_focus_x = updates.coverFocusX
+  if (updates.coverFocusY !== undefined) mapped.cover_focus_y = updates.coverFocusY
 
   const { data, error } = await supabase
     .from('signup_pages')

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronLeft, X, Check } from 'lucide-react'
 import { getGalleries } from '../../utils/galleryApi.js'
 import { getImages } from '../../utils/imageApi.js'
@@ -7,15 +7,6 @@ import SearchSelect from '../ui/SearchSelect.jsx'
 import Button from '../ui/Button.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
-
-async function fetchAuthedBlob(r2Key) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const resp = await fetch(`${WORKER_URL}/preview/${encodeURIComponent(r2Key)}`, {
-    headers: { Authorization: `Bearer ${session.access_token}` }
-  })
-  if (!resp.ok) throw new Error('Failed to fetch preview')
-  return URL.createObjectURL(await resp.blob())
-}
 
 /**
  * MicrositeGalleryImagesPicker — multi-select, spans any gallery.
@@ -29,15 +20,21 @@ export default function MicrositeGalleryImagesPicker({ initialKeys = [], onDone,
   const [selectedGallery, setSelectedGallery] = useState(null)
   const [images, setImages] = useState([])
   const [loadingImages, setLoadingImages] = useState(false)
-  const [previewUrls, setPreviewUrls] = useState({})
+  const [token, setToken] = useState(null)
   const [selectedKeys, setSelectedKeys] = useState(new Set(initialKeys))
-  const blobUrlsRef = useRef([])
 
   useEffect(() => {
     getGalleries().then(setGalleries).catch(() => setGalleries([]))
-    return () => {
-      blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
-    }
+    // A direct ?token=<jwt> <img src> (below) instead of an authenticated
+    // fetch()+blob()+createObjectURL() per thumbnail -- same fix as
+    // GalleryGrid.jsx already uses for the main dashboard grid. Fetching
+    // one at a time via blob URLs was both serial (each image waited on
+    // the previous one to finish before starting) and bypassed the
+    // browser's HTTP cache entirely; a plain <img> URL lets the browser
+    // load every thumbnail in parallel with normal caching.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setToken(session?.access_token || null)
+    })
   }, [])
 
   useEffect(() => {
@@ -46,19 +43,10 @@ export default function MicrositeGalleryImagesPicker({ initialKeys = [], onDone,
     setLoadingImages(true)
     setImages([])
 
-    getImages(selectedGallery).then(async imgs => {
+    getImages(selectedGallery).then(imgs => {
       if (cancelled) return
       setImages(imgs)
       setLoadingImages(false)
-      for (const img of imgs) {
-        if (previewUrls[img.id]) continue
-        try {
-          const url = await fetchAuthedBlob(img.preview_r2_key)
-          if (cancelled) { URL.revokeObjectURL(url); return }
-          blobUrlsRef.current.push(url)
-          setPreviewUrls(prev => ({ ...prev, [img.id]: url }))
-        } catch { /* skip images that fail to load a preview */ }
-      }
     }).catch(() => { if (!cancelled) setLoadingImages(false) })
 
     return () => { cancelled = true }
@@ -122,6 +110,7 @@ export default function MicrositeGalleryImagesPicker({ initialKeys = [], onDone,
               <div className="grid grid-cols-4 gap-2">
                 {images.map(img => {
                   const isSelected = selectedKeys.has(img.preview_r2_key)
+                  const previewSrc = token ? `${WORKER_URL}/preview/${encodeURIComponent(img.preview_r2_key)}?token=${token}` : null
                   return (
                     <button
                       key={img.id}
@@ -130,13 +119,13 @@ export default function MicrositeGalleryImagesPicker({ initialKeys = [], onDone,
                       style={{
                         background: 'var(--surface-raised)',
                         padding: 0,
-                        cursor: previewUrls[img.id] ? 'pointer' : 'default',
+                        cursor: previewSrc ? 'pointer' : 'default',
                         outline: isSelected ? '2px solid #6366f1' : '2px solid transparent',
                         outlineOffset: 2,
                       }}
                     >
-                      {previewUrls[img.id]
-                        ? <img src={previewUrls[img.id]} alt="" className="w-full h-full object-cover" />
+                      {previewSrc
+                        ? <img src={previewSrc} alt="" loading="lazy" className="w-full h-full object-cover" />
                         : <div className="w-full h-full animate-pulse" style={{ background: 'var(--surface-raised)' }} />}
                       {isSelected && (
                         <div className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#6366f1' }}>

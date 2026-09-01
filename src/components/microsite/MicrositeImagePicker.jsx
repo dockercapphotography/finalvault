@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronLeft, X } from 'lucide-react'
 import { getGalleries } from '../../utils/galleryApi.js'
 import { getImages } from '../../utils/imageApi.js'
@@ -6,18 +6,6 @@ import { supabase } from '../../supabaseClient.js'
 import SearchSelect from '../ui/SearchSelect.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
-
-// Same pattern as FolderCard.jsx's local fetchAuthedBlob — deliberately not
-// shared, see that file's own reasoning for why these small per-component
-// helpers aren't worth a forced abstraction.
-async function fetchAuthedBlob(r2Key) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const resp = await fetch(`${WORKER_URL}/preview/${encodeURIComponent(r2Key)}`, {
-    headers: { Authorization: `Bearer ${session.access_token}` }
-  })
-  if (!resp.ok) throw new Error('Failed to fetch preview')
-  return URL.createObjectURL(await resp.blob())
-}
 
 /**
  * MicrositeImagePicker — two-step modal: pick a gallery, then pick one
@@ -29,14 +17,19 @@ export default function MicrositeImagePicker({ onSelect, onClose }) {
   const [selectedGallery, setSelectedGallery] = useState(null)
   const [images, setImages] = useState([])
   const [loadingImages, setLoadingImages] = useState(false)
-  const [previewUrls, setPreviewUrls] = useState({})
-  const blobUrlsRef = useRef([])
+  const [token, setToken] = useState(null)
 
   useEffect(() => {
     getGalleries().then(setGalleries).catch(() => setGalleries([]))
-    return () => {
-      blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
-    }
+    // Direct ?token=<jwt> <img src> instead of an authenticated
+    // fetch()+blob() per thumbnail -- see
+    // MicrositeGalleryImagesPicker.jsx's identical fix for the full
+    // reasoning (serial loading + no browser cache with blob URLs was
+    // the actual cause of the slow thumbnails, not a missing
+    // resize/thumbnail endpoint -- there isn't one).
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setToken(session?.access_token || null)
+    })
   }, [])
 
   useEffect(() => {
@@ -44,21 +37,11 @@ export default function MicrositeImagePicker({ onSelect, onClose }) {
     let cancelled = false
     setLoadingImages(true)
     setImages([])
-    setPreviewUrls({})
 
-    getImages(selectedGallery).then(async imgs => {
+    getImages(selectedGallery).then(imgs => {
       if (cancelled) return
       setImages(imgs)
       setLoadingImages(false)
-      // Load previews progressively rather than blocking on all of them
-      for (const img of imgs) {
-        try {
-          const url = await fetchAuthedBlob(img.preview_r2_key)
-          if (cancelled) { URL.revokeObjectURL(url); return }
-          blobUrlsRef.current.push(url)
-          setPreviewUrls(prev => ({ ...prev, [img.id]: url }))
-        } catch { /* skip images that fail to load a preview */ }
-      }
     }).catch(() => { if (!cancelled) setLoadingImages(false) })
 
     return () => { cancelled = true }
@@ -111,18 +94,21 @@ export default function MicrositeImagePicker({ onSelect, onClose }) {
               <p className="text-sm text-center py-16" style={{ color: 'var(--text-muted)' }}>This gallery has no images yet.</p>
             ) : (
               <div className="grid grid-cols-4 gap-2">
-                {images.map(img => (
-                  <button
-                    key={img.id}
-                    onClick={() => { onSelect(img.preview_r2_key); onClose() }}
-                    className="aspect-square rounded-lg overflow-hidden"
-                    style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', padding: 0, cursor: previewUrls[img.id] ? 'pointer' : 'default' }}
-                  >
-                    {previewUrls[img.id]
-                      ? <img src={previewUrls[img.id]} alt="" className="w-full h-full object-cover" />
-                      : <div className="w-full h-full animate-pulse" style={{ background: 'var(--surface-raised)' }} />}
-                  </button>
-                ))}
+                {images.map(img => {
+                  const previewSrc = token ? `${WORKER_URL}/preview/${encodeURIComponent(img.preview_r2_key)}?token=${token}` : null
+                  return (
+                    <button
+                      key={img.id}
+                      onClick={() => { onSelect(img.preview_r2_key); onClose() }}
+                      className="aspect-square rounded-lg overflow-hidden"
+                      style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', padding: 0, cursor: previewSrc ? 'pointer' : 'default' }}
+                    >
+                      {previewSrc
+                        ? <img src={previewSrc} alt="" loading="lazy" className="w-full h-full object-cover" />
+                        : <div className="w-full h-full animate-pulse" style={{ background: 'var(--surface-raised)' }} />}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>

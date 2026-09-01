@@ -193,7 +193,16 @@ export default function MicrositeRenderer({ site, previewAuthToken }) {
   const hasContact = site.show_contact !== false && !!(site.contact_email || site.contact_phone || site.contact_address)
   const hasGallery = site.show_gallery !== false && galleryKeys.length > 0
   const hasPricing = site.show_pricing !== false && Array.isArray(site.packages) && site.packages.length > 0
-  const hasTestimonials = site.show_testimonials !== false && Array.isArray(site.testimonials) && site.testimonials.length > 0
+  // Only testimonials with BOTH a quote and a name count as real --
+  // an incomplete one (added via "Add testimonial" in the editor, never
+  // finished, never removed) used to render on the public site as an
+  // empty '""' quote and a bare name line. Filtering here, once, means
+  // every layout variant below (and the nav's Reviews link, and the
+  // footer's) all agree on what "having testimonials" means.
+  const visibleTestimonials = Array.isArray(site.testimonials)
+    ? site.testimonials.filter(t => t && t.quote && t.name)
+    : []
+  const hasTestimonials = site.show_testimonials !== false && visibleTestimonials.length > 0
 
   const accentTextColor = getAccentTextColor(accent, theme.dark)
   // Pricing cards are always a light surface now (white on dark themes,
@@ -291,7 +300,7 @@ export default function MicrositeRenderer({ site, previewAuthToken }) {
       {hasTestimonials && (
         <section className="ms-testimonials" id="testimonials">
           <SectionHead title={site.testimonials_title} subheading={site.testimonials_subheading} />
-          <TestimonialsSection variant={testimonialVariant} testimonials={site.testimonials} />
+          <TestimonialsSection variant={testimonialVariant} testimonials={visibleTestimonials} />
         </section>
       )}
 
@@ -1052,7 +1061,7 @@ function TestimonialsStack({ testimonials }) {
   return (
     <div className="ms-t-grid">
       {testimonials.map((t, i) => (
-        <div className="ms-t-card" key={i}>
+        <div className="ms-t-card ms-t-flex-item" key={i}>
           <p>&ldquo;{t.quote}&rdquo;</p>
           <div className="ms-t-who-row">
             {t.photo_gallery_image_key && (
@@ -1075,24 +1084,39 @@ function TestimonialsSpotlight({ testimonials }) {
   function nextT() { setI(idx => (idx + 1) % testimonials.length) }
   return (
     <div className="ms-t-spotlight">
+      {/* Prev/next used to be absolutely positioned against the WHOLE
+          container below (avatar+quote+name+dots), whose total height
+          changes with every testimonial's quote length -- that's what
+          made the arrows visibly jump between slides. Making them flex
+          siblings of just the content block means they're always
+          centered against the current testimonial's own content, not
+          an anchor that includes the dots row underneath it. */}
+      <div className="ms-t-spotlight-row">
+        {hasMultiple && (
+          <button className="ms-t-spotlight-nav ms-t-spotlight-prev" onClick={prevT} aria-label="Previous testimonial"><ChevronLeft size={20} /></button>
+        )}
+        {/* key={i} remounts this on every slide change, which is what
+            actually triggers the fade/slide-in CSS animation below --
+            without a key change React just mutates the same DOM nodes'
+            text/src in place and nothing animates. */}
+        <div className="ms-t-spotlight-content" key={i}>
+          {t.photo_gallery_image_key && (
+            <img className="ms-t-avatar ms-t-avatar--large" src={previewUrl(t.photo_gallery_image_key)} alt=""
+              style={{ objectPosition: `${(t.photo_focus_x ?? 0.5) * 100}% ${(t.photo_focus_y ?? 0.5) * 100}%` }} />
+          )}
+          <blockquote>&ldquo;{t.quote}&rdquo;</blockquote>
+          <div className="ms-t-who">{t.name}{t.session_type ? ` — ${t.session_type}` : ''}</div>
+        </div>
+        {hasMultiple && (
+          <button className="ms-t-spotlight-nav ms-t-spotlight-next" onClick={nextT} aria-label="Next testimonial"><ChevronRight size={20} /></button>
+        )}
+      </div>
       {hasMultiple && (
-        <button className="ms-t-spotlight-nav ms-t-spotlight-prev" onClick={prevT} aria-label="Previous testimonial"><ChevronLeft size={22} /></button>
-      )}
-      {t.photo_gallery_image_key && (
-        <img className="ms-t-avatar ms-t-avatar--large" src={previewUrl(t.photo_gallery_image_key)} alt=""
-          style={{ objectPosition: `${(t.photo_focus_x ?? 0.5) * 100}% ${(t.photo_focus_y ?? 0.5) * 100}%` }} />
-      )}
-      <blockquote>&ldquo;{t.quote}&rdquo;</blockquote>
-      <div className="ms-t-who">{t.name}{t.session_type ? ` — ${t.session_type}` : ''}</div>
-      {hasMultiple && (
-        <>
-          <button className="ms-t-spotlight-nav ms-t-spotlight-next" onClick={nextT} aria-label="Next testimonial"><ChevronRight size={22} /></button>
-          <div className="ms-t-dots">
-            {testimonials.map((_, idx) => (
-              <span key={idx} className={idx === i ? 'active' : ''} onClick={() => setI(idx)} />
-            ))}
-          </div>
-        </>
+        <div className="ms-t-dots">
+          {testimonials.map((_, idx) => (
+            <span key={idx} className={idx === i ? 'active' : ''} onClick={() => setI(idx)} />
+          ))}
+        </div>
       )}
     </div>
   )
@@ -1100,9 +1124,28 @@ function TestimonialsSpotlight({ testimonials }) {
 
 function TestimonialsTicker({ testimonials }) {
   const doubled = [...testimonials, ...testimonials]
+  const trackRef = useRef(null)
+  // A fixed 30s animation (see the CSS keyframe) covers a FIXED time
+  // regardless of how much content there is -- since the track's width
+  // grows with testimonials.length (doubled), more testimonials meant
+  // more pixels covered in the same 30s, i.e. it visibly sped up. Basing
+  // the duration on the track's actual measured width instead keeps the
+  // scroll SPEED (px/sec) constant no matter how many testimonials there
+  // are -- a short list and a long list both drift by at the same pace,
+  // just for a proportionally longer loop.
+  const [duration, setDuration] = useState(Math.max(20, testimonials.length * 6))
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    const PX_PER_SECOND = 45
+    // translateX(-50%) in the CSS keyframe travels exactly half of the
+    // doubled track's width -- that's the true loop distance.
+    const loopWidth = el.scrollWidth / 2
+    if (loopWidth > 0) setDuration(Math.max(20, loopWidth / PX_PER_SECOND))
+  }, [testimonials.length])
   return (
     <div className="ms-t-ticker-wrap">
-      <div className="ms-t-ticker-track">
+      <div className="ms-t-ticker-track" ref={trackRef} style={{ animationDuration: `${duration}s` }}>
         {doubled.map((t, i) => (
           <div className="ms-t-ticker-item" key={i}>
             <p>&ldquo;{t.quote}&rdquo;</p>
@@ -1124,7 +1167,7 @@ function TestimonialsPaired({ testimonials }) {
   return (
     <div className="ms-t-paired-grid">
       {testimonials.map((t, i) => (
-        <div className="ms-t-paired" key={i}>
+        <div className="ms-t-paired ms-t-flex-item" key={i}>
           {t.photo_gallery_image_key && (
             <figure><img src={previewUrl(t.photo_gallery_image_key)} alt=""
               style={{ objectPosition: `${(t.photo_focus_x ?? 0.5) * 100}% ${(t.photo_focus_y ?? 0.5) * 100}%` }} /></figure>

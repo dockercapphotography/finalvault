@@ -464,6 +464,19 @@ function TestimonialsEditor({ testimonials, onChange, onEditPhoto, onAdjustFocus
     onChange([...testimonials, { quote: '', name: '', session_type: '' }])
     setEditingIndex(testimonials.length)
   }
+  function cancel(i) {
+    const t = testimonials[i]
+    // A never-finished entry (started via "Add testimonial", still
+    // missing a quote or name) has nothing worth keeping -- Cancel
+    // removes it outright, same as if it'd never been added. A
+    // previously-saved entry reopened for editing just closes back up;
+    // whatever's already there stays as it was.
+    if (!(t?.quote && t?.name)) {
+      remove(i)
+    } else {
+      setEditingIndex(null)
+    }
+  }
   function removePhoto(i) {
     update(i, 'photo_gallery_image_key', null)
   }
@@ -520,7 +533,13 @@ function TestimonialsEditor({ testimonials, onChange, onEditPhoto, onAdjustFocus
                 </button>
               )}
             </div>
-            <EntryDoneButton isComplete={isComplete} onClick={() => setEditingIndex(null)} />
+            <div className="flex items-center gap-2">
+              <EntryDoneButton isComplete={isComplete} onClick={() => setEditingIndex(null)} />
+              <button onClick={() => cancel(i)} className="text-sm font-medium px-3 py-1.5 rounded-lg"
+                style={{ background: 'none', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
           </div>
         )
       })}
@@ -861,12 +880,18 @@ export default function MicrositeEditor() {
         booking_signup_page_id,
         booking_show_all_sessions,
       } = site
+      // Same completeness rule (quote AND name) the public renderer
+      // already applies when deciding what to show -- an entry left
+      // half-filled in the editor (started, never finished, never
+      // explicitly removed) shouldn't get persisted at all, not just
+      // hidden on render.
+      const completeTestimonials = (testimonials || []).filter(t => t && t.quote && t.name)
       const saved = await updateMyMicrosite({
         studio_name, tagline, bio, hero_image_key, contact_email,
         contact_phone, contact_address, contact_hours,
         gallery_source_type, gallery_source_gallery_id, gallery_source_image_keys,
         show_pricing, packages, pricing_note,
-        testimonials, enabled, logo_r2_key,
+        testimonials: completeTestimonials, enabled, logo_r2_key,
         accent_color, theme, font_pairing, radius, section_variants,
         custom_display_font, custom_body_font,
         about_heading, about_photo_key, about_stats,

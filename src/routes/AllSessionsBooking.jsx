@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { MapPin, CalendarDays, Camera } from 'lucide-react'
+import { MapPin, CalendarDays } from 'lucide-react'
 import { supabaseAnon } from '../supabaseClientAnon.js'
+import { useBookingBranding } from '../utils/bookingBranding.js'
+import BrandHeader from '../components/booking/BrandHeader.jsx'
+import BookingCover from '../components/booking/BookingCover.jsx'
 
 // ── Data (anonymous, via supabaseAnon -- same isolation pattern as
 // SignupBooking.jsx: this is a fully public page, so it never touches the
@@ -41,33 +44,45 @@ function formatSessionDates(page) {
   return startStr === endStr ? startStr : `${startStr} – ${endStr}`
 }
 
+// A plain generic camera icon next to a title/date row -- the original
+// treatment here -- undersold what these sessions actually look like once
+// the individual /book/:token pages themselves became this visual (cover
+// pattern or, once uploaded, a real photo -- BookingCover.jsx). Each card
+// now leads with that same cover, same component, same theme variables,
+// so the chooser reads as a genuine preview of what's behind each link
+// rather than a plain list. fade={false} on BookingCover: its own
+// fade-to-bk-bg bottom treatment is right where it normally sits (hidden
+// under an overlapping card or a dark scrim in BookingHero.jsx) but wrong
+// here, where the cover sits directly above a plain --bk-surface card
+// body -- the card's own border is what separates the two instead.
 function SignupPageRow({ page }) {
   const hasOpenSlots = !!page.earliest_open_slot
   return (
     <Link to={`/book/${page.token}`}
-      className="w-full flex items-center gap-3 text-left rounded-xl p-3.5 transition-colors"
-      style={{ background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', cursor: 'pointer' }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.background = 'rgba(99,102,241,0.06)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)' }}>
-      <div className="flex items-center justify-center rounded-lg flex-shrink-0" style={{ width: 36, height: 36, background: 'rgba(99,102,241,0.1)' }}>
-        <Camera size={17} style={{ color: '#6366f1' }} />
+      className="block rounded-xl overflow-hidden transition-colors"
+      style={{ background: 'var(--bk-surface)', border: '1px solid var(--bk-border)', textDecoration: 'none', cursor: 'pointer' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--bk-accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--bk-border)' }}>
+      <div className="aspect-[16/9]" style={{ position: 'relative' }}>
+        <BookingCover
+          pattern={page.cover_pattern} imageKey={page.cover_image_r2_key}
+          focusX={page.cover_focus_x} focusY={page.cover_focus_y}
+          height="100%" fade={false}
+        />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{page.title}</p>
-        <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: hasOpenSlots ? 'var(--text-muted)' : 'var(--danger)' }}>
+      <div className="p-4">
+        <p className="text-sm font-semibold" style={{ color: 'var(--bk-ink)' }}>{page.title}</p>
+        <p className="text-xs mt-1 flex items-center gap-1" style={{ color: hasOpenSlots ? 'var(--bk-muted)' : 'var(--danger)' }}>
           <CalendarDays size={11} style={{ flexShrink: 0 }} />
           {formatSessionDates(page)}
         </p>
         {page.venue_address && (
-          <p className="text-xs mt-1 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-xs mt-1 flex items-center gap-1" style={{ color: 'var(--bk-muted)' }}>
             <MapPin size={11} style={{ flexShrink: 0 }} />
             {page.venue_address}
           </p>
         )}
       </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-        <path d="m9 18 6-6-6-6" />
-      </svg>
     </Link>
   )
 }
@@ -100,6 +115,13 @@ export default function AllSessionsBooking() {
     }
   }
 
+  // Safe before data has loaded (branding just defaults to the unbranded
+  // shape) -- kept above the early returns below along with
+  // useBookingBranding's own effect so hook order never changes across
+  // renders. Same reasoning as SignupBooking.jsx.
+  const branding = data?.branding || { has_microsite: false, studio_name: null, logo_r2_key: null }
+  const { bkVars } = useBookingBranding(branding)
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
@@ -113,14 +135,15 @@ export default function AllSessionsBooking() {
   if (data.signup_pages.length === 0) return <CenteredMessage title={data.business_name || 'No sessions open'} body="Nothing is open for booking right now. Check back soon, or contact the photographer directly." />
 
   return (
-    <div className="min-h-screen px-4 py-8" style={{ background: 'var(--bg)' }}>
+    <div className="min-h-screen px-4 py-8" style={{ ...bkVars, background: 'var(--bk-bg)', color: 'var(--bk-ink)', fontFamily: 'var(--bk-font-body)' }}>
       <div className="max-w-md mx-auto">
+        <BrandHeader branding={branding} />
+
         <div className="text-center mb-6">
-          <p className="text-lg font-semibold" style={{ color: 'var(--text)' }}>{data.business_name}</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Choose a session to book</p>
+          <p className="text-sm" style={{ color: 'var(--bk-muted)' }}>Choose a session to book</p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-4">
           {data.signup_pages.map(page => <SignupPageRow key={page.id} page={page} />)}
         </div>
       </div>

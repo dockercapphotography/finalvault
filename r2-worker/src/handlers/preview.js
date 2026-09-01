@@ -1,6 +1,7 @@
 import { verifyJWT } from '../middleware/auth.js'
 import { verifyShareToken } from '../middleware/shareToken.js'
 import { verifyMicrositeAccess } from '../middleware/micrositeAccess.js'
+import { verifyBookingCoverAccess } from '../middleware/bookingCoverAccess.js'
 
 /**
  * GET /preview/:key
@@ -38,7 +39,13 @@ export async function handlePreview(request, env, corsHeaders) {
   // password-gate bypass) to anyone viewing the public site.
   const isMicrositeRequest = url.searchParams.get('microsite') === '1'
 
-  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest) {
+  // Public booking-page cover-photo request -- same no-client-secret model
+  // as isMicrositeRequest above, just verified against signup_pages'
+  // cover_image_r2_key + is_active instead of a microsite's fields. See
+  // verifyBookingCoverAccess() for the exact check.
+  const isBookingCoverRequest = url.searchParams.get('booking_cover') === '1'
+
+  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest && !isBookingCoverRequest) {
     return jsonResponse({ ok: false, error: 'Authentication required' }, 401, corsHeaders)
   }
 
@@ -64,11 +71,16 @@ export async function handlePreview(request, env, corsHeaders) {
     const shareAuth = await verifyShareToken(tokenRequest, env, false, allowExpiredPreview)
     if (!shareAuth.valid) return jsonResponse({ ok: false, error: shareAuth.error }, 403, corsHeaders)
     photographerId = shareAuth.photographerId
-  } else {
+  } else if (isMicrositeRequest) {
     // Public microsite access
     const micrositeAuth = await verifyMicrositeAccess(key, env)
     if (!micrositeAuth.valid) return jsonResponse({ ok: false, error: micrositeAuth.error }, 403, corsHeaders)
     photographerId = micrositeAuth.photographerId
+  } else {
+    // Public booking-page cover-photo access
+    const coverAuth = await verifyBookingCoverAccess(key, env)
+    if (!coverAuth.valid) return jsonResponse({ ok: false, error: coverAuth.error }, 403, corsHeaders)
+    photographerId = coverAuth.photographerId
   }
 
   if (!key.startsWith(`photographers/${photographerId}/`)) {

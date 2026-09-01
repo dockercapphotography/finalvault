@@ -5,7 +5,7 @@ import { SlotActionsModal, SlotActionsSheet } from './SignupLiveStatus.jsx'
 import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { Plus, CalendarDays, X, LayoutList, Columns, Link2, Copy, Check, Trash2, MapPin, Ticket as TicketIcon, Camera,
-  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock, Search } from 'lucide-react'
+  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock, Search, Crosshair } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
 import { getPublicBaseUrl } from '../utils/publicBaseUrl.js'
@@ -24,6 +24,10 @@ import {
   getMyAllSessionsToken,
 } from '../utils/signupApi.js'
 import { COMMON_TIMEZONES } from '../utils/timezoneApi.js'
+import { CoverPatternShapes } from '../components/booking/BookingCover.jsx'
+import { COVER_PATTERN_OPTIONS, DEFAULT_COVER_PATTERN } from '../utils/coverPatterns.js'
+import MicrositeImagePicker from '../components/microsite/MicrositeImagePicker.jsx'
+import MicrositeFocalPointModal from '../components/microsite/MicrositeFocalPointModal.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import PlaceAutocomplete from '../components/ui/PlaceAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
@@ -34,6 +38,22 @@ import BottomSheet from '../components/layout/BottomSheet.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import ClientPicker from '../components/ui/ClientPicker.jsx'
 
+const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+
+// Same small per-component pattern MicrositeEditor.jsx's own
+// fetchAuthedBlob/HeroThumbnail use -- deliberately not shared, see
+// MicrositeImagePicker.jsx's own copy for the same reasoning. Used only
+// to show an admin-side thumbnail of a chosen cover photo; the live
+// booking page never calls this (it uses the public ?booking_cover=1
+// mode instead, which needs no auth).
+async function fetchAuthedBlob(r2Key) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const resp = await fetch(`${WORKER_URL}/preview/${encodeURIComponent(r2Key)}`, {
+    headers: { Authorization: `Bearer ${session.access_token}` }
+  })
+  if (!resp.ok) throw new Error('Failed to fetch preview')
+  return URL.createObjectURL(await resp.blob())
+}
 
 const SESSION_ICON_MAP = {
   BookHeart, SquareUser, Users, Briefcase, Ticket, Home, GraduationCap,
@@ -870,6 +890,33 @@ function SlotDayRow({ day, dayData, isFirst, timezone, shootTypes, onDeleteSlot,
   )
 }
 
+// Swatch-sized thumbnail for a chosen cover photo, in the same 64x44
+// footprint as the pattern swatches next to it. Fetches an authenticated
+// preview blob (the admin viewer is logged in, so this can use the plain
+// /preview/:key path rather than the public ?booking_cover=1 mode the
+// live booking page uses).
+function CoverPhotoThumb({ r2Key }) {
+  const [url, setUrl] = useState(null)
+  useEffect(() => {
+    // Unlike MicrositeEditor.jsx's HeroThumbnail, this never actually
+    // renders with a falsy r2Key -- the one call site below only mounts
+    // it once coverImageR2Key is already truthy -- so there's no "reset
+    // to null" branch here, which also sidesteps that copy's
+    // react-hooks/set-state-in-effect lint error on the early return.
+    if (!r2Key) return
+    let cancelled = false
+    let blobUrl = null
+    fetchAuthedBlob(r2Key).then(u => {
+      if (cancelled) { URL.revokeObjectURL(u); return }
+      blobUrl = u
+      setUrl(u)
+    }).catch(() => {})
+    return () => { cancelled = true; if (blobUrl) URL.revokeObjectURL(blobUrl) }
+  }, [r2Key])
+
+  return <div className="w-full h-full" style={{ background: 'var(--bg-subtle)' }}>{url && <img src={url} alt="" className="w-full h-full object-cover" />}</div>
+}
+
 function SignupPageDetailModal({ pageId, onClose, onChanged }) {
   const [page, setPage] = useState(null)
   const [slots, setSlots] = useState([])
@@ -887,6 +934,12 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
   const [notificationNote, setNotificationNote] = useState('')
   const [bookingDescription, setBookingDescription] = useState('')
   const [showPricing, setShowPricing] = useState(true)
+  const [coverPattern, setCoverPattern] = useState(DEFAULT_COVER_PATTERN)
+  const [coverImageR2Key, setCoverImageR2Key] = useState(null)
+  const [coverFocusX, setCoverFocusX] = useState(0.5)
+  const [coverFocusY, setCoverFocusY] = useState(0.5)
+  const [showCoverImagePicker, setShowCoverImagePicker] = useState(false)
+  const [showCoverFocalModal, setShowCoverFocalModal] = useState(false)
   const [copied, setCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmClearAll, setConfirmClearAll] = useState(false)
@@ -925,6 +978,10 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
       setNotificationNote(p.notification_note || '')
       setBookingDescription(p.booking_description || '')
       setShowPricing(p.show_pricing ?? true)
+      setCoverPattern(p.cover_pattern || DEFAULT_COVER_PATTERN)
+      setCoverImageR2Key(p.cover_image_r2_key || null)
+      setCoverFocusX(p.cover_focus_x ?? 0.5)
+      setCoverFocusY(p.cover_focus_y ?? 0.5)
     } catch (err) { console.error(err) }
     finally { if (!silent) setLoading(false) }
   }
@@ -970,6 +1027,39 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
     const next = !showPricing
     setShowPricing(next)
     const updated = await updateSignupPage(pageId, { showPricing: next })
+    setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
+  }
+
+  async function handleSaveCoverPattern(patternId) {
+    // Picking a pattern always makes it the active cover -- if a photo
+    // was previously chosen, this switches back to the pattern rather
+    // than layering both, since BookingCover.jsx only ever renders one.
+    setCoverPattern(patternId)
+    setCoverImageR2Key(null)
+    const updated = await updateSignupPage(pageId, { coverPattern: patternId, coverImageR2Key: null })
+    setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
+  }
+
+  async function handleSelectCoverImage(key) {
+    setShowCoverImagePicker(false)
+    setCoverImageR2Key(key)
+    setCoverFocusX(0.5)
+    setCoverFocusY(0.5)
+    const updated = await updateSignupPage(pageId, { coverImageR2Key: key, coverFocusX: 0.5, coverFocusY: 0.5 })
+    setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
+  }
+
+  async function handleSaveCoverFocus(x, y) {
+    setCoverFocusX(x)
+    setCoverFocusY(y)
+    setShowCoverFocalModal(false)
+    const updated = await updateSignupPage(pageId, { coverFocusX: x, coverFocusY: y })
+    setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
+  }
+
+  async function handleRemoveCoverImage() {
+    setCoverImageR2Key(null)
+    const updated = await updateSignupPage(pageId, { coverImageR2Key: null })
     setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
   }
 
@@ -1270,6 +1360,81 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
             <Toggle checked={showPricing} onChange={handleToggleShowPricing} />
           </div>
 
+          {/* Cover image -- shown behind this page's title on the public
+              booking page (see components/booking/BookingCover.jsx): an
+              uploaded photo if one's chosen, otherwise an illustrated
+              pattern. Same swatch-picker treatment MicrositeEditor.jsx
+              already uses for its theme choices: a small preview per
+              option, an accent ring on whichever is active. Pattern
+              previews reuse the exact shapes the live page renders
+              (CoverPatternShapes), just with fixed colors instead of that
+              page's own --bk-* theme variables, since no booking-page
+              theme is in scope in this admin view. The photo tile picks
+              from an existing gallery image (MicrositeImagePicker, same
+              component microsites use for their own hero image) rather
+              than a fresh upload -- see sql/061_signup_page_cover_image.sql. */}
+          <div>
+            <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Cover image</label>
+            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Shown behind this session's title on its booking page -- an uploaded photo if you add one, otherwise an illustrated pattern.</p>
+            <div className="flex gap-3 flex-wrap items-start">
+              <div className="flex flex-col items-center gap-1.5">
+                <div style={{ position: 'relative', width: 64, height: 44 }}>
+                  <button onClick={() => setShowCoverImagePicker(true)} title={coverImageR2Key ? 'Change photo' : 'Choose a photo'}
+                    style={{
+                      width: 64, height: 44, borderRadius: 8, overflow: 'hidden', display: 'block', padding: 0,
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      boxShadow: coverImageR2Key ? '0 0 0 2px var(--surface), 0 0 0 4px #6366f1' : '0 0 0 1px var(--border)',
+                    }}>
+                    {coverImageR2Key ? (
+                      <CoverPhotoThumb r2Key={coverImageR2Key} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--bg-subtle)' }}>
+                        <Camera size={16} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+                    )}
+                  </button>
+                  {coverImageR2Key && (
+                    <button onClick={() => setShowCoverFocalModal(true)} title="Adjust focus point"
+                      style={{
+                        position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%',
+                        background: '#6366f1', color: '#fff', border: '2px solid var(--surface)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                      }}>
+                      <Crosshair size={11} />
+                    </button>
+                  )}
+                </div>
+                <span className="text-xs" style={{ color: coverImageR2Key ? 'var(--text)' : 'var(--text-muted)' }}>
+                  {coverImageR2Key ? 'Photo' : 'Upload photo'}
+                </span>
+                {coverImageR2Key && (
+                  <button onClick={handleRemoveCoverImage} className="text-xs" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Remove
+                  </button>
+                )}
+              </div>
+
+              {COVER_PATTERN_OPTIONS.map(opt => {
+                const isActive = !coverImageR2Key && (coverPattern || DEFAULT_COVER_PATTERN) === opt.id
+                return (
+                  <button key={opt.id} onClick={() => handleSaveCoverPattern(opt.id)} title={opt.label}
+                    className="flex flex-col items-center gap-1.5"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <div style={{
+                      width: 64, height: 44, borderRadius: 8, overflow: 'hidden',
+                      boxShadow: isActive ? '0 0 0 2px var(--surface), 0 0 0 4px #6366f1' : '0 0 0 1px var(--border)',
+                    }}>
+                      <svg width="100%" height="100%" viewBox="0 0 390 210" preserveAspectRatio="xMidYMid slice" style={{ background: 'var(--bg-subtle)' }}>
+                        <CoverPatternShapes pattern={opt.id} accent="#6366f1" ink="#1f2937" />
+                      </svg>
+                    </div>
+                    <span className="text-xs" style={{ color: isActive ? 'var(--text)' : 'var(--text-muted)' }}>{opt.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {/* Shoot types */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -1369,6 +1534,23 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
         </div>
       )}
     </Modal>
+
+    {showCoverImagePicker && (
+      <MicrositeImagePicker
+        onSelect={key => handleSelectCoverImage(key)}
+        onClose={() => setShowCoverImagePicker(false)}
+      />
+    )}
+
+    {showCoverFocalModal && coverImageR2Key && (
+      <MicrositeFocalPointModal
+        r2Key={coverImageR2Key}
+        initialFocusX={coverFocusX}
+        initialFocusY={coverFocusY}
+        onSave={(x, y) => handleSaveCoverFocus(x, y)}
+        onClose={() => setShowCoverFocalModal(false)}
+      />
+    )}
 
     {rescheduleSlot && (
       <RescheduleModal

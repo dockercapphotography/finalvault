@@ -169,7 +169,7 @@
 
 /* ---------- PRICING ---------- */
 .ms-pricing { padding: 60px 0; }
-.ms-pricing-list { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; }
+.ms-pricing-list { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; }
 .ms-pricing-row { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; padding: 26px 0; border-bottom: 1px solid var(--ms-line); }
 .ms-pricing-row:first-child { padding-top: 0; }
 .ms-pricing-row h3 { font-size: 21px; }
@@ -189,7 +189,7 @@
 .ms-pricing-card--featured p { color: rgba(255,255,255,0.85); }
 .ms-pricing-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--ms-accent); color: var(--ms-accent-button-text); font-family: var(--ms-font-body); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
 
-.ms-pricing-compact { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; }
+.ms-pricing-compact { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; }
 .ms-pricing-compact-row { display: flex; align-items: baseline; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--ms-line); }
 .ms-pricing-compact-row:first-child { padding-top: 0; }
 .ms-pricing-compact-name { font-weight: 600; font-size: 14px; white-space: nowrap; }
@@ -205,30 +205,62 @@
 .ms-testimonials { background: var(--ms-paper); color: var(--ms-ink); padding: 60px 0; border-top: 1px solid var(--ms-line); border-bottom: 1px solid var(--ms-line); }
 .ms-testimonials .ms-eyebrow { color: #C9A96A; }
 .ms-testimonials .ms-section-head h2 { color: #fff; }
+/* Testimonials' SectionHead is a direct child of <section>, not wrapped
+   in .ms-wrap the way Gallery/Pricing's headers are -- so on narrow
+   screens it sat flush to the viewport edge while .ms-t-grid/
+   .ms-t-paired-grid/.ms-t-spotlight (all padded 0 32px themselves) kept
+   their gutter below it. Matching that same 32px here just for this
+   section's header closes the gap without touching every other
+   section's SectionHead. */
+.ms-testimonials .ms-shead { padding: 0 32px; }
 
-.ms-t-grid { max-width: 1180px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
-.ms-t-card { display: flex; flex-direction: column; background: color-mix(in srgb, var(--ms-ink) 4%, transparent); padding: 30px 26px; border: 1px solid var(--ms-line); border-radius: var(--ms-radius); }
+.ms-t-grid { max-width: 1180px; margin: 0 auto; padding: 0 32px; display: flex; flex-wrap: wrap; justify-content: center; gap: 28px; }
+.ms-t-card { display: flex; flex-direction: column; background: color-mix(in srgb, var(--ms-ink) 4%, transparent); padding: 30px 26px; border: 1px solid var(--ms-line); border-radius: var(--ms-radius); box-sizing: border-box; }
 .ms-t-card p { flex: 1; }
 .ms-t-card p { font-size: 15px; line-height: 1.7; color: var(--ms-ink); }
 .ms-t-who { margin-top: 20px; font-family: var(--ms-font-body); font-size: 12px; color: var(--ms-accent-text); text-transform: uppercase; letter-spacing: 0.03em; }
 
-.ms-t-spotlight { position: relative; max-width: 680px; margin: 0 auto; text-align: center; padding: 0 32px; }
+.ms-t-spotlight { position: relative; max-width: 1180px; margin: 0 auto; text-align: center; padding: 0 32px; }
 .ms-t-spotlight blockquote { font-family: var(--ms-font-display); font-size: clamp(22px, 2.6vw, 30px); line-height: 1.5; color: var(--ms-ink); }
 .ms-t-spotlight .ms-t-who { margin-top: 28px; }
+/* Fade + slight rise on every slide change -- keyed on the active index
+   in the JSX (key={i}), so React remounts this wrapper and the browser
+   replays the animation each time, rather than the old instant swap. */
+.ms-t-spotlight-content { animation: ms-t-spotlight-fade .45s ease; }
+@keyframes ms-t-spotlight-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .ms-t-dots { display: flex; justify-content: center; gap: 8px; margin-top: 36px; }
 .ms-t-dots span { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--ms-ink) 20%, transparent); cursor: pointer; display: inline-block; }
 .ms-t-dots span.active { background: var(--ms-accent); }
 
 .ms-t-ticker-wrap { overflow: hidden; }
 .ms-t-ticker-track { display: flex; width: max-content; animation: ms-t-scroll 30s linear infinite; }
+/* Pause on hover so a reader can actually stop and finish a review
+   instead of it scrolling out from under them -- resumes automatically
+   on mouse-out. */
+.ms-t-ticker-wrap:hover .ms-t-ticker-track { animation-play-state: paused; }
 .ms-t-ticker-item { display: flex; flex-direction: column; padding: 0 44px; border-right: 1px solid var(--ms-line); max-width: 340px; white-space: normal; }
 .ms-t-ticker-item p { font-size: 15px; color: var(--ms-ink); }
 .ms-t-ticker-item .ms-t-who-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .ms-t-ticker-item .ms-t-who { font-size: 11px; margin-top: 0; }
 @keyframes ms-t-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
-.ms-t-paired-grid { max-width: 1180px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-.ms-t-paired { display: flex; flex-direction: column; background: color-mix(in srgb, var(--ms-ink) 3%, transparent); border: 1px solid var(--ms-line); border-radius: var(--ms-radius); overflow: hidden; }
+.ms-t-paired-grid { max-width: 1180px; margin: 0 auto; padding: 0 32px; display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; }
+/* Both testimonial grids above are now flex-wrap (not CSS grid) so an
+   incomplete last row (a testimonial count that isn't a multiple of 3)
+   centers itself instead of hugging the left edge the way grid's default
+   auto-placement did. Each card gets a 3-per-row flex-basis with a
+   min-width floor so it still wraps sensibly on medium widths, and the
+   760px mobile rule below switches to a full-width single column. */
+/* flex-grow: 0 (not 1) -- a short last row should CENTER via the
+   parent's justify-content: center, not stretch its remaining cards to
+   fill the leftover width. Photo-Paired especially: its figure is
+   aspect-ratio 4/5, so growing the card's width also blows up the
+   photo's height right along with it. */
+.ms-t-flex-item { flex: 0 1 calc((100% - 56px) / 3); min-width: 260px; }
+.ms-t-paired { display: flex; flex-direction: column; background: color-mix(in srgb, var(--ms-ink) 3%, transparent); border: 1px solid var(--ms-line); border-radius: var(--ms-radius); overflow: hidden; box-sizing: border-box; }
 .ms-t-paired figure { aspect-ratio: 4/5; overflow: hidden; }
 .ms-t-paired-body { display: flex; flex-direction: column; flex: 1; padding: 22px 20px; }
 .ms-t-paired-body p { flex: 1; }
@@ -247,7 +279,7 @@
 .ms-social-row img { width: 32px; height: 32px; border-radius: 8px; display: block; }
 
 /* Info Grid */
-.ms-contact-grid { max-width: 640px; margin: 40px auto 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; text-align: left; }
+.ms-contact-grid { max-width: 1180px; margin: 40px auto 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; text-align: left; }
 .ms-contact-item { display: flex; gap: 14px; align-items: flex-start; }
 .ms-contact-item svg { color: var(--ms-accent-text); flex-shrink: 0; margin-top: 3px; }
 .ms-contact-item .lbl { font-family: var(--ms-font-body); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ms-muted); margin-bottom: 3px; }
@@ -289,7 +321,7 @@
 @media (max-width: 760px) {
   .ms-nav-links { display: none; }
   .ms-gallery-grid { grid-template-columns: repeat(2, 1fr); }
-  .ms-t-grid, .ms-t-paired-grid { grid-template-columns: 1fr; }
+  .ms-t-flex-item { flex-basis: 100%; }
   .ms-pricing-row { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
 
@@ -318,7 +350,7 @@
 
 
 /* ---------- Section headers: Title / divider / Subheading ---------- */
-.ms-shead { text-align: center; max-width: 640px; margin: 0 auto 36px; }
+.ms-shead { text-align: center; max-width: 1180px; margin: 0 auto 36px; padding: 0; }
 .ms-shead h2 { font-size: clamp(30px, 3.6vw, 44px); }
 .ms-shead-divider { width: 40px; height: 2px; background: var(--ms-ink); margin: 9px auto; opacity: 0.35; }
 .ms-shead-sub { font-family: var(--ms-font-body); font-size: 16px; color: var(--ms-accent-text); margin-top: 4px; }
@@ -558,20 +590,27 @@ html { scroll-behavior: smooth; }
 
 
 /* ---------- Spotlight nav arrows ---------- */
+/* Prev button | content | next button, all one row, vertically centered
+   against each other -- see the JSX comment for why this replaced the
+   old absolute-positioned-against-the-whole-container approach. */
+.ms-t-spotlight-row { display: flex; align-items: center; justify-content: center; gap: 28px; }
+.ms-t-spotlight-content { flex: 1 1 auto; min-width: 0; max-width: 680px; }
 .ms-t-spotlight-nav {
-  position: absolute; top: 50%; transform: translateY(-50%);
-  background: none; border: none; cursor: pointer;
-  color: var(--ms-ink); opacity: 0.5;
+  position: static;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--ms-ink) 6%, transparent);
+  border: 1px solid var(--ms-line);
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--ms-ink); opacity: 0.7;
   display: flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px;
-  transition: opacity .2s ease;
+  width: 44px; height: 44px;
+  transition: opacity .2s ease, background .2s ease;
 }
-.ms-t-spotlight-nav:hover { opacity: 1; }
-.ms-t-spotlight-prev { left: -10px; }
-.ms-t-spotlight-next { right: -10px; }
+.ms-t-spotlight-nav:hover { opacity: 1; background: color-mix(in srgb, var(--ms-ink) 12%, transparent); }
 @media (max-width: 760px) {
-  .ms-t-spotlight-prev { left: 0; }
-  .ms-t-spotlight-next { right: 0; }
+  .ms-t-spotlight-row { gap: 12px; }
+  .ms-t-spotlight-nav { width: 36px; height: 36px; }
 }
 
 

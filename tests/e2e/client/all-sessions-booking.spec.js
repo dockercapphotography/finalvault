@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import { FIXTURE_GALLERY } from '../../fixtures/fixtures.js'
 
 // Same fixture conventions as signup-booking.spec.js (service-role Supabase
 // client, direct table writes instead of going through the UI, cleanup by
@@ -22,6 +23,32 @@ async function getPhotographer() {
   if (error) throw new Error(error.message)
   if (!data.all_sessions_token) throw new Error('Test photographer has no all_sessions_token -- has migration 055 been run?')
   return data
+}
+
+// Snapshot/restore the account's one-row `microsites` table around a test
+// -- same pattern booking-branding-and-covers.spec.js's own withMicrosite
+// duplicates fixtures.js's testMicrosite fixture for, for the same reason
+// (importing fixtures.js's `test` would also pull in its pre-authenticated
+// `page` fixture, wrong for these public, logged-out booking pages).
+async function withMicrosite(photographerId, overrides, fn) {
+  const { data: existing } = await sb().from('microsites').select('*').eq('photographer_id', photographerId).maybeSingle()
+  if (existing) {
+    const { error } = await sb().from('microsites').update(overrides).eq('id', existing.id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await sb().from('microsites').insert({ photographer_id: photographerId, ...overrides })
+    if (error) throw new Error(error.message)
+  }
+  try {
+    await fn()
+  } finally {
+    if (existing) {
+      const { id, ...rest } = existing
+      await sb().from('microsites').update(rest).eq('id', id)
+    } else {
+      await sb().from('microsites').delete().eq('photographer_id', photographerId)
+    }
+  }
 }
 
 async function createSignupPage(photographerId, overrides = {}) {
@@ -133,7 +160,15 @@ test.describe('Public all-sessions booking page', () => {
       await waitForReady(page)
       // Lands on the single page's own booking flow, not the chooser.
       await expect(page).toHaveURL(new RegExp(`/book/${signupPage.token}$`))
-      await expect(page.getByText('Only Active Page')).toBeVisible()
+      // That page renders its title into BOTH the mobile and desktop hero
+      // layouts at once (BookingHero.jsx keeps both in the DOM, toggling
+      // which is visible via a lg: breakpoint) -- a bare getByText match
+      // is ambiguous (Playwright's strict mode) even though only one is
+      // actually visible. Scope to the desktop rail, since this repo's
+      // Playwright gate only runs the chromium project at a >=1024px
+      // viewport, same reasoning booking-branding-and-covers.spec.js
+      // documents for its own [data-testid="booking-hero-desktop"] use.
+      await expect(page.getByTestId('booking-hero-desktop').getByText('Only Active Page')).toBeVisible()
     } finally {
       await reactivatePages(parked)
       await cleanupSignupPage(signupPage.id)
@@ -197,5 +232,102 @@ test.describe('Public all-sessions booking page', () => {
       await cleanupSignupPage(emptyPage.id)
       await cleanupSignupPage(otherPage.id)
     }
+  })
+
+  // v1.5.11 step 12: each row's cover is now that session's own real
+  // preview (illustrated pattern, or an uploaded photo) via BookingCover,
+  // the same component /book/:token uses -- not the plain generic camera
+  // icon every row used to share.
+  test('each session card leads with its own cover -- pattern or real photo -- not a generic icon', async ({ page }) => {
+    const photographer = await getPhotographer()
+    const patternPage = await createSignupPage(photographer.id, { title: 'Trees Pattern Session', cover_pattern: 'trees' })
+    const shootTypeA = await createShootType(patternPage.id)
+    const slotA = futureSlot(4)
+    await createSlot(patternPage.id, shootTypeA.id, slotA.start.toISOString(), slotA.end.toISOString())
+
+    const photoPage = await createSignupPage(photographer.id, {
+      title: 'Real Photo Session',
+      cover_image_r2_key: FIXTURE_GALLERY.images[0].previewR2Key,
+      cover_focus_x: 0.25, cover_focus_y: 0.75,
+    })
+    const shootTypeB = await createShootType(photoPage.id)
+    const slotB = futureSlot(6)
+    await createSlot(photoPage.id, shootTypeB.id, slotB.start.toISOString(), slotB.end.toISOString())
+
+    const parked = await deactivateOtherActivePages(photographer.id, [patternPage.id, photoPage.id])
+    try {
+      await page.goto(`/book/all/${photographer.all_sessions_token}`)
+      await waitForReady(page)
+
+      const patternCard = page.locator('a').filter({ hasText: 'Trees Pattern Session' })
+      await expect(patternCard.locator('[data-testid="booking-cover"] svg')).toBeVisible()
+      await expect(patternCard.locator('[data-testid="booking-cover"] img')).not.toBeAttached()
+
+      const photoCard = page.locator('a').filter({ hasText: 'Real Photo Session' })
+      const photoImg = photoCard.locator('[data-testid="booking-cover"] img')
+      await expect(photoImg).toBeVisible()
+      await expect(photoImg).toHaveAttribute('src', new RegExp(
+        `/preview/${encodeURIComponent(FIXTURE_GALLERY.images[0].previewR2Key)}\\?booking_cover=1`
+      ))
+      await expect(photoImg).toHaveCSS('object-position', '25% 75%')
+
+      // The old generic camera icon every row used to share is gone now
+      // that each card leads with its own real cover.
+      await expect(page.locator('svg.lucide-camera')).toHaveCount(0)
+    } finally {
+      await reactivatePages(parked)
+      await cleanupSignupPage(patternPage.id)
+      await cleanupSignupPage(photoPage.id)
+    }
+  })
+
+  // Regression coverage for sql/063_all_sessions_branding_fallback_fix.sql:
+  // get_signup_pages_by_token's `branding` subquery used to be written as a
+  // plain FROM/WHERE against `microsites` (no join), which meant a
+  // photographer with no enabled microsite matched zero rows -- so the
+  // subquery's CASE never ran at all, and `branding` came back as SQL NULL
+  // instead of its intended has_microsite:false fallback object (complete
+  // with the account's own studio name/logo). The frontend's own
+  // `data?.branding || {...}` default masked this well enough that the
+  // page still LOOKED right (same default indigo colors either way) --
+  // just silently missing the account name in the header. Mirrors the RPC's
+  // own COALESCE(business_name, display_name), same reasoning
+  // formatSessionDates()'s own mirror-the-component-logic comment
+  // documents, rather than hardcoding the test account's real name.
+  test('no enabled microsite still shows the account\'s own name in the chooser header', async ({ page }) => {
+    const photographer = await getPhotographer()
+    await withMicrosite(photographer.id, { enabled: false }, async () => {
+      const { data: photographerRow, error } = await sb().from('photographers')
+        .select('business_name, display_name').eq('id', photographer.id).single()
+      if (error) throw new Error(error.message)
+      // ?? (nullish coalescing), not || -- COALESCE in SQL only falls
+      // through on NULL, not on an empty string. Using || here would
+      // mismatch the RPC's actual COALESCE(business_name, display_name)
+      // whenever business_name is '' rather than null.
+      const expectedName = photographerRow.business_name ?? photographerRow.display_name
+
+      const pageA = await createSignupPage(photographer.id, { title: 'Fallback Branding Page A' })
+      const shootTypeA = await createShootType(pageA.id)
+      const slotA = futureSlot(5)
+      await createSlot(pageA.id, shootTypeA.id, slotA.start.toISOString(), slotA.end.toISOString())
+      const pageB = await createSignupPage(photographer.id, { title: 'Fallback Branding Page B' })
+      const shootTypeB = await createShootType(pageB.id)
+      const slotB = futureSlot(9)
+      await createSlot(pageB.id, shootTypeB.id, slotB.start.toISOString(), slotB.end.toISOString())
+
+      const parked = await deactivateOtherActivePages(photographer.id, [pageA.id, pageB.id])
+      try {
+        await page.goto(`/book/all/${photographer.all_sessions_token}`)
+        await waitForReady(page)
+        await expect(page.getByText('Choose a session to book')).toBeVisible()
+        if (expectedName) {
+          await expect(page.getByText(expectedName)).toBeVisible()
+        }
+      } finally {
+        await reactivatePages(parked)
+        await cleanupSignupPage(pageA.id)
+        await cleanupSignupPage(pageB.id)
+      }
+    })
   })
 })
