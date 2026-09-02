@@ -40,6 +40,16 @@ import MicrositePreviewPage from './routes/MicrositePreviewPage.jsx'
 const RECOVERY_KEY = 'fv-password-recovery'
 
 function ProtectedRoute({ session, children }) {
+  // A photographer's custom domain should never expose any part of the
+  // internal FinalVault app -- dashboard, galleries, admin, account
+  // settings, all of it -- regardless of session state. Without this,
+  // any stray link to one of these paths (a browser's autocomplete
+  // suggesting an old URL, a typo, a bookmark, a search engine that
+  // indexed one) shows FinalVault's own login screen or app chrome on
+  // what's supposed to be a client-facing, branded microsite. "/"
+  // already resolves this way for a bare visit -- this makes every
+  // other internal-app path behave identically instead of only "/".
+  if (!isAppHost()) return <CustomDomainRoot />
   if (!session) return <Navigate to="/login" replace />
   return children
 }
@@ -83,12 +93,17 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={
-        session && !isPasswordRecovery
-          ? <Navigate to="/" replace />
-          : <Login isPasswordRecovery={isPasswordRecovery} onPasswordUpdated={() => {
-              sessionStorage.removeItem(RECOVERY_KEY)
-              setIsPasswordRecovery(false)
-            }} />
+        !isAppHost()
+          // Same reasoning as ProtectedRoute above -- /login isn't wrapped
+          // in it (there's no session to protect it from), but it's just
+          // as much an internal-app-only path and needs the same guard.
+          ? <CustomDomainRoot />
+          : session && !isPasswordRecovery
+            ? <Navigate to="/" replace />
+            : <Login isPasswordRecovery={isPasswordRecovery} onPasswordUpdated={() => {
+                sessionStorage.removeItem(RECOVERY_KEY)
+                setIsPasswordRecovery(false)
+              }} />
       } />
 
       <Route path="/" element={
