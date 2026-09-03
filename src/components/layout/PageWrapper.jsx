@@ -115,6 +115,30 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.12 — September 3, 2026">
+                  <Group label="Sign-ups">
+                    <Item>Signup pages can now be hidden (removed from the default list without deleting) or permanently deleted, both from a ⋮ menu on each card, with a confirmation that shows exactly what's affected</Item>
+                    <Item>Recurring slot generation now supports picking specific days of the week within a date range, instead of generating a slot for every single day</Item>
+                    <Item>New inquiry-based signup page type -- clients pick a date and a preferred time within photographer-defined availability windows instead of a fixed slot grid; submissions land directly as sessions in the Inquiry column</Item>
+                    <Item>Inquiry pages support a configurable buffer between bookings and an optional daily submission cap, both enforced server-side</Item>
+                  </Group>
+                  <Group label="Microsite Testimonials">
+                    <Item>Redesigned the testimonials list as a paginated, drag-to-reorder table</Item>
+                    <Item>Testimonials can now have a photo uploaded directly, alongside the existing "choose from gallery" option</Item>
+                  </Group>
+                  <Group label="Image Uploads">
+                    <Item>Studio logo, dark logo, about photo, and testimonial photos are now resized and converted to WebP client-side before upload, reducing file size with no visible quality loss</Item>
+                  </Group>
+                  <Group label="Emails">
+                    <Item>Inquiry submissions now send a client confirmation and a photographer notification email, styled to match existing booking emails</Item>
+                    <Item>Booking confirmation, reschedule, and inquiry emails now include the same social/payment icon row already used in gallery-delivery emails</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed the all-sessions aggregate booking link showing "No upcoming times open" for inquiry-based pages</Item>
+                    <Item>Fixed the delete-confirmation dialog always showing generic wording for inquiry pages instead of a real affected-session count</Item>
+                    <Item>Fixed deleting a testimonial not cleaning up its uploaded photo from storage when it was uploaded directly rather than chosen from a gallery</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.11 — September 1, 2026">
                   <Group label="Microsite Testimonials">
                     <Item>Spotlight transition rebuilt as a true cross-slide -- old and new testimonial now slide together fully off and on screen instead of jump-cutting</Item>

@@ -16,7 +16,11 @@ import { FIXTURE_GALLERY } from '../../fixtures/fixtures.js'
  */
 
 function openCard(page) {
-  return page.locator('div.rounded-lg.p-3.space-y-2')
+  // The testimonials redesign (v1.5.12) replaced the old card-div layout
+  // with a table -- an open/editing entry is now a <tr> containing this
+  // same placeholder, so this locator just moved to match the new
+  // element. Same "last() = the one we just added" logic as before.
+  return page.locator('tr')
     .filter({ has: page.getByPlaceholder('What the client said') })
     .last()
 }
@@ -89,7 +93,10 @@ test.describe('Microsite editor — testimonials', () => {
 
     await page.getByRole('button', { name: 'Add testimonial' }).click()
     const card = openCard(page)
-    await card.getByRole('button', { name: 'Add photo' }).click()
+    // "Add photo" no longer exists -- the photo-upload feature replaced
+    // it with "Choose from gallery" + "Upload photo" always shown side
+    // by side. This test is specifically exercising the gallery picker.
+    await card.getByRole('button', { name: 'Choose from gallery' }).click()
 
     await page.getByPlaceholder('Search galleries...').fill(FIXTURE_GALLERY.title)
     // exact: true -- the test account also has a "Comments Fixture

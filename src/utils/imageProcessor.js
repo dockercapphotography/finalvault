@@ -51,6 +51,30 @@ export async function generateWebJpeg(file, watermark = null) {
   return await canvas.convertToBlob({ type: 'image/jpeg', quality: WEB_QUALITY })
 }
 
+const UPLOAD_MAX_LONG_EDGE = 1600
+const UPLOAD_QUALITY = 0.85
+
+// Lightweight single-output compressor for direct-upload paths (studio
+// logo, dark logo, about photo, testimonial photo) -- these aren't part
+// of the main gallery pipeline (no preview/web/original triad, no
+// gallery_images row), just one file going straight to R2 via
+// /watermark-upload, which does zero processing of its own. Reuses the
+// same resize+canvas approach as generatePreview, output as WebP.
+// Deliberately not used for favicons -- see this patch's own docstring.
+export async function compressForUpload(file, maxLongEdge = UPLOAD_MAX_LONG_EDGE, quality = UPLOAD_QUALITY) {
+  const imageBitmap = await loadImageBitmap(file)
+  const { width, height } = getResizeDimensions(imageBitmap.width, imageBitmap.height, maxLongEdge)
+
+  const canvas = new OffscreenCanvas(width, height)
+  const ctx = canvas.getContext('2d')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(imageBitmap, 0, 0, width, height)
+  imageBitmap.close()
+
+  return await canvas.convertToBlob({ type: 'image/webp', quality })
+}
+
 export async function getImageDimensions(file) {
   const bitmap = await loadImageBitmap(file)
   const { width, height } = bitmap

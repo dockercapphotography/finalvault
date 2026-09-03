@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink, GripVertical } from 'lucide-react'
 import { getMyMicrosite, updateMyMicrosite } from '../utils/micrositeApi.js'
+import { compressForUpload } from '../utils/imageProcessor.js'
 import { callManageCustomDomain } from '../components/account/CustomDomainSection.jsx'
 import { getGalleries } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
@@ -20,6 +21,16 @@ import { createPortal } from 'react-dom'
 import Tabs from '../components/ui/Tabs.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useMediaQuery } from '../hooks/useMediaQuery.js'
+import { usePagination } from '../hooks/usePagination.js'
+import PaginationFooter from '../components/ui/PaginationFooter.jsx'
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core'
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   ACCENT_SWATCHES, ACCENT_SWATCHES_DARK, FONT_PAIRINGS, DEFAULT_FONT_PAIRING,
   RADIUS_OPTIONS, DEFAULT_RADIUS, HERO_VARIANT_OPTIONS, GALLERY_VARIANT_OPTIONS,
@@ -448,101 +459,349 @@ function LayoutHint({ options, value, fallback }) {
   )
 }
 
-function TestimonialsEditor({ testimonials, onChange, onEditPhoto, onAdjustFocus }) {
-  const [editingIndex, setEditingIndex] = useState(null)
+// A single testimonial row -- either the closed (saved) row, shown as a
+// table row on desktop / a card on mobile, or the open editing form,
+// shown as a full-width row (desktop) or plain card (mobile). Draggable
+// via a handle (desktop table cell / mobile card icon) using the same
+// dnd-kit useSortable pattern as Account.jsx's SortableQuestionCard --
+// disabled while open for editing, since dragging mid-edit isn't a
+// meaningful action.
+function SortableTestimonialRow({
+  testimonial: t, isOpen, mobile,
+  onOpenEdit, onDone, onCancel, onRemove, onUpdate, onUpdateFields,
+  onEditPhoto, onAdjustFocus, onRemovePhoto,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: t.id, disabled: isOpen })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+  const isComplete = !!(t.quote && t.name)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const photoInputRef = useRef(null)
 
-  function update(i, field, value) {
-    const next = [...testimonials]
-    next[i] = { ...next[i], [field]: value }
-    onChange(next)
+  // Direct-upload path for a testimonial photo, mirroring the About
+  // section's exact pattern (same /watermark-upload endpoint, same
+  // photographers/{id}/logos/ key prefix -- these do NOT count toward
+  // storage today, same as the studio logo/dark logo/favicon/about
+  // photo uploads; the storage check only ever sums gallery_images).
+  async function handlePhotoFileSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploadingPhoto(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { user } } = await supabase.auth.getUser()
+      // Only clean up the previous file if it was a direct upload, not a
+      // gallery-picked key -- a gallery key belongs to a real client
+      // photo and must never be deleted from here.
+      if (t.photo_gallery_image_key && !t.photo_gallery_image_key.includes('/galleries/')) {
+        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(t.photo_gallery_image_key)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
+        }).catch(() => {})
+      }
+      const compressedBlob = await compressForUpload(file)
+      const r2Key = `photographers/${user.id}/logos/testimonial-photo-${crypto.randomUUID()}.webp`
+      const formData = new FormData()
+      formData.append('file', new File([compressedBlob], 'testimonial-photo.webp', { type: 'image/webp' }))
+      formData.append('key', r2Key)
+      const resp = await fetch(`${WORKER_URL}/watermark-upload`, {
+        method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, body: formData
+      })
+      const result = await resp.json()
+      if (!result.ok) throw new Error(result.error || 'Upload failed')
+      onUpdateFields({ photo_gallery_image_key: r2Key, photo_focus_x: 0.5, photo_focus_y: 0.5 })
+    } catch (err) {
+      console.error('Testimonial photo upload error:', err)
+    } finally {
+      setUploadingPhoto(false)
+    }
   }
-  function remove(i) {
-    onChange(testimonials.filter((_, idx) => idx !== i))
-    if (editingIndex === i) setEditingIndex(null)
+
+  async function handleRemovePhotoClick() {
+    // Same rule as upload above: only delete the underlying R2 file for
+    // a direct upload, never for a gallery-sourced key.
+    if (t.photo_gallery_image_key && !t.photo_gallery_image_key.includes('/galleries/')) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(t.photo_gallery_image_key)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
+        })
+      } catch {}
+    }
+    onRemovePhoto()
+  }
+
+  const dragHandle = (
+    <button {...attributes} {...listeners} aria-label="Drag to reorder"
+      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: isDragging ? 'grabbing' : 'grab', display: 'flex', padding: 2, touchAction: 'none' }}>
+      <GripVertical size={14} />
+    </button>
+  )
+
+  const editForm = (
+    <div className={mobile ? 'rounded-lg p-3 space-y-2' : 'p-3 space-y-2'} style={{ border: mobile ? '1px solid #C7CDF5' : 'none', background: '#F5F6FF' }}>
+      <div className="text-xs font-semibold uppercase" style={{ color: '#6366f1', letterSpacing: '0.04em' }}>
+        {isComplete ? 'Editing testimonial' : 'New testimonial'}
+      </div>
+      <Input label="Quote" value={t.quote || ''} onChange={v => onUpdate('quote', v)} type="textarea" placeholder="What the client said" />
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Client name" value={t.name || ''} onChange={v => onUpdate('name', v)} placeholder="e.g. Jordan M." />
+        <Input label="Session type" value={t.session_type || ''} onChange={v => onUpdate('session_type', v)} placeholder="e.g. Studio Session" />
+      </div>
+      <div className="flex items-center gap-3">
+        {t.photo_gallery_image_key ? (
+          <div style={{ width: 60 }}>
+            <GalleryPickThumb
+              r2Key={t.photo_gallery_image_key}
+              onRemove={handleRemovePhotoClick}
+              onAdjustFocus={onAdjustFocus}
+            />
+          </div>
+        ) : (
+          <div style={{ width: 60, height: 60, borderRadius: 8, background: 'var(--surface-raised)', flexShrink: 0 }} />
+        )}
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <button onClick={onEditPhoto} className="text-sm font-medium px-3 py-1.5 rounded-lg"
+              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
+              Choose from gallery
+            </button>
+            <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto} className="text-sm font-medium px-3 py-1.5 rounded-lg"
+              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
+              {uploadingPhoto ? 'Uploading…' : 'Upload photo'}
+            </button>
+          </div>
+          <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={handlePhotoFileSelect} />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <EntryDoneButton isComplete={isComplete} onClick={onDone} />
+        <button onClick={onCancel} className="text-sm font-medium px-3 py-1.5 rounded-lg"
+          style={{ background: 'none', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+
+  if (mobile) {
+    return (
+      <div ref={setNodeRef} style={style}>
+        {isOpen ? editForm : (
+          <div className="rounded-lg px-3 py-2.5 flex items-center gap-3" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+            <div style={{ flexShrink: 0 }}>{dragHandle}</div>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--surface-raised)' }}>
+              {t.photo_gallery_image_key && <GalleryPickThumb r2Key={t.photo_gallery_image_key} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{t.name}{t.session_type ? ` — ${t.session_type}` : ''}</p>
+              <p className="text-xs italic truncate" title={t.quote} style={{ color: 'var(--text-muted)' }}>&ldquo;{t.quote}&rdquo;</p>
+            </div>
+            <div style={{ flexShrink: 0 }}>
+              <SavedRowMenu onEdit={onOpenEdit} onRemove={onRemove} removeLabel="this testimonial" />
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <tr ref={setNodeRef} style={style}>
+      {isOpen ? (
+        <td colSpan={6} className="p-0" style={{ borderTop: '1px solid var(--border)' }}>{editForm}</td>
+      ) : (
+        <>
+          <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)' }}>{dragHandle}</td>
+          <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', background: 'var(--surface-raised)' }}>
+              {t.photo_gallery_image_key && <GalleryPickThumb r2Key={t.photo_gallery_image_key} />}
+            </div>
+          </td>
+          <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', overflow: 'hidden' }}>
+            <p className="truncate italic" title={t.quote} style={{ color: 'var(--text)' }}>&ldquo;{t.quote}&rdquo;</p>
+          </td>
+          <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', color: 'var(--text)', overflow: 'hidden' }}>
+            <p className="truncate" title={t.name}>{t.name}</p>
+          </td>
+          <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)', overflow: 'hidden' }}>
+            <p className="truncate" title={t.session_type || ''}>{t.session_type || '—'}</p>
+          </td>
+          <td className="px-3 py-2 text-right" style={{ borderTop: '1px solid var(--border)' }}>
+            <SavedRowMenu onEdit={onOpenEdit} onRemove={onRemove} removeLabel="this testimonial" />
+          </td>
+        </>
+      )}
+    </tr>
+  )
+}
+
+function TestimonialsEditor({ testimonials, onChange, onEditPhoto, onAdjustFocus }) {
+  const [editingId, setEditingId] = useState(null)
+  const isMobile = useMediaQuery('(max-width: 767px)')
+  const pagination = usePagination({ totalCount: testimonials.length, initialPageSize: 10 })
+  const { page, setPage, pageSize, setPageSize, totalPages, from, to, rangeStart, rangeEnd } = pagination
+
+  // Older/newly-added entries may not carry a stable id yet (positional
+  // index used to be enough before pagination + drag-reorder needed a
+  // real identity to key off). Backfill once, silently.
+  useEffect(() => {
+    if (testimonials.some(t => !t.id)) {
+      onChange(testimonials.map(t => t.id ? t : { ...t, id: crypto.randomUUID() }))
+    }
+  }, [testimonials])
+
+  // Keep the current page in range if it shrinks out from under us (e.g.
+  // removing the last item on the last page).
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(Math.max(0, totalPages - 1))
+  }, [totalPages])
+
+  const pageItems = testimonials.slice(from, to + 1)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  function update(id, field, value) {
+    onChange(testimonials.map(t => t.id === id ? { ...t, [field]: value } : t))
+  }
+  function updateFields(id, fields) {
+    onChange(testimonials.map(t => t.id === id ? { ...t, ...fields } : t))
+  }
+  function remove(id) {
+    // Clean up an uploaded photo's R2 file the same way removing just the
+    // photo already does -- never for a gallery-sourced key. Not awaited,
+    // so the row still disappears from the list instantly.
+    const t = testimonials.find(x => x.id === id)
+    if (t?.photo_gallery_image_key && !t.photo_gallery_image_key.includes('/galleries/')) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        fetch(`${WORKER_URL}/delete/${encodeURIComponent(t.photo_gallery_image_key)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
+        }).catch(() => {})
+      })
+    }
+    onChange(testimonials.filter(x => x.id !== id))
+    if (editingId === id) setEditingId(null)
   }
   function add() {
-    onChange([...testimonials, { quote: '', name: '', session_type: '' }])
-    setEditingIndex(testimonials.length)
+    const id = crypto.randomUUID()
+    const next = [...testimonials, { id, quote: '', name: '', session_type: '' }]
+    onChange(next)
+    setEditingId(id)
+    // Jump to whichever page the new (last) entry lands on, so the open
+    // editing form is actually visible instead of silently added off-screen.
+    setPage(Math.max(0, Math.ceil(next.length / pageSize) - 1))
   }
-  function cancel(i) {
-    const t = testimonials[i]
+  function cancel(id) {
+    const t = testimonials.find(x => x.id === id)
     // A never-finished entry (started via "Add testimonial", still
     // missing a quote or name) has nothing worth keeping -- Cancel
     // removes it outright, same as if it'd never been added. A
     // previously-saved entry reopened for editing just closes back up;
     // whatever's already there stays as it was.
     if (!(t?.quote && t?.name)) {
-      remove(i)
+      remove(id)
     } else {
-      setEditingIndex(null)
+      setEditingId(null)
     }
   }
-  function removePhoto(i) {
-    update(i, 'photo_gallery_image_key', null)
+  function removePhoto(id) {
+    update(id, 'photo_gallery_image_key', null)
+  }
+  function handleDragEnd(event) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    // Reordering only operates within the currently visible page --
+    // over.id is always one of pageItems' own ids, since those are the
+    // only sortable items actually rendered/registered with dnd-kit at
+    // any given moment.
+    const oldPageIndex = pageItems.findIndex(x => x.id === active.id)
+    const newPageIndex = pageItems.findIndex(x => x.id === over.id)
+    if (oldPageIndex === -1 || newPageIndex === -1) return
+    onChange(arrayMove(testimonials, from + oldPageIndex, from + newPageIndex))
+  }
+
+  if (testimonials.length === 0) {
+    return (
+      <button onClick={add} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+        style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
+        <Plus size={14} />Add testimonial
+      </button>
+    )
   }
 
   return (
-    <div className="space-y-2">
-      {testimonials.map((t, i) => {
-        const isComplete = !!(t.quote && t.name)
-        const isOpen = editingIndex === i || !isComplete
-        if (!isOpen) {
-          return (
-            <div key={i} className="rounded-lg p-3 relative flex gap-3 items-start" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-              <div style={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--surface-raised)' }}>
-                {t.photo_gallery_image_key && <GalleryPickThumb r2Key={t.photo_gallery_image_key} />}
+    <div className="space-y-3">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={pageItems.map(t => t.id)} strategy={verticalListSortingStrategy}>
+          {isMobile ? (
+            <div className="space-y-2">
+              {pageItems.map(t => (
+                <SortableTestimonialRow key={t.id} testimonial={t} mobile
+                  isOpen={editingId === t.id || !(t.quote && t.name)}
+                  onOpenEdit={() => setEditingId(t.id)}
+                  onDone={() => setEditingId(null)}
+                  onCancel={() => cancel(t.id)}
+                  onRemove={() => remove(t.id)}
+                  onUpdate={(field, v) => update(t.id, field, v)}
+                  onUpdateFields={fields => updateFields(t.id, fields)}
+                  onEditPhoto={() => onEditPhoto(testimonials.findIndex(x => x.id === t.id))}
+                  onAdjustFocus={() => onAdjustFocus(testimonials.findIndex(x => x.id === t.id))}
+                  onRemovePhoto={() => removePhoto(t.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="text-xs" style={{ width: '100%', tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: 28 }} />
+                    <col style={{ width: 44 }} />
+                    <col />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '16%' }} />
+                    <col style={{ width: 40 }} />
+                  </colgroup>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                      {['', 'Photo', 'Quote', 'Name', 'Session type', ''].map((h, i) => (
+                        <th key={i} className="text-left font-medium px-3 py-2 truncate" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageItems.map(t => (
+                      <SortableTestimonialRow key={t.id} testimonial={t}
+                        isOpen={editingId === t.id || !(t.quote && t.name)}
+                        onOpenEdit={() => setEditingId(t.id)}
+                        onDone={() => setEditingId(null)}
+                        onCancel={() => cancel(t.id)}
+                        onRemove={() => remove(t.id)}
+                        onUpdate={(field, v) => update(t.id, field, v)}
+                        onUpdateFields={fields => updateFields(t.id, fields)}
+                        onEditPhoto={() => onEditPhoto(testimonials.findIndex(x => x.id === t.id))}
+                        onAdjustFocus={() => onAdjustFocus(testimonials.findIndex(x => x.id === t.id))}
+                        onRemovePhoto={() => removePhoto(t.id)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div className="flex-1 pr-6">
-                <p className="text-sm italic" style={{ color: 'var(--text)' }}>&ldquo;{t.quote}&rdquo;</p>
-                <p className="text-xs font-semibold mt-1" style={{ color: 'var(--accent)' }}>{t.name}{t.session_type ? ` — ${t.session_type}` : ''}</p>
-              </div>
-              <div className="absolute top-2.5 right-2.5">
-                <SavedRowMenu onEdit={() => setEditingIndex(i)} onRemove={() => remove(i)} removeLabel="this testimonial" />
-              </div>
             </div>
-          )
-        }
-        return (
-          <div key={i} className="rounded-lg p-3 space-y-2" style={{ border: '1px solid #C7CDF5', background: '#F5F6FF' }}>
-            <div className="text-xs font-semibold uppercase" style={{ color: '#6366f1', letterSpacing: '0.04em' }}>
-              {isComplete ? 'Editing testimonial' : 'New testimonial'}
-            </div>
-            <Input label="Quote" value={t.quote || ''} onChange={v => update(i, 'quote', v)} type="textarea" placeholder="What the client said" />
-            <div className="grid grid-cols-2 gap-2">
-              <Input label="Client name" value={t.name || ''} onChange={v => update(i, 'name', v)} placeholder="e.g. Jordan M." />
-              <Input label="Session type" value={t.session_type || ''} onChange={v => update(i, 'session_type', v)} placeholder="e.g. Studio Session" />
-            </div>
-            <div className="flex items-center gap-3">
-              {t.photo_gallery_image_key ? (
-                <div style={{ width: 60 }}>
-                  <GalleryPickThumb
-                    r2Key={t.photo_gallery_image_key}
-                    onRemove={() => removePhoto(i)}
-                    onAdjustFocus={() => onAdjustFocus(i)}
-                  />
-                </div>
-              ) : (
-                <button onClick={() => onEditPhoto(i)} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-                  style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
-                  <Plus size={14} />Add photo
-                </button>
-              )}
-              {t.photo_gallery_image_key && (
-                <button onClick={() => onEditPhoto(i)} className="text-sm" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  Change
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <EntryDoneButton isComplete={isComplete} onClick={() => setEditingIndex(null)} />
-              <button onClick={() => cancel(i)} className="text-sm font-medium px-3 py-1.5 rounded-lg"
-                style={{ background: 'none', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )
-      })}
+          )}
+        </SortableContext>
+      </DndContext>
+
+      <PaginationFooter
+        page={page} setPage={setPage}
+        pageSize={pageSize} setPageSize={setPageSize}
+        totalPages={totalPages} rangeStart={rangeStart} rangeEnd={rangeEnd}
+        totalCount={testimonials.length}
+        pageSizeOptions={[10, 25, 50]}
+      />
+
       <button onClick={add} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
         style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
         <Plus size={14} />Add testimonial
@@ -670,10 +929,10 @@ export default function MicrositeEditor() {
           method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
         }).catch(() => {})
       }
-      const ext = file.name.split('.').pop()
-      const r2Key = `photographers/${user.id}/logos/microsite-logo-${crypto.randomUUID()}.${ext}`
+      const compressedBlob = await compressForUpload(file)
+      const r2Key = `photographers/${user.id}/logos/microsite-logo-${crypto.randomUUID()}.webp`
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', new File([compressedBlob], 'logo.webp', { type: 'image/webp' }))
       formData.append('key', r2Key)
       const resp = await fetch(`${WORKER_URL}/watermark-upload`, {
         method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, body: formData
@@ -715,10 +974,10 @@ export default function MicrositeEditor() {
           method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
         }).catch(() => {})
       }
-      const ext = file.name.split('.').pop()
-      const r2Key = `photographers/${user.id}/logos/microsite-logo-dark-${crypto.randomUUID()}.${ext}`
+      const compressedBlob = await compressForUpload(file)
+      const r2Key = `photographers/${user.id}/logos/microsite-logo-dark-${crypto.randomUUID()}.webp`
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', new File([compressedBlob], 'logo-dark.webp', { type: 'image/webp' }))
       formData.append('key', r2Key)
       const resp = await fetch(`${WORKER_URL}/watermark-upload`, {
         method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, body: formData
@@ -816,10 +1075,10 @@ export default function MicrositeEditor() {
           method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
         }).catch(() => {})
       }
-      const ext = file.name.split('.').pop()
-      const r2Key = `photographers/${user.id}/logos/about-photo-${crypto.randomUUID()}.${ext}`
+      const compressedBlob = await compressForUpload(file)
+      const r2Key = `photographers/${user.id}/logos/about-photo-${crypto.randomUUID()}.webp`
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', new File([compressedBlob], 'about-photo.webp', { type: 'image/webp' }))
       formData.append('key', r2Key)
       const resp = await fetch(`${WORKER_URL}/watermark-upload`, {
         method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, body: formData
@@ -952,8 +1211,8 @@ export default function MicrositeEditor() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)', paddingTop: 64 }}>
-      <div className="flex items-center justify-between px-6" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 64, zIndex: 50, borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-4 sm:px-6" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 64, zIndex: 50, borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+        <div className="flex items-center gap-2 sm:gap-3">
           <button onClick={handleBack} style={{ color: 'var(--text-muted)', display: 'flex', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             <ArrowLeft size={18} />
           </button>
@@ -965,13 +1224,21 @@ export default function MicrositeEditor() {
             </a>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {isDirty && saveState !== 'saving' && (
-            <p className="text-xs" style={{ color: 'var(--warning)' }}>Unsaved changes</p>
+            <p className="text-xs whitespace-nowrap" style={{ color: 'var(--warning)' }}>
+              <span className="hidden sm:inline">Unsaved changes</span>
+              <span className="sm:hidden">Unsaved</span>
+            </p>
           )}
           <SaveIndicator state={saveState} />
           <Button onClick={handleSave} disabled={saveState === 'saving' || !isDirty}>
-            {saveState === 'saving' ? 'Saving…' : 'Save changes'}
+            {saveState === 'saving' ? 'Saving…' : (
+              <>
+                <span className="hidden sm:inline">Save changes</span>
+                <span className="sm:hidden">Save</span>
+              </>
+            )}
           </Button>
         </div>
       </div>

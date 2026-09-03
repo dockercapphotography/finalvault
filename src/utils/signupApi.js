@@ -7,7 +7,7 @@ export async function getSignupPages() {
   const { data, error } = await supabase
     .from('signup_pages')
     .select(`
-      id, title, token, venue_address, venue_lat, venue_lng, timezone, is_active, created_at,
+      id, title, token, venue_address, venue_lat, venue_lng, timezone, is_active, archived_at, mode, created_at,
       signup_shoot_types ( id ),
       signup_slots ( id, claimed_at, start_time )
     `)
@@ -48,7 +48,7 @@ export async function getSignupPage(id) {
   return data
 }
 
-export async function createSignupPage({ title, venueAddress, venueLat, venueLng, timezone }) {
+export async function createSignupPage({ title, venueAddress, venueLat, venueLng, timezone, mode }) {
   const { data: { user } } = await supabase.auth.getUser()
   const token = crypto.randomUUID().replace(/-/g, '')
   const { data, error } = await supabase
@@ -61,6 +61,7 @@ export async function createSignupPage({ title, venueAddress, venueLat, venueLng
       venue_lat: venueLat ?? null,
       venue_lng: venueLng ?? null,
       timezone: timezone || 'America/New_York',
+      mode: mode || 'slots',
       updated_at: new Date().toISOString(),
     })
     .select()
@@ -77,6 +78,7 @@ export async function updateSignupPage(id, updates) {
   if (updates.venueLng !== undefined) mapped.venue_lng = updates.venueLng
   if (updates.timezone !== undefined) mapped.timezone = updates.timezone
   if (updates.isActive !== undefined) mapped.is_active = updates.isActive
+  if (updates.archivedAt !== undefined) mapped.archived_at = updates.archivedAt
   if (updates.confirmationNote !== undefined) mapped.confirmation_note = updates.confirmationNote?.trim() || null
   if (updates.notificationNote !== undefined) mapped.notification_note = updates.notificationNote?.trim() || null
   if (updates.bookingDescription !== undefined) mapped.booking_description = updates.bookingDescription?.trim() || null
@@ -85,6 +87,8 @@ export async function updateSignupPage(id, updates) {
   if (updates.coverImageR2Key !== undefined) mapped.cover_image_r2_key = updates.coverImageR2Key
   if (updates.coverFocusX !== undefined) mapped.cover_focus_x = updates.coverFocusX
   if (updates.coverFocusY !== undefined) mapped.cover_focus_y = updates.coverFocusY
+  if (updates.bufferMinutes !== undefined) mapped.buffer_minutes = updates.bufferMinutes
+  if (updates.maxDailyInquiries !== undefined) mapped.max_daily_inquiries = updates.maxDailyInquiries
 
   const { data, error } = await supabase
     .from('signup_pages')
@@ -99,6 +103,89 @@ export async function updateSignupPage(id, updates) {
 export async function deleteSignupPage(id) {
   const { error } = await supabase.from('signup_pages').delete().eq('id', id)
   if (error) throw error
+}
+
+// Returns { claimed_slot_count } for the delete-confirm dialog -- see
+// sql/063_signup_page_archive_and_delete_impact.sql. Owner-checked
+// server-side via auth.uid(), same pattern as getSessionDeletionImpact.
+export async function getSignupPageDeleteImpact(id) {
+  const { data, error } = await supabase.rpc('get_signup_page_delete_impact', { p_id: id })
+  if (error) throw error
+  return data
+}
+
+// ── Inquiry Windows (mode = 'inquiry' pages only) ───────────────────────────
+// See sql/064_inquiry_signup_pages.sql. Multiple windows can exist per page
+// -- e.g. different day/time patterns for April vs May -- each is its own row.
+
+export async function getInquiryWindows(signupPageId) {
+  const { data, error } = await supabase
+    .from('signup_inquiry_windows')
+    .select('*')
+    .eq('signup_page_id', signupPageId)
+    .order('sort_order', { ascending: true })
+    .order('start_date', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createInquiryWindow({ signupPageId, daysOfWeek, startDate, endDate, startTime, endTime, sortOrder }) {
+  const { data, error } = await supabase
+    .from('signup_inquiry_windows')
+    .insert({
+      signup_page_id: signupPageId,
+      days_of_week: daysOfWeek,
+      start_date: startDate,
+      end_date: endDate,
+      start_time: startTime,
+      end_time: endTime,
+      sort_order: sortOrder ?? 0,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateInquiryWindow(id, updates) {
+  const mapped = {}
+  if (updates.daysOfWeek !== undefined) mapped.days_of_week = updates.daysOfWeek
+  if (updates.startDate !== undefined) mapped.start_date = updates.startDate
+  if (updates.endDate !== undefined) mapped.end_date = updates.endDate
+  if (updates.startTime !== undefined) mapped.start_time = updates.startTime
+  if (updates.endTime !== undefined) mapped.end_time = updates.endTime
+  const { data, error } = await supabase
+    .from('signup_inquiry_windows')
+    .update(mapped)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteInquiryWindow(id) {
+  const { error } = await supabase.from('signup_inquiry_windows').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Public submit path (anonymous, via RPC) -- validated server-side
+// against the page's own windows (see submit_signup_inquiry in
+// sql/064). Not wired into any UI yet.
+export async function submitSignupInquiry({ signupPageId, shootTypeId, date, time, firstName, lastName, email, phone, pronouns }) {
+  const { data, error } = await supabase.rpc('submit_signup_inquiry', {
+    p_signup_page_id: signupPageId,
+    p_shoot_type_id: shootTypeId,
+    p_date: date,
+    p_time: time,
+    p_first_name: firstName.trim(),
+    p_last_name: lastName.trim(),
+    p_email: email.trim(),
+    p_phone: phone?.trim() || null,
+    p_pronouns: pronouns || null,
+  })
+  if (error) throw error
+  return data
 }
 
 // ── Shoot Types ──────────────────────────────────────────────────────────────

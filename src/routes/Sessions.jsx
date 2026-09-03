@@ -5,7 +5,7 @@ import { SlotActionsModal, SlotActionsSheet } from './SignupLiveStatus.jsx'
 import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { Plus, CalendarDays, X, LayoutList, Columns, Link2, Copy, Check, Trash2, MapPin, Ticket as TicketIcon, Camera,
-  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock, Search, Crosshair } from 'lucide-react'
+  Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock, Search, Crosshair, MoreVertical, Eye, EyeOff, Pencil } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { supabase } from '../supabaseClient.js'
 import { getPublicBaseUrl } from '../utils/publicBaseUrl.js'
@@ -21,7 +21,8 @@ import {
   getSignupPages, getSignupPage, createSignupPage, updateSignupPage, deleteSignupPage,
   createShootType, updateShootType, deleteShootType, generateSlots, getSlots, deleteSlot,
   createManualSlot, deleteAllOpenSlots, getShootTypeQuestionnaires, setShootTypeQuestionnaires,
-  getMyAllSessionsToken,
+  getMyAllSessionsToken, getSignupPageDeleteImpact,
+  getInquiryWindows, createInquiryWindow, updateInquiryWindow, deleteInquiryWindow,
 } from '../utils/signupApi.js'
 import { COMMON_TIMEZONES } from '../utils/timezoneApi.js'
 import { CoverPatternShapes } from '../components/booking/BookingCover.jsx'
@@ -31,6 +32,7 @@ import MicrositeFocalPointModal from '../components/microsite/MicrositeFocalPoin
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import PlaceAutocomplete from '../components/ui/PlaceAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
+import PortalMenu from '../components/ui/PortalMenu.jsx'
 import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
 import KanbanBoard from '../components/ui/KanbanBoard.jsx'
@@ -462,12 +464,14 @@ function SessionCard({ session, onClick }) {
 
 // ── Sign-ups ─────────────────────────────────────────────────────────────────
 
-function SignupPageCard({ page, onOpen }) {
+function SignupPageCard({ page, onOpen, onHide, onUnhide, onDelete }) {
   const pct = page.slot_total > 0 ? Math.round((page.slot_claimed / page.slot_total) * 100) : 0
   const active = page.is_active
+  const hidden = !!page.archived_at
+
   return (
-    <button onClick={onOpen} className="w-full text-left rounded-2xl p-4 transition-colors"
-      style={{ border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}
+    <div onClick={onOpen} className="w-full text-left rounded-2xl p-4 transition-colors"
+      style={{ border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', opacity: hidden ? 0.6 : 1 }}
       onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
       onMouseLeave={e => e.currentTarget.style.background = 'var(--surface)'}>
       <div className="flex items-start gap-3 mb-3.5">
@@ -486,6 +490,50 @@ function SignupPageCard({ page, onOpen }) {
           }}>
           {active ? 'Active' : 'Inactive'}
         </span>
+        {hidden && (
+          <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0"
+            style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)' }}>
+            Hidden
+          </span>
+        )}
+        <div onClick={e => e.stopPropagation()}>
+          <PortalMenu
+            trigger={<MoreVertical size={16} />}
+            triggerLabel="Signup page actions"
+            triggerClassName="flex items-center justify-center rounded-md"
+            triggerStyle={{ width: 28, height: 28, color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
+            items={[
+              {
+                label: hidden ? 'Unhide' : 'Hide',
+                icon: hidden ? <Eye size={13} /> : <EyeOff size={13} />,
+                onClick: () => (hidden ? onUnhide(page.id) : onHide(page.id)),
+              },
+              {
+                label: 'Delete',
+                icon: <Trash2 size={13} />,
+                danger: true,
+                confirm: async () => {
+                  const result = await getSignupPageDeleteImpact(page.id)
+                  const mode = result?.mode || 'slots'
+                  const count = mode === 'inquiry' ? (result?.linked_session_count ?? 0) : (result?.claimed_slot_count ?? 0)
+                  const message = mode === 'inquiry'
+                    ? (count > 0
+                        ? `${count} linked session${count === 1 ? '' : 's'} will lose their connection to this page. The sessions themselves are not deleted.`
+                        : "This can't be undone.")
+                    : (count > 0
+                        ? `${count} booked appointment${count === 1 ? '' : 's'} will be lost. Clients and sessions are not affected.`
+                        : "This can't be undone.")
+                  return {
+                    title: `Delete "${page.title}"?`,
+                    message,
+                    confirmLabel: 'Delete',
+                    onConfirm: () => onDelete(page.id),
+                  }
+                },
+              },
+            ]}
+          />
+        </div>
       </div>
 
       {page.slot_total > 0 && (
@@ -504,19 +552,20 @@ function SignupPageCard({ page, onOpen }) {
         <span className="flex items-center gap-1"><Camera size={13} />{page.shoot_type_count} shoot type{page.shoot_type_count === 1 ? '' : 's'}</span>
         {page.day_count > 0 && <span className="flex items-center gap-1"><CalendarDays size={13} />{page.day_count} day{page.day_count === 1 ? '' : 's'}</span>}
       </div>
-    </button>
+    </div>
   )
 }
 
 function NewSignupPageModal({ onClose, onCreated }) {
   const [title, setTitle] = useState('')
+  const [mode, setMode] = useState('slots')
   const [saving, setSaving] = useState(false)
 
   async function handleCreate() {
     if (!title.trim()) return
     setSaving(true)
     try {
-      const page = await createSignupPage({ title })
+      const page = await createSignupPage({ title, mode })
       onCreated(page)
     } catch (err) {
       console.error(err)
@@ -528,7 +577,23 @@ function NewSignupPageModal({ onClose, onCreated }) {
     <Modal title="New signup page" onClose={onClose}>
       <div className="space-y-4">
         <Input label="Title" value={title} onChange={setTitle} placeholder="GenCon 2026 Photo Sessions" required />
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>You'll set the venue, shoot types, and time slots next.</p>
+        <div>
+          <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Booking type</label>
+          <div className="flex gap-2">
+            {[
+              { value: 'slots', label: 'Fixed time slots', desc: 'Clients book a specific pre-set time' },
+              { value: 'inquiry', label: 'Inquiry', desc: 'Clients pick a date and request a time within a window you set' },
+            ].map(opt => (
+              <button key={opt.value} onClick={() => setMode(opt.value)} className="flex-1 px-3 py-2.5 rounded-xl text-left"
+                style={{ border: mode === opt.value ? '2px solid #6366f1' : '2px solid var(--border)', background: mode === opt.value ? 'rgba(99,102,241,0.05)' : 'var(--surface)', cursor: 'pointer' }}>
+                <p className="text-sm font-medium" style={{ color: mode === opt.value ? '#6366f1' : 'var(--text)' }}>{opt.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{opt.desc}</p>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>Can't be changed after creating the page.</p>
+        </div>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>You'll set the venue and shoot types next.</p>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button variant="primary" onClick={handleCreate} disabled={!title.trim() || saving}>
@@ -654,6 +719,11 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
   )
 }
 
+const DAYS_OF_WEEK = [
+  { value: 0, label: 'Sun' }, { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' }, { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' },
+]
+
 function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
   const [shootTypeId, setShootTypeId] = useState(shootTypes[0]?.id || '')
   const [date, setDate] = useState('')
@@ -661,6 +731,11 @@ function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
   const [startTime, setStartTime] = useState('10:00')
   const [endTime, setEndTime] = useState('18:00')
   const [buffer, setBuffer] = useState('5')
+  // All 7 selected by default -- a single-day generation (no end date,
+  // or endDate === date) never shows this picker at all, so the default
+  // only matters once a real range is set, and "every day" is exactly
+  // today's existing behavior.
+  const [selectedDays, setSelectedDays] = useState([0, 1, 2, 3, 4, 5, 6])
   const [generating, setGenerating] = useState(false)
   const [lastCount, setLastCount] = useState(null)
   const [formError, setFormError] = useState(null)
@@ -672,6 +747,11 @@ function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
   }, [shootTypes, shootTypeId])
 
   const selectedType = shootTypes.find(t => t.id === shootTypeId)
+  const isRange = !!endDate && endDate !== date
+
+  function toggleDay(value) {
+    setSelectedDays(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value].sort())
+  }
 
   async function handleGenerate() {
     if (!shootTypeId || !selectedType) {
@@ -686,6 +766,10 @@ function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
       setFormError('End date is before the start date.')
       return
     }
+    if (isRange && selectedDays.length === 0) {
+      setFormError('Pick at least one day of the week.')
+      return
+    }
     setFormError(null)
     setGenerating(true)
     setLastCount(null)
@@ -693,9 +777,13 @@ function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
       const dates = []
       let cursor = date
       while (cursor <= (endDate || date)) {
-        dates.push(cursor)
-        const [y, m, d] = cursor.split('-').map(Number)
-        cursor = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)
+        // Weekday computed via Date.UTC, same UTC-anchored approach the
+        // cursor increment below already uses -- avoids local-timezone
+        // drift shifting a date across a day boundary.
+        const [cy, cm, cd] = cursor.split('-').map(Number)
+        const weekday = new Date(Date.UTC(cy, cm - 1, cd)).getUTCDay()
+        if (!isRange || selectedDays.includes(weekday)) dates.push(cursor)
+        cursor = new Date(Date.UTC(cy, cm - 1, cd + 1)).toISOString().slice(0, 10)
       }
 
       let total = 0
@@ -739,6 +827,27 @@ function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
             style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
         </div>
       </div>
+      {isRange && (
+        <div>
+          <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Days of week</p>
+          <div className="flex gap-1 flex-wrap">
+            {DAYS_OF_WEEK.map(d => {
+              const active = selectedDays.includes(d.value)
+              return (
+                <button key={d.value} type="button" onClick={() => toggleDay(d.value)}
+                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                  style={{
+                    background: active ? '#6366f1' : 'var(--bg-subtle)',
+                    color: active ? '#fff' : 'var(--text-muted)',
+                    border: '1px solid var(--border)', cursor: 'pointer',
+                  }}>
+                  {d.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
           style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
@@ -753,7 +862,7 @@ function GenerateSlotsForm({ page, shootTypes, onGenerated }) {
       {formError && <p className="text-xs" style={{ color: 'var(--danger)' }}>{formError}</p>}
       <div className="flex items-center gap-3">
         <Button variant="secondary" onClick={handleGenerate} disabled={generating}>
-          {generating ? 'Generating...' : endDate && endDate !== date ? 'Generate slots for these days' : 'Generate slots for this day'}
+          {generating ? 'Generating...' : isRange ? 'Generate slots for these days' : 'Generate slots for this day'}
         </Button>
         {lastCount !== null && (
           <span className="text-xs" style={{ color: lastCount > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
@@ -917,6 +1026,194 @@ function CoverPhotoThumb({ r2Key }) {
   return <div className="w-full h-full" style={{ background: 'var(--bg-subtle)' }}>{url && <img src={url} alt="" className="w-full h-full object-cover" />}</div>
 }
 
+function formatWindowDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })
+}
+
+function formatWindowTime(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number)
+  return new Date(Date.UTC(2000, 0, 1, h, m)).toLocaleTimeString('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' })
+}
+
+function InquiryWindowEditForm({ initial, onSave, onCancel, saving }) {
+  const [daysOfWeek, setDaysOfWeek] = useState(initial?.days_of_week || [0, 6])
+  const [startDate, setStartDate] = useState(initial?.start_date || '')
+  const [endDate, setEndDate] = useState(initial?.end_date || '')
+  const [startTime, setStartTime] = useState(initial?.start_time?.slice(0, 5) || '10:00')
+  const [endTime, setEndTime] = useState(initial?.end_time?.slice(0, 5) || '18:00')
+  const [formError, setFormError] = useState(null)
+
+  function toggleDay(value) {
+    setDaysOfWeek(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value].sort())
+  }
+
+  function handleSave() {
+    if (daysOfWeek.length === 0) { setFormError('Pick at least one day of the week.'); return }
+    if (!startDate || !endDate) { setFormError('Pick a start and end date.'); return }
+    if (endDate < startDate) { setFormError('End date is before the start date.'); return }
+    if (!startTime || !endTime || endTime <= startTime) { setFormError('End time must be after start time.'); return }
+    setFormError(null)
+    onSave({ daysOfWeek, startDate, endDate, startTime: startTime + ':00', endTime: endTime + ':00' })
+  }
+
+  return (
+    <div className="px-4 py-3 space-y-2.5" style={{ borderTop: '1px solid var(--border)' }}>
+      <div>
+        <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Days of week</p>
+        <div className="flex gap-1 flex-wrap">
+          {DAYS_OF_WEEK.map(d => {
+            const active = daysOfWeek.includes(d.value)
+            return (
+              <button key={d.value} type="button" onClick={() => toggleDay(d.value)}
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                style={{
+                  background: active ? '#6366f1' : 'var(--bg-subtle)',
+                  color: active ? '#fff' : 'var(--text-muted)',
+                  border: '1px solid var(--border)', cursor: 'pointer',
+                }}>
+                {d.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Start date</p>
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+            style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
+        </div>
+        <div>
+          <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>End date</p>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} min={startDate || undefined}
+            style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13 }} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+          style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+        <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
+          style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+      </div>
+      {formError && <p className="text-xs" style={{ color: 'var(--danger)' }}>{formError}</p>}
+      <div className="flex items-center gap-2">
+        <button onClick={handleSave} disabled={saving} className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+          style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+        <button onClick={onCancel} disabled={saving} className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+          style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function InquiryWindowsEditor({ pageId }) {
+  const [windows, setWindows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [addingNew, setAddingNew] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { load() }, [pageId])
+
+  async function load() {
+    setLoading(true)
+    try {
+      setWindows(await getInquiryWindows(pageId))
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
+  }
+
+  async function handleCreate(fields) {
+    setSaving(true)
+    try {
+      const created = await createInquiryWindow({ signupPageId: pageId, ...fields, sortOrder: windows.length })
+      setWindows(prev => [...prev, created])
+      setAddingNew(false)
+    } catch (err) { console.error(err) }
+    finally { setSaving(false) }
+  }
+
+  async function handleUpdate(id, fields) {
+    setSaving(true)
+    try {
+      const updated = await updateInquiryWindow(id, fields)
+      setWindows(prev => prev.map(w => w.id === id ? updated : w))
+      setEditingId(null)
+    } catch (err) { console.error(err) }
+    finally { setSaving(false) }
+  }
+
+  async function handleRemove(id) {
+    await deleteInquiryWindow(id)
+    setWindows(prev => prev.filter(w => w.id !== id))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Availability windows</label>
+        {!addingNew && (
+          <button onClick={() => setAddingNew(true)} className="text-xs font-medium" style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}>
+            + Add window
+          </button>
+        )}
+      </div>
+      <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Days, dates, and hours clients can request. Add more than one for different patterns -- e.g. April weekends at one time, May weekends at another.</p>
+      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+        {windows.length === 0 && !addingNew && (
+          <p className="text-xs px-4 py-3" style={{ color: 'var(--text-muted)' }}>No windows yet -- clients can't request anything until you add at least one.</p>
+        )}
+        {windows.map((w, i) => (
+          editingId === w.id ? (
+            <InquiryWindowEditForm key={w.id} initial={w} saving={saving}
+              onSave={fields => handleUpdate(w.id, fields)} onCancel={() => setEditingId(null)} />
+          ) : (
+            <div key={w.id} className="flex items-center justify-between px-4 py-3" style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                  {DAYS_OF_WEEK.filter(d => w.days_of_week.includes(d.value)).map(d => d.label).join(', ')}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  {formatWindowDate(w.start_date)} &ndash; {formatWindowDate(w.end_date)} &middot; {formatWindowTime(w.start_time)} &ndash; {formatWindowTime(w.end_time)}
+                </p>
+              </div>
+              <PortalMenu
+                trigger={<MoreVertical size={13} />}
+                triggerLabel="Window actions"
+                triggerClassName="flex items-center justify-center rounded-md"
+                triggerStyle={{ width: 22, height: 22, color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
+                items={[
+                  { label: 'Edit', icon: <Pencil size={13} />, onClick: () => setEditingId(w.id) },
+                  {
+                    label: 'Remove', icon: <Trash2 size={13} />, danger: true,
+                    confirm: { title: 'Remove this window?', message: "This can't be undone.", confirmLabel: 'Remove', onConfirm: () => handleRemove(w.id) },
+                  },
+                ]}
+              />
+            </div>
+          )
+        ))}
+        {addingNew && (
+          <InquiryWindowEditForm saving={saving} onSave={handleCreate} onCancel={() => setAddingNew(false)} />
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SignupPageDetailModal({ pageId, onClose, onChanged }) {
   const [page, setPage] = useState(null)
   const [slots, setSlots] = useState([])
@@ -934,6 +1231,8 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
   const [notificationNote, setNotificationNote] = useState('')
   const [bookingDescription, setBookingDescription] = useState('')
   const [showPricing, setShowPricing] = useState(true)
+  const [bufferMinutes, setBufferMinutes] = useState(0)
+  const [maxDailyInquiries, setMaxDailyInquiries] = useState('')
   const [coverPattern, setCoverPattern] = useState(DEFAULT_COVER_PATTERN)
   const [coverImageR2Key, setCoverImageR2Key] = useState(null)
   const [coverFocusX, setCoverFocusX] = useState(0.5)
@@ -942,6 +1241,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
   const [showCoverFocalModal, setShowCoverFocalModal] = useState(false)
   const [copied, setCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteImpact, setDeleteImpact] = useState(null)
   const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [clearingAll, setClearingAll] = useState(false)
   const [questionnaires, setQuestionnaires] = useState([])
@@ -978,6 +1278,8 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
       setNotificationNote(p.notification_note || '')
       setBookingDescription(p.booking_description || '')
       setShowPricing(p.show_pricing ?? true)
+      setBufferMinutes(p.buffer_minutes ?? 0)
+      setMaxDailyInquiries(p.max_daily_inquiries ?? '')
       setCoverPattern(p.cover_pattern || DEFAULT_COVER_PATTERN)
       setCoverImageR2Key(p.cover_image_r2_key || null)
       setCoverFocusX(p.cover_focus_x ?? 0.5)
@@ -1027,6 +1329,20 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
     const next = !showPricing
     setShowPricing(next)
     const updated = await updateSignupPage(pageId, { showPricing: next })
+    setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
+  }
+
+  async function handleSaveBufferMinutes() {
+    const value = parseInt(bufferMinutes, 10) || 0
+    setBufferMinutes(value)
+    const updated = await updateSignupPage(pageId, { bufferMinutes: value })
+    setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
+  }
+
+  async function handleSaveMaxDailyInquiries() {
+    const value = maxDailyInquiries === '' ? null : parseInt(maxDailyInquiries, 10) || null
+    setMaxDailyInquiries(value === null ? '' : value)
+    const updated = await updateSignupPage(pageId, { maxDailyInquiries: value })
     setPage(updated ? { ...page, ...updated, signup_shoot_types: page.signup_shoot_types } : page)
   }
 
@@ -1087,6 +1403,16 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
     await deleteShootType(id)
     setPage(prev => ({ ...prev, signup_shoot_types: prev.signup_shoot_types.filter(t => t.id !== id) }))
     onChanged()
+  }
+
+  async function handleConfirmDeleteClick() {
+    setConfirmDelete(true)
+    try {
+      const result = await getSignupPageDeleteImpact(pageId)
+      const mode = result?.mode || 'slots'
+      const count = mode === 'inquiry' ? (result?.linked_session_count ?? 0) : (result?.claimed_slot_count ?? 0)
+      setDeleteImpact({ mode, count })
+    } catch (err) { console.error(err); setDeleteImpact({ mode: 'slots', count: 0 }) }
   }
 
   async function handleDeletePage() {
@@ -1177,7 +1503,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
               settings are secondary and don't need to be scrolled past
               to get there anymore. */}
           <div className="flex rounded-lg p-0.5" style={{ background: 'var(--bg-subtle)' }}>
-            {[['slots', 'Booking slots'], ['settings', 'Session settings']].map(([key, tabLabel]) => (
+            {[['slots', page.mode === 'inquiry' ? 'Availability' : 'Booking slots'], ['settings', 'Session settings']].map(([key, tabLabel]) => (
               <button key={key} onClick={() => setActiveTab(key)}
                 className="flex-1 text-xs font-medium px-2.5 py-1.5 rounded-md"
                 style={{
@@ -1192,6 +1518,25 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
 
           {activeTab === 'slots' && (
             <div className="space-y-6">
+              {page.mode === 'inquiry' ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                    <div>
+                      <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Buffer between requests (minutes)</p>
+                      <input type="number" min="0" step="5" value={bufferMinutes} onChange={e => setBufferMinutes(e.target.value)} onBlur={handleSaveBufferMinutes}
+                        style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Max inquiries per day (optional)</p>
+                      <input type="number" min="1" value={maxDailyInquiries} onChange={e => setMaxDailyInquiries(e.target.value)} onBlur={handleSaveMaxDailyInquiries}
+                        placeholder="Unlimited"
+                        style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+                  <InquiryWindowsEditor pageId={page.id} />
+                </>
+              ) : (
+              <>
               {/* Cross-day search -- see isSearchingSlots/searchResults above. */}
               <div className="relative">
                 <Search size={14} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--text-muted)' }} />
@@ -1283,6 +1628,8 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
               </div>
             </div>
           )}
+              </>
+              )}
               </>
               )}
             </div>
@@ -1518,14 +1865,22 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
           {/* Danger zone */}
           <div className="pt-2" style={{ borderTop: '1px solid var(--border)' }}>
             {!confirmDelete ? (
-              <button onClick={() => setConfirmDelete(true)} className="text-xs font-medium" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={handleConfirmDeleteClick} className="text-xs font-medium" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
                 Delete signup page
               </button>
             ) : (
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
-                <p className="text-sm flex-1 font-medium" style={{ color: 'var(--danger)' }}>Delete this page and all its slots? Bookings already made stay as real sessions.</p>
-                <Button variant="danger" size="sm" onClick={handleDeletePage}>Confirm</Button>
-                <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                <p className="text-sm flex-1 font-medium" style={{ color: 'var(--danger)' }}>
+                  {deleteImpact === null ? 'Checking...' : deleteImpact.mode === 'inquiry'
+                    ? (deleteImpact.count > 0
+                        ? `Delete this page? ${deleteImpact.count} linked session${deleteImpact.count === 1 ? '' : 's'} will lose their connection to this page. The sessions themselves are not deleted.`
+                        : "Delete this page? This can't be undone.")
+                    : (deleteImpact.count > 0
+                        ? `Delete this page? ${deleteImpact.count} booked appointment${deleteImpact.count === 1 ? '' : 's'} will be lost. Clients and sessions are not affected.`
+                        : "Delete this page and its slots? This can't be undone.")}
+                </p>
+                <Button variant="danger" size="sm" onClick={handleDeletePage} disabled={deleteImpact === null}>Confirm</Button>
+                <Button variant="secondary" size="sm" onClick={() => { setConfirmDelete(false); setDeleteImpact(null) }}>Cancel</Button>
               </div>
             )}
           </div>
@@ -1590,7 +1945,7 @@ function SignupPageDetailModal({ pageId, onClose, onChanged }) {
   )
 }
 
-function SignupPagesView({ pages, loading, onCreate, onOpen }) {
+function SignupPagesView({ pages, loading, onCreate, onOpen, onHide, onUnhide, onDelete }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -1612,7 +1967,10 @@ function SignupPagesView({ pages, loading, onCreate, onOpen }) {
   }
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-      {pages.map(p => <SignupPageCard key={p.id} page={p} onOpen={() => onOpen(p.id)} />)}
+      {pages.map(p => (
+        <SignupPageCard key={p.id} page={p} onOpen={() => onOpen(p.id)}
+          onHide={onHide} onUnhide={onUnhide} onDelete={onDelete} />
+      ))}
     </div>
   )
 }
@@ -1633,6 +1991,7 @@ export default function Sessions() {
   const [loadingSignups, setLoadingSignups] = useState(false)
   const [showNewSignup, setShowNewSignup] = useState(false)
   const [openSignupPageId, setOpenSignupPageId] = useState(null)
+  const [showHiddenSignups, setShowHiddenSignups] = useState(false)
   const [allSessionsToken, setAllSessionsToken] = useState(null)
   const [allSessionsBaseUrl, setAllSessionsBaseUrl] = useState(window.location.origin)
   const [allSessionsCopied, setAllSessionsCopied] = useState(false)
@@ -1677,6 +2036,23 @@ export default function Sessions() {
       setSignupPages(data)
     } catch (err) { console.error(err) }
     finally { setLoadingSignups(false) }
+  }
+
+  // Hide/unhide toggle archived_at (sql/063) -- a photographer-side
+  // declutter flag only, independent of is_active/the public booking page.
+  async function handleHideSignupPage(id) {
+    await updateSignupPage(id, { archivedAt: new Date().toISOString() })
+    loadSignupPages()
+  }
+
+  async function handleUnhideSignupPage(id) {
+    await updateSignupPage(id, { archivedAt: null })
+    loadSignupPages()
+  }
+
+  async function handleDeleteSignupPageFromCard(id) {
+    await deleteSignupPage(id)
+    loadSignupPages()
   }
 
   const allSessionsUrl = allSessionsToken ? `${allSessionsBaseUrl}/book/all/${allSessionsToken}` : ''
@@ -1890,11 +2266,22 @@ export default function Sessions() {
               </button>
             </div>
           )}
+          {signupPages.some(p => p.archived_at) && (
+            <div className="flex justify-end mb-2">
+              <button onClick={() => setShowHiddenSignups(v => !v)} className="text-xs font-medium"
+                style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                {showHiddenSignups ? 'Hide archived pages' : `Show hidden (${signupPages.filter(p => p.archived_at).length})`}
+              </button>
+            </div>
+          )}
           <SignupPagesView
-            pages={signupPages}
+            pages={signupPages.filter(p => showHiddenSignups || !p.archived_at)}
             loading={loadingSignups}
             onCreate={() => setShowNewSignup(true)}
             onOpen={setOpenSignupPageId}
+            onHide={handleHideSignupPage}
+            onUnhide={handleUnhideSignupPage}
+            onDelete={handleDeleteSignupPageFromCard}
           />
         </div>
       )}

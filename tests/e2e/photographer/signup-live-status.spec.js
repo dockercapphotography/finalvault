@@ -54,6 +54,20 @@ async function cleanupSignupPage(pageId) {
   await sb().from('signup_pages').delete().eq('id', pageId)
 }
 
+// "Tap to register a walk-up" only renders for a slot happening TODAY --
+// a hardcoded date silently goes stale and starts failing the moment
+// that date is in the past. Computes today's date in the signup page's
+// own timezone (America/New_York, this file's createSignupPage default),
+// not the test runner's local time or UTC, so the walk-up tests below
+// stay valid indefinitely instead of time-bombing again.
+function todayInTimezone(timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+  const y = parts.find(p => p.type === 'year').value
+  const m = parts.find(p => p.type === 'month').value
+  const d = parts.find(p => p.type === 'day').value
+  return `${y}-${m}-${d}`
+}
+
 // claim_signup_slot creates real clients/sessions with no FK back to the
 // signup page, so cleaning up the page alone (above) doesn't remove them --
 // same reasoning as signup-booking.spec.js's cleanupSignupPage(pageId,
@@ -195,7 +209,8 @@ test.describe('Live status page — v1.5.2 additions', () => {
   test('registering a walk-up claims the slot and creates a real client and session', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Walk-up Test Page' })
     const shootType = await createShootType(signupPage.id, { name: 'Walk-up Shoot' })
-    await createSlot(signupPage.id, shootType.id, '2026-09-01T19:00:00Z', '2026-09-01T19:15:00Z')
+    const today = todayInTimezone('America/New_York')
+    await createSlot(signupPage.id, shootType.id, `${today}T19:00:00Z`, `${today}T19:15:00Z`)
     const email = `walkup-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       await page.goto(`/sessions/signups/${signupPage.id}/status`)
@@ -229,7 +244,8 @@ test.describe('Live status page — v1.5.2 additions', () => {
   test('registering a walk-up for a slot claimed by someone else mid-flow shows a conflict error', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Walk-up Race Test Page' })
     const shootType = await createShootType(signupPage.id)
-    const slot = await createSlot(signupPage.id, shootType.id, '2026-09-02T19:00:00Z', '2026-09-02T19:15:00Z')
+    const today = todayInTimezone('America/New_York')
+    const slot = await createSlot(signupPage.id, shootType.id, `${today}T19:00:00Z`, `${today}T19:15:00Z`)
     const winnerEmail = `walkup-race-winner-${crypto.randomUUID().slice(0, 8)}@example.com`
     const loserEmail = `walkup-race-loser-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
