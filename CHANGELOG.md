@@ -4,6 +4,40 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.12 — September 3, 2026
+
+### New Features
+
+**Sign-ups**
+- Signup pages can now be hidden (removed from the default list without deleting) or permanently deleted, both from a ⋮ menu on each card, with a confirmation that shows exactly what's affected
+- Recurring slot generation now supports picking specific days of the week within a date range, instead of generating a slot for every single day in the range
+- New inquiry-based signup page type -- clients pick a date and a preferred time within one or more photographer-defined availability windows (days of week, date range, time range) instead of a fixed slot grid; submissions land directly as sessions in the Inquiry column
+- Inquiry pages support a configurable buffer between bookings and an optional daily submission cap, both enforced server-side, with the public calendar reflecting real-time availability
+
+**Microsite Testimonials**
+- Redesigned the testimonials list as a paginated, drag-to-reorder table, replacing the old unpaginated card list
+- Testimonials can now have a photo uploaded directly, alongside the existing "choose from gallery" option
+
+### Improvements
+
+**Image uploads**
+- Studio logo, dark logo, about photo, and testimonial photos are now resized and converted to WebP client-side before upload, meaningfully reducing file size with no visible quality loss
+
+**Emails**
+- Inquiry submissions now send a client confirmation and a photographer notification email, styled to match the existing booking emails
+- Booking confirmation, reschedule, and inquiry emails now include the same social/payment icon row already used in gallery-delivery emails, closing a styling gap between email types
+
+### Bug Fixes
+
+**Sign-ups**
+- Fixed the all-sessions aggregate booking link showing "No upcoming times open" for inquiry-based pages, which have no pre-generated slots for it to check
+- Fixed the delete-confirmation dialog always showing generic wording for inquiry pages instead of a real count of affected sessions
+
+**Microsite Testimonials**
+- Fixed deleting a testimonial not cleaning up its uploaded photo from storage if the photo was uploaded directly rather than chosen from a gallery
+
+---
+
 ## v1.5.11 — September 1, 2026
 
 ### Bug Fixes
