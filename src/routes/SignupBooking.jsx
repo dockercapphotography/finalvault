@@ -6,6 +6,7 @@ import { SessionTypeIcon } from '../utils/sessionTypeIcon.jsx'
 import { useBookingBranding } from '../utils/bookingBranding.js'
 import { COMMON_TIMEZONES } from '../utils/timezoneApi.js'
 import BookingHero from '../components/booking/BookingHero.jsx'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 
 // ── Data (anonymous, via supabaseAnon -- see supabaseClientAnon.js's own
 // comment for why this matters: guarantees no leaked photographer session
@@ -625,10 +626,13 @@ export default function SignupBooking() {
   // hook order never changes across renders.
   const branding = pageData?.branding || { has_microsite: false, studio_name: null, logo_r2_key: null }
   const { bkVars } = useBookingBranding(branding)
+  useDocumentTitle(
+    pageData?.title && pageData?.branding?.studio_name
+      ? `${pageData.title} · ${pageData.branding.studio_name}`
+      : pageData?.title,
+    { suffix: false }
+  )
 
-  useEffect(() => {
-    document.title = branding.studio_name || pageData?.title || 'Book a session'
-  }, [branding.studio_name, pageData?.title])
 
   if (loading) {
     return (

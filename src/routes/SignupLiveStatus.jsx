@@ -13,6 +13,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import FilterSortControl from '../components/ui/FilterSortControl.jsx'
 import LiveStatusTimeline from '../components/signup/LiveStatusTimeline.jsx'
 import RescheduleModal from '../components/signup/RescheduleModal.jsx'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 
 // Realtime requires the table to have replication enabled in Supabase
 // (Database -> Replication -> toggle signup_slots on) -- not automatic
@@ -508,6 +509,7 @@ export default function SignupLiveStatus() {
   const isDesktop = useMediaQuery('(min-width: 768px)')
   const [page, setPage] = useState(null)
   const [slots, setSlots] = useState([])
+  useDocumentTitle(page?.title ? `${page.title} · Live Status` : 'Live Status')
   const [loading, setLoading] = useState(true)
   const [connected, setConnected] = useState(false)
   const [selectedDay, setSelectedDay] = useState(null)

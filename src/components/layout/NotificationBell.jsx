@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle, FileText, CalendarCheck } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import { formatDate } from '../../utils/formatters.js'
+import { getBellNotificationPreferences } from '../../utils/push.js'
 
 const ACTION_CONFIG = {
   view:            { Icon: Eye,           color: '#6366f1', bg: '#6366f115' },
@@ -14,6 +15,52 @@ const ACTION_CONFIG = {
   unfavorite:      { Icon: HeartOff,      color: '#94a3b8', bg: '#94a3b815' },
   comment:         { Icon: MessageCircle, color: '#10b981', bg: '#10b98115' },
   slot_claimed:    { Icon: CalendarCheck,  color: '#6366f1', bg: '#6366f115' },
+}
+
+// notifications.type -> bell_notification_preferences column.
+const TYPE_TO_BELL_PREF = {
+  slot_claimed: 'claim',
+  contract_signed: 'contract_signed',
+  questionnaire_response: 'questionnaire_response',
+  inquiry_submitted: 'inquiry',
+}
+
+// gallery_activity_log.action -> bell_notification_preferences column.
+// favorite/unfavorite share one toggle, as do both download actions --
+// same grouping the push-batching trigger already uses.
+const ACTION_TO_BELL_PREF = {
+  view: 'view',
+  favorite: 'favorite',
+  unfavorite: 'favorite',
+  comment: 'comment',
+  download_single: 'download',
+  download_all: 'download',
+}
+
+// Fail-open: no prefs loaded yet, or an action/type with no entry in
+// the map above, both mean "show it" -- a lookup gap should never
+// silently hide an event type.
+//
+// visible_since[key] (set whenever a preference is turned back on --
+// see updateBellNotificationPreference) means "only show this type
+// from this moment forward" -- otherwise re-enabling a long-off
+// toggle would flood the bell with everything that piled up while it
+// was off. Checked for both the master switch and the specific type.
+function isBellItemAllowed(actionOrType, occurredAt, prefs, map) {
+  if (!prefs) return true
+  if (prefs.enabled === false) return false
+
+  const masterCutoff = prefs.visible_since?.enabled
+  if (masterCutoff && new Date(occurredAt) < new Date(masterCutoff)) return false
+
+  const key = map[actionOrType]
+  if (!key) return true
+  if (prefs[key] === false) return false
+
+  const typeCutoff = prefs.visible_since?.[key]
+  if (typeCutoff && new Date(occurredAt) < new Date(typeCutoff)) return false
+
+  return true
 }
 
 function getActionLabel(item) {
@@ -62,13 +109,19 @@ export default function NotificationBell({ mobile = false }) {
   const [loading, setLoading] = useState(false)
   const [pendingContracts, setPendingContracts] = useState([])
   const panelRef = useRef(null)
+  const bellPrefsRef = useRef(null)
 
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      loadLastRead(user.id).then(ts => loadActivity(user.id, ts))
+      getBellNotificationPreferences(user.id)
+        .then(prefs => { bellPrefsRef.current = prefs; return prefs })
+        .catch(() => null)
+        .then(prefs => {
+          loadLastRead(user.id).then(ts => loadActivity(user.id, ts, prefs))
+        })
       loadPendingContracts(user.id)
     })
   }, [])
@@ -82,6 +135,7 @@ export default function NotificationBell({ mobile = false }) {
         filter: `photographer_id=eq.${userId}`,
       }, payload => {
         const n = payload.new
+        if (!isBellItemAllowed(n.type, n.created_at, bellPrefsRef.current, TYPE_TO_BELL_PREF)) return
         const item = {
           id: `notif-${n.id}`,
           action: n.type,
@@ -137,7 +191,7 @@ export default function NotificationBell({ mobile = false }) {
     setPendingContracts(data ?? [])
   }
 
-  async function loadActivity(uid, knownLastRead) {
+  async function loadActivity(uid, knownLastRead, bellPrefs) {
     setLoading(true)
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -196,7 +250,10 @@ export default function NotificationBell({ mobile = false }) {
       }
     }
 
-    const combined = [...enrichedGalleryItems, ...notifItems]
+    const filteredNotifItems = notifItems.filter(item => isBellItemAllowed(item.action, item.occurred_at, bellPrefs, TYPE_TO_BELL_PREF))
+    const filteredGalleryItems = enrichedGalleryItems.filter(item => isBellItemAllowed(item.action, item.occurred_at, bellPrefs, ACTION_TO_BELL_PREF))
+
+    const combined = [...filteredGalleryItems, ...filteredNotifItems]
       .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))
 
     setItems(combined)

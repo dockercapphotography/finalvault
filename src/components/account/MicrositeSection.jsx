@@ -4,19 +4,43 @@ import { Globe } from 'lucide-react'
 import { getMyMicrosite } from '../../utils/micrositeApi.js'
 import { callManageCustomDomain } from './CustomDomainSection.jsx'
 import SettingsSection from '../ui/SettingsSection.jsx'
+import { supabase } from '../../supabaseClient.js'
 
 export default function MicrositeSection() {
   const [site, setSite] = useState(undefined) // undefined = loading
   const [domain, setDomain] = useState(undefined) // undefined = loading, null = none configured
+  // null = still checking, true/false once resolved.
+  const [hasPremiumAccess, setHasPremiumAccess] = useState(null)
 
   useEffect(() => {
     getMyMicrosite().then(setSite).catch(() => setSite(null))
     callManageCustomDomain('GET').then(setDomain).catch(() => setDomain(null))
   }, [])
 
+  useEffect(() => {
+    supabase.rpc('get_my_premium_access').then(({ data }) => setHasPremiumAccess(!!data))
+  }, [])
+
   const loading = site === undefined || domain === undefined
   const hasDomain = !!domain
   const enabled = !!site?.enabled
+
+  // Same upsell-card treatment as CustomDomainSection.jsx -- this is
+  // just the summary/status card, MicrositeEditor.jsx itself already
+  // blocks the real /website route, but showing "Enabled" +
+  // "Manage website" here would be misleading once access is gone.
+  if (hasPremiumAccess === false) {
+    return (
+      <SettingsSection
+        title="Website"
+        description="A one-page website shown at the root of your custom domain.">
+        <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
+          <p className="text-sm" style={{ color: 'var(--text)' }}>Websites aren't included in your current plan.</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Upgrade your plan to build and publish a one-page website for your studio.</p>
+        </div>
+      </SettingsSection>
+    )
+  }
 
   return (
     <SettingsSection

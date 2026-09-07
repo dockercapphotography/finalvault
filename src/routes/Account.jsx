@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import {CheckCircle, Copy, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
+import BellNotificationsSection from '../components/account/BellNotificationsSection.jsx'
 import CustomDomainSection from '../components/account/CustomDomainSection.jsx'
 import MicrositeSection from '../components/account/MicrositeSection.jsx'
 import WebImageBackfillSection from '../components/account/WebImageBackfillSection.jsx'
@@ -1565,11 +1567,11 @@ function NotificationsTab({ user, onSaveState }) {
     if (!user) return
     supabase
       .from('notification_preferences')
-      .select('notify_favorites, notify_comments, notify_downloads')
+      .select('notify_favorites, notify_comments, notify_downloads, digest_enabled')
       .eq('photographer_id', user.id)
       .single()
       .then(({ data }) => {
-        setPrefs(data || { notify_favorites: true, notify_comments: true, notify_downloads: true })
+        setPrefs(data || { notify_favorites: true, notify_comments: true, notify_downloads: true, digest_enabled: true })
         setLoaded(true)
       })
   }, [user])
@@ -1597,35 +1599,47 @@ function NotificationsTab({ user, onSaveState }) {
 
   return (
     <div className="space-y-4">
+      <BellNotificationsSection photographerId={user?.id} onSaveState={onSaveState} />
+
+      <PushNotificationsSection photographerId={user?.id} onSaveState={onSaveState} />
+
       <SettingsSection
         title="Activity Digest"
-        description="Receive a daily email summary of client activity across your galleries. Only sent when there is new activity since the last digest.">
-        {rows.map((row, i) => (
-          <div key={row.field} className="flex items-center justify-between px-5 py-4"
-            style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', borderBottom: 'none', background: 'var(--surface)' }}>
-            <div>
-              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
+        description="Receive a daily email summary of client activity across your galleries. Only sent when there is new activity since the last digest."
+        action={
+          <Toggle
+            checked={prefs.digest_enabled}
+            onChange={val => handleToggle('digest_enabled', val)}
+          />
+        }>
+        {prefs.digest_enabled && (
+          <>
+            {rows.map((row, i) => (
+              <div key={row.field} className="flex items-center justify-between px-5 py-4"
+                style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', borderBottom: 'none', background: 'var(--surface)' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
+                </div>
+                <Toggle
+                  checked={prefs[row.field]}
+                  onChange={val => handleToggle(row.field, val)}
+                />
+              </div>
+            ))}
+            <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border)', borderBottom: 'none', background: 'var(--surface)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {(() => {
+                  const utc8 = new Date()
+                  utc8.setUTCHours(8, 0, 0, 0)
+                  const localTime = utc8.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                  return <>Digests are sent daily at {localTime} to <span style={{ color: 'var(--text)' }}>{user?.email}</span>.</>
+                })()}
+              </p>
             </div>
-            <Toggle
-              checked={prefs[row.field]}
-              onChange={val => handleToggle(row.field, val)}
-            />
-          </div>
-        ))}
-        <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border)', borderBottom: 'none', background: 'var(--surface)' }}>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {(() => {
-              const utc8 = new Date()
-              utc8.setUTCHours(8, 0, 0, 0)
-              const localTime = utc8.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-              return <>Digests are sent daily at {localTime} to <span style={{ color: 'var(--text)' }}>{user?.email}</span>.</>
-            })()}
-          </p>
-        </div>
+          </>
+        )}
       </SettingsSection>
-
-      <PushNotificationsSection photographerId={user?.id} />
     </div>
   )
 }
@@ -2241,6 +2255,7 @@ export default function Account() {
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile')
   const [isAdmin, setIsAdmin] = useState(false)
+  useDocumentTitle('Account')
   const [saveState, setSaveState] = useState('idle')
   const dismissTimer = useRef(null)
 

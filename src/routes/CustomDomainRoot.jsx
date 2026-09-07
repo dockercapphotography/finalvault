@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getSiteByHostname } from '../utils/micrositeApi.js'
+import { useCustomDomainFavicon } from '../hooks/useCustomDomainFavicon.js'
 import MicrositePlaceholder from './MicrositePlaceholder.jsx'
 import MicrositeRenderer from '../components/microsite/MicrositeRenderer.jsx'
 
@@ -20,37 +21,14 @@ export default function CustomDomainRoot() {
     return () => { cancelled = true }
   }, [])
 
-  // Swaps in the photographer's own dedicated favicon as the browser-tab
-  // icon, replacing FinalVault's default (declared statically in
-  // index.html). Deliberately a separate field from logo_r2_key
-  // (favicon_r2_key, uploaded from Website > Content > Branding -- see
-  // sql/054): a studio's regular logo is often not square/simple enough
-  // to read at 16x16, so there's no logo fallback here -- no favicon
-  // uploaded just falls all the way back to FinalVault's icon. Only the
-  // 'microsite' branch of get_site_by_hostname() returns favicon_r2_key
-  // (to_jsonb(v_microsite) picks up the new column automatically, per
-  // sql/053) -- the placeholder page always shows the default until a
-  // microsite exists, matching where the upload UI lives. Served from
-  // the existing fully-public /logo/:key worker route (no auth needed) --
-  // favicons upload under the same photographers/{id}/logos/ prefix as
-  // the logo/dark logo overrides, so no worker changes were needed to
-  // serve them.
-  useEffect(() => {
-    if (!site || !site.favicon_r2_key) return
-
-    const href = `${WORKER_URL}/logo/${encodeURIComponent(site.favicon_r2_key)}`
-
-    // Removing the static <link rel="icon"> tags from index.html first,
-    // rather than just appending a new one, avoids relying on
-    // document-order tie-breaking across browsers when multiple icon
-    // links are present -- there's no consistently specified winner.
-    document.querySelectorAll('link[rel~="icon"]').forEach(el => el.remove())
-
-    const link = document.createElement('link')
-    link.rel = 'icon'
-    link.href = href
-    document.head.appendChild(link)
-  }, [site?.favicon_r2_key])
+  // Favicon swap now lives in a shared hook (useCustomDomainFavicon) --
+  // reused across every custom-domain page, not just this microsite
+  // root, so a gallery link, booking page, or client portal on the same
+  // domain shows the photographer's own icon too. Does its own
+  // independent hostname lookup rather than reusing `site` above (see
+  // the hook's own comment for why) -- a small duplicate fetch here
+  // specifically, traded for keeping the two concerns decoupled.
+  useCustomDomainFavicon()
 
   if (site === undefined) return null
 

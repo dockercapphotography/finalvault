@@ -42,7 +42,7 @@ serve(async (req) => {
     const { data: slot, error: slotError } = await supabase
       .from('signup_slots')
       .select(`
-        id, client_name, start_time,
+        id, client_name, start_time, end_time,
         signup_shoot_types ( name ),
         signup_pages ( photographer_id, timezone, token )
       `)
@@ -59,9 +59,17 @@ serve(async (req) => {
     const timezone = slot.signup_pages?.timezone || 'UTC'
     const shootTypeName = slot.signup_shoot_types?.name || 'Session'
 
-    const timeLabel = new Intl.DateTimeFormat('en-US', {
+    const startTimeFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-    }).format(new Date(slot.start_time))
+    })
+    // No month/day here -- the end time is always the same day as the
+    // start time, so repeating the date would just be noise.
+    const endTimeFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone, hour: 'numeric', minute: '2-digit',
+    })
+    const timeLabel = slot.end_time
+      ? `${startTimeFormatter.format(new Date(slot.start_time))} – ${endTimeFormatter.format(new Date(slot.end_time))}`
+      : startTimeFormatter.format(new Date(slot.start_time))
 
     const { sent, cleaned } = await sendPushToPhotographer(supabase, photographerId, {
       title: 'New booking!',

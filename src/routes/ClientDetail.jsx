@@ -13,6 +13,7 @@ import TagInput from '../components/ui/TagInput.jsx'
 import PlainField from '../components/ui/PlainField.jsx'
 import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { getClient, updateClient, deleteClient, getClientGalleries, getContracts, deleteContract, uploadClientAvatar, getClientAvatarUrl, getAllTags, getOrCreatePortalToken, regeneratePortalToken, setClientPortalPassword, clearClientPortalPassword, resetPortalLockout } from '../utils/crmApi.js'
 import { getUnlinkedGalleries, linkGalleriesToClient, unlinkGalleryFromClient } from '../utils/galleryApi.js'
 import { supabase } from '../supabaseClient.js'
@@ -984,6 +985,7 @@ export default function ClientDetail() {
   const [contracts, setContracts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  useDocumentTitle(client ? `${client.first_name} ${client.last_name}`.trim() : null)
   const [showEdit, setShowEdit] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)

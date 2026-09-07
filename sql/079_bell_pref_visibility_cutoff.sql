@@ -1,0 +1,26 @@
+-- Migration: 079_bell_pref_visibility_cutoff.sql
+-- Fixes a real gap found via testing: NotificationBell.jsx's filtering
+-- only checks a preference's current boolean value against every row in
+-- its lookback window. Turning a toggle back on after it's been off for
+-- a while doesn't just show new events going forward -- it retroactively
+-- reveals the entire backlog that accumulated while it was off, which
+-- could be a large, jarring flood of "new" items and an inflated unread
+-- count, none of which actually just happened.
+--
+-- gallery_activity_log itself can't stop being written while a bell
+-- preference is off -- the Activity Digest, per-gallery stats, and the
+-- GalleryActivity page all depend on that data existing regardless of
+-- bell display settings. So the fix belongs entirely in the bell's
+-- filtering layer: track *when* each preference was most recently
+-- turned on, and only show events from that moment forward.
+--
+-- visible_since is a JSONB map (column name -> timestamp), not 9
+-- separate timestamp columns, to avoid a schema column explosion for
+-- something that's really one concept applied uniformly to every
+-- preference key (including the 'enabled' master switch itself).
+-- Missing key = no cutoff = show everything, which is exactly right for
+-- an account that's never touched its bell preferences.
+--
+-- Run after: 078_notification_master_toggles.sql
+
+ALTER TABLE bell_notification_preferences ADD COLUMN IF NOT EXISTS visible_since jsonb NOT NULL DEFAULT '{}'::jsonb;

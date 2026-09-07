@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Circle, Folder, FolderPlus, Home, Images, LayoutGrid, Plus, Share2, Upload, X} from 'lucide-react'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
@@ -548,6 +549,7 @@ export default function Dashboard() {
   const [galleries, setGalleries] = useState([])
   const [folders, setFolders] = useState([])
   const [loading, setLoading] = useState(true)
+  useDocumentTitle('Galleries')
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(null)

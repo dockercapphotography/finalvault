@@ -147,6 +147,15 @@ export async function updateSession(id, updates) {
   return data
 }
 
+export async function updateSessionStatus(id, newStatus) {
+  const { data, error } = await supabase.rpc('update_session_status', {
+    p_session_id: id,
+    p_new_status: newStatus,
+  })
+  if (error) throw error
+  return data
+}
+
 export async function deleteSession(id) {
   const { error } = await supabase
     .from('sessions')

@@ -7,11 +7,13 @@ import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { Plus, CalendarDays, X, LayoutList, Columns, Link2, Copy, Check, Trash2, MapPin, Ticket as TicketIcon, Camera,
   Users, Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, User, Trophy, Heart, BookHeart, SquareUser, CalendarClock, Search, Crosshair, MoreVertical, Eye, EyeOff, Pencil } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
+import Toast from '../components/ui/Toast.jsx'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { supabase } from '../supabaseClient.js'
 import { getPublicBaseUrl } from '../utils/publicBaseUrl.js'
 import { formatPlainTimeRange, formatTimeRange } from '../utils/formatters.js'
 import {
-  getSessions, createSession, updateSession, SESSION_TYPES, SESSION_STATUSES,
+  getSessions, createSession, updateSession, updateSessionStatus, SESSION_TYPES, SESSION_STATUSES,
   getStatusConfig, getPaymentConfig, PAYMENT_STATUSES, formatSessionDate, SESSION_TYPE_ICON,
 } from '../utils/sessionApi.js'
 import { getClients } from '../utils/crmApi.js'
@@ -1980,6 +1982,8 @@ export default function Sessions() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [toast, setToast] = useState(null)
+  useDocumentTitle('Sessions')
   const [filterStatus, setFilterStatus] = useState(null)
   const [filterMode, setFilterMode] = useState(null)
   const [filterType, setFilterType] = useState(null)
@@ -2075,8 +2079,12 @@ export default function Sessions() {
 
   async function handleStatusChange(sessionId, newStatus) {
     try {
-      await updateSession(sessionId, { status: newStatus })
+      const result = await updateSessionStatus(sessionId, newStatus)
+      if (!result.success) { console.error(result.error); return }
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, status: newStatus } : s))
+      if (result.email_warning) {
+        setToast({ message: `Status updated, but the confirmation email failed to send: ${result.email_warning}`, type: 'error' })
+      }
     } catch (err) { console.error(err) }
   }
 
@@ -2299,6 +2307,12 @@ export default function Sessions() {
           onClose={() => setOpenSignupPageId(null)}
           onChanged={loadSignupPages}
         />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />
+        </div>
       )}
     </div>
   )

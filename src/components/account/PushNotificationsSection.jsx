@@ -5,18 +5,22 @@ import Toggle from '../ui/Toggle.jsx'
 import {
   pushSupported, permissionState, getSubscriptions, getThisDeviceEndpoint,
   subscribe, unsubscribeThisDevice, removeDeviceById, isIOS, isInstalledStandalone,
-  getNotificationPreferences, updateNotificationPreference,
+  getPushNotificationPreferences, updatePushNotificationPreference,
 } from '../../utils/push.js'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
 const EVENT_TYPES = [
   { key: 'claim', label: 'New booking', desc: 'Get notified when a client claims a signup slot' },
+  { key: 'inquiry', label: 'New inquiry', desc: 'Get notified when a client submits an inquiry' },
   { key: 'contract_signed', label: 'Contract signed', desc: 'Get notified when a client signs a contract' },
   { key: 'questionnaire_response', label: 'Questionnaire response', desc: 'Get notified when a client submits a questionnaire' },
+  { key: 'favorite', label: 'Client favorites', desc: 'Get notified when a client favorites images (batched)' },
+  { key: 'comment', label: 'Client comments', desc: 'Get notified when a client leaves a comment' },
+  { key: 'download', label: 'Client downloads', desc: 'Get notified when a client downloads images (batched)' },
 ]
 
-export default function PushNotificationsSection({ photographerId }) {
+export default function PushNotificationsSection({ photographerId, onSaveState }) {
   const [loaded, setLoaded] = useState(false)
   const [permission, setPermission] = useState('default')
   const [thisDeviceEndpoint, setThisDeviceEndpoint] = useState(null)
@@ -25,6 +29,7 @@ export default function PushNotificationsSection({ photographerId }) {
   const [error, setError] = useState('')
   const [preferences, setPreferences] = useState(null)
   const [prefBusy, setPrefBusy] = useState(null)
+  const [batchMinutes, setBatchMinutes] = useState('')
 
   const refresh = useCallback(async () => {
     if (!photographerId) return
@@ -40,8 +45,12 @@ export default function PushNotificationsSection({ photographerId }) {
     if (!photographerId || !pushSupported()) { setLoaded(true); return }
     setPermission(permissionState())
     refresh().finally(() => setLoaded(true))
-    getNotificationPreferences(photographerId).then(setPreferences).catch(() => {})
+    getPushNotificationPreferences(photographerId).then(setPreferences).catch(() => {})
   }, [photographerId, refresh])
+
+  useEffect(() => {
+    if (preferences) setBatchMinutes(String(preferences.activity_batch_minutes ?? 5))
+  }, [preferences])
 
   async function handlePreferenceToggle(key, next) {
     if (prefBusy) return
@@ -49,12 +58,35 @@ export default function PushNotificationsSection({ photographerId }) {
     const previous = preferences
     setPreferences(p => ({ ...p, [key]: next }))
     try {
-      await updateNotificationPreference(photographerId, key, next)
+      await updatePushNotificationPreference(photographerId, key, next)
+      onSaveState?.('saved')
     } catch {
       setPreferences(previous)
       setError('Could not save that. Try again.')
+      onSaveState?.('error')
     } finally {
       setPrefBusy(null)
+    }
+  }
+
+  // Batch minutes is a plain number, not a toggle -- saved on blur
+  // rather than on every keystroke. Clamped to >= 1; anything invalid
+  // falls back to 5 rather than saving a broken value.
+  async function handleBatchMinutesBlur() {
+    const parsed = parseInt(batchMinutes, 10)
+    const value = Number.isFinite(parsed) && parsed >= 1 ? parsed : 5
+    setBatchMinutes(String(value))
+    if (value === preferences?.activity_batch_minutes) return
+    const previous = preferences
+    setPreferences(p => ({ ...p, activity_batch_minutes: value }))
+    try {
+      await updatePushNotificationPreference(photographerId, 'activity_batch_minutes', value)
+      onSaveState?.('saved')
+    } catch {
+      setPreferences(previous)
+      setBatchMinutes(String(previous.activity_batch_minutes))
+      setError('Could not save that. Try again.')
+      onSaveState?.('error')
     }
   }
 
@@ -104,7 +136,12 @@ export default function PushNotificationsSection({ photographerId }) {
   return (
     <SettingsSection
       title="Push Notifications"
-      description="Get notified the instant a client claims a signup slot, even if this tab is closed.">
+      description="Get notified the instant a client claims a signup slot, even if this tab is closed."
+      action={
+        <div style={{ opacity: busy ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
+          <Toggle checked={enabledOnThisDevice} onChange={handleToggle} />
+        </div>
+      }>
       {permission === 'denied' ? (
         <div className="flex items-start gap-2.5 px-5 py-4" style={{ background: 'var(--surface)' }}>
           <BellOff size={18} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: 1 }} />
@@ -114,20 +151,14 @@ export default function PushNotificationsSection({ photographerId }) {
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: 'none', background: 'var(--surface)' }}>
-            <div>
-              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Enable on this device</p>
-              {!enabledOnThisDevice && (
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>You'll be asked to allow notifications.</p>
-              )}
+          {!enabledOnThisDevice && (
+            <div className="px-5 py-4" style={{ borderBottom: 'none', background: 'var(--surface)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>You'll be asked to allow notifications.</p>
             </div>
-            <div style={{ opacity: busy ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
-              <Toggle checked={enabledOnThisDevice} onChange={handleToggle} />
-            </div>
-          </div>
+          )}
 
           {devices.length > 0 && (
-            <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border)', borderBottom: 'none', background: 'var(--surface)' }}>
+            <div className="px-5 py-3" style={{ borderTop: !enabledOnThisDevice ? '1px solid var(--border)' : 'none', borderBottom: 'none', background: 'var(--surface)' }}>
               <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Subscribed devices</p>
               {devices.map(d => {
                 const isThisDevice = d.endpoint === thisDeviceEndpoint
@@ -164,6 +195,28 @@ export default function PushNotificationsSection({ photographerId }) {
               </div>
             </div>
           ))}
+
+          {enabledOnThisDevice && preferences && (preferences.favorite || preferences.download) && (
+            <div className="flex items-center justify-between px-5 py-4"
+              style={{ borderTop: '1px solid var(--border)', borderBottom: 'none', background: 'var(--surface)' }}>
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Batch favorites & downloads</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Wait this long after their last click before sending one combined notification</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={batchMinutes}
+                  onChange={e => setBatchMinutes(e.target.value)}
+                  onBlur={handleBatchMinutesBlur}
+                  className="text-sm text-right"
+                  style={{ width: 48, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+                />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>min</span>
+              </div>
+            </div>
+          )}
         </>
       )}
 

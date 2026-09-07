@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.12'
+const VERSION = '1.5.13'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -36,11 +36,11 @@ export default function PageWrapper({ session, children }) {
   }, [location.key])
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
+    <div className="h-dvh flex" style={{ background: 'var(--bg)' }}>
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header session={session} />
-        <main ref={mainRef} className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
+        <main ref={mainRef} className="flex-1 min-h-0 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
           <div className="max-w-7xl w-full">
             {children}
           </div>
@@ -115,6 +115,28 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.13 — September 7, 2026">
+                  <Group label="Booking Confirmations">
+                    <Item>New confirmation email + calendar attachment sent when a session moves from Inquiry to Booked</Item>
+                  </Group>
+                  <Group label="Notifications">
+                    <Item>Push notifications now cover new inquiries, client favorites, comments, and downloads, each configurable separately</Item>
+                    <Item>Favorite and download push notifications batch into one per browsing session instead of one per click</Item>
+                    <Item>New Bell Notifications settings section, independent from push and the daily digest</Item>
+                    <Item>All three notification sections now have a master on/off switch</Item>
+                  </Group>
+                  <Group label="Premium Features">
+                    <Item>Custom Domain and Microsite are now gated by storage tier -- existing configuration and client-facing links are preserved if access is later removed</Item>
+                  </Group>
+                  <Group label="UI Polish">
+                    <Item>Sidebar, header, and footer now stay fixed on screen -- only the main content area scrolls</Item>
+                    <Item>Every page now shows its own specific title in the browser tab</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed a stale email domain on booking confirmation emails</Item>
+                    <Item>Fixed a gap where re-enabling a bell notification could flood it with backlog activity</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.12 — September 3, 2026">
                   <Group label="Sign-ups">
                     <Item>Signup pages can now be hidden (removed from the default list without deleting) or permanently deleted, both from a ⋮ menu on each card, with a confirmation that shows exactly what's affected</Item>

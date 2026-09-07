@@ -31,7 +31,8 @@ serve(async (req) => {
         notification_preferences (
           notify_favorites,
           notify_comments,
-          notify_downloads
+          notify_downloads,
+          digest_enabled
         )
       `)
 
@@ -51,6 +52,16 @@ serve(async (req) => {
         : photographer.notification_preferences
 
       console.log(`Photographer ${photographer.id}: prefs=${JSON.stringify(prefs)}, last_digest=${photographer.last_digest_sent_at}`)
+
+      // Master switch -- takes priority over the 3 individual toggles
+      // below. Undefined (no preferences row yet) means enabled, matching
+      // the column's DB-level default, so a photographer who's never
+      // touched this table sees no behavior change.
+      if (prefs?.digest_enabled === false) {
+        console.log(`Skipping ${photographer.id}: digest disabled`)
+        skipped++
+        continue
+      }
 
       // Skip if all notifications disabled
       if (!prefs?.notify_favorites && !prefs?.notify_comments && !prefs?.notify_downloads) {

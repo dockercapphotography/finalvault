@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../hooks/useScrollLock.js'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import GalleryGuide from '../components/client/GalleryGuide.jsx'
@@ -571,6 +572,7 @@ export default function ClientGalleryView() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => { load() }, [token])
+  useDocumentTitle(gallery?.title, { suffix: false })
 
   async function load() {
     try {

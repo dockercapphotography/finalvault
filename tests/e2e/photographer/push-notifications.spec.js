@@ -68,8 +68,13 @@ test.describe('Push notifications', () => {
   // real mouse can't visually reach, so force: true is needed here; the
   // checkbox is still the right, functional element (confirmed via the
   // locator resolving to it), just intentionally hidden by design.
+  // Scoped to pushSection specifically -- the new Bell Notifications
+  // section (this session) intentionally reuses several of the same
+  // row labels (New booking, Contract signed, etc.) for consistency
+  // between the two sections, so a page-wide text search is now
+  // ambiguous between them.
   function preferenceRow(page, label) {
-    return page.getByText(label, { exact: true }).locator('xpath=../..')
+    return pushSection(page).getByText(label, { exact: true }).locator('xpath=../..')
   }
 
   function pushSection(page) {
@@ -267,5 +272,62 @@ test.describe('Push notifications', () => {
     // overwrite of all three.
     await expect(preferenceRow(page, 'New booking').getByRole('checkbox')).toBeChecked()
     await expect(preferenceRow(page, 'Questionnaire response').getByRole('checkbox')).toBeChecked()
+  })
+
+  test('new event rows (inquiry, favorites, comments, downloads) appear with correct defaults', async ({ page }) => {
+    await gotoNotificationsTab(page)
+
+    await pushSection(page).getByRole('checkbox').click({ force: true })
+    await expect(pushSection(page).getByText('This device', { exact: true })).toBeVisible({ timeout: 10000 })
+
+    // inquiry defaults on, matching claim/contract/questionnaire.
+    await expect(preferenceRow(page, 'New inquiry').getByRole('checkbox')).toBeChecked()
+
+    // favorite/comment/download all default off (019) -- higher-volume,
+    // opt-in events, unlike the other four.
+    for (const label of ['Client favorites', 'Client comments', 'Client downloads']) {
+      const row = preferenceRow(page, label)
+      await expect(row).toBeVisible({ timeout: 10000 })
+      await expect(row.getByRole('checkbox')).not.toBeChecked()
+    }
+  })
+
+  test('batch minutes input is hidden until favorites or downloads is turned on', async ({ page }) => {
+    await gotoNotificationsTab(page)
+
+    await pushSection(page).getByRole('checkbox').click({ force: true })
+    await expect(pushSection(page).getByText('This device', { exact: true })).toBeVisible({ timeout: 10000 })
+
+    await expect(pushSection(page).getByText('Batch favorites & downloads')).not.toBeVisible()
+
+    await preferenceRow(page, 'Client favorites').getByRole('checkbox').click({ force: true })
+
+    await expect(pushSection(page).getByText('Batch favorites & downloads')).toBeVisible({ timeout: 10000 })
+  })
+
+  test('batch minutes defaults to 5 and persists a changed value on blur', async ({ page }) => {
+    await gotoNotificationsTab(page)
+
+    await pushSection(page).getByRole('checkbox').click({ force: true })
+    await expect(pushSection(page).getByText('This device', { exact: true })).toBeVisible({ timeout: 10000 })
+    await preferenceRow(page, 'Client favorites').getByRole('checkbox').click({ force: true })
+
+    const batchRow = pushSection(page).getByText('Batch favorites & downloads').locator('xpath=../..')
+    const input = batchRow.locator('input[type="number"]')
+    await expect(input).toHaveValue('5', { timeout: 10000 })
+
+    await input.fill('2')
+    await input.blur()
+
+    await expect
+      .poll(async () => {
+        const { data } = await sb
+          .from('push_notification_preferences')
+          .select('activity_batch_minutes')
+          .eq('photographer_id', photographerId)
+          .maybeSingle()
+        return data?.activity_batch_minutes
+      }, { timeout: 15000 })
+      .toBe(2)
   })
 })

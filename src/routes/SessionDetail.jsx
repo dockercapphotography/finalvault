@@ -7,7 +7,7 @@ import {
   Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, Trophy, Heart, BookHeart, SquareUser,
 } from 'lucide-react'
 import {
-  getSession, updateSession, deleteSession,
+  getSession, updateSession, updateSessionStatus, deleteSession,
   SESSION_TYPES, SESSION_STATUSES, PAYMENT_STATUSES,
   getStatusConfig, getPaymentConfig, formatSessionDate, SESSION_TYPE_ICON,
   getSubmissions, getSessionQuestionnaires, setSessionQuestionnaires,
@@ -20,6 +20,8 @@ import { getGalleries } from '../utils/galleryApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
 import { getClients } from '../utils/crmApi.js'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
+import Toast from '../components/ui/Toast.jsx'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { supabase } from '../supabaseClient.js'
 import SendContractModal from '../components/SendContractModal.jsx'
 import Button from '../components/ui/Button.jsx'
@@ -923,6 +925,8 @@ export default function SessionDetail() {
   const [questionnaires, setQuestionnaires] = useState([])
   const [loading, setLoading] = useState(true)
   const [showEdit, setShowEdit] = useState(false)
+  const [toast, setToast] = useState(null)
+  useDocumentTitle(session?.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -1015,8 +1019,12 @@ export default function SessionDetail() {
   }
 
   async function handleStatusChange(newStatus) {
-    const updated = await updateSession(id, { status: newStatus })
-    setSession(prev => ({ ...prev, ...updated }))
+    const result = await updateSessionStatus(id, newStatus)
+    if (!result.success) { console.error(result.error); return }
+    setSession(prev => ({ ...prev, ...result.session }))
+    if (result.email_warning) {
+      setToast({ message: `Status updated, but the confirmation email failed to send: ${result.email_warning}`, type: 'error' })
+    }
   }
 
   async function handlePaymentStatusChange(newStatus) {
@@ -1436,6 +1444,12 @@ export default function SessionDetail() {
           onClose={() => setShowEdit(false)}
           onSaved={async updated => { const fresh = await getSession(id); setSession(fresh); const sq = await getSessionQuestionnaires(id); setSessionQuestionnaires(sq); setShowEdit(false) }}
         />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />
+        </div>
       )}
     </div>
   )

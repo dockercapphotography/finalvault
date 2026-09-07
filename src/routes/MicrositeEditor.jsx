@@ -812,6 +812,10 @@ function TestimonialsEditor({ testimonials, onChange, onEditPhoto, onAdjustFocus
 
 export default function MicrositeEditor() {
   const [site, setSite] = useState(null)
+  // null = still checking, true/false once resolved. Fetched
+  // independently of the main load() effect below rather than folded
+  // into it, to avoid touching that already-complex logic.
+  const [hasPremiumAccess, setHasPremiumAccess] = useState(null)
   const [galleries, setGalleries] = useState([])
   const [signupPages, setSignupPages] = useState([])
   const [saveState, setSaveState] = useState('idle')
@@ -825,6 +829,10 @@ export default function MicrositeEditor() {
   const [galleryPreviewKeys, setGalleryPreviewKeys] = useState([])
   const [testimonialPhotoEditIndex, setTestimonialPhotoEditIndex] = useState(null)
   const [testimonialFocalIndex, setTestimonialFocalIndex] = useState(null)
+
+  useEffect(() => {
+    supabase.rpc('get_my_premium_access').then(({ data }) => setHasPremiumAccess(!!data))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1206,6 +1214,26 @@ export default function MicrositeEditor() {
       window.location.origin
     )
   }, [site, accountLogoKey, accountAllSessionsToken])
+
+  // Blocks the whole editor, not just publishing -- editing without
+  // the tier is disallowed entirely, per Nick's call. Checked before
+  // the !site gate below so a locked-out visitor never sees a flash
+  // of the real editor even while site data is still loading.
+  if (hasPremiumAccess === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
+        <div className="max-w-sm text-center space-y-3">
+          <p className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Microsite isn't included in your plan</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Upgrade your plan to build and publish a Microsite for your studio.</p>
+          <button onClick={() => navigate('/account')}
+            className="text-sm px-4 py-2 rounded-lg font-medium"
+            style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: 'none', cursor: 'pointer' }}>
+            Back to Account
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (!site) return null
 

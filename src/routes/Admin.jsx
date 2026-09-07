@@ -40,6 +40,7 @@ function TierModal({ tier, onSave, onClose }) {
   const [name, setName] = useState(tier?.name || '')
   const [storageGb, setStorageGb] = useState(tier?.storage_gb || 2)
   const [priceMonthly, setPriceMonthly] = useState(tier?.price_monthly || 0)
+  const [allowPremiumFeatures, setAllowPremiumFeatures] = useState(tier?.allow_premium_features || false)
   const [saving, setSaving] = useState(false)
   const isEdit = !!tier?.id
 
@@ -47,7 +48,7 @@ function TierModal({ tier, onSave, onClose }) {
     if (!name.trim()) return
     setSaving(true)
     try {
-      await onSave({ id: tier?.id, name: name.trim(), storage_gb: Number(storageGb), price_monthly: Number(priceMonthly) })
+      await onSave({ id: tier?.id, name: name.trim(), storage_gb: Number(storageGb), price_monthly: Number(priceMonthly), allow_premium_features: allowPremiumFeatures })
       onClose()
     } catch (err) {
       console.error(err)
@@ -90,6 +91,14 @@ function TierModal({ tier, onSave, onClose }) {
               />
             </div>
           ))}
+          <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--text)' }}>
+            <input
+              type="checkbox"
+              checked={allowPremiumFeatures}
+              onChange={e => setAllowPremiumFeatures(e.target.checked)}
+            />
+            Custom Domain + Microsite (premium features)
+          </label>
         </div>
 
         <div className="flex gap-2 pt-1">
@@ -218,16 +227,16 @@ export default function Admin() {
     }
   }
 
-  async function handleSaveTier({ id, name, storage_gb, price_monthly }) {
+  async function handleSaveTier({ id, name, storage_gb, price_monthly, allow_premium_features }) {
     if (id) {
       const { data } = await supabase.from('storage_tiers')
-        .update({ name, storage_gb, price_monthly })
+        .update({ name, storage_gb, price_monthly, allow_premium_features })
         .eq('id', id).select().single()
       setTiers(prev => prev.map(t => t.id === id ? data : t))
       setToast({ message: 'Tier updated', type: 'success' })
     } else {
       const { data } = await supabase.from('storage_tiers')
-        .insert({ name, storage_gb, price_monthly }).select().single()
+        .insert({ name, storage_gb, price_monthly, allow_premium_features }).select().single()
       setTiers(prev => [...prev, data])
       setToast({ message: 'Tier created', type: 'success' })
     }

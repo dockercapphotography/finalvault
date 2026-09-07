@@ -102,6 +102,8 @@ export async function callManageCustomDomain(method, body) {
 export default function CustomDomainSection({ photographerId }) {
   const [loaded, setLoaded] = useState(false)
   const [domain, setDomain] = useState(null)
+  // null = still checking, true/false once resolved.
+  const [hasPremiumAccess, setHasPremiumAccess] = useState(null)
   const [error, setError] = useState('')
 
   const [inputValue, setInputValue] = useState('')
@@ -136,6 +138,10 @@ export default function CustomDomainSection({ photographerId }) {
     if (!photographerId) return
     refresh().finally(() => setLoaded(true))
   }, [photographerId, refresh])
+
+  useEffect(() => {
+    supabase.rpc('get_my_premium_access').then(({ data }) => setHasPremiumAccess(!!data))
+  }, [])
 
   // Auto-poll while not yet active, per the resolved "both auto + manual"
   // decision. Silent — doesn't touch the `checking` busy indicator, which
@@ -201,6 +207,22 @@ export default function CustomDomainSection({ photographerId }) {
   }
 
   if (!loaded) return null
+
+  // Same all-or-nothing treatment as MicrositeEditor.jsx -- an upsell
+  // message in place of the entire management UI, regardless of
+  // whether a domain already exists on the account.
+  if (hasPremiumAccess === false) {
+    return (
+      <SettingsSection
+        title="Custom domain"
+        description="Use your own domain for client-facing links instead of final-vault.app.">
+        <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
+          <p className="text-sm" style={{ color: 'var(--text)' }}>Custom domains aren't included in your current plan.</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Upgrade your plan to use your own domain for client-facing links.</p>
+        </div>
+      </SettingsSection>
+    )
+  }
 
   const uiState = !domain
     ? 'empty'

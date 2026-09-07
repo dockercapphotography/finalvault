@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import { useScrollLock } from '../hooks/useScrollLock.js'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import {ArrowLeft, BarChart2, Check, ChevronLeft, ChevronRight, Copy, Droplets, ExternalLink, ImageIcon, LayoutGrid, Link as LinkIcon, Mail, MoreVertical, Pencil, Plus, QrCode, Settings, SlidersHorizontal, Trash2, Upload, X} from 'lucide-react'
 import PortalMenu from '../components/ui/PortalMenu.jsx'
@@ -38,6 +39,7 @@ export default function GalleryDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
+  useDocumentTitle(gallery?.title)
   const [photographerId, setPhotographerId] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [sortBy, setSortBy] = useState('custom')

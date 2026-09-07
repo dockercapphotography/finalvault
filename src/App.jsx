@@ -34,6 +34,8 @@ import PageWrapper from './components/layout/PageWrapper.jsx'
 import SignupLiveStatus from './routes/SignupLiveStatus.jsx'
 import CustomDomainRoot from './routes/CustomDomainRoot.jsx'
 import { isAppHost } from './utils/isAppHost.js'
+import { useCustomDomainFavicon } from './hooks/useCustomDomainFavicon.js'
+import { useCustomDomainAccessGate } from './hooks/useCustomDomainAccessGate.js'
 import MicrositeEditor from './routes/MicrositeEditor.jsx'
 import MicrositePreviewPage from './routes/MicrositePreviewPage.jsx'
 
@@ -55,6 +57,8 @@ function ProtectedRoute({ session, children }) {
 }
 
 export default function App() {
+  useCustomDomainFavicon()
+  useCustomDomainAccessGate()
   const [session, setSession] = useState(undefined)
   // Read recovery flag from sessionStorage on mount — survives the location.replace reload
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(

@@ -108,6 +108,15 @@ async function handleCreate(supabase: any, photographerId: string, req: Request,
     return jsonResponse({ error: 'Enter a subdomain of your own domain (e.g. book.yourstudio.com), not a bare domain.' }, 400)
   }
 
+  // Real backend enforcement, not just a hidden button in the UI -- this
+  // blocks the request regardless of how it arrives (the actual Account
+  // page, or a direct API call replaying what that page's own request
+  // looks like).
+  const { data: hasAccess } = await supabase.rpc('photographer_has_premium_access', { p_photographer_id: photographerId })
+  if (!hasAccess) {
+    return jsonResponse({ error: 'Your current plan does not include Custom Domains. Upgrade your plan to add one.' }, 403)
+  }
+
   // One domain per photographer (spec section 3.2 / non-goals)
   const { data: existing } = await supabase
     .from('photographer_domains')

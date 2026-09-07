@@ -6,6 +6,7 @@ import { supabase } from '../supabaseClient.js'
 import { fetchPreviewObjectUrl } from '../utils/r2.js'
 import GalleryGrid from '../components/galleries/GalleryGrid.jsx'
 import ImageCard from '../components/images/ImageCard.jsx'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 
 export default function Bookmarked() {
   const navigate = useNavigate()
@@ -16,6 +17,7 @@ export default function Bookmarked() {
   const [previewUrls, setPreviewUrls] = useState({})
   const [loading, setLoading] = useState(true)
   const [lightboxIndex, setLightboxIndex] = useState(null)
+  useDocumentTitle('Bookmarked')
 
   function handleTabChange(t) {
     setTab(t)

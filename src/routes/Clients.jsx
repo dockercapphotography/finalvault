@@ -12,6 +12,7 @@ import { formatPhone } from '../utils/formatters.js'
 import Input from '../components/ui/Input.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import Modal from '../components/ui/Modal.jsx'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 
 const CONTRACT_STATUS_BADGE = {
   draft:                 { label: 'Draft',            bg: 'var(--surface-raised)',  color: 'var(--text-muted)' },
@@ -241,6 +242,7 @@ export default function Clients() {
   const [clients, setClients] = useState([])
   const [existingTags, setExistingTags] = useState([])
   const [loading, setLoading] = useState(true)
+  useDocumentTitle('Clients')
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [tagFilter, setTagFilter] = useState([])

@@ -5,6 +5,7 @@ import { supabaseAnon } from '../supabaseClientAnon.js'
 import { useBookingBranding } from '../utils/bookingBranding.js'
 import BrandHeader from '../components/booking/BrandHeader.jsx'
 import BookingCover from '../components/booking/BookingCover.jsx'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 
 // ── Data (anonymous, via supabaseAnon -- same isolation pattern as
 // SignupBooking.jsx: this is a fully public page, so it never touches the
@@ -121,6 +122,10 @@ export default function AllSessionsBooking() {
   // renders. Same reasoning as SignupBooking.jsx.
   const branding = data?.branding || { has_microsite: false, studio_name: null, logo_r2_key: null }
   const { bkVars } = useBookingBranding(branding)
+  useDocumentTitle(
+    data?.business_name ? `Book a Session · ${data.business_name}` : null,
+    { suffix: false }
+  )
 
   if (loading) {
     return (

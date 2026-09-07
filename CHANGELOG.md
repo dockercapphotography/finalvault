@@ -4,6 +4,45 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.13 — September 7, 2026
+
+### New Features
+
+**Booking Confirmations**
+- New "You're confirmed!" email sent when a session moves from Inquiry to Booked, with a calendar (.ics) attachment now that the date is locked in -- applies to any session that started as an inquiry (signup-page submissions or manually created sessions); slot-based bookings are unaffected since those already confirm instantly at claim time
+
+**Notifications**
+- Push notifications now cover four more events: new inquiries, client favorites, client comments, and client downloads, each independently configurable
+- Favorite and download push notifications now batch into one combined notification per browsing session instead of one per click, with a configurable quiet period (default 5 minutes)
+- New Bell Notifications settings section -- independently controls what shows in the in-app bell, separate from push and the daily digest
+- All three notification settings sections (Bell, Push, Activity Digest) now have a master on/off switch in their header
+
+**Premium Features**
+- Custom Domain and Microsite are now gated by storage tier, enforced both in the UI and on the backend -- losing access doesn't delete any existing configuration; a downgraded photographer's client-facing links keep working via a redirect to final-vault.app, only the custom branding and microsite itself stop working
+
+### Improvements
+
+**Notifications**
+- All email and bell/push notification time displays now consistently show a full time range instead of just a start time
+
+**UI**
+- Sidebar, header, and footer now stay fixed on screen -- only the main content area scrolls
+- Every page now shows a real, specific title in the browser tab instead of a generic "FinalVault" everywhere
+- The custom-domain microsite favicon now applies across every page on that domain, not just the homepage
+
+### Bug Fixes
+
+**Emails**
+- Fixed a stale pre-migration email domain still in use on the original booking confirmation and photographer notification emails -- all outgoing email now consistently sends from mail.final-vault.app
+
+**Notifications**
+- Fixed a gap where re-enabling a bell notification type after it had been off could flood the bell with the entire backlog that piled up while it was off
+
+**UI**
+- Fixed the browser tab title on a shared gallery link always showing "FinalVault" instead of the gallery's own name
+
+---
+
 ## v1.5.12 — September 3, 2026
 
 ### New Features

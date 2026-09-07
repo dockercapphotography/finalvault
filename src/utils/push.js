@@ -134,32 +134,87 @@ export async function unsubscribeThisDevice(photographerId) {
   await supabase.from('push_subscriptions').delete().eq('photographer_id', photographerId).eq('endpoint', endpoint)
 }
 
-const PREFERENCE_DEFAULTS = {
+const PUSH_PREFERENCE_DEFAULTS = {
   claim: true,
   contract_signed: true,
   questionnaire_response: true,
+  inquiry: true,
   comment: false,
   favorite: false,
   download: false,
+  activity_batch_minutes: 5,
 }
 
-export async function getNotificationPreferences(photographerId) {
+export async function getPushNotificationPreferences(photographerId) {
   const { data, error } = await supabase
     .from('push_notification_preferences')
-    .select('claim, contract_signed, questionnaire_response, comment, favorite, download')
+    .select('claim, contract_signed, questionnaire_response, inquiry, comment, favorite, download, activity_batch_minutes')
     .eq('photographer_id', photographerId)
     .maybeSingle()
   if (error) throw error
-  return { ...PREFERENCE_DEFAULTS, ...(data || {}) }
+  return { ...PUSH_PREFERENCE_DEFAULTS, ...(data || {}) }
 }
 
 // Upserts a single preference. onConflict targets the primary key
 // directly, since a photographer's row may not exist yet (created
 // lazily on their first change away from the defaults).
-export async function updateNotificationPreference(photographerId, key, value) {
+export async function updatePushNotificationPreference(photographerId, key, value) {
   const { error } = await supabase
     .from('push_notification_preferences')
     .upsert({ photographer_id: photographerId, [key]: value, updated_at: new Date().toISOString() }, { onConflict: 'photographer_id' })
+  if (error) throw error
+}
+
+// bell_notification_preferences is a separate table from
+// push_notification_preferences -- controls what appears in the bell
+// dropdown itself, independent of whether it also sends a push. All
+// default true: the bell shows every event type unconditionally
+// today, so a missing row should behave like "show everything", not
+// "hide everything".
+const BELL_PREFERENCE_DEFAULTS = {
+  enabled: true,
+  claim: true,
+  contract_signed: true,
+  questionnaire_response: true,
+  inquiry: true,
+  view: true,
+  favorite: true,
+  comment: true,
+  download: true,
+  visible_since: {},
+}
+
+export async function getBellNotificationPreferences(photographerId) {
+  const { data, error } = await supabase
+    .from('bell_notification_preferences')
+    .select('enabled, claim, contract_signed, questionnaire_response, inquiry, view, favorite, comment, download, visible_since')
+    .eq('photographer_id', photographerId)
+    .maybeSingle()
+  if (error) throw error
+  return { ...BELL_PREFERENCE_DEFAULTS, ...(data || {}) }
+}
+
+// Turning a preference on records the current moment in
+// visible_since[key] -- NotificationBell.jsx uses this to only show
+// events from this point forward, not the backlog that accumulated
+// while it was off. Without this, re-enabling a long-off toggle would
+// suddenly flood the bell with everything that happened in the
+// meantime.
+export async function updateBellNotificationPreference(photographerId, key, value) {
+  const patch = { photographer_id: photographerId, [key]: value, updated_at: new Date().toISOString() }
+
+  if (value === true) {
+    const { data: existing } = await supabase
+      .from('bell_notification_preferences')
+      .select('visible_since')
+      .eq('photographer_id', photographerId)
+      .maybeSingle()
+    patch.visible_since = { ...(existing?.visible_since || {}), [key]: new Date().toISOString() }
+  }
+
+  const { error } = await supabase
+    .from('bell_notification_preferences')
+    .upsert(patch, { onConflict: 'photographer_id' })
   if (error) throw error
 }
 
