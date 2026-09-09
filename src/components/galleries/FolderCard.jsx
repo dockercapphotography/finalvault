@@ -5,6 +5,7 @@ import { renameFolder, deleteFolderTree, getFolderTreeCounts, updateFolderCover,
 import { supabase } from '../../supabaseClient.js'
 import MovePickerModal from './MovePickerModal.jsx'
 import PortalMenu from '../ui/PortalMenu.jsx'
+import RenameModal from '../ui/RenameModal.jsx'
 import { useFolderContext } from '../../contexts/FolderContext.jsx'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
@@ -435,8 +436,6 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
   }, [folder, allFolders])
 
   const [renaming, setRenaming] = useState(false)
-  const [renameName, setRenameName] = useState(folder.name)
-  const [renameLoading, setRenameLoading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
@@ -444,7 +443,6 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
   const [showCoverPicker, setShowCoverPicker] = useState(false)
   const [showMovePicker, setShowMovePicker] = useState(false)
   const [folderCoverUrl, setFolderCoverUrl] = useState(null)
-  const renameInputRef = useRef(null)
 
   const { setNodeRef, isOver } = useDroppable({
     id: `folder-${folder.id}`,
@@ -460,20 +458,11 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
     return () => { cancelled = true }
   }, [folder.cover_r2_key])
 
-  useEffect(() => {
-    if (renaming) { renameInputRef.current?.focus(); renameInputRef.current?.select() }
-  }, [renaming])
-
-  async function handleRename() {
-    const trimmed = renameName.trim()
-    if (!trimmed || trimmed === folder.name) { setRenaming(false); return }
-    setRenameLoading(true)
+  async function handleRename(trimmed) {
     try {
       const updated = await renameFolder(folder.id, trimmed)
       onRenamed?.(updated)
-      setRenaming(false)
     } catch (err) { console.error('Failed to rename folder:', err) }
-    finally { setRenameLoading(false) }
   }
 
   async function handleDeleteConfirm() {
@@ -560,7 +549,7 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
             triggerStyle={{ background: 'rgba(0,0,0,0.35)', color: '#fff', cursor: 'pointer', backdropFilter: 'blur(4px)' }}
             triggerLabel="Folder menu"
             items={[
-              { label: 'Rename', icon: <Pencil size={13} />, onClick: () => { setRenaming(true); setRenameName(folder.name) } },
+              { label: 'Rename', icon: <Pencil size={13} />, onClick: () => setRenaming(true) },
               { label: 'Set Cover', icon: <ImageIcon size={13} />, onClick: () => setShowCoverPicker(true) },
               { label: 'Move to...', icon: <FolderInput size={13} />, onClick: () => setShowMovePicker(true) },
               {
@@ -588,20 +577,7 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
 
         {/* Body */}
         <div className="px-4 py-3">
-          {renaming ? (
-            <div onClick={e => e.stopPropagation()} className="flex items-center gap-2">
-              <input
-                ref={renameInputRef}
-                value={renameName}
-                onChange={e => setRenameName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') { setRenaming(false); setRenameName(folder.name) } }}
-                onBlur={handleRename}
-                disabled={renameLoading}
-                className="flex-1 text-sm font-medium rounded-lg px-2 py-1 outline-none"
-                style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-strong)', color: 'var(--text)' }}
-              />
-            </div>
-          ) : deleteConfirm ? (
+          {deleteConfirm ? (
             <div onClick={e => e.stopPropagation()} className="space-y-2">
               {deleteError ? (
                 <p className="text-xs leading-snug" style={{ color: 'var(--danger)' }}>{deleteError}</p>
@@ -651,6 +627,13 @@ export default function FolderCard({ folder, coverUrls = [], galleryCount = 0, s
         </div>
       </div>
 
+      <RenameModal
+        open={renaming}
+        value={folder.name}
+        label="Folder name"
+        onSave={handleRename}
+        onClose={() => setRenaming(false)}
+      />
       {showCoverPicker && (
         <FolderCoverPickerModal
           folder={folder}

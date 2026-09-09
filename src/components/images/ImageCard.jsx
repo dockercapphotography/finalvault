@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { Trash2, MoreVertical, Download, FolderInput, Droplets, Maximize2, ImageIcon, Pencil, RefreshCw, Bookmark } from 'lucide-react'
 import PortalMenu from '../ui/PortalMenu.jsx'
+import RenameModal from '../ui/RenameModal.jsx'
 import { bookmarkImage, unbookmarkImage } from '../../utils/bookmarkApi.js'
 
 export default function ImageCard({
@@ -16,7 +17,6 @@ export default function ImageCard({
   const [deleting, setDeleting] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [bookmarked, setBookmarked] = useState(initialBookmarked)
-  const [renameValue, setRenameValue] = useState('')
   const replaceInputRef = useRef(null)
 
   async function handleDelete() {
@@ -30,16 +30,12 @@ export default function ImageCard({
   }
 
   function handleStartRename() {
-    setRenameValue(image.file_name || '')
     setRenaming(true)
   }
 
-  async function handleRenameSubmit() {
-    const trimmed = renameValue.trim()
-    if (!trimmed || trimmed === image.file_name) { setRenaming(false); return }
+  async function handleRenameSubmit(trimmed) {
     try { await onRename?.(image.id, trimmed) }
     catch {}
-    setRenaming(false)
   }
 
   function handleReplaceClick() {
@@ -232,7 +228,6 @@ export default function ImageCard({
         <div
           className="absolute top-2 right-2"
           style={{
-            zIndex: 50,
             opacity: 1,
             transition: 'opacity 0.15s',
             pointerEvents: 'auto',
@@ -262,32 +257,15 @@ export default function ImageCard({
         onChange={handleReplaceFile}
       />
 
-      {/* Inline rename overlay */}
-      {renaming && (
-        <div
-          className="absolute inset-0 flex items-end justify-center pb-2 px-2"
-          style={{ zIndex: 60, background: 'rgba(0,0,0,0.55)', borderRadius: 8 }}
-          onClick={e => e.stopPropagation()}
-        >
-          <input
-            autoFocus
-            value={renameValue}
-            onChange={e => setRenameValue(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') handleRenameSubmit()
-              if (e.key === 'Escape') setRenaming(false)
-            }}
-            onBlur={handleRenameSubmit}
-            className="w-full text-xs rounded-lg px-2 py-1.5 text-center"
-            style={{
-              background: 'rgba(255,255,255,0.95)',
-              border: '2px solid #6366f1',
-              color: '#111',
-              outline: 'none',
-            }}
-          />
-        </div>
-      )}
+      {/* Rename pop-up -- was a cramped inline overlay confined to this
+          card's own small box; now a proper centered modal. */}
+      <RenameModal
+        open={renaming}
+        value={image.file_name}
+        label="File name"
+        onSave={handleRenameSubmit}
+        onClose={() => setRenaming(false)}
+      />
     </div>
   )
 }

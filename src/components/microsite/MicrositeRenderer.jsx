@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Mail, Phone, MapPin, Clock, ArrowUp, X, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabaseAnon as supabase } from '../../supabaseClientAnon.js'
+import { useScrollLock } from '../../hooks/useScrollLock.js'
 import {
   FONT_PAIRINGS, DEFAULT_FONT_PAIRING, RADIUS_MAP, DEFAULT_RADIUS,
   DISPLAY_FONT_OPTIONS, BODY_FONT_OPTIONS, DEFAULT_CUSTOM_DISPLAY, DEFAULT_CUSTOM_BODY,
@@ -758,6 +759,17 @@ function GalleryFeatured({ keys, onImageClick, focus }) {
 }
 
 function GalleryLightbox({ keys, index, onClose, onPrev, onNext }) {
+  // Real scroll lock (blocks background touch-scroll on mobile -- iOS
+  // Safari ignores plain overflow:hidden for touch gestures) instead of
+  // this component's own hand-rolled version, which only ever set
+  // overflow:hidden and had the same gap that useScrollLock itself used
+  // to have before being fixed centrally.
+  useScrollLock(true)
+
+  const touchStartX = useRef(null)
+  const touchStartY = useRef(null)
+  const wheelLock = useRef(false)
+
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'Escape') onClose()
@@ -765,16 +777,46 @@ function GalleryLightbox({ keys, index, onClose, onPrev, onNext }) {
       if (e.key === 'ArrowRight') onNext()
     }
     window.addEventListener('keydown', onKey)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prevOverflow
-    }
+    return () => window.removeEventListener('keydown', onKey)
   }, [onClose, onPrev, onNext])
 
+  function handleTouchStart(e) {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }
+  function handleTouchEnd(e) {
+    if (touchStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current)
+    if (Math.abs(dx) > 50 && dy < 80) {
+      if (dx < 0) onNext(); else onPrev()
+    }
+    touchStartX.current = null
+    touchStartY.current = null
+  }
+  function handleWheel(e) {
+    if (wheelLock.current) return
+    const absX = Math.abs(e.deltaX)
+    const absY = Math.abs(e.deltaY)
+    // Mac trackpad two-finger horizontal swipe fires as wheel events with
+    // deltaX, not touch events -- desktop equivalent of the handlers
+    // above. Locked briefly after triggering since one physical swipe
+    // fires many wheel events, not a single one like touchend.
+    if (absX > 30 && absX > absY * 1.5) {
+      wheelLock.current = true
+      if (e.deltaX > 0) onNext(); else onPrev()
+      setTimeout(() => { wheelLock.current = false }, 400)
+    }
+  }
+
   return (
-    <div className="ms-lightbox" onClick={onClose}>
+    <div
+      className="ms-lightbox"
+      onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
+    >
       <button className="ms-lightbox-close" onClick={onClose} aria-label="Close"><X size={26} /></button>
       {keys.length > 1 && (
         <button className="ms-lightbox-prev" onClick={e => { e.stopPropagation(); onPrev() }} aria-label="Previous image"><ChevronLeft size={30} /></button>

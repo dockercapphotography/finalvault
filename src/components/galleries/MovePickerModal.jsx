@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { FolderOpen, ChevronRight, ArrowLeft, Home } from 'lucide-react'
 import { useFolderContext } from '../../contexts/FolderContext.jsx'
 
@@ -76,7 +77,7 @@ export default function MovePickerModal({
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <>
       <div
         className="fixed inset-0 z-40"
@@ -188,6 +189,7 @@ export default function MovePickerModal({
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }

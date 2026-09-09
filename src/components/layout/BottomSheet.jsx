@@ -37,24 +37,11 @@ export default function BottomSheet({ open, onClose, maxHeight = '85vh', childre
     else setVisible(false)
   }, [open])
 
-  // Block touchmove on non-scrollable areas to prevent background scroll
-  useEffect(() => {
-    if (!open || !sheetRef.current) return
-    function blockTouch(e) {
-      // Only block if it's actually a move (not a tap)
-      if (e.cancelable === false) return
-      let el = e.target
-      while (el && el !== sheetRef.current) {
-        const style = window.getComputedStyle(el)
-        if (style.overflowY === 'auto' || style.overflowY === 'scroll') return
-        el = el.parentElement
-      }
-      e.preventDefault()
-    }
-    const el = sheetRef.current
-    el.addEventListener('touchmove', blockTouch, { passive: false })
-    return () => el.removeEventListener('touchmove', blockTouch)
-  }, [open])
+  // Background touchmove-blocking now lives centrally in useScrollLock
+  // (called above) -- it used to be duplicated here as a scoped effect,
+  // but that only blocked scroll-chaining from inside the sheet, not
+  // touches starting on the backdrop/background itself, which is the
+  // actual gap that let content behind the sheet still scroll on mobile.
 
   function handleClose() {
 setVisible(false)

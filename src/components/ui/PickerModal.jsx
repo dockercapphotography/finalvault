@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 
 // PickerModal — a centered, reliable "pick one from a flat list" modal.
@@ -23,7 +24,7 @@ export default function PickerModal({ open, onClose, title, subtitle, options = 
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <>
       <div
         className="fixed inset-0 z-40"
@@ -74,6 +75,7 @@ export default function PickerModal({ open, onClose, title, subtitle, options = 
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }

@@ -5,6 +5,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import {ArrowLeft, BarChart2, Check, ChevronLeft, ChevronRight, Copy, Droplets, ExternalLink, ImageIcon, LayoutGrid, Link as LinkIcon, Mail, MoreVertical, Pencil, Plus, QrCode, Settings, SlidersHorizontal, Trash2, Upload, X} from 'lucide-react'
 import PortalMenu from '../components/ui/PortalMenu.jsx'
+import RenameModal from '../components/ui/RenameModal.jsx'
 import { getGallery, updateGallery, getFolderAncestors, buildGalleryCrumbs, queueZipAsPhotographer, shouldQueueZip } from '../utils/galleryApi.js'
 import { getImages, deleteImage, saveImageOrder, updateImageWatermark, updateImageName, updateImageKeys } from '../utils/imageApi.js'
 import { getBookmarkedImageIds } from '../utils/bookmarkApi.js'
@@ -51,6 +52,9 @@ export default function GalleryDetail() {
   const [coverPickerImage, setCoverPickerImage] = useState(null)
   const [lightboxImage, setLightboxImage] = useState(null)
   const [lightboxIndex, setLightboxIndex] = useState(null)
+  const lightboxTouchStartX = useRef(null)
+  const lightboxTouchStartY = useRef(null)
+  const lightboxWheelLock = useRef(false)
   const [sets, setSets] = useState([])
   const [activeSetId, setActiveSetId] = useState(null)
   const [showAddSet, setShowAddSet] = useState(false)
@@ -224,10 +228,10 @@ export default function GalleryDetail() {
     }
   }
 
-  async function handleUpdateSet(setId) {
-    if (!editSetName.trim()) return
+  async function handleUpdateSet(setId, name) {
+    if (!name.trim()) return
     try {
-      const updated = await updateSet(setId, { name: editSetName.trim() })
+      const updated = await updateSet(setId, { name: name.trim() })
       setSets(prev => prev.map(s => s.id === setId ? updated : s))
       setEditingSet(null)
     } catch (err) {
@@ -860,6 +864,14 @@ export default function GalleryDetail() {
 
         <div style={{ borderTop: '1px solid var(--border)' }} />
 
+        <RenameModal
+          open={!!editingSet}
+          value={sets.find(s => s.id === editingSet)?.name || ''}
+          label="Set name"
+          onSave={trimmed => handleUpdateSet(editingSet, trimmed)}
+          onClose={() => setEditingSet(null)}
+        />
+
         {/* ── Set tabs — horizontally scrollable strip ── */}
         {sets.length > 0 && (
           <div className="overflow-x-auto -mx-1 px-1 pb-1" style={{ scrollbarWidth: 'none' }}>
@@ -870,19 +882,7 @@ export default function GalleryDetail() {
                   onDrop={e => handleSetDrop(e, set.id)}
                   style={{ opacity: dragSetId === set.id ? 0.4 : 1 }}>
 
-                  {editingSet === set.id ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        autoFocus
-                        value={editSetName}
-                        onChange={e => setEditSetName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleUpdateSet(set.id); if (e.key === 'Escape') setEditingSet(null) }}
-                        onBlur={() => handleUpdateSet(set.id)}
-                        className="text-sm px-2 py-1.5 rounded-lg"
-                        style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-strong)', color: 'var(--text)', outline: 'none', minWidth: 80 }}
-                      />
-                    </div>
-                  ) : (
+                  {editingSet === set.id ? null : (
                     <div className="flex items-center">
                       {/* Tab button */}
                       <button
@@ -922,7 +922,7 @@ export default function GalleryDetail() {
                             borderRadius: '0 8px 8px 0',
                           }}
                           items={[
-                            { label: 'Rename', icon: <Pencil size={13} />, onClick: () => { setEditingSet(set.id); setEditSetName(set.name) } },
+                            { label: 'Rename', icon: <Pencil size={13} />, onClick: () => setEditingSet(set.id) },
                             ...(activeSetImages.length > 0 ? [
                               { label: 'Watermark set', icon: <Droplets size={13} />, onClick: () => handleOpenWatermark(null) },
                             ] : []),
@@ -1439,11 +1439,43 @@ export default function GalleryDetail() {
         const total = activeSetImages.length
         const goPrev = () => setLightboxIndex(i => (i - 1 + total) % total)
         const goNext = () => setLightboxIndex(i => (i + 1) % total)
+        function handleTouchStart(e) {
+          lightboxTouchStartX.current = e.touches[0].clientX
+          lightboxTouchStartY.current = e.touches[0].clientY
+        }
+        function handleTouchEnd(e) {
+          if (lightboxTouchStartX.current === null) return
+          const dx = e.changedTouches[0].clientX - lightboxTouchStartX.current
+          const dy = Math.abs(e.changedTouches[0].clientY - lightboxTouchStartY.current)
+          if (Math.abs(dx) > 50 && dy < 80) {
+            if (dx < 0) goNext(); else goPrev()
+          }
+          lightboxTouchStartX.current = null
+          lightboxTouchStartY.current = null
+        }
+        function handleWheel(e) {
+          if (lightboxWheelLock.current) return
+          const absX = Math.abs(e.deltaX)
+          const absY = Math.abs(e.deltaY)
+          // Mac trackpad two-finger horizontal swipe fires as wheel events
+          // with deltaX, not touch events -- this is the desktop
+          // equivalent of the touch handlers above. Locked briefly after
+          // triggering since one physical swipe fires many wheel events
+          // in a row, not a single one like touchend.
+          if (absX > 30 && absX > absY * 1.5) {
+            lightboxWheelLock.current = true
+            if (e.deltaX > 0) goNext(); else goPrev()
+            setTimeout(() => { lightboxWheelLock.current = false }, 400)
+          }
+        }
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center"
             style={{ background: 'rgba(0,0,0,0.95)' }}
             onClick={() => setLightboxIndex(null)}
             onKeyDown={e => { if (e.key === 'ArrowLeft') goPrev(); if (e.key === 'ArrowRight') goNext(); if (e.key === 'Escape') setLightboxIndex(null) }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onWheel={handleWheel}
             tabIndex={0}
             ref={el => el?.focus()}>
             {/* Close */}
