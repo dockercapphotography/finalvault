@@ -27,7 +27,7 @@ export async function getQuestionnaireTemplate(id) {
   return data
 }
 
-export async function createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName, redirectUrl, redirectLabel, redirectAuto, redirectDelaySeconds }) {
+export async function createQuestionnaireTemplate({ name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName, redirectUrl, redirectLabel, redirectAuto, redirectDelaySeconds, coverImageR2Key, coverFocusX, coverFocusY }) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
     .from('questionnaire_templates')
@@ -44,6 +44,9 @@ export async function createQuestionnaireTemplate({ name, headerText, requireAgr
       redirect_label: redirectLabel || null,
       redirect_auto: redirectAuto || false,
       redirect_delay_seconds: redirectDelaySeconds || 5,
+      cover_image_r2_key: coverImageR2Key || null,
+      cover_focus_x: coverFocusX != null ? coverFocusX : 0.5,
+      cover_focus_y: coverFocusY != null ? coverFocusY : 0.5,
       updated_at: new Date().toISOString(),
     })
     .select()
@@ -52,7 +55,7 @@ export async function createQuestionnaireTemplate({ name, headerText, requireAgr
   return data
 }
 
-export async function updateQuestionnaireTemplate(id, { name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName, redirectUrl, redirectLabel, redirectAuto, redirectDelaySeconds }) {
+export async function updateQuestionnaireTemplate(id, { name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName, redirectUrl, redirectLabel, redirectAuto, redirectDelaySeconds, coverImageR2Key, coverFocusX, coverFocusY }) {
   const { data, error } = await supabase
     .from('questionnaire_templates')
     .update({
@@ -67,6 +70,9 @@ export async function updateQuestionnaireTemplate(id, { name, headerText, requir
       redirect_label: redirectLabel || null,
       redirect_auto: redirectAuto || false,
       redirect_delay_seconds: redirectDelaySeconds || 5,
+      cover_image_r2_key: coverImageR2Key || null,
+      cover_focus_x: coverFocusX != null ? coverFocusX : 0.5,
+      cover_focus_y: coverFocusY != null ? coverFocusY : 0.5,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

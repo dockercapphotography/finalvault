@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
-import {CheckCircle, Copy, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
+import {Camera, CheckCircle, Copy, Crosshair, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
 import BellNotificationsSection from '../components/account/BellNotificationsSection.jsx'
@@ -33,6 +33,14 @@ import AddressAutocomplete from '../components/ui/AddressAutocomplete.jsx'
 import Button from '../components/ui/Button.jsx'
 import Admin from './Admin.jsx'
 import MarkdownToolbar from '../components/ui/MarkdownToolbar.jsx'
+import TemplateEditorModal from '../components/TemplateEditorModal.jsx'
+import { useTemplateCollection } from '../hooks/useTemplateCollection.js'
+import MicrositeImagePicker from '../components/microsite/MicrositeImagePicker.jsx'
+import MicrositeFocalPointModal from '../components/microsite/MicrositeFocalPointModal.jsx'
+import {
+  getEmailTemplates, createEmailTemplate, updateEmailTemplate,
+  deleteEmailTemplate, duplicateEmailTemplate
+} from '../utils/emailTemplateApi.js'
 import {
   getQuestionnaireTemplates, createQuestionnaireTemplate, updateQuestionnaireTemplate,
   deleteQuestionnaireTemplate, duplicateQuestionnaireTemplate,
@@ -360,176 +368,106 @@ const CONTRACT_TEMPLATE_VARIABLES = [
 ]
 
 function ContractTemplatesTab({ onSaveState }) {
-  const [templates, setTemplates] = useState([])
-  const [editing, setEditing] = useState(null)
-  const [editName, setEditName] = useState('')
-  const [editBody, setEditBody] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
-  const [showVars, setShowVars] = useState(false)
-  const [previewContract, setPreviewContract] = useState(false)
-  const bodyRef = useRef(null)
+  const [fields, setFields] = useState({ name: '', body: '' })
+  const {
+    templates, loaded, editing, confirmDeleteId, saving,
+    startNew, startEdit, cancelEdit, save, handleDuplicate, handleDelete, setConfirmDeleteId,
+  } = useTemplateCollection(
+    {
+      get: getContractTemplates,
+      create: createContractTemplate,
+      update: updateContractTemplate,
+      remove: deleteContractTemplate,
+      duplicate: duplicateContractTemplate,
+    },
+    onSaveState
+  )
 
   useEffect(() => {
-    getContractTemplates()
-      .then(data => { setTemplates(data); setLoaded(true) })
-      .catch(() => setLoaded(true))
-  }, [])
+    if (editing) setFields({ name: editing.name || '', body: editing.body || '' })
+  }, [editing])
 
-  function startNew() { setEditing({}); setEditName(''); setEditBody(''); setShowVars(false) }
-  function startEdit(t) { setEditing(t); setEditName(t.name); setEditBody(t.body); setShowVars(false) }
-  function cancelEdit() { setEditing(null) }
+  const FORM_FIELDS = [
+    { key: 'name', label: 'Template name', placeholder: 'e.g. Portrait Session Agreement', required: true },
+    { key: 'body', label: 'Contract body', type: 'markdown', placeholder: 'Enter your contract text. Use {{variable}} placeholders where values should be filled automatically.', rows: 15 },
+  ]
 
-  function insertVariable(tag) {
-    if (bodyRef.current?.insertAtCursor) {
-      bodyRef.current.insertAtCursor(tag)
-    } else {
-      setEditBody(b => b + tag)
-    }
-  }
-
-  async function handleSave() {
-    if (!editName.trim() || !editBody.trim()) return
-    setSaving(true)
-    try {
-      if (editing?.id) {
-        const updated = await updateContractTemplate(editing.id, { name: editName.trim(), body: editBody.trim() })
-        setTemplates(prev => prev.map(t => t.id === editing.id ? updated : t))
-      } else {
-        const created = await createContractTemplate({ name: editName.trim(), body: editBody.trim() })
-        setTemplates(prev => [...prev, created])
-      }
-      setEditing(null)
-      onSaveState('saved')
-    } catch { onSaveState('error') }
-    finally { setSaving(false) }
-  }
-
-  async function handleDuplicate(t) {
-    try {
-      const copy = await duplicateContractTemplate(t)
-      setTemplates(prev => [...prev, copy])
-      onSaveState('saved')
-    } catch { onSaveState('error') }
-  }
-
-  async function handleDelete(id) {
-    try {
-      await deleteContractTemplate(id)
-      setTemplates(prev => prev.filter(t => t.id !== id))
-      setConfirmDeleteId(null)
-      onSaveState('saved')
-    } catch { onSaveState('error') }
-  }
-
-  if (editing !== null) {
-    return (
-      <SettingsSection
-        title={editing?.id ? 'Edit Contract Template' : 'New Contract Template'}
-        description="Use {{variable}} placeholders — they are filled in automatically when sending."
-      >
-        <div className="px-5 py-5 space-y-4" style={{ background: 'var(--surface)' }}>
-          <Input label="Template name" value={editName} onChange={setEditName}
-            placeholder="e.g. Portrait Session Agreement" required />
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                Contract body <span style={{ color: 'var(--danger)' }}>*</span>
-              </label>
-            </div>
-            <MarkdownToolbar
-              ref={bodyRef}
-              value={editBody}
-              onChange={setEditBody}
-              placeholder="Enter your contract text. Use {{variable}} placeholders where values should be filled automatically."
-              rows={20}
-            />
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Supports Markdown. Use blank lines to separate paragraphs.</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
-            <div className="flex flex-wrap gap-1.5">
-              {CONTRACT_TEMPLATE_VARIABLES.map(v => (
-                <button key={v.tag} onClick={() => insertVariable(v.tag)} title={v.desc}
-                  className="text-xs px-2.5 py-1 rounded-lg font-mono"
-                  style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
-                  {v.tag}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Click a variable to insert it at your cursor position.</p>
-          </div>
-          <div className="flex items-center gap-3 pt-1">
-            <Button onClick={handleSave} disabled={saving || !editName.trim() || !editBody.trim()}>
-              {saving ? 'Saving...' : 'Save Template'}
-            </Button>
-            <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
-          </div>
-        </div>
-      </SettingsSection>
-    )
-  }
+  const canSave = fields.name.trim() && fields.body.trim()
 
   return (
-    <SettingsSection
-      title="Contract Templates"
-      description="Reusable contract templates with auto-filled variables. Sent to clients for digital signature."
-      action={
-        <button onClick={startNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-          style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
-          <Plus size={14} />New Template
-        </button>
-      }>
-      {!loaded ? null : templates.length === 0 ? (
-        <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
-          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No contract templates yet</p>
-          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Create templates to quickly send contracts to clients for signature.</p>
-          <button onClick={startNew} className="text-sm font-medium px-4 py-2 rounded-lg"
-            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            Create your first template
+    <>
+      <SettingsSection
+        title="Contract Templates"
+        description="Reusable contract templates with auto-filled variables. Sent to clients for digital signature."
+        action={
+          <button onClick={startNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+            <Plus size={14} />New Template
           </button>
-        </div>
-      ) : (
-        <div style={{ background: 'var(--surface)' }}>
-          {templates.map((t, i) => (
-            <div key={t.id}>
-              <div className="flex items-center justify-between px-5 py-4"
-                style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    {t.body.split('\n').filter(Boolean).length} lines
-                    {' · '}Updated {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </p>
+        }>
+        {!loaded ? null : templates.length === 0 ? (
+          <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No contract templates yet</p>
+            <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Create templates to quickly send contracts to clients for signature.</p>
+            <button onClick={startNew} className="text-sm font-medium px-4 py-2 rounded-lg"
+              style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+              Create your first template
+            </button>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)' }}>
+            {templates.map((t, i) => (
+              <div key={t.id}>
+                <div className="flex items-center justify-between px-5 py-4"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {t.body.split('\n').filter(Boolean).length} lines
+                      {' · '}Updated {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4 shrink-0">
+                    <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                      <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+                    </button>
+                    <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                      <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete"
+                      className="p-1.5 rounded-lg"
+                      style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                      <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 ml-4 shrink-0">
-                  <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg"
-                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
-                    <Copy size={13} style={{ color: 'var(--text-muted)' }} />
-                  </button>
-                  <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg"
-                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
-                    <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
-                  </button>
-                  <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete"
-                    className="p-1.5 rounded-lg"
-                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
-                    <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
-                  </button>
-                </div>
+                {confirmDeleteId === t.id && (
+                  <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+                    <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                  </div>
+                )}
               </div>
-              {confirmDeleteId === t.id && (
-                <div className="px-5 pb-4" style={{ borderTop: '1px solid var(--border)' }}>
-                  <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+      </SettingsSection>
+
+      {editing !== null && (
+        <TemplateEditorModal
+          title={editing?.id ? 'Edit Contract Template' : 'New Contract Template'}
+          fields={FORM_FIELDS}
+          values={fields}
+          onChange={(key, value) => setFields(f => ({ ...f, [key]: value }))}
+          variables={CONTRACT_TEMPLATE_VARIABLES}
+          saving={saving}
+          canSave={canSave}
+          onSave={() => save(fields)}
+          onClose={cancelEdit}
+        />
       )}
-    </SettingsSection>
+    </>
   )
 }
 
@@ -1057,9 +995,6 @@ function WatermarksTab({ onSaveState }) {
 // ── Gallery Templates Tab ─────────────────────────────────────────────────────
 
 function GalleryTemplatesTab({ onSaveState }) {
-  const [templates, setTemplates] = useState([])
-  const [loaded, setLoaded] = useState(false)
-  const [editing, setEditing] = useState(null)
   const [editName, setEditName] = useState('')
   const [editTheme, setEditTheme] = useState('light')
   const [editGridSize, setEditGridSize] = useState('medium')
@@ -1074,223 +1009,228 @@ function GalleryTemplatesTab({ onSaveState }) {
   const [editRequireDownloadPin, setEditRequireDownloadPin] = useState(false)
   const [editWatermarkId, setEditWatermarkId] = useState(null)
   const [availableWatermarks, setAvailableWatermarks] = useState([])
-  const [saving, setSaving] = useState(false)
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+
+  const {
+    templates, loaded, editing, confirmDeleteId, saving,
+    startNew, startEdit, cancelEdit, save, handleDuplicate, handleDelete, setConfirmDeleteId,
+  } = useTemplateCollection(
+    {
+      get: getGalleryTemplates,
+      create: createGalleryTemplate,
+      update: updateGalleryTemplate,
+      remove: deleteGalleryTemplate,
+      duplicate: duplicateGalleryTemplate,
+    },
+    onSaveState
+  )
 
   useEffect(() => {
-    getGalleryTemplates().then(data => { setTemplates(data); setLoaded(true) })
     getWatermarks().then(setAvailableWatermarks).catch(() => {})
   }, [])
 
-  function startNew() {
-    setEditing({})
-    setEditName(''); setEditTheme('light'); setEditGridSize('medium'); setEditGridSpacing('tight')
-    setEditSets(['']); setEditAllowDownloads(true); setEditDownloadWatermarked(false)
-    setEditAllowHiresDownload(false); setEditAllowFavorites(true); setEditAllowComments(true)
-    setEditRequirePassword(false); setEditRequireDownloadPin(false); setEditWatermarkId(null)
-  }
+  // Sync local field state whenever a template is opened for editing (or
+  // "New" opens editing = {}) -- same pattern as Email/Contract, just a
+  // larger field set given Gallery's richer settings. Gallery renders its
+  // own form via TemplateEditorModal's `children` escape hatch rather than
+  // its generic `fields` config, since none of theme swatches / grid-size
+  // toggle groups / dynamic sets list / access-toggle rows fit a flat
+  // text-or-markdown field shape.
+  useEffect(() => {
+    if (!editing) return
+    setEditName(editing.name || '')
+    setEditTheme(editing.theme_color || 'light')
+    setEditGridSize(editing.grid_size || 'medium')
+    setEditGridSpacing(editing.grid_spacing || 'tight')
+    setEditSets(editing.sets?.length ? [...editing.sets] : [''])
+    setEditAllowDownloads(editing.allow_downloads ?? true)
+    setEditDownloadWatermarked(editing.download_watermarked ?? false)
+    setEditAllowHiresDownload(editing.allow_hires_download ?? false)
+    setEditAllowFavorites(editing.allow_favorites ?? true)
+    setEditAllowComments(editing.allow_comments ?? true)
+    setEditRequirePassword(editing.require_password ?? false)
+    setEditRequireDownloadPin(editing.require_download_pin ?? false)
+    setEditWatermarkId(editing.watermark_id || null)
+  }, [editing])
 
-  function startEdit(t) {
-    setEditing(t); setEditName(t.name); setEditTheme(t.theme_color); setEditGridSize(t.grid_size)
-    setEditGridSpacing(t.grid_spacing); setEditSets([...t.sets])
-    setEditAllowDownloads(t.allow_downloads ?? true); setEditDownloadWatermarked(t.download_watermarked ?? false)
-    setEditAllowHiresDownload(t.allow_hires_download ?? false); setEditAllowFavorites(t.allow_favorites ?? true)
-    setEditAllowComments(t.allow_comments ?? true); setEditRequirePassword(t.require_password ?? false)
-    setEditRequireDownloadPin(t.require_download_pin ?? false); setEditWatermarkId(t.watermark_id || null)
-  }
+  const validSets = editSets.filter(s => s.trim())
+  const canSave = editName.trim() && validSets.length > 0
 
-  async function handleDuplicate(t) {
-    try { const duped = await duplicateGalleryTemplate(t); setTemplates(prev => [...prev, duped]); onSaveState('saved') }
-    catch { onSaveState('error') }
-  }
-
-  async function handleSave() {
-    const validSets = editSets.filter(s => s.trim())
-    if (!editName.trim() || !validSets.length) return
-    setSaving(true)
-    try {
-      const payload = { name: editName, themeColor: editTheme, gridSize: editGridSize, gridSpacing: editGridSpacing, sets: validSets, allowDownloads: editAllowDownloads, downloadWatermarked: editDownloadWatermarked, allowHiresDownload: editAllowHiresDownload, allowFavorites: editAllowFavorites, allowComments: editAllowComments, requirePassword: editRequirePassword, requireDownloadPin: editRequireDownloadPin, watermarkId: editWatermarkId }
-      if (editing?.id) {
-        const updated = await updateGalleryTemplate(editing.id, payload)
-        setTemplates(prev => prev.map(t => t.id === editing.id ? updated : t))
-      } else {
-        const created = await createGalleryTemplate(payload)
-        setTemplates(prev => [...prev, created])
-      }
-      setEditing(null); onSaveState('saved')
-    } catch { onSaveState('error') }
-    finally { setSaving(false) }
-  }
-
-  async function handleDelete(id) {
-    try { await deleteGalleryTemplate(id); setTemplates(prev => prev.filter(t => t.id !== id)); setConfirmDeleteId(null); onSaveState('saved') }
-    catch { onSaveState('error') }
-  }
-
-  if (editing !== null) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>{editing?.id ? 'Edit Template' : 'New Gallery Template'}</h3>
-          <button onClick={() => setEditing(null)} className="text-sm" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>Cancel</button>
-        </div>
-        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-          <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
-            <Input label="Template name" value={editName} onChange={setEditName} placeholder="e.g. Wedding Delivery" />
-            <div>
-              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Theme</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {THEMES.map(t => (
-                  <button key={t.id} onClick={() => setEditTheme(t.id)} className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl"
-                    style={{ background: editTheme === t.id ? 'rgba(99,102,241,0.05)' : 'var(--surface-raised)', border: editTheme === t.id ? '2px solid #6366f1' : '2px solid var(--border)', cursor: 'pointer' }}>
-                    <div className="flex gap-1">
-                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.bg, borderColor: 'var(--border)' }} />
-                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.surface, borderColor: 'var(--border)' }} />
-                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.accent, borderColor: 'var(--border)' }} />
-                    </div>
-                    <span className="text-xs font-medium" style={{ color: editTheme === t.id ? '#6366f1' : 'var(--text)' }}>{t.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Grid size</label>
-              <div className="flex gap-2">
-                {['medium', 'large'].map(v => (
-                  <button key={v} onClick={() => setEditGridSize(v)} className="px-3 py-1.5 rounded-lg text-sm capitalize"
-                    style={{ background: editGridSize === v ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', border: editGridSize === v ? '1px solid #6366f1' : '1px solid var(--border)', color: editGridSize === v ? '#6366f1' : 'var(--text)', cursor: 'pointer' }}>
-                    {v}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Grid spacing</label>
-              <div className="flex gap-2">
-                {['tight', 'large'].map(v => (
-                  <button key={v} onClick={() => setEditGridSpacing(v)} className="px-3 py-1.5 rounded-lg text-sm capitalize"
-                    style={{ background: editGridSpacing === v ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', border: editGridSpacing === v ? '1px solid #6366f1' : '1px solid var(--border)', color: editGridSpacing === v ? '#6366f1' : 'var(--text)', cursor: 'pointer' }}>
-                    {v === 'tight' ? 'Tight' : 'Spacious'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Default sets</label>
-              <div className="space-y-2">
-                {editSets.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input type="text" value={s} onChange={e => setEditSets(prev => prev.map((v, idx) => idx === i ? e.target.value : v))} placeholder="Set name" className="flex-1 text-sm rounded-lg px-3 py-2"
-                      style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
-                    <button onClick={() => { if (editSets.length > 1) setEditSets(prev => prev.filter((_, idx) => idx !== i)) }} disabled={editSets.length === 1}
-                      style={{ color: editSets.length === 1 ? 'var(--border)' : 'var(--text-muted)', cursor: editSets.length === 1 ? 'not-allowed' : 'pointer' }}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button onClick={() => setEditSets(prev => [...prev, ''])} className="flex items-center gap-1.5 text-sm font-medium mt-2" style={{ color: '#6366f1', cursor: 'pointer' }}>
-                <Plus size={13} />Add set
-              </button>
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Default watermark</label>
-              <select value={editWatermarkId || ''} onChange={e => setEditWatermarkId(e.target.value || null)}
-                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '14px', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
-                <option value="">No watermark</option>
-                {availableWatermarks.map(wm => <option key={wm.id} value={wm.id}>{wm.label}</option>)}
-              </select>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Applied to new image uploads in galleries created from this template.</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Default access settings</label>
-              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                {[
-                  { label: 'Require password', desc: 'Gallery requires a password to view', value: editRequirePassword, setter: setEditRequirePassword },
-                  { label: 'Require download PIN', desc: 'Downloads require a PIN', value: editRequireDownloadPin, setter: setEditRequireDownloadPin },
-                  { label: 'Allow downloads', desc: 'Clients can download images', value: editAllowDownloads, setter: setEditAllowDownloads },
-                  { label: 'Web size downloads', desc: 'Allow watermarked web-size downloads', value: editDownloadWatermarked, setter: setEditDownloadWatermarked },
-                  { label: 'High-res downloads', desc: 'Allow full-resolution downloads', value: editAllowHiresDownload, setter: setEditAllowHiresDownload },
-                  { label: 'Allow favorites', desc: 'Clients can heart images', value: editAllowFavorites, setter: setEditAllowFavorites },
-                  { label: 'Allow comments', desc: 'Clients can leave comments', value: editAllowComments, setter: setEditAllowComments },
-                ].map((row, i) => (
-                  <div key={row.label} className="flex items-center justify-between px-4 py-3"
-                    style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
-                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
-                    </div>
-                    <Toggle checked={row.value} onChange={row.setter} />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <button onClick={handleSave} disabled={!editName.trim() || !editSets.some(s => s.trim()) || saving} className="w-full py-2.5 rounded-xl text-sm font-medium"
-              style={{ background: '#6366f1', color: '#fff', opacity: !editName.trim() || saving ? 0.5 : 1, cursor: !editName.trim() || saving ? 'not-allowed' : 'pointer' }}>
-              {saving ? 'Saving…' : 'Save Template'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+  function handleSaveClick() {
+    save({
+      name: editName,
+      themeColor: editTheme,
+      gridSize: editGridSize,
+      gridSpacing: editGridSpacing,
+      sets: validSets,
+      allowDownloads: editAllowDownloads,
+      downloadWatermarked: editDownloadWatermarked,
+      allowHiresDownload: editAllowHiresDownload,
+      allowFavorites: editAllowFavorites,
+      allowComments: editAllowComments,
+      requirePassword: editRequirePassword,
+      requireDownloadPin: editRequireDownloadPin,
+      watermarkId: editWatermarkId,
+    })
   }
 
   return (
-    <SettingsSection
-      title="Gallery Templates"
-      description="Pre-fill display settings and sets when creating a new gallery."
-      action={
-        <button onClick={startNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-          style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
-          <Plus size={14} />New
-        </button>
-      }>
-      {!loaded ? null : templates.length === 0 ? (
-        <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
-          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No templates yet</p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Create your first template to speed up gallery creation</p>
-        </div>
-      ) : (
-        <div style={{ background: 'var(--surface)' }}>
-          {templates.map((t, i) => {
-            const theme = getTheme(t.theme_color)
-            return (
-              <div key={t.id}>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="shrink-0 flex gap-1 items-center">
-                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.bg, borderColor: 'var(--border)' }} />
-                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.surface, borderColor: 'var(--border)' }} />
-                      <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.accent, borderColor: 'var(--border)' }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
-                        {t.is_builtin && <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>Built-in</span>}
+    <>
+      <SettingsSection
+        title="Gallery Templates"
+        description="Pre-fill display settings and sets when creating a new gallery."
+        action={
+          <button onClick={startNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+            <Plus size={14} />New
+          </button>
+        }>
+        {!loaded ? null : templates.length === 0 ? (
+          <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No templates yet</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Create your first template to speed up gallery creation</p>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)' }}>
+            {templates.map((t, i) => {
+              const theme = getTheme(t.theme_color)
+              return (
+                <div key={t.id}>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="shrink-0 flex gap-1 items-center">
+                        <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.bg, borderColor: 'var(--border)' }} />
+                        <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.surface, borderColor: 'var(--border)' }} />
+                        <div className="w-3.5 h-3.5 rounded-full border" style={{ background: theme.accent, borderColor: 'var(--border)' }} />
                       </div>
-                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{theme.label} · {t.sets.join(', ')}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                          {t.is_builtin && <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>Built-in</span>}
+                        </div>
+                        <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{theme.label} · {t.sets.join(', ')}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                      <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Copy size={13} style={{ color: 'var(--text-muted)' }} /></button>
+                      <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Pencil size={13} style={{ color: 'var(--text-muted)' }} /></button>
+                      <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete" className="p-1.5 rounded-lg"
+                        style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}>
+                        <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                    <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Copy size={13} style={{ color: 'var(--text-muted)' }} /></button>
-                    <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Pencil size={13} style={{ color: 'var(--text-muted)' }} /></button>
-                    <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete" className="p-1.5 rounded-lg"
-                      style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}>
-                      <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
-                    </button>
-                  </div>
+                  {confirmDeleteId === t.id && (
+                    <div className="px-5 py-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+                      <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                    </div>
+                  )}
                 </div>
-                {confirmDeleteId === t.id && (
-                  <div className="px-5 pb-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-                    <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+              )
+            })}
+          </div>
+        )}
+      </SettingsSection>
+
+      {editing !== null && (
+        <TemplateEditorModal
+          title={editing?.id ? 'Edit Template' : 'New Gallery Template'}
+          saving={saving}
+          canSave={canSave}
+          onSave={handleSaveClick}
+          onClose={cancelEdit}
+        >
+          <Input label="Template name" value={editName} onChange={setEditName} placeholder="e.g. Wedding Delivery" />
+          <div>
+            <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Theme</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {THEMES.map(t => (
+                <button key={t.id} onClick={() => setEditTheme(t.id)} className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl"
+                  style={{ background: editTheme === t.id ? 'rgba(99,102,241,0.05)' : 'var(--surface-raised)', border: editTheme === t.id ? '2px solid #6366f1' : '2px solid var(--border)', cursor: 'pointer' }}>
+                  <div className="flex gap-1">
+                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.bg, borderColor: 'var(--border)' }} />
+                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.surface, borderColor: 'var(--border)' }} />
+                    <div className="w-3.5 h-3.5 rounded-full border" style={{ background: t.accent, borderColor: 'var(--border)' }} />
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                  <span className="text-xs font-medium" style={{ color: editTheme === t.id ? '#6366f1' : 'var(--text)' }}>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Grid size</label>
+            <div className="flex gap-2">
+              {['medium', 'large'].map(v => (
+                <button key={v} onClick={() => setEditGridSize(v)} className="px-3 py-1.5 rounded-lg text-sm capitalize"
+                  style={{ background: editGridSize === v ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', border: editGridSize === v ? '1px solid #6366f1' : '1px solid var(--border)', color: editGridSize === v ? '#6366f1' : 'var(--text)', cursor: 'pointer' }}>
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Grid spacing</label>
+            <div className="flex gap-2">
+              {['tight', 'large'].map(v => (
+                <button key={v} onClick={() => setEditGridSpacing(v)} className="px-3 py-1.5 rounded-lg text-sm capitalize"
+                  style={{ background: editGridSpacing === v ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', border: editGridSpacing === v ? '1px solid #6366f1' : '1px solid var(--border)', color: editGridSpacing === v ? '#6366f1' : 'var(--text)', cursor: 'pointer' }}>
+                  {v === 'tight' ? 'Tight' : 'Spacious'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Default sets</label>
+            <div className="space-y-2">
+              {editSets.map((s, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input type="text" value={s} onChange={e => setEditSets(prev => prev.map((v, idx) => idx === i ? e.target.value : v))} placeholder="Set name" className="flex-1 text-sm rounded-lg px-3 py-2"
+                    style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }} />
+                  <button onClick={() => { if (editSets.length > 1) setEditSets(prev => prev.filter((_, idx) => idx !== i)) }} disabled={editSets.length === 1}
+                    style={{ color: editSets.length === 1 ? 'var(--border)' : 'var(--text-muted)', cursor: editSets.length === 1 ? 'not-allowed' : 'pointer' }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setEditSets(prev => [...prev, ''])} className="flex items-center gap-1.5 text-sm font-medium mt-2" style={{ color: '#6366f1', cursor: 'pointer' }}>
+              <Plus size={13} />Add set
+            </button>
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Default watermark</label>
+            <select value={editWatermarkId || ''} onChange={e => setEditWatermarkId(e.target.value || null)}
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '14px', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
+              <option value="">No watermark</option>
+              {availableWatermarks.map(wm => <option key={wm.id} value={wm.id}>{wm.label}</option>)}
+            </select>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Applied to new image uploads in galleries created from this template.</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Default access settings</label>
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              {[
+                { label: 'Require password', desc: 'Gallery requires a password to view', value: editRequirePassword, setter: setEditRequirePassword },
+                { label: 'Require download PIN', desc: 'Downloads require a PIN', value: editRequireDownloadPin, setter: setEditRequireDownloadPin },
+                { label: 'Allow downloads', desc: 'Clients can download images', value: editAllowDownloads, setter: setEditAllowDownloads },
+                { label: 'Web size downloads', desc: 'Allow watermarked web-size downloads', value: editDownloadWatermarked, setter: setEditDownloadWatermarked },
+                { label: 'High-res downloads', desc: 'Allow full-resolution downloads', value: editAllowHiresDownload, setter: setEditAllowHiresDownload },
+                { label: 'Allow favorites', desc: 'Clients can heart images', value: editAllowFavorites, setter: setEditAllowFavorites },
+                { label: 'Allow comments', desc: 'Clients can leave comments', value: editAllowComments, setter: setEditAllowComments },
+              ].map((row, i) => (
+                <div key={row.label} className="flex items-center justify-between px-4 py-3"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{row.label}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.desc}</p>
+                  </div>
+                  <Toggle checked={row.value} onChange={row.setter} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </TemplateEditorModal>
       )}
-    </SettingsSection>
+    </>
   )
 }
 
@@ -1338,142 +1278,97 @@ function fillPreview(text) {
 // ── Email Templates Tab ───────────────────────────────────────────────────────
 
 function EmailTemplatesTab({ onSaveState }) {
-  const [templates, setTemplates] = useState([])
-  const [editing, setEditing] = useState(null)
-  const [name, setName] = useState('')
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
-  const [previewEmail, setPreviewEmail] = useState(false)
-  const bodyRef = useRef(null)
+  const [fields, setFields] = useState({ name: '', subject: '', body: '' })
+  const {
+    templates, loaded, editing, confirmDeleteId, saving,
+    startNew, startEdit, cancelEdit, save, handleDuplicate, handleDelete, setConfirmDeleteId,
+  } = useTemplateCollection(
+    {
+      get: getEmailTemplates,
+      create: createEmailTemplate,
+      update: updateEmailTemplate,
+      remove: deleteEmailTemplate,
+      duplicate: duplicateEmailTemplate,
+    },
+    onSaveState
+  )
 
+  // Sync local field state whenever a template is opened for editing (or
+  // "New Template" opens editing = {}) -- values live here, not in the
+  // hook, since the hook is agnostic to any one collection's field shape.
   useEffect(() => {
-    supabase.from('email_templates').select('*').order('name').then(({ data }) => { setTemplates(data || []); setLoaded(true) })
-  }, [])
+    if (editing) setFields({ name: editing.name || '', subject: editing.subject || '', body: editing.body || '' })
+  }, [editing])
 
-  function startNew() { setEditing({}); setName(''); setSubject(''); setBody('') }
-  function startEdit(t) { setEditing(t); setName(t.name); setSubject(t.subject); setBody(t.body) }
-  function cancelEdit() { setEditing(null) }
+  const FORM_FIELDS = [
+    { key: 'name', label: 'Template Name', placeholder: 'e.g. Wedding Delivery', required: true },
+    { key: 'subject', label: 'Subject', placeholder: 'Your photos are ready!', required: true },
+    { key: 'body', label: 'Message Body', type: 'markdown', placeholder: `Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`, rows: 8 },
+  ]
 
-  function insertVariable(tag) {
-    if (bodyRef.current?.insertAtCursor) {
-      bodyRef.current.insertAtCursor(tag)
-    } else {
-      setBody(b => b + tag)
-    }
-  }
-
-  async function handleSave() {
-    if (!name.trim() || !subject.trim()) return
-    setSaving(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (editing?.id) {
-        const { data } = await supabase.from('email_templates').update({ name: name.trim(), subject: subject.trim(), body: body.trim() }).eq('id', editing.id).select().single()
-        setTemplates(prev => prev.map(t => t.id === editing.id ? data : t))
-      } else {
-        const { data } = await supabase.from('email_templates').insert({ photographer_id: user.id, name: name.trim(), subject: subject.trim(), body: body.trim() }).select().single()
-        setTemplates(prev => [...prev, data])
-      }
-      setEditing(null); onSaveState('saved')
-    } catch { onSaveState('error') }
-    finally { setSaving(false) }
-  }
-
-  async function handleDelete(id) {
-    await supabase.from('email_templates').delete().eq('id', id)
-    setTemplates(prev => prev.filter(t => t.id !== id))
-    setConfirmDeleteId(null)
-  }
-
-  if (editing !== null) {
-    return (
-      <div className="space-y-4">
-        <div>
-          <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>{editing?.id ? 'Edit Template' : 'New Email Template'}</h3>
-        </div>
-        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-          <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
-            <Input label="Template Name" value={name} onChange={setName} placeholder="e.g. Wedding Delivery" />
-            <Input label="Subject" value={subject} onChange={setSubject} placeholder="Your photos are ready!" />
-            <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Message Body</label>
-              <MarkdownToolbar
-                ref={bodyRef}
-                value={body}
-                onChange={setBody}
-                placeholder={`Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`}
-                rows={8}
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Insert variable</p>
-              <div className="flex flex-wrap gap-1.5">
-                {TEMPLATE_VARIABLES.map(v => (
-                  <button key={v.tag} onClick={() => insertVariable(v.tag)} title={v.desc} className="text-xs px-2.5 py-1 rounded-lg font-mono"
-                    style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
-                    {v.tag}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Click a variable to insert it at your cursor position.</p>
-            </div>
-            <div className="flex items-center gap-3 pt-1">
-              <Button onClick={handleSave} disabled={!name.trim() || !subject.trim() || saving}>
-                {saving ? 'Saving…' : 'Save Template'}
-              </Button>
-              <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const canSave = fields.name.trim() && fields.subject.trim()
 
   return (
-    <SettingsSection
-      title="Email Templates"
-      description="Save message templates to reuse when sharing galleries."
-      action={
-        <button onClick={startNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-          style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
-          <Plus size={14} />New Template
-        </button>
-      }>
-      {!loaded ? null : templates.length === 0 ? (
-        <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
-          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No templates yet</p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Create your first template to save time when sharing galleries</p>
-        </div>
-      ) : (
-        <div style={{ background: 'var(--surface)' }}>
-          {templates.map((t, i) => (
-            <div key={t.id}>
-              <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
-                  <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{t.subject}</p>
+    <>
+      <SettingsSection
+        title="Email Templates"
+        description="Save message templates to reuse when sharing galleries."
+        action={
+          <button onClick={startNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+            <Plus size={14} />New Template
+          </button>
+        }>
+        {!loaded ? null : templates.length === 0 ? (
+          <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No templates yet</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Create your first template to save time when sharing galleries</p>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)' }}>
+            {templates.map((t, i) => (
+              <div key={t.id}>
+                <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{t.subject}</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4 shrink-0">
+                    <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                      <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+                    </button>
+                    <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Pencil size={13} style={{ color: 'var(--text-muted)' }} /></button>
+                    <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} className="p-1.5 rounded-lg"
+                      style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}>
+                      <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 ml-4 shrink-0">
-                  <button onClick={() => startEdit(t)} className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Pencil size={13} style={{ color: 'var(--text-muted)' }} /></button>
-                  <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} className="p-1.5 rounded-lg"
-                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}>
-                    <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
-                  </button>
-                </div>
+                {confirmDeleteId === t.id && (
+                  <div className="px-5 py-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+                    <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                  </div>
+                )}
               </div>
-              {confirmDeleteId === t.id && (
-                <div className="px-5 pb-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-                  <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+      </SettingsSection>
+
+      {editing !== null && (
+        <TemplateEditorModal
+          title={editing?.id ? 'Edit Template' : 'New Email Template'}
+          fields={FORM_FIELDS}
+          values={fields}
+          onChange={(key, value) => setFields(f => ({ ...f, [key]: value }))}
+          variables={TEMPLATE_VARIABLES}
+          saving={saving}
+          canSave={canSave}
+          onSave={() => save(fields)}
+          onClose={cancelEdit}
+        />
       )}
-    </SettingsSection>
+    </>
   )
 }
 
@@ -1814,37 +1709,78 @@ function AddQuestionForm({ onAdd, onCancel }) {
   )
 }
 
-function QuestionnaireEditor({ template, onBack, onSaveState }) {
-  const [name, setName] = useState(template?.name || '')
-  const [headerText, setHeaderText] = useState(template?.header_text || '')
-  const [requireAgreement, setRequireAgreement] = useState(template?.require_agreement || false)
-  const [agreementLabel, setAgreementLabel] = useState(template?.agreement_label || 'I have read and agree to the terms above.')
-  const [confirmationMessage, setConfirmationMessage] = useState(template?.confirmation_message || '')
-  const [collectEmail, setCollectEmail] = useState(template?.collect_email || false)
-  const [collectName, setCollectName] = useState(template?.collect_name || false)
+// Admin-side thumbnail for a chosen questionnaire cover photo, same
+// pattern as Sessions.jsx's CoverPhotoThumb -- authenticated /preview/:key
+// fetch, since this is the logged-in editor, not the public submit page
+// (which uses the public ?questionnaire_cover=1 mode instead).
+function QuestionnaireCoverThumb({ r2Key }) {
+  const [url, setUrl] = useState(null)
+  useEffect(() => {
+    if (!r2Key) return
+    let cancelled = false
+    let blobUrl = null
+    supabase.auth.getSession().then(({ data: { session } }) =>
+      fetch(`${import.meta.env.VITE_R2_WORKER_URL}/preview/${encodeURIComponent(r2Key)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+    ).then(resp => resp.blob()).then(blob => {
+      if (cancelled) return
+      blobUrl = URL.createObjectURL(blob)
+      setUrl(blobUrl)
+    }).catch(() => {})
+    return () => { cancelled = true; if (blobUrl) URL.revokeObjectURL(blobUrl) }
+  }, [r2Key])
+  return <div className="w-full h-full" style={{ background: 'var(--bg-subtle)' }}>{url && <img src={url} alt="" className="w-full h-full object-cover" />}</div>
+}
+
+function QuestionnairesTab({ onSaveState }) {
+  const [templates, setTemplates] = useState([])
+  const [loaded, setLoaded] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+
+  // Header fields
+  const [name, setName] = useState('')
+  const [headerText, setHeaderText] = useState('')
+  const [requireAgreement, setRequireAgreement] = useState(false)
+  const [agreementLabel, setAgreementLabel] = useState('I have read and agree to the terms above.')
+  const [confirmationMessage, setConfirmationMessage] = useState('')
+  const [collectEmail, setCollectEmail] = useState(false)
+  const [collectName, setCollectName] = useState(false)
+  const [redirectEnabled, setRedirectEnabled] = useState(false)
+  const [redirectPlatform, setRedirectPlatform] = useState('custom')
+  const [redirectUrl, setRedirectUrl] = useState('')
+  const [redirectLabel, setRedirectLabel] = useState('')
+  const [redirectAuto, setRedirectAuto] = useState(false)
+  const [redirectDelaySeconds, setRedirectDelaySeconds] = useState(5)
+  const [templateId, setTemplateId] = useState(null)
+  const [coverImageR2Key, setCoverImageR2Key] = useState(null)
+  const [coverFocusX, setCoverFocusX] = useState(0.5)
+  const [coverFocusY, setCoverFocusY] = useState(0.5)
+  const [showCoverImagePicker, setShowCoverImagePicker] = useState(false)
+  const [showCoverFocalModal, setShowCoverFocalModal] = useState(false)
+
+  // Questions -- entirely local until the unified Save runs; see
+  // handleSaveClick's reconciliation below. isTempId() distinguishes
+  // locally-added questions (never hit the API) from real, already-saved
+  // ones, so Save knows whether to create or update each one.
   const [questions, setQuestions] = useState([])
-  const [loadingQuestions, setLoadingQuestions] = useState(!!template?.id)
+  const [deletedQuestionIds, setDeletedQuestionIds] = useState([])
+  const [loadingQuestions, setLoadingQuestions] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editData, setEditData] = useState({})
   const [saving, setSaving] = useState(false)
-  const [templateId, setTemplateId] = useState(template?.id || null)
 
-  // Post-submission redirect (v1.5.8) -- "follow us on Instagram" after
-  // a questionnaire submits. Destination reuses whichever social links
-  // the photographer already configured under Account > Social Links
-  // (SOCIAL_PLATFORMS, same module-level constant that tab uses)
-  // rather than asking them to re-type a URL, with a "Custom URL"
-  // fallback for anything not covered by that list (a Google Reviews
-  // link, a specific post, their website).
-  const [redirectEnabled, setRedirectEnabled] = useState(!!template?.redirect_url)
-  const [redirectPlatform, setRedirectPlatform] = useState('custom')
-  const [redirectUrl, setRedirectUrl] = useState(template?.redirect_url || '')
-  const [redirectLabel, setRedirectLabel] = useState(template?.redirect_label || '')
-  const [redirectAuto, setRedirectAuto] = useState(template?.redirect_auto || false)
-  const [redirectDelaySeconds, setRedirectDelaySeconds] = useState(template?.redirect_delay_seconds || 5)
   const [socialLinks, setSocialLinks] = useState({})
   const [loadingSocialLinks, setLoadingSocialLinks] = useState(true)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  useEffect(() => { load() }, [])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -1854,14 +1790,61 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
     })
   }, [])
 
+  async function load() {
+    try {
+      const data = await getQuestionnaireTemplates()
+      setTemplates(data)
+    } catch (err) { console.error(err) }
+    finally { setLoaded(true) }
+  }
+
+  // Resets every field to match whichever template was just opened (or
+  // blank, for "New Template"). This component now stays mounted across
+  // open/close -- unlike the old QuestionnaireEditor, which remounted
+  // fresh each time and got this reset for free via lazy initial state.
+  useEffect(() => {
+    if (!editing) return
+    setName(editing.name || '')
+    setHeaderText(editing.header_text || '')
+    setRequireAgreement(editing.require_agreement || false)
+    setAgreementLabel(editing.agreement_label || 'I have read and agree to the terms above.')
+    setConfirmationMessage(editing.confirmation_message || '')
+    setCollectEmail(editing.collect_email || false)
+    setCollectName(editing.collect_name || false)
+    setRedirectEnabled(!!editing.redirect_url)
+    setRedirectPlatform('custom')
+    setRedirectUrl(editing.redirect_url || '')
+    setRedirectLabel(editing.redirect_label || '')
+    setRedirectAuto(editing.redirect_auto || false)
+    setRedirectDelaySeconds(editing.redirect_delay_seconds || 5)
+    setTemplateId(editing.id || null)
+    setCoverImageR2Key(editing.cover_image_r2_key || null)
+    setCoverFocusX(editing.cover_focus_x ?? 0.5)
+    setCoverFocusY(editing.cover_focus_y ?? 0.5)
+    setDeletedQuestionIds([])
+    setShowAddForm(false)
+    setEditingId(null)
+
+    if (editing.id) {
+      setLoadingQuestions(true)
+      getQuestionnaireTemplate(editing.id).then(data => {
+        setQuestions(data?.questionnaire_questions || [])
+        setLoadingQuestions(false)
+      }).catch(() => setLoadingQuestions(false))
+    } else {
+      setQuestions([])
+      setLoadingQuestions(false)
+    }
+  }, [editing])
+
   // Once social links are loaded, figure out whether the saved
   // redirect_url matches one of them (so the dropdown preselects the
-  // right platform on edit) or falls back to "Custom".
+  // right platform) or falls back to "Custom".
   useEffect(() => {
-    if (loadingSocialLinks || !template?.redirect_url) return
-    const match = SOCIAL_PLATFORMS.find(p => socialLinks[p.id] === template.redirect_url)
+    if (!editing || loadingSocialLinks || !editing.redirect_url) return
+    const match = SOCIAL_PLATFORMS.find(p => socialLinks[p.id] === editing.redirect_url)
     setRedirectPlatform(match ? match.id : 'custom')
-  }, [loadingSocialLinks])
+  }, [editing, loadingSocialLinks])
 
   function handleRedirectPlatformChange(platformId) {
     setRedirectPlatform(platformId)
@@ -1871,20 +1854,89 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
     setRedirectLabel(`Follow us on ${platform.label}`)
   }
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  // Local-only, same as every other field here -- nothing hits the API
+  // until the unified Save runs (handleSaveClick), unlike Sessions.jsx's
+  // equivalent cover picker, which persists each change immediately.
+  function handleSelectCoverImage(key) {
+    setShowCoverImagePicker(false)
+    setCoverImageR2Key(key)
+    setCoverFocusX(0.5)
+    setCoverFocusY(0.5)
+  }
+  function handleSaveCoverFocus(x, y) {
+    setCoverFocusX(x)
+    setCoverFocusY(y)
+    setShowCoverFocalModal(false)
+  }
+  function handleRemoveCoverImage() {
+    setCoverImageR2Key(null)
+  }
 
-  useEffect(() => {
-    if (!template?.id) return
-    getQuestionnaireTemplate(template.id).then(data => {
-      setQuestions(data?.questionnaire_questions || [])
-      setLoadingQuestions(false)
-    }).catch(() => setLoadingQuestions(false))
-  }, [template?.id])
+  function startNew() { setEditing({}) }
+  function startEdit(t) { setEditing(t) }
+  function cancelEdit() { setEditing(null) }
 
-  async function handleSaveHeader() {
+  async function handleDuplicate(t) {
+    try {
+      const copy = await duplicateQuestionnaireTemplate(t)
+      setTemplates(prev => [copy, ...prev])
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await deleteQuestionnaireTemplate(id)
+      setTemplates(prev => prev.filter(t => t.id !== id))
+      setConfirmDeleteId(null)
+      onSaveState('saved')
+    } catch { onSaveState('error') }
+  }
+
+  const isTempId = id => typeof id === 'string' && id.startsWith('temp-')
+
+  // Local-only question CRUD -- nothing hits the API until handleSaveClick
+  // runs the full reconciliation below. This is the real behavior change
+  // from before: adding a question to a brand-new template used to
+  // silently create and save the template immediately; now nothing is
+  // persisted until Save is actually clicked, and Cancel/close discards
+  // everything cleanly, same as Email/Contract/Gallery already work.
+  function handleAddQuestion(data) {
+    setQuestions(prev => [...prev, { id: `temp-${crypto.randomUUID()}`, ...data, sort_order: prev.length }])
+    setShowAddForm(false)
+  }
+
+  function handleEditQuestion(question) {
+    setEditingId(question.id)
+    setEditData({ type: question.type, label: question.label, options: question.options ? [...question.options] : null, required: question.required })
+    setShowAddForm(false)
+  }
+
+  function handleSaveEdit() {
+    setQuestions(prev => prev.map(q => q.id === editingId ? { ...q, ...editData } : q))
+    setEditingId(null)
+  }
+
+  function handleDeleteQuestion(id) {
+    setQuestions(prev => prev.filter(q => q.id !== id))
+    if (!isTempId(id)) setDeletedQuestionIds(prev => [...prev, id])
+  }
+
+  function handleDragEnd(event) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = questions.findIndex(q => q.id === active.id)
+    const newIndex = questions.findIndex(q => q.id === over.id)
+    setQuestions(prev => arrayMove(prev, oldIndex, newIndex).map((q, i) => ({ ...q, sort_order: i })))
+  }
+
+  // Unified save: header details first (create or update), then reconcile
+  // the local question list against what's actually saved server-side --
+  // deletes, then creates for temp-id questions, then updates for
+  // everyone else, then one final reorder covering the whole list (has to
+  // run last since new questions only get a real id partway through this
+  // sequence).
+  async function handleSaveClick() {
     if (!name.trim()) return
     setSaving(true)
     try {
@@ -1894,90 +1946,157 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
         redirectLabel: redirectEnabled ? (redirectLabel.trim() || 'Continue') : null,
         redirectAuto: redirectEnabled ? redirectAuto : false,
         redirectDelaySeconds: redirectEnabled ? redirectDelaySeconds : 5,
+        coverImageR2Key, coverFocusX, coverFocusY,
       }
-      if (templateId) {
-        await updateQuestionnaireTemplate(templateId, payload)
+      let id = templateId
+      if (id) {
+        await updateQuestionnaireTemplate(id, payload)
       } else {
         const created = await createQuestionnaireTemplate(payload)
-        setTemplateId(created.id)
+        id = created.id
       }
-      onSaveState('saved')
-    } catch { onSaveState('error') }
-    finally { setSaving(false) }
-  }
 
-  async function handleAddQuestion(data) {
-    if (!templateId) {
-      // Save template first so we have an ID
-      try {
-        const created = await createQuestionnaireTemplate({
-          name, headerText, requireAgreement, agreementLabel, confirmationMessage, collectEmail, collectName,
-          redirectUrl: redirectEnabled ? redirectUrl.trim() || null : null,
-          redirectLabel: redirectEnabled ? (redirectLabel.trim() || 'Continue') : null,
-          redirectAuto: redirectEnabled ? redirectAuto : false,
-          redirectDelaySeconds: redirectEnabled ? redirectDelaySeconds : 5,
-        })
-        setTemplateId(created.id)
-        const q = await createQuestion(created.id, { ...data, sortOrder: questions.length })
-        setQuestions(prev => [...prev, q])
-        setShowAddForm(false)
-        onSaveState('saved')
-      } catch { onSaveState('error') }
-      return
+      for (const qId of deletedQuestionIds) {
+        await deleteQuestion(qId)
+      }
+
+      const idMap = {}
+      for (const q of questions) {
+        if (isTempId(q.id)) {
+          const created = await createQuestion(id, { type: q.type, label: q.label, options: q.options, required: q.required, sortOrder: q.sort_order })
+          idMap[q.id] = created.id
+        } else {
+          await updateQuestion(q.id, { type: q.type, label: q.label, options: q.options, required: q.required })
+          idMap[q.id] = q.id
+        }
+      }
+
+      const finalOrder = questions.map((q, i) => ({ id: idMap[q.id], sort_order: i }))
+      if (finalOrder.length) await reorderQuestions(finalOrder)
+
+      setEditing(null)
+      onSaveState('saved')
+      load()
+    } catch {
+      onSaveState('error')
+    } finally {
+      setSaving(false)
     }
-    try {
-      const q = await createQuestion(templateId, { ...data, sortOrder: questions.length })
-      setQuestions(prev => [...prev, q])
-      setShowAddForm(false)
-      onSaveState('saved')
-    } catch { onSaveState('error') }
   }
 
-  function handleEditQuestion(question) {
-    setEditingId(question.id)
-    setEditData({ type: question.type, label: question.label, options: question.options ? [...question.options] : null, required: question.required })
-    setShowAddForm(false)
-  }
-
-  async function handleSaveEdit() {
-    try {
-      const updated = await updateQuestion(editingId, editData)
-      setQuestions(prev => prev.map(q => q.id === editingId ? { ...q, ...updated } : q))
-      setEditingId(null)
-      onSaveState('saved')
-    } catch { onSaveState('error') }
-  }
-
-  async function handleDeleteQuestion(id) {
-    try {
-      await deleteQuestion(id)
-      setQuestions(prev => prev.filter(q => q.id !== id))
-      onSaveState('saved')
-    } catch { onSaveState('error') }
-  }
-
-  async function handleDragEnd(event) {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = questions.findIndex(q => q.id === active.id)
-    const newIndex = questions.findIndex(q => q.id === over.id)
-    const reordered = arrayMove(questions, oldIndex, newIndex).map((q, i) => ({ ...q, sort_order: i }))
-    setQuestions(reordered)
-    try {
-      await reorderQuestions(reordered.map(q => ({ id: q.id, sort_order: q.sort_order })))
-    } catch { onSaveState('error') }
-  }
+  const canSave = !!(name.trim() && (!redirectEnabled || redirectUrl.trim()))
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm" style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>← Back</button>
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{template?.id ? 'Edit Template' : 'New Template'}</h3>
-      </div>
+    <>
+      <SettingsSection
+        title="Questionnaire Templates"
+        description="Build forms for client sessions and walk-up submissions. Attach a template to a session to collect responses."
+        action={
+          <button onClick={startNew}
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+            <Plus size={14} />New Template
+          </button>
+        }>
+        {!loaded ? null : templates.length === 0 ? (
+          <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No questionnaire templates yet</p>
+            <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Create templates to attach to sessions and collect client responses.</p>
+            <button onClick={startNew} className="text-sm font-medium px-4 py-2 rounded-lg"
+              style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+              Create your first template
+            </button>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)' }}>
+            {templates.map((t, i) => (
+              <div key={t.id}>
+                <div className="flex items-center justify-between px-5 py-4"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {t.require_agreement ? 'Agreement required · ' : ''}
+                      Updated {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4 shrink-0">
+                    <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                      <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+                    </button>
+                    <button onClick={() => startEdit(t)} title="Edit" className="p-1.5 rounded-lg"
+                      style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                      <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete" className="p-1.5 rounded-lg"
+                      style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                      <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                    </button>
+                  </div>
+                </div>
+                {confirmDeleteId === t.id && (
+                  <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+                    <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingsSection>
 
-      <SettingsSection title="Template Details" description="Name and optional header text shown at the top of the form.">
-        <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
+      {editing !== null && (
+        <TemplateEditorModal
+          title={editing?.id ? 'Edit Template' : 'New Template'}
+          saving={saving}
+          canSave={canSave}
+          onSave={handleSaveClick}
+          onClose={cancelEdit}
+        >
           <Input label="Template name" value={name} onChange={setName} placeholder="e.g. Convention Walk-up Form" required />
+          <div>
+            <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Cover image</label>
+            <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Shown behind the title on this questionnaire's submission page -- an uploaded photo if you add one, otherwise a themed illustrated pattern.</p>
+            <div className="flex items-center gap-3">
+              <div style={{ position: 'relative', width: 64, height: 44 }}>
+                <button onClick={() => setShowCoverImagePicker(true)} title={coverImageR2Key ? 'Change photo' : 'Choose a photo'}
+                  style={{
+                    width: 64, height: 44, borderRadius: 8, overflow: 'hidden', display: 'block', padding: 0,
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    boxShadow: coverImageR2Key ? '0 0 0 2px var(--surface), 0 0 0 4px #6366f1' : '0 0 0 1px var(--border)',
+                  }}>
+                  {coverImageR2Key ? (
+                    <QuestionnaireCoverThumb r2Key={coverImageR2Key} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--bg-subtle)' }}>
+                      <Camera size={16} style={{ color: 'var(--text-muted)' }} />
+                    </div>
+                  )}
+                </button>
+                {coverImageR2Key && (
+                  <button onClick={() => setShowCoverFocalModal(true)} title="Adjust focus point"
+                    style={{
+                      position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%',
+                      background: '#6366f1', color: '#fff', border: '2px solid var(--surface)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                    }}>
+                    <Crosshair size={11} />
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="text-xs" style={{ color: coverImageR2Key ? 'var(--text)' : 'var(--text-muted)' }}>
+                  {coverImageR2Key ? 'Photo' : 'No photo -- an illustrated pattern will show instead'}
+                </span>
+                {coverImageR2Key && (
+                  <button onClick={handleRemoveCoverImage} className="text-xs" style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <div>
             <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Header text <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional, supports Markdown)</span></label>
             <MarkdownToolbar value={headerText} onChange={setHeaderText} placeholder="Welcome! Please fill out this form..." rows={6} />
@@ -2084,167 +2203,74 @@ function QuestionnaireEditor({ template, onBack, onSaveState }) {
             )}
           </div>
 
-          <Button onClick={handleSaveHeader} disabled={saving || !name.trim() || (redirectEnabled && !redirectUrl.trim())}>
-            {saving ? 'Saving...' : 'Save Details'}
-          </Button>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        title="Questions"
-        description="Drag to reorder. Questions are shown in order on the submission form."
-        action={
-          !showAddForm && (
-            <button onClick={() => { setShowAddForm(true); setEditingId(null) }}
-              className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-              style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
-              <Plus size={14} />Add Question
-            </button>
-          )
-        }>
-        <div className="px-5 py-4 space-y-3" style={{ background: 'var(--surface)' }}>
-          {loadingQuestions ? (
-            <div className="flex items-center justify-center py-6">
-              <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
-                style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Questions</p>
+              {!showAddForm && (
+                <button onClick={() => { setShowAddForm(true); setEditingId(null) }}
+                  className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+                  style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+                  <Plus size={14} />Add Question
+                </button>
+              )}
             </div>
-          ) : (
-            <>
-              {questions.length === 0 && !showAddForm && (
-                <div className="py-6 text-center">
-                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No questions yet. Add your first question above.</p>
-                </div>
-              )}
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-2">
-                    {questions.map(q => (
-                      <SortableQuestionCard
-                        key={q.id}
-                        question={q}
-                        onEdit={handleEditQuestion}
-                        onDelete={handleDeleteQuestion}
-                        editingId={editingId}
-                        editData={editData}
-                        setEditData={setEditData}
-                        onSaveEdit={handleSaveEdit}
-                        onCancelEdit={() => setEditingId(null)}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-              {showAddForm && (
-                <AddQuestionForm onAdd={handleAddQuestion} onCancel={() => setShowAddForm(false)} />
-              )}
-            </>
-          )}
-        </div>
-      </SettingsSection>
-    </div>
-  )
-}
-
-function QuestionnairesTab({ onSaveState }) {
-  const [templates, setTemplates] = useState([])
-  const [loaded, setLoaded] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
-
-  useEffect(() => { load() }, [])
-
-  async function load() {
-    try {
-      const data = await getQuestionnaireTemplates()
-      setTemplates(data)
-    } catch (err) { console.error(err) }
-    finally { setLoaded(true) }
-  }
-
-  async function handleDuplicate(t) {
-    try {
-      const copy = await duplicateQuestionnaireTemplate(t)
-      setTemplates(prev => [copy, ...prev])
-      onSaveState('saved')
-    } catch { onSaveState('error') }
-  }
-
-  async function handleDelete(id) {
-    try {
-      await deleteQuestionnaireTemplate(id)
-      setTemplates(prev => prev.filter(t => t.id !== id))
-      setConfirmDeleteId(null)
-      onSaveState('saved')
-    } catch { onSaveState('error') }
-  }
-
-  function handleBack() {
-    setEditing(null)
-    load()
-  }
-
-  if (editing !== null) {
-    return <QuestionnaireEditor template={editing} onBack={handleBack} onSaveState={onSaveState} />
-  }
-
-  return (
-    <SettingsSection
-      title="Questionnaire Templates"
-      description="Build forms for client sessions and walk-up submissions. Attach a template to a session to collect responses."
-      action={
-        <button onClick={() => setEditing({})}
-          className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
-          style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
-          <Plus size={14} />New Template
-        </button>
-      }>
-      {!loaded ? null : templates.length === 0 ? (
-        <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
-          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No questionnaire templates yet</p>
-          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Create templates to attach to sessions and collect client responses.</p>
-          <button onClick={() => setEditing({})} className="text-sm font-medium px-4 py-2 rounded-lg"
-            style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            Create your first template
-          </button>
-        </div>
-      ) : (
-        <div style={{ background: 'var(--surface)' }}>
-          {templates.map((t, i) => (
-            <div key={t.id}>
-              <div className="flex items-center justify-between px-5 py-4"
-                style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    {t.require_agreement ? 'Agreement required · ' : ''}
-                    Updated {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 ml-4 shrink-0">
-                  <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg"
-                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
-                    <Copy size={13} style={{ color: 'var(--text-muted)' }} />
-                  </button>
-                  <button onClick={() => setEditing(t)} title="Edit" className="p-1.5 rounded-lg"
-                    style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
-                    <Pencil size={13} style={{ color: 'var(--text-muted)' }} />
-                  </button>
-                  <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} title="Delete" className="p-1.5 rounded-lg"
-                    style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
-                    <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
-                  </button>
-                </div>
+            <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Drag to reorder. Questions save together with the rest of this template.</p>
+            {loadingQuestions ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+                  style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
               </div>
-              {confirmDeleteId === t.id && (
-                <div className="px-5 pb-4" style={{ borderTop: '1px solid var(--border)' }}>
-                  <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+            ) : (
+              <>
+                {questions.length === 0 && !showAddForm && (
+                  <div className="py-6 text-center">
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No questions yet. Add your first question above.</p>
+                  </div>
+                )}
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {questions.map(q => (
+                        <SortableQuestionCard
+                          key={q.id}
+                          question={q}
+                          onEdit={handleEditQuestion}
+                          onDelete={handleDeleteQuestion}
+                          editingId={editingId}
+                          editData={editData}
+                          setEditData={setEditData}
+                          onSaveEdit={handleSaveEdit}
+                          onCancelEdit={() => setEditingId(null)}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+                {showAddForm && (
+                  <AddQuestionForm onAdd={handleAddQuestion} onCancel={() => setShowAddForm(false)} />
+                )}
+              </>
+            )}
+          </div>
+        </TemplateEditorModal>
       )}
-    </SettingsSection>
+
+      {showCoverImagePicker && (
+        <MicrositeImagePicker
+          onSelect={key => handleSelectCoverImage(key)}
+          onClose={() => setShowCoverImagePicker(false)}
+        />
+      )}
+      {showCoverFocalModal && coverImageR2Key && (
+        <MicrositeFocalPointModal
+          r2Key={coverImageR2Key}
+          initialFocusX={coverFocusX}
+          initialFocusY={coverFocusY}
+          onSave={(x, y) => handleSaveCoverFocus(x, y)}
+          onClose={() => setShowCoverFocalModal(false)}
+        />
+      )}
+    </>
   )
 }
 
