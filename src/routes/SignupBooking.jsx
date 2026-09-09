@@ -320,7 +320,16 @@ function InquiryDateStep({ pageData, shootType, onBack, showBack, onSelect }) {
   const bookings = pageData.inquiry_bookings || []
   const bufferMinutes = pageData.buffer_minutes || 0
 
+  // "Today" anchored to the signup page's own timezone (the venue's, not
+  // the visitor's browser timezone) -- en-CA conveniently formats as
+  // YYYY-MM-DD directly, matching every other dateStr in this component.
+  // Without this, windowForDate had no lower bound at all: any date
+  // within a window's date range was eligible regardless of whether it
+  // had already passed, which is the actual bug this fixes.
+  const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: pageData.timezone }).format(new Date())
+
   function windowForDate(dateStr) {
+    if (dateStr < todayDateStr) return null
     const [y, m, d] = dateStr.split('-').map(Number)
     const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
     return windows.find(w => dateStr >= w.start_date && dateStr <= w.end_date && w.days_of_week.includes(weekday))
