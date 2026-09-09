@@ -4,6 +4,36 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.14 — September 9, 2026
+
+### New Features
+
+**Templates**
+- Editing any template (Email, Contract, Gallery, or Questionnaire) now opens in a centered popup instead of swapping the page in place
+- Email templates can now be duplicated, matching Contract and Gallery templates
+- Questionnaire template editing now saves everything -- header text, questions, and all -- together in one step; Cancel discards the whole draft, nothing partially saves
+
+**Questionnaire Submission Page**
+- Redesigned to match your booking pages -- shows your studio's real logo, accent color, and theme instead of generic default styling
+- Add a cover photo to any questionnaire template, with a focal point picker; falls back to a themed illustrated pattern when none is set
+- Shows the session type as a small label above the title
+
+### Improvements
+
+**Mobile**
+- Both gallery lightboxes (your own galleries and your microsite) now support swipe gestures -- touch swipe and two-finger trackpad swipe
+- Renaming an image, folder, or gallery set now opens a centered popup instead of editing inline
+
+### Bug Fixes
+
+- Fixed the public inquiry-booking calendar allowing selection of dates that have already passed
+- Fixed a background database-request loop that could occur while the Templates page was open
+- Fixed ghost menu icons overlapping the bottom navigation bar on the Bookmarked page on mobile
+- Fixed background scrolling behind open modals on iOS Safari
+- Fixed the Move/Download picker popups sometimes rendering confined to a single image card instead of centered on screen
+
+---
+
 ## v1.5.13 — September 7, 2026
 
 ### New Features

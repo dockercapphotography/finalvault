@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.13'
+const VERSION = '1.5.14'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,29 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.14 — September 9, 2026">
+                  <Group label="Templates">
+                    <Item>Editing any template (Email, Contract, Gallery, or Questionnaire) now opens in a centered popup instead of swapping the page in place</Item>
+                    <Item>Email templates can now be duplicated, matching Contract and Gallery templates</Item>
+                    <Item>Questionnaire template editing now saves everything together in one step; Cancel discards the whole draft, nothing partially saves</Item>
+                  </Group>
+                  <Group label="Questionnaire Submission Page">
+                    <Item>Redesigned to match your booking pages -- shows your studio's real logo, accent color, and theme instead of generic default styling</Item>
+                    <Item>Add a cover photo to any questionnaire template, with a focal point picker; falls back to a themed illustrated pattern when none is set</Item>
+                    <Item>Shows the session type as a small label above the title</Item>
+                  </Group>
+                  <Group label="Mobile">
+                    <Item>Both gallery lightboxes (your own galleries and your microsite) now support swipe gestures -- touch swipe and two-finger trackpad swipe</Item>
+                    <Item>Renaming an image, folder, or gallery set now opens a centered popup instead of editing inline</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed the public inquiry-booking calendar allowing selection of dates that have already passed</Item>
+                    <Item>Fixed a background database-request loop that could occur while the Templates page was open</Item>
+                    <Item>Fixed ghost menu icons overlapping the bottom navigation bar on the Bookmarked page on mobile</Item>
+                    <Item>Fixed background scrolling behind open modals on iOS Safari</Item>
+                    <Item>Fixed the Move/Download picker popups sometimes rendering confined to a single image card instead of centered on screen</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.13 — September 7, 2026">
                   <Group label="Booking Confirmations">
                     <Item>New confirmation email + calendar attachment sent when a session moves from Inquiry to Booked</Item>
