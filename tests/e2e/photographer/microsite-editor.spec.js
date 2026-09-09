@@ -9,12 +9,12 @@ import { test, expect } from '../../fixtures/fixtures.js'
  */
 
 test.describe('Microsite editor', () => {
-  test('editor loads and shows the Website heading', async ({ page, testMicrosite }) => {
+  test('editor loads and shows the Website heading', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
   })
 
-  test('toggling Website enabled persists after reload', async ({ page, testMicrosite }) => {
+  test('toggling Website enabled persists after reload', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
 
@@ -33,7 +33,7 @@ test.describe('Microsite editor', () => {
     await expect(page.getByTestId('microsite-enabled-toggle')).toBeChecked({ checked: !wasChecked })
   })
 
-  test('editing a content field persists after save and reload', async ({ page, testMicrosite }) => {
+  test('editing a content field persists after save and reload', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
 
@@ -48,7 +48,7 @@ test.describe('Microsite editor', () => {
     await expect(page.getByPlaceholder('Reviews')).toHaveValue(uniqueTitle, { timeout: 10000 })
   })
 
-  test('disabling the Testimonials section hides its content fields', async ({ page, testMicrosite }) => {
+  test('disabling the Testimonials section hides its content fields', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
 
@@ -62,7 +62,7 @@ test.describe('Microsite editor', () => {
     await expect(page.getByPlaceholder('Reviews')).toBeVisible()
   })
 
-  test('Content and Design tabs switch panels on desktop', async ({ page, testMicrosite }) => {
+  test('Content and Design tabs switch panels on desktop', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
@@ -78,7 +78,7 @@ test.describe('Microsite editor', () => {
     await expect(page.getByPlaceholder('Reviews')).toBeVisible()
   })
 
-  test('selecting a theme swatch registers as an unsaved change', async ({ page, testMicrosite }) => {
+  test('selecting a theme swatch registers as an unsaved change', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })

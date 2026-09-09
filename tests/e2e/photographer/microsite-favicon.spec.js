@@ -17,7 +17,7 @@ import { test, expect } from '../../fixtures/fixtures.js'
  */
 
 test.describe('Microsite favicon', () => {
-  test('no favicon uploaded shows the add-a-favicon prompt', async ({ page, testMicrosite, sb }) => {
+  test('no favicon uploaded shows the add-a-favicon prompt', async ({ page, testMicrosite, sb, withPremiumAccess }) => {
     await sb.from('microsites').update({ favicon_r2_key: null }).eq('photographer_id', testMicrosite.photographerId)
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
@@ -29,7 +29,7 @@ test.describe('Microsite favicon', () => {
     await expect(page.getByText('Falls back to the FinalVault icon if not set.', { exact: false })).toBeVisible()
   })
 
-  test('uploading a favicon shows a preview and persists after save + reload', async ({ page, testMicrosite, sb }) => {
+  test('uploading a favicon shows a preview and persists after save + reload', async ({ page, testMicrosite, sb, withPremiumAccess }) => {
     await sb.from('microsites').update({ favicon_r2_key: null }).eq('photographer_id', testMicrosite.photographerId)
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
@@ -55,7 +55,7 @@ test.describe('Microsite favicon', () => {
     // the avatar-upload test above leaves its own upload in place.
   })
 
-  test('removing an existing favicon reverts to the fallback prompt', async ({ page, testMicrosite, sb }) => {
+  test('removing an existing favicon reverts to the fallback prompt', async ({ page, testMicrosite, sb, withPremiumAccess }) => {
     await sb.from('microsites')
       .update({ favicon_r2_key: `photographers/${testMicrosite.photographerId}/logos/microsite-favicon-pw-test.png` })
       .eq('photographer_id', testMicrosite.photographerId)

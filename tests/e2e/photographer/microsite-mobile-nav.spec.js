@@ -9,7 +9,7 @@ import { test, expect } from '../../fixtures/fixtures.js'
 const MOBILE = { width: 375, height: 812 }
 
 test.describe('Microsite editor — mobile navigation', () => {
-  test('bottom bar shows Content, Design, Preview; top pills are hidden', async ({ page, testMicrosite }) => {
+  test('bottom bar shows Content, Design, Preview; top pills are hidden', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.setViewportSize(MOBILE)
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
@@ -20,7 +20,7 @@ test.describe('Microsite editor — mobile navigation', () => {
     await expect(page.getByTestId('desktop-tabs')).toBeHidden()
   })
 
-  test('tapping Design switches the panel on mobile', async ({ page, testMicrosite }) => {
+  test('tapping Design switches the panel on mobile', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.setViewportSize(MOBILE)
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
@@ -31,7 +31,7 @@ test.describe('Microsite editor — mobile navigation', () => {
     await expect(page.getByRole('heading', { name: 'Theme' })).toBeVisible()
   })
 
-  test('Preview opens the overlay, and Content/Design still work while it is open', async ({ page, testMicrosite }) => {
+  test('Preview opens the overlay, and Content/Design still work while it is open', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.setViewportSize(MOBILE)
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })

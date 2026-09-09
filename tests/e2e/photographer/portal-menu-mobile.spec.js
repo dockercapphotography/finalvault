@@ -261,6 +261,22 @@ test.describe('PortalMenu — mobile submenu opens PickerModal', () => {
       const pickerModal = page.getByTestId('picker-modal')
       await expect(pickerModal.getByRole('button', { name: setB.name, exact: true })).toBeVisible()
 
+      // The actual regression this guards against: PickerModal wasn't
+      // portaled to document.body, so its position:fixed styling got
+      // trapped inside ImageGrid's always-on transform:scale(1) wrapper
+      // (even a no-op scale still creates a new containing block for
+      // fixed descendants) -- it rendered confined to one image card's
+      // box instead of centered on the real viewport. That bug is purely
+      // visual/geometric: every assertion above (visible, clickable,
+      // persists correctly) would pass identically whether the modal was
+      // correctly centered or wrongly confined, so none of them actually
+      // caught it. A card in this grid is well under 200px wide; the
+      // modal's real maxWidth (360, minus 16px side padding) puts its
+      // content box around 328px -- checking for a plausible centered
+      // width is enough to tell the two cases apart.
+      const box = await pickerModal.boundingBox()
+      expect(box.width).toBeGreaterThan(250)
+
       // Scoped to the modal -- the underlying gallery page still has its
       // own set-tab button with the same text ("Edited") visible behind
       // the overlay, and an unscoped click could hit that instead.

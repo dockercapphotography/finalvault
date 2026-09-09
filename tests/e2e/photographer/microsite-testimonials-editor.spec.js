@@ -26,7 +26,7 @@ function openCard(page) {
 }
 
 test.describe('Microsite editor — testimonials', () => {
-  test('Cancel removes a never-finished testimonial', async ({ page, testMicrosite }) => {
+  test('Cancel removes a never-finished testimonial', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
 
@@ -42,7 +42,7 @@ test.describe('Microsite editor — testimonials', () => {
     await expect(page.getByText(quote)).not.toBeVisible()
   })
 
-  test('Cancel on a complete-but-unsaved entry closes it without deleting it, and it survives Save', async ({ page, testMicrosite }) => {
+  test('Cancel on a complete-but-unsaved entry closes it without deleting it, and it survives Save', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
 
@@ -67,7 +67,7 @@ test.describe('Microsite editor — testimonials', () => {
     await expect(page.getByText(quote)).toBeVisible({ timeout: 10000 })
   })
 
-  test('an incomplete testimonial does not survive Save', async ({ page, testMicrosite }) => {
+  test('an incomplete testimonial does not survive Save', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
 
@@ -87,7 +87,7 @@ test.describe('Microsite editor — testimonials', () => {
     await expect(page.getByText(quote)).not.toBeVisible()
   })
 
-  test('the testimonial photo picker loads thumbnails via a token URL, not a blob fetch', async ({ page, testMicrosite }) => {
+  test('the testimonial photo picker loads thumbnails via a token URL, not a blob fetch', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
 

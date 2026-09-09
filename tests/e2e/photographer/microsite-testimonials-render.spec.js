@@ -16,7 +16,7 @@ import { test, expect } from '../../fixtures/fixtures.js'
  */
 
 test.describe('Microsite public preview — testimonials', () => {
-  test('Spotlight cross-slide actually changes the visible testimonial on next/prev', async ({ page, testMicrosite, sb }) => {
+  test('Spotlight cross-slide actually changes the visible testimonial on next/prev', async ({ page, testMicrosite, withPremiumAccess, sb }) => {
     const quote1 = `PW spotlight one ${Date.now()}`
     const quote2 = `PW spotlight two ${Date.now()}`
     const { error } = await sb.from('microsites').update({
@@ -46,7 +46,7 @@ test.describe('Microsite public preview — testimonials', () => {
     await expect(page.getByText(quote2)).not.toBeVisible()
   })
 
-  test('Ticker pauses its scroll animation on hover and resumes on mouse-out', async ({ page, testMicrosite, sb }) => {
+  test('Ticker pauses its scroll animation on hover and resumes on mouse-out', async ({ page, testMicrosite, withPremiumAccess, sb }) => {
     const { error } = await sb.from('microsites').update({
       enabled: true, show_testimonials: true,
       section_variants: { testimonials: 'ticker' },
@@ -69,7 +69,7 @@ test.describe('Microsite public preview — testimonials', () => {
     await expect(track).toHaveCSS('animation-play-state', 'running')
   })
 
-  test('Stack layout centers a short last row without stretching its cards', async ({ page, testMicrosite, sb }) => {
+  test('Stack layout centers a short last row without stretching its cards', async ({ page, testMicrosite, withPremiumAccess, sb }) => {
     // 4 testimonials -- a 3-per-row grid leaves exactly 1 on the last
     // row. Before the flex-grow: 0 fix (step 17), that lone card
     // stretched to fill the whole row's leftover width instead of

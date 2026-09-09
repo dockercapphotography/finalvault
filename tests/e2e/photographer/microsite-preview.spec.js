@@ -9,7 +9,7 @@ import { test, expect } from '../../fixtures/fixtures.js'
  */
 
 test.describe('Microsite public preview', () => {
-  test('a saved content change appears on the preview page', async ({ page, testMicrosite }) => {
+  test('a saved content change appears on the preview page', async ({ page, testMicrosite, withPremiumAccess }) => {
     await page.goto('/website')
     await expect(page.getByRole('heading', { name: 'Website' })).toBeVisible({ timeout: 10000 })
 

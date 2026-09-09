@@ -82,6 +82,53 @@ async function waitForReady(page) {
 // logged-out booking pages (same reasoning signup-booking.spec.js and
 // all-sessions-booking.spec.js already document for keeping their own
 // local `sb()`/fixture helpers instead of sharing fixtures.js's).
+// Mirrors fixtures.js's withPremiumAccess fixture, duplicated locally for
+// the same reason withMicrosite above already is: importing test from
+// fixtures.js would also pull in its pre-authenticated page fixture,
+// wrong for these public, logged-out booking pages. Only the one test
+// below that actually sets microsites.enabled: true needs this --
+// enabled: false doesn't hit the premium gate at all (confirmed by the
+// very next test in this file passing without it).
+async function withPremiumAccess(fn) {
+  const photographerId = await getPhotographerId()
+
+  const { data: storageRow, error: storageErr } = await sb()
+    .from('photographer_storage')
+    .select('tier_id')
+    .eq('photographer_id', photographerId)
+    .maybeSingle()
+  if (storageErr) throw new Error(`Could not read photographer_storage: ${storageErr.message}`)
+  const originalTierId = storageRow?.tier_id ?? null
+
+  const { data: tier, error: tierErr } = await sb()
+    .from('storage_tiers')
+    .insert({
+      name: `pw-premium-${crypto.randomUUID().slice(0, 8)}`,
+      storage_gb: 50,
+      price_monthly: 0,
+      allow_premium_features: true,
+    })
+    .select()
+    .single()
+  if (tierErr) throw new Error(`Could not create disposable premium tier: ${tierErr.message}`)
+
+  const { error: assignErr } = await sb()
+    .from('photographer_storage')
+    .upsert({ photographer_id: photographerId, tier_id: tier.id }, { onConflict: 'photographer_id' })
+  if (assignErr) throw new Error(`Could not assign disposable premium tier: ${assignErr.message}`)
+
+  try {
+    await fn()
+  } finally {
+    if (originalTierId) {
+      await sb().from('photographer_storage').update({ tier_id: originalTierId }).eq('photographer_id', photographerId)
+    } else {
+      await sb().from('photographer_storage').delete().eq('photographer_id', photographerId)
+    }
+    await sb().from('storage_tiers').delete().eq('id', tier.id)
+  }
+}
+
 async function withMicrosite(overrides, fn) {
   const photographerId = await getPhotographerId()
   const { data: existing } = await sb().from('microsites').select('*').eq('photographer_id', photographerId).maybeSingle()
@@ -125,6 +172,7 @@ async function readBkVar(page, varName) {
 
 test.describe('Public booking page branding and covers', () => {
   test('an enabled microsite\'s theme, accent color, and studio name flow through', async ({ page }) => {
+    await withPremiumAccess(async () => {
     await withMicrosite({
       enabled: true, theme: 'dark', accent_color: '#2f6f4e',
       studio_name: 'Golden Hour Studio', logo_r2_key: null,
@@ -149,6 +197,7 @@ test.describe('Public booking page branding and covers', () => {
       } finally {
         await cleanupSignupPage(signupPage.id)
       }
+    })
     })
   })
 

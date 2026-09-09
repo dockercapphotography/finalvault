@@ -262,25 +262,29 @@ test.describe('Gallery Folders', () => {
 
   // ── Rename folder ───────────────────────────────────────────────────────────
 
-  test('⋮ → Rename updates folder name inline', async ({ page }) => {
+  test('⋮ → Rename opens RenameModal and saves the new name', async ({ page }) => {
     const folder = await createTestFolder('Rename Me Folder')
     try {
       await gotoDashboard(page)
       await expect(page.locator('h3').filter({ hasText: 'Rename Me Folder' }).first()).toBeVisible()
 
       await openFolderMenu(page, 'Rename Me Folder')
-      await page.getByRole('button', { name: 'Rename' }).click()
+      // exact: true -- without it, this can match unrelated gallery
+      // cards elsewhere on the dashboard whose accessible name happens
+      // to contain the substring "Rename" (e.g. a gallery literally
+      // titled "Rename Test Gallery ..."), which is exactly what
+      // happened here once before from unrelated orphaned test data.
+      await page.getByRole('button', { name: 'Rename', exact: true }).click()
 
-      // Inline input appears — wait for an input with value "Rename Me Folder"
-      // then use Playwright's fill + blur to trigger React's onBlur save handler
+      // RenameModal (replaced the old inline onBlur-save input this
+      // session) still pre-fills its input with the current name, so this
+      // locator is unchanged -- only the save mechanism changed, from
+      // blur to an explicit Save button click.
       const renameInput = page.locator('input[value="Rename Me Folder"]')
       await expect(renameInput).toBeVisible({ timeout: 3000 })
       await renameInput.fill('Renamed Folder')
-      // Click elsewhere on the page to trigger onBlur and save
-      await page.locator('h1').first().click()
+      await page.getByRole('button', { name: 'Save', exact: true }).click()
 
-      // h3 updates to new name
-      // Verify the new name is visible — sufficient to confirm rename succeeded
       await expect(page.locator('h3').filter({ hasText: 'Renamed Folder' }).first()).toBeVisible({ timeout: 5000 })
     } finally {
       await cleanupFolder(folder.id)
@@ -290,19 +294,28 @@ test.describe('Gallery Folders', () => {
   // ── Delete empty folder ─────────────────────────────────────────────────────
 
   test('⋮ → Delete removes an empty folder', async ({ page }) => {
-    const folder = await createTestFolder('Delete Me Folder')
+    // Unique per run -- this test asserts an exact zero-count, unlike
+    // every other test in this file which scopes with .first() (naturally
+    // tolerant of unrelated same-named items). A fixed name here is
+    // uniquely vulnerable to colliding with any stray leftover from
+    // elsewhere -- confirmed for real: two genuinely orphaned "Delete Me
+    // Folder" rows (dated months apart, unrelated to any single test run)
+    // were found sitting in the account and had to be cleaned up by hand
+    // before this fix.
+    const folderName = `Delete Me Folder ${crypto.randomUUID().slice(0, 8)}`
+    const folder = await createTestFolder(folderName)
     try {
       await gotoDashboard(page)
-      await expect(page.locator('h3').filter({ hasText: 'Delete Me Folder' }).first()).toBeVisible()
+      await expect(page.locator('h3').filter({ hasText: folderName }).first()).toBeVisible()
 
-      await openFolderMenu(page, 'Delete Me Folder')
+      await openFolderMenu(page, folderName)
       await page.getByRole('button', { name: 'Delete' }).click()
 
       // Confirm dialog in the card body
-      await expect(page.getByText(/Delete "Delete Me Folder"/)).toBeVisible({ timeout: 3000 })
+      await expect(page.getByText(new RegExp(`Delete "${folderName}"`))).toBeVisible({ timeout: 3000 })
       await page.getByRole('button', { name: 'Delete' }).first().click()
 
-      await expect(page.locator('h3').filter({ hasText: 'Delete Me Folder' })).toHaveCount(0, { timeout: 5000 })
+      await expect(page.locator('h3').filter({ hasText: folderName })).toHaveCount(0, { timeout: 5000 })
 
       const { data } = await sb().from('gallery_folders').select('id').eq('id', folder.id).maybeSingle()
       expect(data).toBeNull()

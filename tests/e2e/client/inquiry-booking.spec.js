@@ -75,6 +75,31 @@ async function waitForReady(page) {
   await expect(page.locator('.animate-spin')).not.toBeAttached({ timeout: 15000 })
 }
 
+// Returns the next Saturday on/after today as 'YYYY-MM-DD', computed at
+// test-run time rather than hardcoded -- the app now correctly excludes
+// past dates from the inquiry calendar (fixed this session), so a fixed
+// past-relative date like the old hardcoded '2026-09-05' would fail this
+// specific test for the right reason (the date's genuinely in the past)
+// while looking like a regression. Still bounded by the shared
+// createWindow() helper's own hardcoded September 2026 range, so this
+// keeps working for any run through Sept 26, 2026 -- not a permanent
+// fix for that broader constraint, just meaningfully further out than
+// the single fixed date this replaces.
+function nextSaturdayDateStr() {
+  // Anchored to America/New_York -- createSignupPage's own hardcoded
+  // timezone -- matching exactly how the live app computes "today" for
+  // this same calendar (see SignupBooking.jsx's todayDateStr). Using the
+  // test-runner machine's own local time instead could disagree with the
+  // app right at a day boundary if the machine isn't itself in Eastern
+  // time -- the same class of bug just fixed in the real app.
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())
+  const [y, m, d] = todayStr.split('-').map(Number)
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+  const daysUntilSaturday = (6 - weekday + 7) % 7
+  const target = new Date(Date.UTC(y, m - 1, d + daysUntilSaturday))
+  return target.toISOString().slice(0, 10)
+}
+
 test.describe('Public inquiry booking page — calendar', () => {
   test('only eligible weekdays within the window range are clickable', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Calendar Eligibility Page' })
@@ -86,10 +111,17 @@ test.describe('Public inquiry booking page — calendar', () => {
       // A single shoot type auto-skips the picker step (same behavior
       // slot-based pages already have) -- straight to the calendar.
 
-      // Sept 1, 2026 is a Tuesday -- outside the Saturday-only window.
+      // Sept 1, 2026 is a Tuesday -- outside the Saturday-only window
+      // (also now in the past, but wrong-weekday alone already makes
+      // this correctly disabled either way).
       await expect(page.getByRole('button', { name: '1', exact: true })).toBeDisabled()
-      // Sept 5, 2026 is the first Saturday in range.
-      await expect(page.getByRole('button', { name: '5', exact: true })).toBeEnabled()
+      // A real future Saturday, rather than the old hardcoded Sept 5 --
+      // that date is itself in the past now, which the app correctly
+      // excludes (fixed this session), so asserting it stays enabled
+      // would be asserting the old bug's behavior, not the real one.
+      const targetDate = nextSaturdayDateStr()
+      const targetDay = String(Number(targetDate.slice(-2)))
+      await expect(page.getByRole('button', { name: targetDay, exact: true })).toBeEnabled()
     } finally {
       await cleanupSignupPage(signupPage.id)
     }
@@ -103,7 +135,8 @@ test.describe('Public inquiry booking page — calendar', () => {
       await page.goto(`/book/${signupPage.token}`)
       await waitForReady(page)
       // A single shoot type auto-skips the picker step -- straight to the calendar.
-      await page.getByRole('button', { name: '5', exact: true }).click()
+      const targetDay2 = String(Number(nextSaturdayDateStr().slice(-2)))
+      await page.getByRole('button', { name: targetDay2, exact: true }).click()
 
       const select = page.locator('select')
       const optionTexts = await select.locator('option').allTextContents()
@@ -121,20 +154,22 @@ test.describe('Public inquiry booking page — calendar', () => {
     const shootType = await createShootType(signupPage.id)
     await createWindow(signupPage.id)
     const photographerId = await getPhotographerId()
+    const targetDate = nextSaturdayDateStr()
+    const targetDay = String(Number(targetDate.slice(-2))) // no leading zero, matching the button's own label
     const { data: client } = await sb().from('clients').insert({
       photographer_id: photographerId, first_name: 'Cap', last_name: 'Filler', email: `cap-filler-${crypto.randomUUID().slice(0, 8)}@example.com`,
     }).select().single()
     await sb().from('sessions').insert({
       photographer_id: photographerId, client_id: client.id, name: 'Cap filler session',
       type: 'Portrait', mode: 'private', status: 'inquiry',
-      session_date: '2026-09-05', start_time: '13:00:00', end_time: '14:00:00',
+      session_date: targetDate, start_time: '13:00:00', end_time: '14:00:00',
       signup_page_id: signupPage.id, submit_token: crypto.randomUUID().replace(/-/g, ''),
     })
     try {
       await page.goto(`/book/${signupPage.token}`)
       await waitForReady(page)
       // A single shoot type auto-skips the picker step -- straight to the calendar.
-      await expect(page.getByRole('button', { name: '5', exact: true })).toBeDisabled()
+      await expect(page.getByRole('button', { name: targetDay, exact: true })).toBeDisabled()
     } finally {
       await sb().from('clients').delete().eq('id', client.id)
       await cleanupSignupPage(signupPage.id)
@@ -152,7 +187,9 @@ test.describe('Public inquiry booking page — submission', () => {
       await page.goto(`/book/${signupPage.token}`)
       await waitForReady(page)
       // A single shoot type auto-skips the picker step -- straight to the calendar.
-      await page.getByRole('button', { name: '5', exact: true }).click()
+      const targetDate3 = nextSaturdayDateStr()
+      const targetDay3 = String(Number(targetDate3.slice(-2)))
+      await page.getByRole('button', { name: targetDay3, exact: true }).click()
       await page.locator('select').selectOption('13:00')
       await page.getByRole('button', { name: 'Continue' }).click()
 
@@ -168,7 +205,7 @@ test.describe('Public inquiry booking page — submission', () => {
       expect(sessions.length).toBe(1)
       expect(sessions[0].status).toBe('inquiry')
       expect(sessions[0].signup_page_id).toBe(signupPage.id)
-      expect(sessions[0].session_date).toBe('2026-09-05')
+      expect(sessions[0].session_date).toBe(targetDate3)
       expect(sessions[0].start_time).toBe('13:00:00')
     } finally {
       await cleanupSignupPage(signupPage.id, [email])

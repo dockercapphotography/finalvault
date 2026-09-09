@@ -20,49 +20,122 @@ async function waitForReady(page) {
   await expect(page.locator('.animate-spin')).not.toBeAttached({ timeout: 15000 })
 }
 
-// Clicks a row's ⋮ menu trigger and confirms the dropdown actually
-// opened (checked via a known menu item becoming visible), retrying
-// the click if not -- covers the click-outside-to-close race where
-// the very click that opens the menu occasionally gets misread as the
-// outside click that closes it again.
-async function openRowMenu(row, page) {
+// Combines opening the row menu AND clicking Edit into ONE retry loop,
+// rather than two separate functions each independently
+// verify-then-act. The previous two-step version (openRowMenu, then a
+// separate clickEditAndWaitForForm) had a real gap between "menu
+// confirmed open" and "Edit click actually fires" -- evidence from a
+// real failure showed the menu fully closed (zero menu items anywhere
+// in the DOM) by the time the second function's first click attempt
+// ran, even though openRowMenu had just confirmed it was open moments
+// before. Retrying only the Edit click in that version was retrying
+// against a target that had already vanished for the whole budget,
+// never actually re-opening the menu. Every attempt here re-clicks the
+// trigger from scratch, so there's no assumption that state persists
+// across a boundary where it demonstrably doesn't always survive.
+async function openMenuAndClickEdit(row, page) {
   const trigger = row.getByRole('button').last()
   for (let attempt = 0; attempt < 5; attempt++) {
-    // Short explicit timeout -- without this, a not-yet-actionable
-    // element (page still settling right after load) can make this
-    // single click call block for the whole default ~30s wait,
-    // eating the entire retry budget on attempt one.
     try {
       await trigger.click({ timeout: 3000 })
     } catch {
       await page.waitForTimeout(300)
       continue
     }
-    const opened = await page.getByRole('button', { name: 'Edit', exact: true })
-      .or(page.getByRole('button', { name: 'Remove', exact: true }))
-      .first().isVisible().catch(() => false)
-    if (opened) return
+    const editBtn = page.getByRole('button', { name: 'Edit', exact: true })
+    const menuOpen = await editBtn.isVisible().catch(() => false)
+    if (!menuOpen) {
+      await page.waitForTimeout(200)
+      continue
+    }
+    try {
+      await editBtn.click({ timeout: 2000 })
+    } catch {
+      await page.waitForTimeout(200)
+      continue
+    }
+    const formOpen = await page.getByPlaceholder('What the client said').isVisible().catch(() => false)
+    if (formOpen) return
     await page.waitForTimeout(200)
   }
-  throw new Error('Row ⋮ menu never opened after retries')
+  throw new Error('Edit form never opened after retries')
 }
 
-// Same retry-and-verify approach as openRowMenu, applied to the Edit
-// click itself -- click, confirm the edit form actually opened (the
-// quote placeholder becomes visible), retry a few times if not.
-async function clickEditAndWaitForForm(page) {
-  for (let attempt = 0; attempt < 4; attempt++) {
+// Same combined-retry shape as openMenuAndClickEdit, for Remove instead
+// -- the second, confirm click that follows this one is left as a plain
+// unprotected click, since by that point we're looking at a stable
+// inline confirm state rather than a dropdown that can close itself
+// from outside interaction the same way.
+async function openMenuAndClickRemove(row, page) {
+  const trigger = row.getByRole('button').last()
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      await page.getByRole('button', { name: 'Edit', exact: true }).click({ timeout: 5000 })
+      await trigger.click({ timeout: 3000 })
     } catch {
       await page.waitForTimeout(300)
       continue
     }
-    const opened = await page.getByPlaceholder('What the client said').isVisible().catch(() => false)
-    if (opened) return
-    await page.waitForTimeout(300)
+    const removeBtn = page.getByRole('button', { name: 'Remove', exact: true })
+    const menuOpen = await removeBtn.isVisible().catch(() => false)
+    if (!menuOpen) {
+      await page.waitForTimeout(200)
+      continue
+    }
+    try {
+      await removeBtn.click({ timeout: 2000 })
+    } catch {
+      await page.waitForTimeout(200)
+      continue
+    }
+    return
   }
-  throw new Error('Edit form never opened after retries')
+  throw new Error('Remove menu item never became clickable after retries')
+}
+
+// Mirrors fixtures.js's withPremiumAccess fixture, duplicated locally
+// same as withMicrosite below already is (plain @playwright/test import,
+// no fixtures.js dependency). The MicrositeEditor page (/website) gates
+// on the account's actual subscription tier independent of the
+// microsites row's own `enabled` column -- so even an update that never
+// touches `enabled` at all can still land on the "Microsite isn't
+// included in your plan" lockout screen if the test account currently
+// lacks premium access, which is the case by default in this suite.
+async function withPremiumAccess(photographerId, fn) {
+  const { data: storageRow, error: storageErr } = await sb()
+    .from('photographer_storage')
+    .select('tier_id')
+    .eq('photographer_id', photographerId)
+    .maybeSingle()
+  if (storageErr) throw new Error(`Could not read photographer_storage: ${storageErr.message}`)
+  const originalTierId = storageRow?.tier_id ?? null
+
+  const { data: tier, error: tierErr } = await sb()
+    .from('storage_tiers')
+    .insert({
+      name: `pw-premium-${crypto.randomUUID().slice(0, 8)}`,
+      storage_gb: 50,
+      price_monthly: 0,
+      allow_premium_features: true,
+    })
+    .select()
+    .single()
+  if (tierErr) throw new Error(`Could not create disposable premium tier: ${tierErr.message}`)
+
+  const { error: assignErr } = await sb()
+    .from('photographer_storage')
+    .upsert({ photographer_id: photographerId, tier_id: tier.id }, { onConflict: 'photographer_id' })
+  if (assignErr) throw new Error(`Could not assign disposable premium tier: ${assignErr.message}`)
+
+  try {
+    await fn()
+  } finally {
+    if (originalTierId) {
+      await sb().from('photographer_storage').update({ tier_id: originalTierId }).eq('photographer_id', photographerId)
+    } else {
+      await sb().from('photographer_storage').delete().eq('photographer_id', photographerId)
+    }
+    await sb().from('storage_tiers').delete().eq('id', tier.id)
+  }
 }
 
 // Snapshot/restore the account's one-row `microsites` table around each
@@ -70,25 +143,29 @@ async function clickEditAndWaitForForm(page) {
 // booking-branding-and-covers.spec.js's withMicrosite). Testimonials live
 // in one jsonb column on this row, so tests set that column directly via
 // the DB for setup, then drive the UI for the actual behavior under test.
+// Wraps everything in withPremiumAccess so every test using this helper
+// is automatically covered, rather than adding it to each test body.
 async function withMicrosite(photographerId, overrides, fn) {
-  const { data: existing } = await sb().from('microsites').select('*').eq('photographer_id', photographerId).maybeSingle()
-  if (existing) {
-    const { error } = await sb().from('microsites').update(overrides).eq('id', existing.id)
-    if (error) throw new Error(error.message)
-  } else {
-    const { error } = await sb().from('microsites').insert({ photographer_id: photographerId, enabled: true, ...overrides })
-    if (error) throw new Error(error.message)
-  }
-  try {
-    await fn()
-  } finally {
+  await withPremiumAccess(photographerId, async () => {
+    const { data: existing } = await sb().from('microsites').select('*').eq('photographer_id', photographerId).maybeSingle()
     if (existing) {
-      const { id, ...rest } = existing
-      await sb().from('microsites').update(rest).eq('id', id)
+      const { error } = await sb().from('microsites').update(overrides).eq('id', existing.id)
+      if (error) throw new Error(error.message)
     } else {
-      await sb().from('microsites').delete().eq('photographer_id', photographerId)
+      const { error } = await sb().from('microsites').insert({ photographer_id: photographerId, enabled: true, ...overrides })
+      if (error) throw new Error(error.message)
     }
-  }
+    try {
+      await fn()
+    } finally {
+      if (existing) {
+        const { id, ...rest } = existing
+        await sb().from('microsites').update(rest).eq('id', id)
+      } else {
+        await sb().from('microsites').delete().eq('photographer_id', photographerId)
+      }
+    }
+  })
 }
 
 function makeTestimonials(count) {
@@ -168,15 +245,13 @@ test.describe('Testimonials listing', () => {
       await waitForReady(page)
 
       const row = page.locator('tr', { hasText: 'Client 1' })
-      await openRowMenu(row, page)
-      await page.getByRole('button', { name: 'Edit', exact: true }).click()
+      await openMenuAndClickEdit(row, page)
       await page.getByPlaceholder('What the client said').fill('Updated quote text for this testimonial.')
       await page.getByRole('button', { name: 'Done' }).click()
       await expect(page.getByText('Updated quote text for this testimonial.', { exact: false })).toBeVisible()
 
       const rowAfterEdit = page.locator('tr', { hasText: 'Client 1' })
-      await openRowMenu(rowAfterEdit, page)
-      await page.getByRole('button', { name: 'Remove', exact: true }).click()
+      await openMenuAndClickRemove(rowAfterEdit, page)
       await page.getByRole('button', { name: 'Remove', exact: true }).click() // confirm
       await expect(page.getByText('Client 1', { exact: true })).not.toBeVisible({ timeout: 5000 })
     })
@@ -190,9 +265,7 @@ test.describe('Testimonial photo upload', () => {
       await page.goto('/website')
       await waitForReady(page)
       const row = page.locator('tr', { hasText: 'Client 1' })
-      await openRowMenu(row, page)
-      await page.waitForTimeout(150)
-      await clickEditAndWaitForForm(page)
+      await openMenuAndClickEdit(row, page)
 
       // `row` (text-based: hasText 'Client 1') stops matching the instant
       // editing starts -- the name becomes an <input value="Client 1">,
@@ -227,8 +300,7 @@ test.describe('Testimonial photo upload', () => {
       await page.goto('/website')
       await waitForReady(page)
       const row = page.locator('tr', { hasText: 'Client 1' })
-      await row.getByRole('button').last().click() // opens the row's ⋮ menu
-      await page.getByRole('button', { name: 'Remove', exact: true }).click()
+      await openMenuAndClickRemove(row, page)
       await page.getByRole('button', { name: 'Remove', exact: true }).click() // confirm
       await expect(page.getByText('Client 1', { exact: true })).not.toBeVisible({ timeout: 5000 })
 
