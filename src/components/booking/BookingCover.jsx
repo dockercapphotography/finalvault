@@ -31,8 +31,8 @@ import { DEFAULT_COVER_PATTERN } from '../../utils/coverPatterns.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
-function bookingCoverImageUrl(key) {
-  return `${WORKER_URL}/preview/${encodeURIComponent(key)}?booking_cover=1`
+function bookingCoverImageUrl(key, coverMode) {
+  return `${WORKER_URL}/preview/${encodeURIComponent(key)}?${coverMode}=1`
 }
 
 // Three patterns, picked per signup page (signup_pages.cover_pattern,
@@ -109,12 +109,19 @@ export function CoverPatternShapes({ pattern, accent = 'var(--bk-accent)', ink =
   return renderShapes(accent, ink)
 }
 
-export default function BookingCover({ pattern, imageKey, focusX = 0.5, focusY = 0.5, height = 180, fade = true }) {
+// coverMode picks which R2 Worker access mode gets requested --
+// 'booking_cover' (default) verifies against signup_pages, while
+// 'questionnaire_cover' verifies against questionnaire_templates (see
+// preview.js + middleware/questionnaireCoverAccess.js). Defaulting to
+// 'booking_cover' means every existing caller keeps working unchanged;
+// only a caller with a different cover source (SubmitForm.jsx, for
+// questionnaire template covers) needs to pass this explicitly.
+export default function BookingCover({ pattern, imageKey, focusX = 0.5, focusY = 0.5, height = 180, fade = true, coverMode = 'booking_cover' }) {
   return (
     <div data-testid="booking-cover" style={{ position: 'relative', width: '100%', height, overflow: 'hidden', background: 'linear-gradient(160deg, var(--bk-bg) 0%, var(--bk-surface) 100%)' }}>
       {imageKey ? (
         <img
-          src={bookingCoverImageUrl(imageKey)}
+          src={bookingCoverImageUrl(imageKey, coverMode)}
           alt=""
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',

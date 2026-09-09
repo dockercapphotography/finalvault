@@ -2,6 +2,7 @@ import { verifyJWT } from '../middleware/auth.js'
 import { verifyShareToken } from '../middleware/shareToken.js'
 import { verifyMicrositeAccess } from '../middleware/micrositeAccess.js'
 import { verifyBookingCoverAccess } from '../middleware/bookingCoverAccess.js'
+import { verifyQuestionnaireCoverAccess } from '../middleware/questionnaireCoverAccess.js'
 
 /**
  * GET /preview/:key
@@ -45,7 +46,12 @@ export async function handlePreview(request, env, corsHeaders) {
   // verifyBookingCoverAccess() for the exact check.
   const isBookingCoverRequest = url.searchParams.get('booking_cover') === '1'
 
-  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest && !isBookingCoverRequest) {
+  // Public questionnaire-template cover-photo request -- same
+  // no-client-secret model again, verified against questionnaire_templates'
+  // own cover_image_r2_key. See verifyQuestionnaireCoverAccess().
+  const isQuestionnaireCoverRequest = url.searchParams.get('questionnaire_cover') === '1'
+
+  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest && !isBookingCoverRequest && !isQuestionnaireCoverRequest) {
     return jsonResponse({ ok: false, error: 'Authentication required' }, 401, corsHeaders)
   }
 
@@ -76,11 +82,16 @@ export async function handlePreview(request, env, corsHeaders) {
     const micrositeAuth = await verifyMicrositeAccess(key, env)
     if (!micrositeAuth.valid) return jsonResponse({ ok: false, error: micrositeAuth.error }, 403, corsHeaders)
     photographerId = micrositeAuth.photographerId
-  } else {
+  } else if (isBookingCoverRequest) {
     // Public booking-page cover-photo access
     const coverAuth = await verifyBookingCoverAccess(key, env)
     if (!coverAuth.valid) return jsonResponse({ ok: false, error: coverAuth.error }, 403, corsHeaders)
     photographerId = coverAuth.photographerId
+  } else {
+    // Public questionnaire-template cover-photo access
+    const qCoverAuth = await verifyQuestionnaireCoverAccess(key, env)
+    if (!qCoverAuth.valid) return jsonResponse({ ok: false, error: qCoverAuth.error }, 403, corsHeaders)
+    photographerId = qCoverAuth.photographerId
   }
 
   if (!key.startsWith(`photographers/${photographerId}/`)) {
@@ -103,7 +114,7 @@ export async function handlePreview(request, env, corsHeaders) {
     // meant Cloudflare's edge could never cache the public ones: every
     // visitor to a microsite triggered a fresh Supabase verification
     // round-trip *and* R2 fetch for every image on the page, every time.
-    const isPublicRequest = isMicrositeRequest || isBookingCoverRequest
+    const isPublicRequest = isMicrositeRequest || isBookingCoverRequest || isQuestionnaireCoverRequest
     headers.set(
       'Cache-Control',
       isPublicRequest

@@ -2,43 +2,19 @@ import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient.js'
 import { CheckCircle, AlertCircle, Loader } from 'lucide-react'
-
-const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
+import { useBookingBranding } from '../utils/bookingBranding.js'
+import BrandHeader from '../components/booking/BrandHeader.jsx'
+import BookingCover from '../components/booking/BookingCover.jsx'
 
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
 async function getSessionByToken(token, questionnaireId) {
-  const { data, error } = await supabase
-    .from('sessions')
-    .select(`
-      id, name, description, mode, submit_token,
-      photographers ( display_name, business_name, logo_r2_key )
-    `)
-    .eq('submit_token', token)
-    .single()
-  if (error) return null
-
-  // Load the specific questionnaire if provided
-  let tmpl = null
-  if (questionnaireId) {
-    const { data: qData } = await supabase
-      .from('questionnaire_templates')
-      .select(`
-        id, name, header_text, require_agreement, agreement_label,
-        confirmation_message, collect_email, collect_name,
-        redirect_url, redirect_label, redirect_auto, redirect_delay_seconds,
-        questionnaire_questions ( id, type, label, options, required, sort_order )
-      `)
-      .eq('id', questionnaireId)
-      .single()
-    if (qData) {
-      qData.questionnaire_questions = (qData.questionnaire_questions || [])
-        .sort((a, b) => a.sort_order - b.sort_order)
-      tmpl = qData
-    }
-  }
-
-  return { ...data, questionnaire_templates: tmpl, _questionnaireId: questionnaireId }
+  const { data, error } = await supabase.rpc('get_submit_form_data', {
+    p_token: token,
+    p_questionnaire_id: questionnaireId || null,
+  })
+  if (error || !data || data.type !== 'found') return null
+  return { ...data, _questionnaireId: questionnaireId }
 }
 
 async function submitForm({ sessionId, email, creditHandle, questions, answers, agreedToTerms, questionnaireId }) {
@@ -58,17 +34,20 @@ async function submitForm({ sessionId, email, creditHandle, questions, answers, 
   if (error) throw error
 }
 
-// ── Markdown renderer (minimal, same as MarkdownToolbar) ──────────────────────
+// ── Markdown renderer (minimal, same as MarkdownToolbar) -- colors now
+// pull from the --bk-* variables the branding wrapper sets, since this
+// renders as raw HTML via dangerouslySetInnerHTML but still lives inside
+// that same styled subtree and inherits its custom properties normally. ──
 
 function renderMarkdown(text) {
   if (!text) return ''
   return text.split('\n').map(line => {
-    if (line.startsWith('## ')) return `<h2 style="font-size:17px;font-weight:700;color:#111;margin:12px 0 6px">${line.slice(3)}</h2>`
-    if (line.startsWith('- ')) return `<li style="margin-left:20px;list-style-type:disc;margin-bottom:4px;color:#374151">${applyInline(line.slice(2))}</li>`
+    if (line.startsWith('## ')) return `<h2 style="font-size:17px;font-weight:700;color:var(--bk-ink);margin:12px 0 6px">${line.slice(3)}</h2>`
+    if (line.startsWith('- ')) return `<li style="margin-left:20px;list-style-type:disc;margin-bottom:4px;color:var(--bk-muted)">${applyInline(line.slice(2))}</li>`
     const ol = line.match(/^(\d+)\.\s(.*)/)
-    if (ol) return `<li style="margin-left:20px;list-style-type:decimal;margin-bottom:4px;color:#374151">${applyInline(ol[2])}</li>`
+    if (ol) return `<li style="margin-left:20px;list-style-type:decimal;margin-bottom:4px;color:var(--bk-muted)">${applyInline(ol[2])}</li>`
     if (line.trim() === '') return '<br/>'
-    return `<p style="margin:4px 0;color:#374151">${applyInline(line)}</p>`
+    return `<p style="margin:4px 0;color:var(--bk-muted)">${applyInline(line)}</p>`
   }).join('')
 }
 
@@ -79,6 +58,10 @@ function applyInline(text) {
 }
 
 // ── Screens ───────────────────────────────────────────────────────────────────
+
+// Loading/error (the !session case) genuinely have no branding data yet
+// -- session hasn't loaded or failed to load at all -- so these stay
+// plain and unbranded on purpose, not an oversight.
 
 function LoadingScreen() {
   return (
@@ -103,23 +86,18 @@ function ErrorScreen({ message }) {
   )
 }
 
+// Real branding data IS available here (session loaded successfully) --
+// same useBookingBranding/--bk-* pattern as the main form below.
 function ConfirmScreen({ session, confirmationMessage }) {
-  const studioName = session.photographers?.business_name || session.photographers?.display_name || 'Your Photographer'
+  const branding = session.branding || { has_microsite: false, studio_name: null, logo_r2_key: null }
+  const { bkVars } = useBookingBranding(branding)
+  const studioName = branding.studio_name || 'Your Photographer'
   const tmpl = session.questionnaire_templates
   const redirectUrl = tmpl?.redirect_url || null
   const redirectLabel = tmpl?.redirect_label || 'Continue'
   const redirectAuto = !!tmpl?.redirect_auto
   const redirectDelaySeconds = tmpl?.redirect_delay_seconds || 5
 
-  // Auto-redirect is an enhancement on top of the button, never a
-  // replacement for it (decision, Aug 2026: always show the
-  // confirmation screen + button; auto-redirect just additionally
-  // navigates after a visible countdown, with a way to cancel it) --
-  // this guarantees the client sees their submission actually went
-  // through before anything happens automatically, and a slow network
-  // can't cause a premature navigation since this only starts counting
-  // down once the confirmation screen itself has already rendered
-  // (i.e. after the submission insert has already resolved).
   const [secondsLeft, setSecondsLeft] = useState(redirectDelaySeconds)
   const [autoCancelled, setAutoCancelled] = useState(false)
 
@@ -134,19 +112,19 @@ function ConfirmScreen({ session, confirmationMessage }) {
   }, [secondsLeft, redirectUrl, redirectAuto, autoCancelled])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div style={{ ...bkVars, minHeight: '100vh', background: 'var(--bk-bg)', color: 'var(--bk-ink)', fontFamily: 'var(--bk-font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
           <CheckCircle size={28} style={{ color: '#22c55e' }} />
         </div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111', margin: '0 0 10px', fontFamily: 'system-ui, sans-serif' }}>
+        <h1 style={{ fontSize: 24, fontFamily: 'var(--bk-font-display)', fontWeight: 700, color: 'var(--bk-ink)', margin: '0 0 10px' }}>
           You're all set!
         </h1>
-        <p style={{ fontSize: 15, color: '#374151', margin: '0 0 6px', fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 15, color: 'var(--bk-ink)', margin: '0 0 6px', lineHeight: 1.6 }}>
           Thanks for submitting your info for{' '}
           <strong style={{ display: 'inline', whiteSpace: 'nowrap' }}>{session.name}</strong>.
         </p>
-        <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 24px', fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 14, color: 'var(--bk-muted)', margin: '0 0 24px', lineHeight: 1.6 }}>
           {confirmationMessage || `${studioName} will be in touch when your photos are ready.`}
         </p>
 
@@ -155,16 +133,16 @@ function ConfirmScreen({ session, confirmationMessage }) {
             <a href={redirectUrl}
               style={{
                 display: 'block', width: '100%', boxSizing: 'border-box', padding: '15px 20px', borderRadius: 12,
-                fontSize: 16, fontWeight: 700, textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
-                background: '#6366f1', color: '#fff',
+                fontSize: 16, fontWeight: 700, textDecoration: 'none',
+                background: 'var(--bk-accent)', color: 'var(--bk-accent-button-text)',
               }}>
               {redirectLabel}
             </a>
             {redirectAuto && !autoCancelled && secondsLeft > 0 && (
-              <p style={{ fontSize: 13, color: '#9ca3af', margin: '12px 0 0', fontFamily: 'system-ui, sans-serif' }}>
+              <p style={{ fontSize: 13, color: 'var(--bk-muted)', margin: '12px 0 0' }}>
                 Redirecting in {secondsLeft}s &middot;{' '}
                 <button onClick={() => setAutoCancelled(true)}
-                  style={{ background: 'none', border: 'none', padding: 0, color: '#6366f1', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'var(--bk-accent)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
                   Cancel
                 </button>
               </p>
@@ -177,19 +155,22 @@ function ConfirmScreen({ session, confirmationMessage }) {
 }
 
 // ── Question renderers ────────────────────────────────────────────────────────
+// Error/danger states (email validation) stay hardcoded red -- errors
+// shouldn't be re-colored to match the photographer's accent, or they
+// stop reading as errors. Everything else pulls from --bk-*.
 
 function QuestionField({ question, value, onChange }) {
   const inputStyle = {
     width: '100%',
     padding: '11px 14px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--bk-border)',
     borderRadius: 8,
     fontSize: 15,
-    color: '#111',
+    color: 'var(--bk-ink)',
     outline: 'none',
     boxSizing: 'border-box',
-    background: '#fff',
-    fontFamily: 'system-ui, sans-serif',
+    background: 'var(--bk-surface)',
+    fontFamily: 'inherit',
   }
 
   switch (question.type) {
@@ -197,15 +178,15 @@ function QuestionField({ question, value, onChange }) {
       return (
         <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
           style={inputStyle}
-          onFocus={e => e.target.style.borderColor = '#6366f1'}
-          onBlur={e => e.target.style.borderColor = '#d1d5db'} />
+          onFocus={e => e.target.style.borderColor = 'var(--bk-accent)'}
+          onBlur={e => e.target.style.borderColor = 'var(--bk-border)'} />
       )
     case 'long_text':
       return (
         <textarea value={value || ''} onChange={e => onChange(e.target.value)} rows={4}
           style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
-          onFocus={e => e.target.style.borderColor = '#6366f1'}
-          onBlur={e => e.target.style.borderColor = '#d1d5db'} />
+          onFocus={e => e.target.style.borderColor = 'var(--bk-accent)'}
+          onBlur={e => e.target.style.borderColor = 'var(--bk-border)'} />
       )
     case 'yes_no':
       return (
@@ -214,10 +195,10 @@ function QuestionField({ question, value, onChange }) {
             <button key={opt} type="button" onClick={() => onChange(opt)}
               style={{
                 flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 15, fontWeight: 500,
-                border: value === opt ? '2px solid #6366f1' : '2px solid #d1d5db',
-                background: value === opt ? 'rgba(99,102,241,0.08)' : '#fff',
-                color: value === opt ? '#6366f1' : '#374151',
-                cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+                border: value === opt ? '2px solid var(--bk-accent)' : '2px solid var(--bk-border)',
+                background: value === opt ? 'rgba(var(--bk-accent-rgb), 0.08)' : 'var(--bk-surface)',
+                color: value === opt ? 'var(--bk-accent)' : 'var(--bk-ink)',
+                cursor: 'pointer', fontFamily: 'inherit',
               }}>
               {opt}
             </button>
@@ -231,8 +212,8 @@ function QuestionField({ question, value, onChange }) {
             <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
               <input type="radio" name={question.id} value={opt} checked={value === opt}
                 onChange={() => onChange(opt)}
-                style={{ width: 16, height: 16, accentColor: '#6366f1', flexShrink: 0, cursor: 'pointer' }} />
-              <span style={{ fontSize: 15, color: '#374151', fontFamily: 'system-ui, sans-serif' }}>{opt}</span>
+                style={{ width: 16, height: 16, accentColor: 'var(--bk-accent)', flexShrink: 0, cursor: 'pointer' }} />
+              <span style={{ fontSize: 15, color: 'var(--bk-ink)', fontFamily: 'inherit' }}>{opt}</span>
             </label>
           ))}
         </div>
@@ -249,8 +230,8 @@ function QuestionField({ question, value, onChange }) {
                     const current = Array.isArray(value) ? value : []
                     onChange(selected ? current.filter(v => v !== opt) : [...current, opt])
                   }}
-                  style={{ width: 16, height: 16, accentColor: '#6366f1', flexShrink: 0, cursor: 'pointer' }} />
-                <span style={{ fontSize: 15, color: '#374151', fontFamily: 'system-ui, sans-serif' }}>{opt}</span>
+                  style={{ width: 16, height: 16, accentColor: 'var(--bk-accent)', flexShrink: 0, cursor: 'pointer' }} />
+                <span style={{ fontSize: 15, color: 'var(--bk-ink)', fontFamily: 'inherit' }}>{opt}</span>
               </label>
             )
           })}
@@ -260,8 +241,8 @@ function QuestionField({ question, value, onChange }) {
       return (
         <input type="date" value={value || ''} onChange={e => onChange(e.target.value)}
           style={inputStyle}
-          onFocus={e => e.target.style.borderColor = '#6366f1'}
-          onBlur={e => e.target.style.borderColor = '#d1d5db'} />
+          onFocus={e => e.target.style.borderColor = 'var(--bk-accent)'}
+          onBlur={e => e.target.style.borderColor = 'var(--bk-border)'} />
       )
     default:
       return null
@@ -269,6 +250,10 @@ function QuestionField({ question, value, onChange }) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+
+// Same scrim BookingHero.jsx uses under its own overlaid logo, so the
+// treatment matches exactly rather than approximating it.
+const TOP_SCRIM = 'linear-gradient(180deg, rgba(20,17,13,0.6) 0%, rgba(20,17,13,0) 100%)'
 
 export default function SubmitForm() {
   const { token } = useParams()
@@ -286,6 +271,12 @@ export default function SubmitForm() {
   const [creditHandle, setCreditHandle] = useState('')
   const [answers, setAnswers] = useState({})
   const [agreed, setAgreed] = useState(false)
+
+  // Called unconditionally, every render (rules of hooks) with a safe
+  // unbranded default before session loads -- same pattern
+  // AllSessionsBooking.jsx uses for the exact same reason.
+  const branding = session?.branding || { has_microsite: false, studio_name: null, logo_r2_key: null }
+  const { bkVars } = useBookingBranding(branding)
 
   useEffect(() => {
     getSessionByToken(token, questionnaireId).then(data => {
@@ -348,54 +339,65 @@ export default function SubmitForm() {
   if (!session.questionnaire_templates) return <ErrorScreen message="No questionnaire found. Please use the link provided by your photographer." />
   if (submitted) return <ConfirmScreen session={session} confirmationMessage={session.questionnaire_templates?.confirmation_message} />
 
-  const studioName = session.photographers?.business_name || session.photographers?.display_name || 'Your Photographer'
   const tmpl = session.questionnaire_templates
   const questions = (tmpl?.questionnaire_questions || []).sort((a, b) => a.sort_order - b.sort_order)
   const canSubmit = validate()
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      {/* Header */}
-      <div style={{ background: '#111', padding: '16px 24px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {session.photographers?.logo_r2_key
-          ? <img
-              src={`${WORKER_URL}/logo/${encodeURIComponent(session.photographers.logo_r2_key)}`}
-              alt={studioName}
-              style={{ maxHeight: 40, maxWidth: 200, objectFit: 'contain' }}
-            />
-          : <p style={{ margin: 0, color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-              {studioName}
-            </p>
-        }
+    <div style={{ ...bkVars, minHeight: '100vh', background: 'var(--bk-bg)', color: 'var(--bk-ink)', fontFamily: 'var(--bk-font-body)' }}>
+      {/* Cover + overlaid logo, matching BookingHero.jsx's mobile pattern
+          (a single-column form page has no need for its separate desktop
+          rail variant -- this treatment applies at every width here). */}
+      <div style={{ position: 'relative' }}>
+        <BookingCover
+          imageKey={tmpl.cover_image_r2_key}
+          focusX={tmpl.cover_focus_x}
+          focusY={tmpl.cover_focus_y}
+          height={250}
+          coverMode="questionnaire_cover"
+        />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 90, background: TOP_SCRIM }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '16px 20px 0' }}>
+          <BrandHeader branding={branding} overlay />
+        </div>
       </div>
 
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 24px 80px' }}>
-
-        {/* Session header */}
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#111', margin: '0 0 10px', letterSpacing: '-0.02em' }}>
+      {/* Session title, in its own card overlapping the cover's bottom
+          edge -- same -44px overlap BookingHero.jsx's mobile card uses. */}
+      <div style={{ maxWidth: 720, margin: '-44px auto 0', padding: '0 16px', position: 'relative', zIndex: 2 }}>
+        <div className="rounded-2xl p-5" style={{ background: 'var(--bk-surface)', border: '1px solid var(--bk-border)', position: 'relative', overflow: 'hidden', paddingLeft: 22 }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 4, background: 'var(--bk-accent)' }} />
+          {session.session_type && (
+            <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--bk-accent)', margin: 0 }}>
+              {session.session_type}
+            </p>
+          )}
+          <h1 style={{ fontSize: 20, fontFamily: 'var(--bk-font-display)', fontWeight: 700, color: 'var(--bk-ink)', margin: '4px 0 0', letterSpacing: '-0.01em' }}>
             {session.name}
           </h1>
           {session.description && (
-            <p style={{ fontSize: 16, color: '#6b7280', margin: 0, lineHeight: 1.7, maxWidth: 560 }}>
+            <p style={{ fontSize: 12, color: 'var(--bk-muted)', margin: '8px 0 0', lineHeight: 1.6 }}>
               {session.description}
             </p>
           )}
         </div>
+      </div>
+
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px 80px', position: 'relative' }}>
 
         {/* Questionnaire header text (Markdown) */}
         {tmpl?.header_text && (
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '20px 24px', marginBottom: 24, fontSize: 15, lineHeight: 1.7 }}
+          <div style={{ background: 'var(--bk-surface)', border: '1px solid var(--bk-border)', borderRadius: 12, padding: '20px 24px', marginBottom: 24, fontSize: 15, lineHeight: 1.7 }}
             dangerouslySetInnerHTML={{ __html: renderMarkdown(tmpl.header_text) }} />
         )}
 
         {/* Form card */}
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 28, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+        <div style={{ background: 'var(--bk-surface)', border: '1px solid var(--bk-border)', borderRadius: 16, padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 28, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
 
           {/* Built-in: email */}
           {tmpl?.collect_email && (
             <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--bk-ink)', marginBottom: 6 }}>
                 Email address <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input type="email" value={email} onChange={e => { setEmail(e.target.value); setEmailError('') }}
@@ -405,32 +407,32 @@ export default function SubmitForm() {
                   }
                 }}
                 placeholder="your@email.com"
-                style={{ width: '100%', padding: '13px 16px', border: `1.5px solid ${emailError ? '#ef4444' : '#e5e7eb'}`, borderRadius: 10, fontSize: 16, color: '#111', outline: 'none', boxSizing: 'border-box', background: '#fafafa' }}
-                onFocus={e => e.target.style.borderColor = '#6366f1'}
+                style={{ width: '100%', padding: '13px 16px', border: `1.5px solid ${emailError ? '#ef4444' : 'var(--bk-border)'}`, borderRadius: 10, fontSize: 16, color: 'var(--bk-ink)', outline: 'none', boxSizing: 'border-box', background: 'var(--bk-bg-subtle)', fontFamily: 'inherit' }}
+                onFocus={e => e.target.style.borderColor = 'var(--bk-accent)'}
               />
               {emailError && <p style={{ fontSize: 12, color: '#ef4444', margin: '4px 0 0' }}>{emailError}</p>}
-              <p style={{ fontSize: 12, color: '#9ca3af', margin: '5px 0 0' }}>Your photos will be delivered to this address.</p>
+              <p style={{ fontSize: 12, color: 'var(--bk-muted)', margin: '5px 0 0' }}>Your photos will be delivered to this address.</p>
             </div>
           )}
 
           {/* Built-in: name / handle */}
           {tmpl?.collect_name && (
             <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--bk-ink)', marginBottom: 6 }}>
                 Name <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input type="text" value={creditHandle} onChange={e => setCreditHandle(e.target.value)}
                 placeholder="Please enter your name"
-                style={{ width: '100%', padding: '13px 16px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 16, color: '#111', outline: 'none', boxSizing: 'border-box', background: '#fafafa' }}
-                onFocus={e => e.target.style.borderColor = '#6366f1'}
-                onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                style={{ width: '100%', padding: '13px 16px', border: '1.5px solid var(--bk-border)', borderRadius: 10, fontSize: 16, color: 'var(--bk-ink)', outline: 'none', boxSizing: 'border-box', background: 'var(--bk-bg-subtle)', fontFamily: 'inherit' }}
+                onFocus={e => e.target.style.borderColor = 'var(--bk-accent)'}
+                onBlur={e => e.target.style.borderColor = 'var(--bk-border)'} />
             </div>
           )}
 
           {/* Questionnaire questions */}
           {questions.map(q => (
             <div key={q.id}>
-              <label style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 10 }}>
+              <label style={{ display: 'block', fontSize: 15, fontWeight: 600, color: 'var(--bk-ink)', marginBottom: 10 }}>
                 {q.label}
                 {q.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
               </label>
@@ -440,11 +442,11 @@ export default function SubmitForm() {
 
           {/* Agreement checkbox */}
           {tmpl?.require_agreement && (
-            <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 20 }}>
+            <div style={{ borderTop: '1px solid var(--bk-border)', paddingTop: 20 }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
                 <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: '#6366f1', flexShrink: 0, marginTop: 2, cursor: 'pointer' }} />
-                <span style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>
+                  style={{ width: 18, height: 18, accentColor: 'var(--bk-accent)', flexShrink: 0, marginTop: 2, cursor: 'pointer' }} />
+                <span style={{ fontSize: 14, color: 'var(--bk-ink)', lineHeight: 1.6 }}>
                   {tmpl.agreement_label || 'I have read and agree to the terms above.'}
                 </span>
               </label>
@@ -463,9 +465,9 @@ export default function SubmitForm() {
             style={{
               width: '100%', padding: '16px 20px', borderRadius: 12, fontSize: 17, fontWeight: 700,
               border: 'none', cursor: canSubmit && !submitting ? 'pointer' : 'not-allowed',
-              background: canSubmit && !submitting ? '#6366f1' : '#e5e7eb',
-              color: canSubmit && !submitting ? '#fff' : '#9ca3af',
-              transition: 'background 0.15s',
+              background: canSubmit && !submitting ? 'var(--bk-accent)' : 'var(--bk-border)',
+              color: canSubmit && !submitting ? 'var(--bk-accent-button-text)' : 'var(--bk-muted)',
+              transition: 'background 0.15s', fontFamily: 'inherit',
             }}>
             {submitting ? 'Submitting...' : 'Submit'}
           </button>
