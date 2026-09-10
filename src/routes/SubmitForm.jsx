@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient.js'
 import { CheckCircle, AlertCircle, Loader } from 'lucide-react'
 import { useBookingBranding } from '../utils/bookingBranding.js'
+import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import BrandHeader from '../components/booking/BrandHeader.jsx'
 import BookingCover from '../components/booking/BookingCover.jsx'
 
@@ -277,6 +278,12 @@ export default function SubmitForm() {
   // AllSessionsBooking.jsx uses for the exact same reason.
   const branding = session?.branding || { has_microsite: false, studio_name: null, logo_r2_key: null }
   const { bkVars } = useBookingBranding(branding)
+  useDocumentTitle(
+    session?.name && branding?.studio_name
+      ? `${session.name} · ${branding.studio_name}`
+      : session?.name,
+    { suffix: false }
+  )
 
   useEffect(() => {
     getSessionByToken(token, questionnaireId).then(data => {
