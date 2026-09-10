@@ -24,8 +24,33 @@
           // /dev-sw.js?dev-sw, not /sw.js (that's prod-only). Requires
           // this to be a module script so import.meta.env resolves.
           const swUrl = import.meta.env.MODE === 'production' ? '/sw.js' : '/dev-sw.js?dev-sw'
-          navigator.serviceWorker.register(swUrl, { type: import.meta.env.MODE === 'production' ? 'classic' : 'module' }).catch(err => {
-            console.warn('Service worker registration failed:', err)
+          navigator.serviceWorker.register(swUrl, { type: import.meta.env.MODE === 'production' ? 'classic' : 'module' })
+            .then(registration => {
+              // Without this, the browser only naturally re-checks for
+              // a new worker on a full page navigation or its own
+              // internal ~24h heuristic -- a tab left open for a long
+              // session can keep serving a stale build for hours after
+              // a real deploy. registerType: 'autoUpdate' means a
+              // newly-installed worker skips waiting and activates on
+              // its own once found; this just makes sure "found"
+              // actually happens promptly while the tab stays open.
+              setInterval(() => registration.update(), 60 * 1000)
+            })
+            .catch(err => {
+              console.warn('Service worker registration failed:', err)
+            })
+
+          // Once the new worker has actually taken control, reload so
+          // the page picks up the fresh JS/CSS -- swapping which
+          // worker is active doesn't retroactively update code already
+          // loaded into the running page. Guarded against firing twice
+          // (controllerchange can theoretically fire more than once in
+          // some edge cases), matching the standard recommended pattern.
+          let refreshing = false
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return
+            refreshing = true
+            window.location.reload()
           })
         })
       }
