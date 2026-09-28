@@ -1,6 +1,6 @@
 export default function Input({
   label, value, onChange, onBlur, placeholder = '', type = 'text',
-  required = false, disabled = false, hint = '', error = ''
+  required = false, disabled = false, hint = '', error = '', step
 }) {
   const inputStyle = {
     width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
@@ -25,7 +25,7 @@ export default function Input({
           onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} />
       ) : (
         <input type={type} value={value} onChange={e => onChange(e.target.value)} onBlur={handleBlur}
-          placeholder={placeholder} disabled={disabled}
+          placeholder={placeholder} disabled={disabled} step={step}
           style={{ ...inputStyle, borderColor: error ? 'var(--danger)' : 'var(--border)' }}
           onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} />
       )}

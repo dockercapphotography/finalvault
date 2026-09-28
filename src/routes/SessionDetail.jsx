@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   CalendarDays, MapPin, Clock, User, ChevronRight,
@@ -53,8 +54,9 @@ const TIME_OPTIONS = (() => {
 
 function TimeSelect({ label, value, onChange }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const listRef = useRef(null)
+  const [dropdownStyle, setDropdownStyle] = useState({})
+  const triggerRef = useRef(null)
+  const dropdownRef = useRef(null)
   // If the current value isn't on the fixed 15-minute grid (e.g. a
   // signup-page booking landed on :40), inject it as an extra option so
   // it still displays correctly instead of silently falling back to "--".
@@ -71,72 +73,83 @@ function TimeSelect({ label, value, onChange }) {
     : TIME_OPTIONS
   const selectedLabel = value ? options.find(o => o.value === value)?.label : null
 
-  // Close on outside click
+  function positionDropdown() {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const dropdownHeight = 228
+    const openUpward = spaceBelow < dropdownHeight && rect.top > dropdownHeight
+    setDropdownStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+      ...(openUpward
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+    })
+  }
+
   useEffect(() => {
     if (!open) return
-    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    function handle(e) {
+      if (triggerRef.current?.contains(e.target)) return
+      if (dropdownRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
   }, [open])
 
-  // Scroll selected item into view when opening
   useEffect(() => {
-    if (!open || !listRef.current) return
-    const selected = listRef.current.querySelector('[data-selected="true"]')
+    if (!open) return
+    function handleScroll() { positionDropdown() }
+    window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('resize', handleScroll)
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !dropdownRef.current) return
+    const selected = dropdownRef.current.querySelector('[data-selected="true"]')
     if (selected) selected.scrollIntoView({ block: 'nearest' })
   }, [open])
 
+  function handleOpen() {
+    positionDropdown()
+    setOpen(o => !o)
+  }
+
+  const dropdown = open && createPortal(
+    <div ref={dropdownRef} style={{ ...dropdownStyle, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflowY: 'auto', maxHeight: 220 }}>
+      <div data-selected={!value ? 'true' : 'false'} onClick={() => { onChange(''); setOpen(false) }}
+        style={{ padding: '8px 12px', fontSize: 13, cursor: 'pointer', color: !value ? '#6366f1' : 'var(--text-muted)', background: !value ? 'rgba(99,102,241,0.06)' : 'transparent' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+        onMouseLeave={e => e.currentTarget.style.background = !value ? 'rgba(99,102,241,0.06)' : 'transparent'}>—</div>
+      {options.map(o => (
+        <div key={o.value} data-selected={o.value === value ? 'true' : 'false'} onClick={() => { onChange(o.value); setOpen(false) }}
+          style={{ padding: '8px 12px', fontSize: 13, cursor: 'pointer', color: o.value === value ? '#6366f1' : 'var(--text)', background: o.value === value ? 'rgba(99,102,241,0.06)' : 'transparent', fontWeight: o.value === value ? '500' : '400' }}
+          onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = 'var(--surface-raised)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = o.value === value ? 'rgba(99,102,241,0.06)' : 'transparent' }}>
+          {o.label}
+        </div>
+      ))}
+    </div>,
+    document.body
+  )
+
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div style={{ position: 'relative' }}>
       {label && <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>{label}</label>}
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', background: 'var(--bg-subtle)', border: `1px solid ${open ? 'var(--border-strong)' : 'var(--border)'}`,
-          color: selectedLabel ? 'var(--text)' : 'var(--text-muted)', borderRadius: 8,
-          padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-        }}>
+      <button ref={triggerRef} type="button" onClick={handleOpen}
+        style={{ width: '100%', background: 'var(--bg-subtle)', border: `1px solid ${open ? 'var(--border-strong)' : 'var(--border)'}`, color: selectedLabel ? 'var(--text)' : 'var(--text-muted)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span style={{ flex: 1, textAlign: 'left' }}>{selectedLabel || '—'}</span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0, opacity: 0.4 }}><path d="M6 9l6 6 6-6"/></svg>
       </button>
-      {open && (
-        <div ref={listRef} style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 200,
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflowY: 'auto', maxHeight: 220,
-        }}>
-          <div
-            data-selected={!value ? 'true' : 'false'}
-            onClick={() => { onChange(''); setOpen(false) }}
-            style={{
-              padding: '8px 12px', fontSize: 13, cursor: 'pointer',
-              color: !value ? '#6366f1' : 'var(--text-muted)',
-              background: !value ? 'rgba(99,102,241,0.06)' : 'transparent',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
-            onMouseLeave={e => e.currentTarget.style.background = !value ? 'rgba(99,102,241,0.06)' : 'transparent'}>
-            —
-          </div>
-          {options.map(o => (
-            <div
-              key={o.value}
-              data-selected={o.value === value ? 'true' : 'false'}
-              onClick={() => { onChange(o.value); setOpen(false) }}
-              style={{
-                padding: '8px 12px', fontSize: 13, cursor: 'pointer',
-                color: o.value === value ? '#6366f1' : 'var(--text)',
-                background: o.value === value ? 'rgba(99,102,241,0.06)' : 'transparent',
-                fontWeight: o.value === value ? '500' : '400',
-              }}
-              onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = 'var(--surface-raised)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = o.value === value ? 'rgba(99,102,241,0.06)' : 'transparent' }}>
-              {o.label}
-            </div>
-          ))}
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }
