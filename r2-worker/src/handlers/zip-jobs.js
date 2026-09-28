@@ -155,12 +155,40 @@ export async function handleZipJobs(request, env, corsHeaders) {
   // us real file sizes plus watermark_id/web_r2_key for the Workflow --
   // NOT taken from the client request body, same trust boundary file_size
   // already used before v1.5.8.
-  const keysParam = imageKeys.map(k => `"${k}"`).join(',')
-  const sizesResp = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/gallery_images?gallery_id=eq.${galleryId}&original_r2_key=in.(${keysParam})&select=original_r2_key,file_size,watermark_id,web_r2_key`,
-    { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
-  )
-  const sizeRows = await sizesResp.json()
+  //
+  // Batched: a single `in.()` filter carried every requested key in ONE
+  // URL (~150 chars per key). Every successful job on record was <= 160
+  // images (~25KB of URL); a ~250-image selection (~38KB) came back as a
+  // non-JSON error, `.json()` threw, and the router's catch-all returned a
+  // bare 500 before any zip_jobs row existed -- the client got no job and
+  // no email. 50 keys per request keeps each URL around 8KB regardless of
+  // gallery size; batches run in parallel (well within the 1000
+  // subrequest limit even for very large galleries).
+  const KEY_BATCH_SIZE = 50
+  const keyBatches = []
+  for (let i = 0; i < imageKeys.length; i += KEY_BATCH_SIZE) {
+    keyBatches.push(imageKeys.slice(i, i + KEY_BATCH_SIZE))
+  }
+
+  let sizeRows
+  try {
+    const batchResults = await Promise.all(keyBatches.map(async (batch) => {
+      const keysParam = batch.map(k => `"${k}"`).join(',')
+      const resp = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/gallery_images?gallery_id=eq.${galleryId}&original_r2_key=in.(${keysParam})&select=original_r2_key,file_size,watermark_id,web_r2_key`,
+        { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+      )
+      if (!resp.ok) {
+        const errText = await resp.text()
+        throw new Error(`gallery_images lookup failed (${resp.status}): ${errText.slice(0, 500)}`)
+      }
+      return resp.json()
+    }))
+    sizeRows = batchResults.flat()
+  } catch (err) {
+    console.error('zip-jobs image cross-check failed:', err)
+    return jsonResponse({ ok: false, error: 'Failed to verify images' }, 502, corsHeaders)
+  }
   if (!Array.isArray(sizeRows) || sizeRows.length !== imageKeys.length) {
     return jsonResponse({ ok: false, error: 'Access denied: invalid image keys' }, 403, corsHeaders)
   }
