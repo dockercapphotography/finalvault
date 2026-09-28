@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink, GripVertical } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink, GripVertical, Copy } from 'lucide-react'
 import { getMyMicrosite, updateMyMicrosite } from '../utils/micrositeApi.js'
 import { compressForUpload } from '../utils/imageProcessor.js'
 import { callManageCustomDomain } from '../components/account/CustomDomainSection.jsx'
@@ -295,7 +295,7 @@ function HeroThumbnail({ r2Key }) {
 }
 
 // ── About stats ─────────────────────────────────────────────────
-function SavedRowMenu({ onEdit, onRemove, removeLabel = 'this item' }) {
+function SavedRowMenu({ onEdit, onRemove, onDuplicate, removeLabel = 'this item' }) {
   return (
     <PortalMenu
       trigger={<MoreVertical size={13} />}
@@ -303,6 +303,8 @@ function SavedRowMenu({ onEdit, onRemove, removeLabel = 'this item' }) {
       triggerStyle={{ width: 22, height: 22, color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
       items={[
         { label: 'Edit', icon: <Pencil size={13} />, onClick: onEdit },
+        // Only shown where a caller opts in (packages today).
+        ...(onDuplicate ? [{ label: 'Duplicate', icon: <Copy size={13} />, onClick: onDuplicate }] : []),
         {
           label: 'Remove', icon: <Trash2 size={13} />, danger: true,
           confirm: { title: `Remove ${removeLabel}?`, message: "This can't be undone.", confirmLabel: 'Remove', onConfirm: onRemove },
@@ -386,60 +388,144 @@ function StatsEditor({ stats, onChange }) {
 }
 
 // ── Packages (Sessions & Pricing) ────────────────────────────────────────────
-function PackagesEditor({ packages, onChange }) {
-  const [editingIndex, setEditingIndex] = useState(null)
+// Drag-to-reorder uses the same dnd-kit useSortable pattern as
+// TestimonialsEditor below. Packages never carried an id (position was
+// enough before reordering), so older entries get one backfilled once,
+// silently -- same approach as testimonials. The public renderer never
+// reads id; it's editor-only identity for dnd-kit and open-for-edit state.
+function SortablePackageRow({ pkg, isOpen, onOpenEdit, onDone, onRemove, onUpdate, onDuplicate }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: pkg.id, disabled: isOpen })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+  const isComplete = !!(pkg.name && pkg.price)
 
-  function update(i, field, value) {
-    const next = [...packages]
-    next[i] = { ...next[i], [field]: value }
-    onChange(next)
-  }
-  function remove(i) {
-    onChange(packages.filter((_, idx) => idx !== i))
-    if (editingIndex === i) setEditingIndex(null)
-  }
-  function add() {
-    onChange([...packages, { name: '', price: '', description: '' }])
-    setEditingIndex(packages.length)
+  if (!isOpen) {
+    return (
+      <div ref={setNodeRef} className="rounded-lg p-3 flex items-start gap-2"
+        style={{ ...style, border: '1px solid var(--border)', background: 'var(--surface)' }}>
+        <button type="button" {...attributes} {...listeners}
+          aria-label={`Reorder ${pkg.name || 'package'}`}
+          className="shrink-0 rounded -ml-1 mt-0.5 p-0.5"
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'grab', touchAction: 'none' }}>
+          <GripVertical size={16} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-baseline gap-3">
+            <span className="text-sm font-semibold truncate" title={pkg.name} style={{ color: 'var(--text)' }}>{pkg.name}</span>
+            <span className="text-sm font-semibold truncate shrink-0" title={pkg.price} style={{ color: 'var(--accent)', maxWidth: '50%' }}>{pkg.price}</span>
+          </div>
+          {pkg.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: 'var(--text-muted)' }}>{pkg.description}</p>}
+        </div>
+        <div className="shrink-0">
+          <SavedRowMenu onEdit={onOpenEdit} onRemove={onRemove} onDuplicate={onDuplicate} removeLabel={pkg.name || 'this package'} />
+        </div>
+      </div>
+    )
   }
 
   return (
+    <div ref={setNodeRef} className="rounded-lg p-3" style={{ ...style, border: '1px solid #C7CDF5', background: '#F5F6FF' }}>
+      <div className="text-xs font-semibold uppercase mb-2" style={{ color: '#6366f1', letterSpacing: '0.04em' }}>
+        {isComplete ? 'Editing package' : 'New package'}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Name" value={pkg.name || ''} onChange={v => onUpdate('name', v)} placeholder="e.g. Studio Session" />
+        <Input label="Price" value={pkg.price || ''} onChange={v => onUpdate('price', v)} placeholder="e.g. $275" />
+      </div>
+      <div className="mt-2">
+        <Input label="Description" value={pkg.description || ''} onChange={v => onUpdate('description', v)} placeholder="e.g. 60 minutes, studio lighting, two changes." />
+      </div>
+      <div className="mt-2.5">
+        <EntryDoneButton isComplete={isComplete} onClick={onDone} />
+      </div>
+      {!isComplete && (
+        // A never-finished package (no name or price yet) previously had
+        // no way out -- it stayed open with no remove option and rendered
+        // as a blank card on the live site.
+        <button type="button" onClick={onRemove} className="mt-2 text-xs font-medium"
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}>
+          Discard this package
+        </button>
+      )}
+    </div>
+  )
+}
+
+function PackagesEditor({ packages, onChange }) {
+  const [editingId, setEditingId] = useState(null)
+
+  useEffect(() => {
+    if (packages.some(p => !p.id)) {
+      onChange(packages.map(p => p.id ? p : { ...p, id: crypto.randomUUID() }))
+    }
+  }, [packages])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  function update(id, field, value) {
+    onChange(packages.map(p => p.id === id ? { ...p, [field]: value } : p))
+  }
+  function remove(id) {
+    onChange(packages.filter(p => p.id !== id))
+    if (editingId === id) setEditingId(null)
+  }
+  function add() {
+    const id = crypto.randomUUID()
+    onChange([...packages, { id, name: '', price: '', description: '' }])
+    setEditingId(id)
+  }
+  function duplicate(id) {
+    const i = packages.findIndex(p => p.id === id)
+    if (i === -1) return
+    const original = packages[i]
+    const copy = {
+      ...structuredClone(original),
+      id: crypto.randomUUID(),
+      name: original.name ? `${original.name} (copy)` : original.name,
+    }
+    onChange([...packages.slice(0, i + 1), copy, ...packages.slice(i + 1)])
+  }
+  function handleDragEnd(event) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = packages.findIndex(p => p.id === active.id)
+    const newIndex = packages.findIndex(p => p.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    onChange(arrayMove(packages, oldIndex, newIndex))
+  }
+
+  // Legacy packages get a real id from the effect above right after the
+  // first render. Until then, render them under a positional fallback id
+  // instead of skipping the list -- skipping it made the whole section pop
+  // in one render late and shift everything below it. Nothing can be
+  // dragged in that single frame, so the fallback never reaches
+  // handleDragEnd.
+  const rows = packages.map((p, i) => (p.id ? p : { ...p, id: `pending-${i}` }))
+
+  return (
     <div className="space-y-2">
-      {packages.map((pkg, i) => {
-        const isComplete = !!(pkg.name && pkg.price)
-        const isOpen = editingIndex === i || !isComplete
-        if (!isOpen) {
-          return (
-            <div key={i} className="rounded-lg p-3 relative" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-              <div className="flex justify-between items-baseline pr-6">
-                <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{pkg.name}</span>
-                <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>{pkg.price}</span>
-              </div>
-              {pkg.description && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{pkg.description}</p>}
-              <div className="absolute top-2.5 right-2.5">
-                <SavedRowMenu onEdit={() => setEditingIndex(i)} onRemove={() => remove(i)} removeLabel={pkg.name || 'this package'} />
-              </div>
+      {rows.length > 0 && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={rows.map(p => p.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {rows.map(pkg => (
+                <SortablePackageRow
+                  key={pkg.id}
+                  pkg={pkg}
+                  isOpen={editingId === pkg.id || !(pkg.name && pkg.price)}
+                  onOpenEdit={() => setEditingId(pkg.id)}
+                  onDone={() => setEditingId(null)}
+                  onRemove={() => remove(pkg.id)}
+                  onUpdate={(field, v) => update(pkg.id, field, v)}
+                  onDuplicate={() => duplicate(pkg.id)}
+                />
+              ))}
             </div>
-          )
-        }
-        return (
-          <div key={i} className="rounded-lg p-3" style={{ border: '1px solid #C7CDF5', background: '#F5F6FF' }}>
-            <div className="text-xs font-semibold uppercase mb-2" style={{ color: '#6366f1', letterSpacing: '0.04em' }}>
-              {isComplete ? 'Editing package' : 'New package'}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Input label="Name" value={pkg.name || ''} onChange={v => update(i, 'name', v)} placeholder="e.g. Studio Session" />
-              <Input label="Price" value={pkg.price || ''} onChange={v => update(i, 'price', v)} placeholder="e.g. $275" />
-            </div>
-            <div className="mt-2">
-              <Input label="Description" value={pkg.description || ''} onChange={v => update(i, 'description', v)} placeholder="e.g. 60 minutes, studio lighting, two changes." />
-            </div>
-            <div className="mt-2.5">
-              <EntryDoneButton isComplete={isComplete} onClick={() => setEditingIndex(null)} />
-            </div>
-          </div>
-        )
-      })}
+          </SortableContext>
+        </DndContext>
+      )}
       <button onClick={add} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
         style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
         <Plus size={14} />Add package
@@ -882,12 +968,19 @@ export default function MicrositeEditor() {
   const [previewReloadKey, setPreviewReloadKey] = useState(0)
 
   useEffect(() => {
+    // Guards against a stale load overwriting live state. Under React
+    // StrictMode the effect runs twice (mount -> cleanup -> mount), so two
+    // load() calls race; without this, the later one to resolve replaced
+    // `site` with a fresh DB copy and silently erased any edit made after
+    // the first one rendered the editor.
+    let cancelled = false
     async function load() {
       try {
         const [micrositeData, { data: { user } }] = await Promise.all([
           getMyMicrosite(),
           supabase.auth.getUser(),
         ])
+        if (cancelled) return
         let merged = micrositeData
         if (user) {
           const { data: photographer } = await supabase
@@ -899,10 +992,11 @@ export default function MicrositeEditor() {
           // explicit field list never includes it, so it can't get written back.
           merged = { ...micrositeData, social_links: photographer?.social_links || {} }
         }
+        if (cancelled) return
         setSite(merged)
         savedSnapshotRef.current = JSON.stringify(merged)
       } catch (err) {
-        console.error('Failed to load microsite:', err)
+        if (!cancelled) console.error('Failed to load microsite:', err)
       }
     }
     load()
@@ -911,6 +1005,7 @@ export default function MicrositeEditor() {
     // Only used to decide whether "View live site" has anywhere to link
     // to -- a missing/pending domain just hides the affordance below.
     callManageCustomDomain('GET').then(setLiveDomain).catch(() => setLiveDomain(null))
+    return () => { cancelled = true }
   }, [])
 
   // Load every curated pairing's fonts once, so each option below can

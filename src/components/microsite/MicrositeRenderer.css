@@ -178,7 +178,7 @@
 .ms-pricing-note { max-width: 640px; margin: 20px auto 0; text-align: center; font-size: 13px; color: var(--ms-muted); }
 
 /* ---------- PRICING variants: Cards / Featured / Compact ---------- */
-.ms-pricing-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 900px; margin: 0 auto; }
+.ms-pricing-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; max-width: 900px; margin: 0 auto; }
 .ms-pricing-card { background: var(--ms-card-bg); border: 1px solid var(--ms-line); border-radius: var(--ms-radius); padding: 28px 24px; text-align: center; position: relative; }
 .ms-pricing-card h3 { font-size: 19px; color: #17171A; }
 .ms-pricing-card .ms-price { font-family: var(--ms-font-body); font-size: 22px; color: var(--ms-accent); margin-top: 10px; }
@@ -196,9 +196,33 @@
 .ms-pricing-compact-desc { flex: 1; font-size: 12px; color: var(--ms-muted); }
 .ms-pricing-compact .ms-price { font-size: 13px; white-space: nowrap; }
 
+/* Long-content handling (v1.5.16). The base .ms-price rule is nowrap,
+   which is right for short prices ("$275") but let one long entry
+   ("$120 starting | +$30 per additional person") force its grid column
+   wider than the container. Grid tracks above are minmax(0, 1fr) so they
+   can actually shrink; these let the text inside wrap instead of
+   overflowing. overflow-wrap: anywhere only kicks in when a single word
+   or unbroken string can't otherwise fit. */
+.ms-pricing-card .ms-price { white-space: normal; overflow-wrap: anywhere; }
+.ms-pricing-card h3, .ms-pricing-card p,
+.ms-pricing-row h3, .ms-pricing-row p,
+.ms-pricing-compact-name, .ms-pricing-compact-desc { overflow-wrap: anywhere; }
+.ms-pricing-row > div:first-child { flex: 1; min-width: 0; }
+.ms-pricing-row .ms-price { white-space: normal; max-width: 40%; text-align: right; overflow-wrap: anywhere; }
+.ms-pricing-compact-desc { min-width: 0; }
+.ms-pricing-compact .ms-price { white-space: normal; max-width: 40%; text-align: right; overflow-wrap: anywhere; }
+
 @media (max-width: 760px) {
-  .ms-pricing-cards { grid-template-columns: 1fr; }
-  .ms-pricing-compact-row { flex-wrap: wrap; }
+  .ms-pricing-cards { grid-template-columns: minmax(0, 1fr); }
+  /* Compact on mobile: fixed 2-row grid instead of flex-wrap -- name +
+     price share the top line, description spans full width below.
+     Explicit placement since DOM order is name, desc, price. */
+  .ms-pricing-compact-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px; }
+  .ms-pricing-compact-name { white-space: normal; grid-column: 1; grid-row: 1; }
+  .ms-pricing-compact .ms-price { grid-column: 2; grid-row: 1; max-width: 45vw; }
+  .ms-pricing-compact-desc { grid-column: 1 / -1; grid-row: 2; }
+  .ms-pricing-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .ms-pricing-row .ms-price { max-width: none; text-align: left; }
 }
 
 /* ---------- TESTIMONIALS ---------- */
