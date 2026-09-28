@@ -3,7 +3,7 @@ import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { X, Copy, Mail, Link, QrCode, Check, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import QRCode from 'https://esm.sh/qrcode@1.5.3'
-import PortalMenu from '../ui/PortalMenu.jsx'
+import TemplatePicker from '../ui/TemplatePicker.jsx'
 import { getPublicBaseUrl } from '../../utils/publicBaseUrl.js'
 
 function parseEmails(raw) {
@@ -249,23 +249,23 @@ function EmailComposerModal({ gallery, onClose }) {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Message</label>
-                  <PortalMenu
-                    trigger={
-                      <button
-                        className="flex items-center gap-1 text-xs font-medium"
-                        style={{ color: '#6366f1', cursor: 'pointer', background: 'none', border: 'none' }}>
-                        Insert template <ChevronDown size={12} />
-                      </button>
-                    }
-                    items={[
-                      ...(templates.length === 0
-                        ? [{ label: 'No templates yet', onClick: () => {} }]
-                        : templates.map(t => ({ label: t.name, onClick: () => applyTemplate(t) }))),
-                      { type: 'divider' },
-                      { label: 'Manage templates →', onClick: () => setShowTemplateManager(true) },
-                    ]}
-                  />
+                  <button
+                    onClick={() => setShowTemplateManager(true)}
+                    className="text-xs font-medium"
+                    style={{ color: '#6366f1', cursor: 'pointer', background: 'none', border: 'none' }}>
+                    Manage templates →
+                  </button>
                 </div>
+                {templates.length > 0 && (
+                  <div className="mb-2">
+                    <TemplatePicker
+                      templates={templates}
+                      value={null}
+                      onChange={applyTemplate}
+                      placeholder="Insert template..."
+                    />
+                  </div>
+                )}
                 <textarea value={message} onChange={e => setMessage(e.target.value)}
                   placeholder="Add a personal message (optional)" rows={5}
                   className="w-full text-sm rounded-xl px-3 py-2.5 resize-none"
