@@ -4,6 +4,29 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.15 — September 28, 2026
+
+### Improvements
+
+**Session Location field**
+- Rebuilt on Google's current Places component (the previous one is deprecated), styled to match the rest of the app -- fixes suggestion lists rendering with broken icons and no readable text on some phones
+
+**Mobile**
+- "Insert template" in the gallery email composer now uses the same searchable picker as Send Contract, instead of a cramped icon grid in a bottom sheet
+
+### Bug Fixes
+
+- Fixed the gallery access page's email field not offering your browser's saved-email autofill
+- Fixed the Start/End time dropdown being clipped by the New/Edit Session modal's scroll area, on desktop and mobile
+- Fixed selecting a street address (rather than a business) in the Location field saving only the street line, dropping the city and state
+
+### Notes
+
+- The Places API key now needs "Places API (New)" enabled in Google Cloud and added to the key's API restrictions, alongside the existing Maps JavaScript API and Places API entries
+- Test-only fixes: reschedule and walk-up test fixtures no longer depend on hardcoded dates or times of day, `onboarding.spec.js` no longer double-navigates on setup, and `client-detail-portal-password.spec.js` now requests all users when looking up the test account
+
+---
+
 ## v1.5.14 — September 9, 2026
 
 ### New Features

@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.14'
+const VERSION = '1.5.15'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,19 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.15 — September 28, 2026">
+                  <Group label="Location field">
+                    <Item>Rebuilt on Google's current Places component, styled to match the app -- fixes broken icons and unreadable suggestions on some phones</Item>
+                    <Item>Selecting a street address now saves the full address (street, city, state) instead of just the street line</Item>
+                  </Group>
+                  <Group label="Mobile">
+                    <Item>The gallery email composer's "Insert template" now uses the same searchable picker as Send Contract</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed the gallery access page's email field not offering your browser's saved-email autofill</Item>
+                    <Item>Fixed the Start/End time dropdown being clipped inside the New and Edit Session modals</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.14 — September 9, 2026">
                   <Group label="Templates">
                     <Item>Editing any template (Email, Contract, Gallery, or Questionnaire) now opens in a centered popup instead of swapping the page in place</Item>
