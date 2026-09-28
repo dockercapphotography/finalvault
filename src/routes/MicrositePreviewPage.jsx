@@ -35,7 +35,7 @@ export default function MicrositePreviewPage() {
         if (user) {
           const { data: photographer } = await supabase
             .from('photographers')
-            .select('logo_r2_key, social_links')
+            .select('logo_r2_key, social_links, all_sessions_token')
             .eq('id', user.id)
             .maybeSingle()
           // Same fallback get_site_by_hostname applies server-side (sql/037):
@@ -46,6 +46,21 @@ export default function MicrositePreviewPage() {
           // social_links lives on photographers, not microsites -- always
           // merge it in, there's no override concept for it.
           data.social_links = photographer?.social_links || {}
+          // Same extras get_site_by_hostname merges in for the live site
+          // (sql/057, sql/085). Resolved here rather than relying on the
+          // editor's postMessage: the iframe reloads after every Save, and
+          // a message sent before the reloaded page is listening is lost --
+          // which would drop every package's Book button until the next edit.
+          if (!data.all_sessions_token) data.all_sessions_token = photographer?.all_sessions_token || null
+          const { data: pages } = await supabase
+            .from('signup_pages')
+            .select('id, token, is_active, archived_at')
+            .eq('photographer_id', user.id)
+          data.package_booking_tokens = Object.fromEntries(
+            (pages || [])
+              .filter(p => p.token && p.is_active !== false && !p.archived_at)
+              .map(p => [p.id, p.token])
+          )
         }
         setSite(data)
       } catch {

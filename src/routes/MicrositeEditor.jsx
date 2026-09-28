@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink, GripVertical, Copy } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink, GripVertical, Copy, Star, Link2, FolderPlus } from 'lucide-react'
 import { getMyMicrosite, updateMyMicrosite } from '../utils/micrositeApi.js'
 import { compressForUpload } from '../utils/imageProcessor.js'
 import { callManageCustomDomain } from '../components/account/CustomDomainSection.jsx'
@@ -295,7 +295,7 @@ function HeroThumbnail({ r2Key }) {
 }
 
 // ── About stats ─────────────────────────────────────────────────
-function SavedRowMenu({ onEdit, onRemove, onDuplicate, removeLabel = 'this item' }) {
+function SavedRowMenu({ onEdit, onRemove, onDuplicate, extraItems = [], removeLabel = 'this item' }) {
   return (
     <PortalMenu
       trigger={<MoreVertical size={13} />}
@@ -305,6 +305,7 @@ function SavedRowMenu({ onEdit, onRemove, onDuplicate, removeLabel = 'this item'
         { label: 'Edit', icon: <Pencil size={13} />, onClick: onEdit },
         // Only shown where a caller opts in (packages today).
         ...(onDuplicate ? [{ label: 'Duplicate', icon: <Copy size={13} />, onClick: onDuplicate }] : []),
+        ...extraItems,
         {
           label: 'Remove', icon: <Trash2 size={13} />, danger: true,
           confirm: { title: `Remove ${removeLabel}?`, message: "This can't be undone.", confirmLabel: 'Remove', onConfirm: onRemove },
@@ -388,15 +389,72 @@ function StatsEditor({ stats, onChange }) {
 }
 
 // ── Packages (Sessions & Pricing) ────────────────────────────────────────────
-// Drag-to-reorder uses the same dnd-kit useSortable pattern as
-// TestimonialsEditor below. Packages never carried an id (position was
-// enough before reordering), so older entries get one backfilled once,
-// silently -- same approach as testimonials. The public renderer never
-// reads id; it's editor-only identity for dnd-kit and open-for-edit state.
-function SortablePackageRow({ pkg, isOpen, onOpenEdit, onDone, onRemove, onUpdate, onDuplicate }) {
+// v1.5.16 structured pricing. Categories live in microsites.pricing_groups
+// ({ id, name, description, includes[] }, display order = array order).
+// Packages stay in microsites.packages and point at a category via
+// group_id -- null, or an id that no longer exists, means Uncategorized
+// (rendered first on the site, with no heading). New per-package fields:
+// price_label, price_note, includes[], featured, group_id,
+// booking_signup_page_id, booking_all_sessions, booking_label. All
+// optional, so packages saved before this still render exactly as before.
+//
+// `includes` is stored as the raw lines of its textarea (blank lines kept)
+// so typing a new line isn't swallowed mid-edit; the renderer trims and
+// drops empty entries.
+// Mirrors src/components/ui/Input.jsx exactly (wrapper spacing, inline
+// label, 9px/12px padding, 14px text, surface background) so selects and
+// textareas line up with the Input fields beside them.
+const PRICING_FIELD_STYLE = {
+  width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
+  color: 'var(--text)', borderRadius: '8px', padding: '9px 12px',
+  fontSize: '14px', outline: 'none', transition: 'border-color 0.15s',
+}
+
+function linesToText(arr) { return Array.isArray(arr) ? arr.join('\n') : '' }
+function cleanLines(arr) { return (Array.isArray(arr) ? arr : []).map(s => String(s).trim()).filter(Boolean) }
+
+function PricingFieldLabel({ label, hint }) {
+  return (
+    <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+      {label}{hint && <span className="font-normal" style={{ color: 'var(--text-muted)' }}> — {hint}</span>}
+    </label>
+  )
+}
+
+function PricingTextarea({ label, hint, value, onChange, placeholder, rows = 3 }) {
+  return (
+    <div className="space-y-1.5">
+      <PricingFieldLabel label={label} hint={hint} />
+      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
+        style={{ ...PRICING_FIELD_STYLE, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, display: 'block' }}
+        onFocus={e => { e.target.style.borderColor = 'var(--border-strong)' }}
+        onBlur={e => { e.target.style.borderColor = 'var(--border)' }} />
+    </div>
+  )
+}
+
+function PricingSelect({ label, value, onChange, children }) {
+  return (
+    <div className="space-y-1.5">
+      <PricingFieldLabel label={label} />
+      <select value={value} onChange={e => onChange(e.target.value)}
+        style={{ ...PRICING_FIELD_STYLE, display: 'block', cursor: 'pointer' }}
+        onFocus={e => { e.target.style.borderColor = 'var(--border-strong)' }}
+        onBlur={e => { e.target.style.borderColor = 'var(--border)' }}>
+        {children}
+      </select>
+    </div>
+  )
+}
+
+function SortablePackageRow({
+  pkg, isOpen, groups, signupPages,
+  onOpenEdit, onDone, onRemove, onUpdate, onUpdateFields, onDuplicate, onToggleFeatured,
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: pkg.id, disabled: isOpen })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
   const isComplete = !!(pkg.name && pkg.price)
+  const hasBooking = !!(pkg.booking_all_sessions || pkg.booking_signup_page_id)
 
   if (!isOpen) {
     return (
@@ -410,16 +468,46 @@ function SortablePackageRow({ pkg, isOpen, onOpenEdit, onDone, onRemove, onUpdat
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-baseline gap-3">
-            <span className="text-sm font-semibold truncate" title={pkg.name} style={{ color: 'var(--text)' }}>{pkg.name}</span>
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="text-sm font-semibold truncate" title={pkg.name} style={{ color: 'var(--text)' }}>{pkg.name}</span>
+              {pkg.featured && <Star size={12} aria-label="Most popular" style={{ color: 'var(--accent)', fill: 'currentColor', flexShrink: 0 }} />}
+              {hasBooking && <Link2 size={12} aria-label="Has a booking link" style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+            </span>
             <span className="text-sm font-semibold truncate shrink-0" title={pkg.price} style={{ color: 'var(--accent)', maxWidth: '50%' }}>{pkg.price}</span>
           </div>
           {pkg.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: 'var(--text-muted)' }}>{pkg.description}</p>}
         </div>
         <div className="shrink-0">
-          <SavedRowMenu onEdit={onOpenEdit} onRemove={onRemove} onDuplicate={onDuplicate} removeLabel={pkg.name || 'this package'} />
+          <SavedRowMenu
+            onEdit={onOpenEdit}
+            onRemove={onRemove}
+            onDuplicate={onDuplicate}
+            extraItems={[{
+              label: pkg.featured ? 'Remove most popular' : 'Mark as most popular',
+              icon: <Star size={13} />,
+              onClick: onToggleFeatured,
+            }]}
+            removeLabel={pkg.name || 'this package'}
+          />
         </div>
       </div>
     )
+  }
+
+  const groupIds = new Set(groups.map(g => g.id))
+  const currentGroup = pkg.group_id && groupIds.has(pkg.group_id) ? pkg.group_id : ''
+  const bookingValue = pkg.booking_all_sessions ? '__all__' : (pkg.booking_signup_page_id || '')
+  const linkedPage = pkg.booking_signup_page_id ? signupPages.find(p => p.id === pkg.booking_signup_page_id) : null
+  // Archived pages are hidden from the picker unless this package already
+  // points at one (so the current value still shows as selected).
+  const pageOptions = signupPages.filter(p => !p.archived_at || p.id === pkg.booking_signup_page_id)
+  let bookingHint = null
+  if (pkg.booking_signup_page_id && !linkedPage) {
+    bookingHint = 'That signup page no longer exists, so no button is shown on your site.'
+  } else if (linkedPage && (linkedPage.is_active === false || linkedPage.archived_at)) {
+    bookingHint = "This signup page isn't active, so the button stays hidden on your site until it is."
+  } else if (pkg.booking_all_sessions) {
+    bookingHint = 'Links to a page listing every active session.'
   }
 
   return (
@@ -427,20 +515,55 @@ function SortablePackageRow({ pkg, isOpen, onOpenEdit, onDone, onRemove, onUpdat
       <div className="text-xs font-semibold uppercase mb-2" style={{ color: '#6366f1', letterSpacing: '0.04em' }}>
         {isComplete ? 'Editing package' : 'New package'}
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className={groups.length > 0 ? 'grid grid-cols-1 sm:grid-cols-2 gap-2' : ''}>
         <Input label="Name" value={pkg.name || ''} onChange={v => onUpdate('name', v)} placeholder="e.g. Studio Session" />
+        {groups.length > 0 && (
+          // Moving categories clears Most popular -- the destination may
+          // already have one, and each category can only have one.
+          <PricingSelect label="Category" value={currentGroup}
+            onChange={v => onUpdateFields({ group_id: v || null, featured: false })}>
+            <option value="">Uncategorized</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name || 'Untitled category'}</option>)}
+          </PricingSelect>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+        <Input label="Price label" value={pkg.price_label || ''} onChange={v => onUpdate('price_label', v)} placeholder="e.g. Starting at" />
         <Input label="Price" value={pkg.price || ''} onChange={v => onUpdate('price', v)} placeholder="e.g. $275" />
+        <Input label="Price note" value={pkg.price_note || ''} onChange={v => onUpdate('price_note', v)} placeholder="e.g. +$30 per person" />
       </div>
       <div className="mt-2">
-        <Input label="Description" value={pkg.description || ''} onChange={v => onUpdate('description', v)} placeholder="e.g. 60 minutes, studio lighting, two changes." />
+        <Input label="Short description" value={pkg.description || ''} onChange={v => onUpdate('description', v)} placeholder="e.g. 60 minutes, studio lighting, two changes." />
       </div>
+      <div className="mt-2">
+        <PricingTextarea label="What's included" hint="one per line, shown as bullets"
+          value={linesToText(pkg.includes)}
+          onChange={v => onUpdate('includes', v.split('\n'))}
+          placeholder={'10 edited photos\nOnline gallery'} />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+        <PricingSelect label="Booking link" value={bookingValue}
+          onChange={v => {
+            if (v === '__all__') onUpdateFields({ booking_all_sessions: true, booking_signup_page_id: null })
+            else onUpdateFields({ booking_all_sessions: false, booking_signup_page_id: v || null })
+          }}>
+          <option value="">None</option>
+          <option value="__all__">All active sessions</option>
+          {pageOptions.map(p => (
+            <option key={p.id} value={p.id}>{p.title}{p.archived_at ? ' (hidden)' : p.is_active === false ? ' (inactive)' : ''}</option>
+          ))}
+        </PricingSelect>
+        {hasBooking && (
+          <Input label="Button label" value={pkg.booking_label || ''} onChange={v => onUpdate('booking_label', v)} placeholder="Book now" />
+        )}
+      </div>
+      {bookingHint && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{bookingHint}</p>}
       <div className="mt-2.5">
         <EntryDoneButton isComplete={isComplete} onClick={onDone} />
       </div>
       {!isComplete && (
         // A never-finished package (no name or price yet) previously had
-        // no way out -- it stayed open with no remove option and rendered
-        // as a blank card on the live site.
+        // no way out -- it stayed open with no remove option.
         <button type="button" onClick={onRemove} className="mt-2 text-xs font-medium"
           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}>
           Discard this package
@@ -450,12 +573,77 @@ function SortablePackageRow({ pkg, isOpen, onOpenEdit, onDone, onRemove, onUpdat
   )
 }
 
-function PackagesEditor({ packages, onChange }) {
-  const [editingId, setEditingId] = useState(null)
+function SortableGroupBlock({ group, isOpen, count, onOpenEdit, onDone, onRemove, onUpdate, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: group.id, disabled: isOpen })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+  const isComplete = !!(group.name && group.name.trim())
+  const includes = cleanLines(group.includes)
 
+  return (
+    <div ref={setNodeRef} className="rounded-xl p-3" style={{ ...style, border: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+      {isOpen ? (
+        <div className="rounded-lg p-3 mb-2" style={{ border: '1px solid #C7CDF5', background: '#F5F6FF' }}>
+          <div className="text-xs font-semibold uppercase mb-2" style={{ color: '#6366f1', letterSpacing: '0.04em' }}>
+            {isComplete ? 'Editing category' : 'New category'}
+          </div>
+          <Input label="Category name" value={group.name || ''} onChange={v => onUpdate('name', v)} placeholder="e.g. Weddings" />
+          <div className="mt-2">
+            <Input label="Intro line (optional)" value={group.description || ''} onChange={v => onUpdate('description', v)} placeholder="e.g. Full-day coverage, tailored to your guest count." />
+          </div>
+          <div className="mt-2">
+            <PricingTextarea label="Included in every package" hint="one per line"
+              value={linesToText(group.includes)}
+              onChange={v => onUpdate('includes', v.split('\n'))}
+              placeholder={'2nd photographer\nGetting ready\nFirst dances'} rows={4} />
+          </div>
+          <div className="mt-2.5">
+            <EntryDoneButton isComplete={isComplete} onClick={onDone} />
+          </div>
+          {!isComplete && (
+            <button type="button" onClick={onRemove} className="mt-2 text-xs font-medium"
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}>
+              Discard this category
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mb-2">
+          <button type="button" {...attributes} {...listeners}
+            aria-label={`Reorder ${group.name || 'category'}`}
+            className="shrink-0 rounded p-0.5"
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'grab', touchAction: 'none' }}>
+            <GripVertical size={16} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate" title={group.name} style={{ color: 'var(--text)' }}>{group.name}</p>
+            {includes.length > 0 && (
+              <p className="text-xs truncate" title={includes.join(' · ')} style={{ color: 'var(--text-muted)' }}>Includes: {includes.join(' · ')}</p>
+            )}
+          </div>
+          <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{count} package{count === 1 ? '' : 's'}</span>
+          <div className="shrink-0">
+            {/* Removing a category moves its packages to Uncategorized -- they're never deleted with it. */}
+            <SavedRowMenu onEdit={onOpenEdit} onRemove={onRemove} removeLabel={`the "${group.name}" category`} />
+          </div>
+        </div>
+      )}
+      {!isOpen && count === 0 && (
+        // The renderer skips categories with no packages.
+        <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Hidden on your site until it has a package.</p>
+      )}
+      {children}
+    </div>
+  )
+}
+
+function PricingEditor({ packages, groups, signupPages, onChange }) {
+  const [editingId, setEditingId] = useState(null)
+  const [editingGroupId, setEditingGroupId] = useState(null)
+
+  // Packages saved before v1.5.16 have no id -- backfill once, silently.
   useEffect(() => {
     if (packages.some(p => !p.id)) {
-      onChange(packages.map(p => p.id ? p : { ...p, id: crypto.randomUUID() }))
+      onChange({ packages: packages.map(p => p.id ? p : { ...p, id: crypto.randomUUID() }) })
     }
   }, [packages])
 
@@ -464,16 +652,22 @@ function PackagesEditor({ packages, onChange }) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  function update(id, field, value) {
-    onChange(packages.map(p => p.id === id ? { ...p, [field]: value } : p))
-  }
+  const groupIds = new Set(groups.map(g => g.id))
+  const groupOf = p => (p.group_id && groupIds.has(p.group_id) ? p.group_id : null)
+  // Render legacy id-less packages under a positional fallback id for the
+  // single frame before the backfill lands, instead of popping in late.
+  const rows = packages.map((p, i) => (p.id ? p : { ...p, id: `pending-${i}` }))
+
+  function setPackages(next) { onChange({ packages: next }) }
+  function update(id, field, value) { setPackages(packages.map(p => p.id === id ? { ...p, [field]: value } : p)) }
+  function updateFields(id, fields) { setPackages(packages.map(p => p.id === id ? { ...p, ...fields } : p)) }
   function remove(id) {
-    onChange(packages.filter(p => p.id !== id))
+    setPackages(packages.filter(p => p.id !== id))
     if (editingId === id) setEditingId(null)
   }
-  function add() {
+  function add(groupId) {
     const id = crypto.randomUUID()
-    onChange([...packages, { id, name: '', price: '', description: '' }])
+    setPackages([...packages, { id, name: '', price: '', description: '', group_id: groupId }])
     setEditingId(id)
   }
   function duplicate(id) {
@@ -484,52 +678,145 @@ function PackagesEditor({ packages, onChange }) {
       ...structuredClone(original),
       id: crypto.randomUUID(),
       name: original.name ? `${original.name} (copy)` : original.name,
+      featured: false, // only one Most popular per category
     }
-    onChange([...packages.slice(0, i + 1), copy, ...packages.slice(i + 1)])
+    setPackages([...packages.slice(0, i + 1), copy, ...packages.slice(i + 1)])
   }
-  function handleDragEnd(event) {
+  function toggleFeatured(id) {
+    const target = packages.find(p => p.id === id)
+    if (!target) return
+    const turningOn = !target.featured
+    const gid = groupOf(target)
+    setPackages(packages.map(p => {
+      if (p.id === id) return { ...p, featured: turningOn }
+      // One Most popular per category: marking this one clears any other.
+      if (turningOn && p.featured && groupOf(p) === gid) return { ...p, featured: false }
+      return p
+    }))
+  }
+  function handlePackageDragEnd(event) {
     const { active, over } = event
     if (!over || active.id === over.id) return
+    // Both ids are always in the same category (each category is its own
+    // DndContext), so moving within the full array keeps every other
+    // category's relative order intact.
     const oldIndex = packages.findIndex(p => p.id === active.id)
     const newIndex = packages.findIndex(p => p.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
-    onChange(arrayMove(packages, oldIndex, newIndex))
+    setPackages(arrayMove(packages, oldIndex, newIndex))
   }
 
-  // Legacy packages get a real id from the effect above right after the
-  // first render. Until then, render them under a positional fallback id
-  // instead of skipping the list -- skipping it made the whole section pop
-  // in one render late and shift everything below it. Nothing can be
-  // dragged in that single frame, so the fallback never reaches
-  // handleDragEnd.
-  const rows = packages.map((p, i) => (p.id ? p : { ...p, id: `pending-${i}` }))
+  function updateGroup(id, field, value) {
+    onChange({ pricing_groups: groups.map(g => g.id === id ? { ...g, [field]: value } : g) })
+  }
+  function addGroup() {
+    const id = crypto.randomUUID()
+    onChange({ pricing_groups: [...groups, { id, name: '', description: '', includes: [] }] })
+    setEditingGroupId(id)
+  }
+  function removeGroup(id) {
+    // Packages are never deleted with their category -- they move to
+    // Uncategorized. Most popular is cleared on them since Uncategorized
+    // may already have one.
+    onChange({
+      pricing_groups: groups.filter(g => g.id !== id),
+      packages: packages.map(p => p.group_id === id ? { ...p, group_id: null, featured: false } : p),
+    })
+    if (editingGroupId === id) setEditingGroupId(null)
+  }
+  function handleGroupDragEnd(event) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = groups.findIndex(g => g.id === active.id)
+    const newIndex = groups.findIndex(g => g.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    onChange({ pricing_groups: arrayMove(groups, oldIndex, newIndex) })
+  }
+
+  function renderPackageList(groupId) {
+    const items = rows.filter(p => groupOf(p) === groupId)
+    return (
+      <div className="space-y-2">
+        {items.length > 0 && (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handlePackageDragEnd}>
+            <SortableContext items={items.map(p => p.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {items.map(pkg => (
+                  <SortablePackageRow
+                    key={pkg.id}
+                    pkg={pkg}
+                    groups={groups}
+                    signupPages={signupPages}
+                    isOpen={editingId === pkg.id || !(pkg.name && pkg.price)}
+                    onOpenEdit={() => setEditingId(pkg.id)}
+                    onDone={() => setEditingId(null)}
+                    onRemove={() => remove(pkg.id)}
+                    onUpdate={(field, v) => update(pkg.id, field, v)}
+                    onUpdateFields={fields => updateFields(pkg.id, fields)}
+                    onDuplicate={() => duplicate(pkg.id)}
+                    onToggleFeatured={() => toggleFeatured(pkg.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
+        <button onClick={() => add(groupId)} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+          style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
+          <Plus size={14} />Add package
+        </button>
+      </div>
+    )
+  }
+
+  // With no categories, this is the same single list as before. Once
+  // categories exist, the Uncategorized block only shows while it holds
+  // something.
+  const showUncategorized = groups.length === 0 || rows.some(p => groupOf(p) === null)
 
   return (
-    <div className="space-y-2">
-      {rows.length > 0 && (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={rows.map(p => p.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {rows.map(pkg => (
-                <SortablePackageRow
-                  key={pkg.id}
-                  pkg={pkg}
-                  isOpen={editingId === pkg.id || !(pkg.name && pkg.price)}
-                  onOpenEdit={() => setEditingId(pkg.id)}
-                  onDone={() => setEditingId(null)}
-                  onRemove={() => remove(pkg.id)}
-                  onUpdate={(field, v) => update(pkg.id, field, v)}
-                  onDuplicate={() => duplicate(pkg.id)}
-                />
+    <div className="space-y-3">
+      {showUncategorized && (groups.length === 0 ? renderPackageList(null) : (
+        <div className="rounded-xl p-3" style={{ border: '1px dashed var(--border)' }}>
+          <p className="text-xs font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+            Uncategorized — shown first, without a heading
+          </p>
+          {renderPackageList(null)}
+        </div>
+      ))}
+
+      {groups.length > 0 && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupDragEnd}>
+          <SortableContext items={groups.map(g => g.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {groups.map(g => (
+                <SortableGroupBlock
+                  key={g.id}
+                  group={g}
+                  count={rows.filter(p => groupOf(p) === g.id).length}
+                  isOpen={editingGroupId === g.id || !(g.name && g.name.trim())}
+                  onOpenEdit={() => setEditingGroupId(g.id)}
+                  onDone={() => setEditingGroupId(null)}
+                  onRemove={() => removeGroup(g.id)}
+                  onUpdate={(field, v) => updateGroup(g.id, field, v)}
+                >
+                  {renderPackageList(g.id)}
+                </SortableGroupBlock>
               ))}
             </div>
           </SortableContext>
         </DndContext>
       )}
-      <button onClick={add} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+
+      <button onClick={addGroup} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
         style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
-        <Plus size={14} />Add package
+        <FolderPlus size={14} />Add category
       </button>
+      {groups.length === 0 && (
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Categories are optional — use them to group packages under headings like "Weddings", with a shared list of what every package includes.
+        </p>
+      )}
     </div>
   )
 }
@@ -1226,7 +1513,7 @@ export default function MicrositeEditor() {
         studio_name, tagline, bio, hero_image_key, contact_email,
         contact_phone, contact_address, contact_hours,
         gallery_source_type, gallery_source_gallery_id, gallery_source_image_keys,
-        show_pricing, packages, pricing_note,
+        show_pricing, packages, pricing_note, pricing_groups,
         testimonials, enabled, logo_r2_key,
         accent_color, theme, font_pairing, radius, section_variants,
         custom_display_font, custom_body_font,
@@ -1252,7 +1539,7 @@ export default function MicrositeEditor() {
         studio_name, tagline, bio, hero_image_key, contact_email,
         contact_phone, contact_address, contact_hours,
         gallery_source_type, gallery_source_gallery_id, gallery_source_image_keys,
-        show_pricing, packages, pricing_note,
+        show_pricing, packages, pricing_note, pricing_groups,
         testimonials: completeTestimonials, enabled, logo_r2_key,
         accent_color, theme, font_pairing, radius, section_variants,
         custom_display_font, custom_body_font,
@@ -1303,12 +1590,24 @@ export default function MicrositeEditor() {
     // iframe sees -- never mutate `site` itself, or a Save would bake
     // the account logo in as a permanent per-site override that goes
     // stale the next time the account logo changes.
-    const previewPayload = { ...site, logo_r2_key: site.logo_r2_key || accountLogoKey, all_sessions_token: accountAllSessionsToken }
+    // package_booking_tokens mirrors get_site_by_hostname (sql/085): only
+    // signup pages that are active and not archived, so a package linked
+    // to a closed page shows no Book button in preview, same as live.
+    const packageBookingTokens = {}
+    for (const p of signupPages) {
+      if (p.token && p.is_active !== false && !p.archived_at) packageBookingTokens[p.id] = p.token
+    }
+    const previewPayload = {
+      ...site,
+      logo_r2_key: site.logo_r2_key || accountLogoKey,
+      all_sessions_token: accountAllSessionsToken,
+      package_booking_tokens: packageBookingTokens,
+    }
     previewIframeRef.current?.contentWindow?.postMessage(
       { type: 'microsite-preview-update', site: previewPayload },
       window.location.origin
     )
-  }, [site, accountLogoKey, accountAllSessionsToken])
+  }, [site, accountLogoKey, accountAllSessionsToken, signupPages])
 
   // Blocks the whole editor, not just publishing -- editing without
   // the tier is disallowed entirely, per Nick's call. Checked before
@@ -1721,7 +2020,7 @@ export default function MicrositeEditor() {
               <Input label="Section title" value={site.pricing_title || ''} onChange={v => patch({ pricing_title: v })} placeholder="Pricing" />
               <Input label="Section subheading" value={site.pricing_subheading || ''} onChange={v => patch({ pricing_subheading: v })} placeholder="Sessions & Packages" />
               <LayoutHint options={PRICING_VARIANT_OPTIONS} value={site.section_variants?.pricing} fallback="list" />
-              <PackagesEditor packages={site.packages || []} onChange={v => patch({ packages: v })} />
+              <PricingEditor packages={site.packages || []} groups={site.pricing_groups || []} signupPages={signupPages} onChange={fields => patch(fields)} />
               <Input label="Note" value={site.pricing_note || ''} onChange={v => patch({ pricing_note: v })} placeholder="e.g. Custom quotes available on request." />
             </div>
           )}

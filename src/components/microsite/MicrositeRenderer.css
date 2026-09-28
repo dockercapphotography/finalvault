@@ -694,3 +694,75 @@ html { scroll-behavior: smooth; }
 .ms-footer-links-row a { font-size: 13.5px; color: var(--ms-muted); transition: color .2s ease; }
 .ms-footer-links-row a:hover { color: var(--ms-ink); }
 .ms-footer--minimal .ms-social-row { margin-top: 8px; justify-content: center; }
+
+
+/* ---------- PRICING: categories, structured fields, booking (v1.5.16) ---------- */
+.ms-pricing-group + .ms-pricing-group { margin-top: 48px; }
+.ms-pricing-group-head { text-align: center; max-width: 640px; margin: 0 auto 22px; }
+.ms-pricing-group-head h3 { font-size: 24px; }
+.ms-pricing-group-desc { margin-top: 6px; font-size: 14px; color: var(--ms-muted); }
+.ms-pricing-group-includes { margin-top: 8px; font-size: 13px; color: var(--ms-muted); line-height: 1.6; }
+
+.ms-price-label { font-family: var(--ms-font-body); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ms-muted); margin-top: 10px; }
+.ms-pricing-card .ms-price-label + .ms-price { margin-top: 2px; }
+.ms-price-note { font-family: var(--ms-font-body); font-size: 12px; color: var(--ms-muted); margin-top: 2px; overflow-wrap: anywhere; }
+
+.ms-pricing-includes { list-style: none; padding: 0; margin: 12px 0 0; font-size: 13px; color: var(--ms-muted); text-align: left; }
+.ms-pricing-card .ms-pricing-includes { display: inline-block; }
+.ms-pricing-includes li { position: relative; padding-left: 18px; margin-top: 4px; line-height: 1.45; overflow-wrap: anywhere; }
+.ms-pricing-includes li::before { content: '\2713'; position: absolute; left: 0; top: 0; color: var(--ms-accent-text); font-size: 12px; }
+
+/* Scoped under .ms-root on purpose: `.ms-root a { color: inherit }`
+   (0,1,1) otherwise outranks a single class and the button text
+   inherits the body ink instead of the accent's contrast color. */
+.ms-root .ms-pricing-book { display: inline-block; margin-top: 16px; font-family: var(--ms-font-body); font-size: 13px; padding: 9px 20px; border-radius: var(--ms-radius); background: var(--ms-accent); color: var(--ms-accent-button-text); text-decoration: none; transition: opacity .2s ease; }
+.ms-root .ms-pricing-book:hover { opacity: 0.88; }
+.ms-pricing-card .ms-pricing-book { display: block; width: fit-content; margin-left: auto; margin-right: auto; }
+
+.ms-pricing-tag { display: inline-block; font-family: var(--ms-font-body); font-size: 10px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 8px; border-radius: 999px; background: var(--ms-accent); color: var(--ms-accent-button-text); margin-left: 8px; vertical-align: middle; white-space: nowrap; }
+
+.ms-pricing-card--marked { border-color: var(--ms-accent); border-width: 2px; }
+/* Derived from the accent's contrast color (not hardcoded white) so a
+   light accent with dark button text keeps these readable too. */
+.ms-pricing-card--featured .ms-pricing-includes,
+.ms-pricing-card--featured .ms-price-label,
+.ms-pricing-card--featured .ms-price-note { color: color-mix(in srgb, var(--ms-accent-button-text) 85%, transparent); }
+.ms-pricing-card--featured .ms-pricing-includes li::before { color: var(--ms-accent-button-text); }
+.ms-root .ms-pricing-card--featured .ms-pricing-book { background: var(--ms-accent-button-text); color: var(--ms-accent); }
+
+/* List: name + price on the top row, description / inclusions / Book
+   button underneath the name. Grid (not the old flex row) so the price
+   stays top-right no matter how much content sits under the name. */
+.ms-pricing-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 40%); column-gap: 24px; row-gap: 0; align-items: start; }
+.ms-pricing-row-name { grid-column: 1; grid-row: 1; }
+.ms-pricing-row-price { grid-column: 2; grid-row: 1 / span 2; text-align: right; }
+.ms-pricing-row-price .ms-price { max-width: none; text-align: right; }
+.ms-pricing-row-price .ms-price-label { margin-top: 0; }
+.ms-pricing-row-body { grid-column: 1; grid-row: 2; }
+
+/* Compact: fixed-width name column with the Most Popular pill stacked
+   under the name, so every row's description starts at the same x. */
+.ms-pricing-compact-name { flex: 0 0 clamp(150px, 22%, 240px); white-space: normal; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.ms-pricing-compact .ms-pricing-tag { margin-left: 0; font-size: 9px; padding: 2px 7px; }
+/* Compact Book: small outlined button on its own line (scoped under
+   .ms-root for the same specificity reason as .ms-pricing-book). */
+.ms-root .ms-pricing-compact-book { display: block; width: fit-content; margin: 8px 0 0; padding: 4px 12px; font-size: 12px; border: 1px solid var(--ms-accent); border-radius: var(--ms-radius); color: var(--ms-accent-text); text-decoration: none; white-space: nowrap; transition: background .2s ease, color .2s ease; }
+.ms-root .ms-pricing-compact-book:hover { background: var(--ms-accent); color: var(--ms-accent-button-text); }
+.ms-price-inline-label, .ms-price-inline-note { font-size: 11px; color: var(--ms-muted); }
+
+@media (max-width: 760px) {
+  .ms-pricing-group-head h3 { font-size: 21px; }
+  .ms-pricing-row { grid-template-columns: minmax(0, 1fr); row-gap: 6px; }
+  .ms-pricing-row-price { grid-column: 1; grid-row: 2; text-align: left; }
+  .ms-pricing-row-price .ms-price { text-align: left; }
+  .ms-pricing-row-body { grid-row: 3; }
+}
+
+/* Cards / Featured: flex column so the Book button wrapper can take
+   margin-top: auto and sit at the bottom of every (equal-height) card.
+   The bullet list is re-centered as a shrink-wrapped block, since flex
+   items ignore the inline-block that centered it before. */
+.ms-pricing-card { display: flex; flex-direction: column; }
+.ms-pricing-card .ms-pricing-includes { align-self: center; }
+.ms-pricing-card-cta { margin-top: auto; padding-top: 16px; }
+.ms-root .ms-pricing-card-cta .ms-pricing-book { margin-top: 0; }

@@ -293,7 +293,8 @@ export default function MicrositeRenderer({ site, previewAuthToken }) {
         <section className="ms-pricing" id="pricing">
           <div className="ms-wrap">
             <SectionHead title={site.pricing_title} subheading={site.pricing_subheading} />
-            <PricingSection variant={pricingVariant} packages={site.packages} pricingNote={site.pricing_note} />
+            <PricingSection variant={pricingVariant} packages={site.packages} pricingNote={site.pricing_note}
+              groups={site.pricing_groups} bookingTokens={site.package_booking_tokens} allSessionsToken={site.all_sessions_token} />
           </div>
         </section>
       )}
@@ -553,85 +554,192 @@ function ContactSplit({ site }) {
   )
 }
 
-function PricingSection({ variant, packages, pricingNote }) {
-  if (variant === 'cards') return <PricingCards packages={packages} pricingNote={pricingNote} />
-  if (variant === 'featured') return <PricingFeatured packages={packages} pricingNote={pricingNote} />
-  if (variant === 'compact') return <PricingCompact packages={packages} pricingNote={pricingNote} />
-  return <PricingList packages={packages} pricingNote={pricingNote} />
-}
+function PricingSection({ variant, packages, pricingNote, groups, bookingTokens, allSessionsToken }) {
+  // Incomplete packages (no name or price) never render -- previously an
+  // abandoned editor entry showed up as a blank card.
+  const complete = (Array.isArray(packages) ? packages : []).filter(p => p && p.name && p.price)
+  const groupList = (Array.isArray(groups) ? groups : []).filter(g => g && g.id)
+  const groupIds = new Set(groupList.map(g => g.id))
+  const tokens = bookingTokens || {}
 
-function PricingList({ packages, pricingNote }) {
+  // Uncategorized first, with no heading -- sites with no categories
+  // render exactly as before.
+  const blocks = []
+  const ungrouped = complete.filter(p => !p.group_id || !groupIds.has(p.group_id))
+  if (ungrouped.length) blocks.push({ key: '__ungrouped', group: null, packages: ungrouped })
+  for (const g of groupList) {
+    const items = complete.filter(p => p.group_id === g.id)
+    if (items.length) blocks.push({ key: g.id, group: g, packages: items })
+  }
+
+  // The Featured layout's "highlight the middle card" fallback only makes
+  // sense for one flat list -- with category headings it would highlight
+  // a card in every category. With categories, only packages explicitly
+  // marked Most popular are highlighted.
+  const hasCategories = blocks.some(b => b.group)
+
+  // Book button target. Only pages present in `tokens` are live (active,
+  // not archived, not deleted) -- anything else hides the button.
+  function bookingHref(pkg) {
+    if (pkg.booking_all_sessions) return allSessionsToken ? `/book/all/${allSessionsToken}` : null
+    if (pkg.booking_signup_page_id && tokens[pkg.booking_signup_page_id]) return `/book/${tokens[pkg.booking_signup_page_id]}`
+    return null
+  }
+
   return (
     <>
-      <div className="ms-pricing-list">
-        {packages.map((pkg, i) => (
-          <div className="ms-pricing-row" key={i}>
-            <div>
-              <h3>{pkg.name}</h3>
-              {pkg.description && <p>{pkg.description}</p>}
-            </div>
-            <div className="ms-price">{pkg.price}</div>
-          </div>
-        ))}
-      </div>
+      {blocks.map(b => (
+        <div className="ms-pricing-group" key={b.key}>
+          {b.group && <PricingGroupHead group={b.group} />}
+          <PricingVariant variant={variant} packages={b.packages} bookingHref={bookingHref} allowFallback={!hasCategories} />
+        </div>
+      ))}
       {pricingNote && <p className="ms-pricing-note">{pricingNote}</p>}
     </>
   )
 }
 
-function PricingCards({ packages, pricingNote }) {
+function pricingCleanLines(arr) {
+  return (Array.isArray(arr) ? arr : []).map(s => String(s).trim()).filter(Boolean)
+}
+
+function PricingGroupHead({ group }) {
+  const includes = pricingCleanLines(group.includes)
+  return (
+    <div className="ms-pricing-group-head">
+      {group.name && <h3>{group.name}</h3>}
+      {group.description && <p className="ms-pricing-group-desc">{group.description}</p>}
+      {includes.length > 0 && (
+        <p className="ms-pricing-group-includes">Every package includes: {includes.join(' · ')}</p>
+      )}
+    </div>
+  )
+}
+
+function PricingVariant({ variant, packages, bookingHref, allowFallback }) {
+  if (variant === 'cards') return <PricingCards packages={packages} bookingHref={bookingHref} />
+  if (variant === 'featured') return <PricingFeatured packages={packages} bookingHref={bookingHref} allowFallback={allowFallback} />
+  if (variant === 'compact') return <PricingCompact packages={packages} bookingHref={bookingHref} />
+  return <PricingList packages={packages} bookingHref={bookingHref} />
+}
+
+function PriceBlock({ pkg }) {
   return (
     <>
-      <div className="ms-pricing-cards">
-        {packages.map((pkg, i) => (
-          <div className="ms-pricing-card" key={i}>
-            <h3>{pkg.name}</h3>
-            <div className="ms-price">{pkg.price}</div>
+      {pkg.price_label && <div className="ms-price-label">{pkg.price_label}</div>}
+      <div className="ms-price">{pkg.price}</div>
+      {pkg.price_note && <div className="ms-price-note">{pkg.price_note}</div>}
+    </>
+  )
+}
+
+function IncludesList({ pkg }) {
+  const items = pricingCleanLines(pkg.includes)
+  if (!items.length) return null
+  return (
+    <ul className="ms-pricing-includes">
+      {items.map((t, i) => <li key={i}>{t}</li>)}
+    </ul>
+  )
+}
+
+function BookButton({ pkg, bookingHref, className = 'ms-pricing-book' }) {
+  const href = bookingHref(pkg)
+  if (!href) return null
+  return <a href={href} className={className}>{(pkg.booking_label || '').trim() || 'Book now'}</a>
+}
+
+function PricingList({ packages, bookingHref }) {
+  return (
+    <div className="ms-pricing-list">
+      {packages.map((pkg, i) => (
+        <div className="ms-pricing-row" key={pkg.id || i}>
+          <h3 className="ms-pricing-row-name">
+            {pkg.name}
+            {pkg.featured && <span className="ms-pricing-tag">Most Popular</span>}
+          </h3>
+          <div className="ms-pricing-row-price"><PriceBlock pkg={pkg} /></div>
+          <div className="ms-pricing-row-body">
             {pkg.description && <p>{pkg.description}</p>}
+            <IncludesList pkg={pkg} />
+            <BookButton pkg={pkg} bookingHref={bookingHref} />
           </div>
-        ))}
-      </div>
-      {pricingNote && <p className="ms-pricing-note">{pricingNote}</p>}
-    </>
+        </div>
+      ))}
+    </div>
   )
 }
 
-function PricingFeatured({ packages, pricingNote }) {
-  const featuredIndex = Math.floor((packages.length - 1) / 2)
+function PricingCard({ pkg, bookingHref, highlighted, marked }) {
+  const cls = `ms-pricing-card${highlighted ? ' ms-pricing-card--featured' : ''}${marked && !highlighted ? ' ms-pricing-card--marked' : ''}`
   return (
-    <>
-      <div className="ms-pricing-cards">
-        {packages.map((pkg, i) => {
-          const isFeatured = packages.length > 1 && i === featuredIndex
-          return (
-            <div className={`ms-pricing-card${isFeatured ? ' ms-pricing-card--featured' : ''}`} key={i}>
-              {isFeatured && <div className="ms-pricing-badge">Most Popular</div>}
-              <h3>{pkg.name}</h3>
-              <div className="ms-price">{pkg.price}</div>
-              {pkg.description && <p>{pkg.description}</p>}
-            </div>
-          )
-        })}
-      </div>
-      {pricingNote && <p className="ms-pricing-note">{pricingNote}</p>}
-    </>
+    <div className={cls}>
+      {(highlighted || marked) && <div className="ms-pricing-badge">Most Popular</div>}
+      <h3>{pkg.name}</h3>
+      <PriceBlock pkg={pkg} />
+      {pkg.description && <p>{pkg.description}</p>}
+      <IncludesList pkg={pkg} />
+      {bookingHref(pkg) && (
+        // margin-top: auto in CSS pins this to the card bottom, so Book
+        // buttons line up across a row of equal-height cards.
+        <div className="ms-pricing-card-cta"><BookButton pkg={pkg} bookingHref={bookingHref} /></div>
+      )}
+    </div>
   )
 }
 
-function PricingCompact({ packages, pricingNote }) {
+function PricingCards({ packages, bookingHref }) {
   return (
-    <>
-      <div className="ms-pricing-compact">
-        {packages.map((pkg, i) => (
-          <div className="ms-pricing-compact-row" key={i}>
-            <span className="ms-pricing-compact-name">{pkg.name}</span>
-            {pkg.description && <span className="ms-pricing-compact-desc">{pkg.description}</span>}
-            <span className="ms-price">{pkg.price}</span>
+    <div className="ms-pricing-cards">
+      {packages.map((pkg, i) => (
+        <PricingCard key={pkg.id || i} pkg={pkg} bookingHref={bookingHref} marked={!!pkg.featured} />
+      ))}
+    </div>
+  )
+}
+
+function PricingFeatured({ packages, bookingHref, allowFallback = true }) {
+  // A package explicitly marked Most popular wins; otherwise keep the
+  // original behavior of highlighting the middle card.
+  const marked = packages.findIndex(p => p.featured)
+  const fallback = allowFallback && packages.length > 1 ? Math.floor((packages.length - 1) / 2) : -1
+  const featuredIndex = marked !== -1 ? marked : fallback
+  return (
+    <div className="ms-pricing-cards">
+      {packages.map((pkg, i) => (
+        <PricingCard key={pkg.id || i} pkg={pkg} bookingHref={bookingHref} highlighted={i === featuredIndex} />
+      ))}
+    </div>
+  )
+}
+
+function PricingCompact({ packages, bookingHref }) {
+  return (
+    <div className="ms-pricing-compact">
+      {packages.map((pkg, i) => {
+        const detail = [pkg.description, ...pricingCleanLines(pkg.includes)].filter(Boolean).join(' · ')
+        const href = bookingHref(pkg)
+        return (
+          <div className="ms-pricing-compact-row" key={pkg.id || i}>
+            <span className="ms-pricing-compact-name">
+              {pkg.name}
+              {pkg.featured && <span className="ms-pricing-tag">Most Popular</span>}
+            </span>
+            {(detail || href) && (
+              <span className="ms-pricing-compact-desc">
+                {detail}
+                {href && <BookButton pkg={pkg} bookingHref={bookingHref} className="ms-pricing-compact-book" />}
+              </span>
+            )}
+            <span className="ms-price">
+              {pkg.price_label && <span className="ms-price-inline-label">{pkg.price_label} </span>}
+              {pkg.price}
+              {pkg.price_note && <span className="ms-price-inline-note"> {pkg.price_note}</span>}
+            </span>
           </div>
-        ))}
-      </div>
-      {pricingNote && <p className="ms-pricing-note">{pricingNote}</p>}
-    </>
+        )
+      })}
+    </div>
   )
 }
 
