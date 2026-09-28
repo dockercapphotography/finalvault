@@ -654,7 +654,11 @@ export default function ClientGalleryView() {
         const keys = images.map(i => i.original_r2_key)
         const names = images.map(i => i.file_name)
         await queueZip(token, keys, names, notifyEmail, viewer?.id || null, size, pin)
-        if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_all_queued')
+        // Logged as 'download_all', same as the synchronous path below --
+        // 'download_all_queued' was never in gallery_activity_log's action
+        // CHECK constraint, so every insert was rejected (23514) and queued
+        // downloads never reached the activity feed, bell, or push.
+        if (!isPreview) logActivity(gallery.id, viewer?.id, 'download_all')
         await new Promise(r => setTimeout(r, 3000))
       } catch (err) { console.error(err) }
       finally { setDownloadingZip(false); setZipProgress(null) }
