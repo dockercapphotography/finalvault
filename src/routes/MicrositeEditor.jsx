@@ -24,12 +24,10 @@ import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import { usePagination } from '../hooks/usePagination.js'
 import PaginationFooter from '../components/ui/PaginationFooter.jsx'
 import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
-} from '@dnd-kit/core'
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, MouseSensor, TouchSensor } from '@dnd-kit/core'
 import {
   arrayMove, SortableContext, sortableKeyboardCoordinates,
-  useSortable, verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
+  useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
   ACCENT_SWATCHES, ACCENT_SWATCHES_DARK, FONT_PAIRINGS, DEFAULT_FONT_PAIRING,
@@ -312,6 +310,67 @@ function SavedRowMenu({ onEdit, onRemove, onDuplicate, extraItems = [], removeLa
         },
       ]}
     />
+  )
+}
+
+// ── Sortable photo grid ─────────────────────────────────────────────────────
+// Drag-to-reorder for the hand-picked photo grids (Gallery hand-picked,
+// Hero slideshow, Hero mosaic). Each is a plain r2-key array the renderer
+// displays in array order, so reordering the array is the whole feature.
+// Whole-tile drag: mouse needs 8px of movement (a click still reaches the
+// tile's own X / focus buttons), touch needs a short press-and-hold (a
+// swipe across the grid still scrolls the page on mobile).
+function SortableThumb({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      data-thumb-key={id}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : 1,
+        zIndex: isDragging ? 10 : undefined,
+        position: 'relative',
+        cursor: 'grab',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function SortableThumbGrid({ keys, onReorder, renderThumb }) {
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+  function handleDragEnd(event) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = keys.indexOf(active.id)
+    const newIndex = keys.indexOf(over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    onReorder(arrayMove(keys, oldIndex, newIndex))
+  }
+  return (
+    <>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={keys} strategy={rectSortingStrategy}>
+          <div className="grid grid-cols-4 gap-2 mb-2">
+            {keys.map(key => (
+              <SortableThumb key={key} id={key}>{renderThumb(key)}</SortableThumb>
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+      {keys.length > 1 && (
+        <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Drag photos to reorder, or use a photo's focus button to adjust its crop.</p>
+      )}
+    </>
   )
 }
 
@@ -1802,16 +1861,17 @@ export default function MicrositeEditor() {
             <div className="px-5 py-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
               <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Cycle images</label>
               {(site.hero_cycle_image_keys || []).length > 0 ? (
-                <div className="grid grid-cols-4 gap-2 mb-3">
-                  {(site.hero_cycle_image_keys || []).map(key => (
+                <SortableThumbGrid
+                  keys={site.hero_cycle_image_keys || []}
+                  onReorder={keys => patch({ hero_cycle_image_keys: keys })}
+                  renderThumb={key => (
                     <GalleryPickThumb
-                      key={key}
                       r2Key={key}
                       onRemove={() => patch({ hero_cycle_image_keys: (site.hero_cycle_image_keys || []).filter(k => k !== key) })}
                       onAdjustFocus={() => setFocalEditTarget({ field: 'cycle', key })}
                     />
-                  ))}
-                </div>
+                  )}
+                />
               ) : (
                 <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>No photos selected yet — pick a few for the slideshow to cycle through.</p>
               )}
@@ -1826,16 +1886,17 @@ export default function MicrositeEditor() {
             <div className="px-5 py-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
               <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text)' }}>Mosaic images</label>
               {(site.hero_mosaic_image_keys || []).length > 0 ? (
-                <div className="grid grid-cols-4 gap-2 mb-3">
-                  {(site.hero_mosaic_image_keys || []).map(key => (
+                <SortableThumbGrid
+                  keys={site.hero_mosaic_image_keys || []}
+                  onReorder={keys => patch({ hero_mosaic_image_keys: keys })}
+                  renderThumb={key => (
                     <GalleryPickThumb
-                      key={key}
                       r2Key={key}
                       onRemove={() => patch({ hero_mosaic_image_keys: (site.hero_mosaic_image_keys || []).filter(k => k !== key) })}
                       onAdjustFocus={() => setFocalEditTarget({ field: 'mosaic', key })}
                     />
-                  ))}
-                </div>
+                  )}
+                />
               ) : (
                 <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>No photos selected yet — pick several for the background grid.</p>
               )}
@@ -1972,15 +2033,17 @@ export default function MicrositeEditor() {
               ) : (
                 <div>
                   {(site.gallery_source_image_keys || []).length > 0 ? (
-                    <div className="grid grid-cols-4 gap-2 mb-3">
-                      {(site.gallery_source_image_keys || []).map(key => (
+                    <SortableThumbGrid
+                      keys={site.gallery_source_image_keys || []}
+                      onReorder={keys => patch({ gallery_source_image_keys: keys })}
+                      renderThumb={key => (
                         <GalleryPickThumb
-                          key={key}
                           r2Key={key}
                           onRemove={() => patch({ gallery_source_image_keys: (site.gallery_source_image_keys || []).filter(k => k !== key) })}
+                          onAdjustFocus={() => setFocalEditTarget({ field: 'gallery', key })}
                         />
-                      ))}
-                    </div>
+                      )}
+                    />
                   ) : (
                     <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>No photos selected yet.</p>
                   )}
@@ -1991,10 +2054,12 @@ export default function MicrositeEditor() {
                 </div>
               )}
 
-              {galleryPreviewKeys.length > 0 && (
+              {/* Hand-picked mode adjusts focus right on its sortable tiles above;
+                  this grid is only needed for Whole-gallery mode. */}
+              {(site.gallery_source_type || 'gallery') === 'gallery' && galleryPreviewKeys.length > 0 && (
                 <div>
                   <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Photo focus points</label>
-                  <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Adjust how any photo is cropped in the gallery grid. Applies whether you're using the whole gallery or hand-picked photos.</p>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Adjust how each photo is cropped in the gallery grid.</p>
                   <div className="grid grid-cols-4 gap-2">
                     {galleryPreviewKeys.map(key => (
                       <GalleryPickThumb
