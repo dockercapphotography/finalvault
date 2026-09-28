@@ -99,6 +99,15 @@ function GateWrapper({ gallery, photographerName, logoUrl, children }) {
 }
 
 function InputField({ value, onChange, type = 'text', placeholder, autoFocus }) {
+  // Browsers decide whether to offer a saved-value suggestion based on
+  // `autoComplete`/`name`, not just `type` -- without these, `type="email"`
+  // alone gets the right mobile keyboard but no autofill prompt. The
+  // gallery-password reuse of this component explicitly opts OUT of
+  // autofill/save prompts instead, since it's a one-off access code, not
+  // an account login password worth Chrome/Safari offering to save.
+  const autoFillProps = type === 'email'
+    ? { name: 'email', autoComplete: 'email', inputMode: 'email' }
+    : { autoComplete: 'off' }
   return (
     <input
       type={type}
@@ -106,6 +115,7 @@ function InputField({ value, onChange, type = 'text', placeholder, autoFocus }) 
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
       autoFocus={autoFocus}
+      {...autoFillProps}
       style={{
         width: '100%',
         background: 'rgba(255,255,255,0.12)',
