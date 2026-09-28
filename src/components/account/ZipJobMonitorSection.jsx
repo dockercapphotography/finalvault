@@ -25,10 +25,10 @@ import { useMediaQuery } from '../../hooks/useMediaQuery.js'
 // other RLS-protected read in this app.
 //
 // Filtering, search, and pagination all run server-side (not fetch-100-
-// then-filter-in-JS) so this scales as the table grows -- zip_jobs rows
-// aren't currently cleaned up after the R2 lifecycle rule expires the
-// underlying file, so row count only ever goes up over time; worth a
-// cleanup job at some point, but out of scope for this feature.
+// then-filter-in-JS) so this scales as the table grows. Rows past
+// expires_at are flipped to 'expired' hourly by pg_cron (sql/084,
+// expire_stale_zip_jobs) -- rows themselves are never deleted, so row
+// count still only goes up over time.
 const JOB_STATUS_STYLE = {
   queued: { bg: '#f3f4f6', fg: '#374151', label: 'Queued' },
   processing: { bg: '#dbeafe', fg: '#1d4ed8', label: 'Processing' },
@@ -61,6 +61,17 @@ function timeUntil(iso) {
   const hrs = Math.floor(diffMs / 3600000)
   if (hrs < 24) return `${hrs}h`
   return `${Math.floor(hrs / 24)}d ${hrs % 24}h`
+}
+
+// A 'ready' row past expires_at has already lost its R2 file (7-day
+// lifecycle rule), but the DB row only flips to 'expired' on the next
+// hourly cron run (sql/084) -- treat it as expired here so the monitor
+// never shows "Ready" alongside "exp. expired" in that window.
+function effectiveStatus(job) {
+  if (job.status === 'ready' && job.expires_at && new Date(job.expires_at).getTime() <= Date.now()) {
+    return 'expired'
+  }
+  return job.status
 }
 
 function formatBytes(bytes) {
@@ -274,14 +285,14 @@ export default function ZipJobMonitorSection() {
                 <div key={j.id} className="rounded-xl px-3 py-3" style={{ border: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <p className="text-sm font-medium leading-tight" style={{ color: 'var(--text)' }}>{j.galleries?.title || 'Deleted gallery'}</p>
-                    <div className="shrink-0"><StatusBadge status={j.status} styles={JOB_STATUS_STYLE} /></div>
+                    <div className="shrink-0"><StatusBadge status={effectiveStatus(j)} styles={JOB_STATUS_STYLE} /></div>
                   </div>
                   <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
                     {j.size === 'web' ? 'Web' : 'Hi-res'} &middot; {progress} &middot; {timeAgo(j.created_at)}
                   </p>
                   <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid var(--border)' }}>
                     <SourceBadge isDedup={!!j.dedup_source_job_id} />
-                    {j.status === 'ready' && (
+                    {effectiveStatus(j) === 'ready' && (
                       <button onClick={() => setExpireTarget(j)}
                         className="text-xs font-medium px-2.5 py-1 rounded-lg"
                         style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
@@ -313,16 +324,16 @@ export default function ZipJobMonitorSection() {
                     <tr key={j.id} style={{ borderBottom: idx === jobs.length - 1 ? 'none' : '1px solid var(--border)' }}>
                       <td className="px-2 py-2" style={{ color: 'var(--text)' }}>{j.galleries?.title || 'Deleted gallery'}</td>
                       <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{j.size === 'web' ? 'Web' : 'Hi-res'}</td>
-                      <td className="px-2 py-2"><StatusBadge status={j.status} styles={JOB_STATUS_STYLE} /></td>
+                      <td className="px-2 py-2"><StatusBadge status={effectiveStatus(j)} styles={JOB_STATUS_STYLE} /></td>
                       <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{progress}</td>
                       <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatBytes(j.final_size_bytes)}</td>
                       <td className="px-2 py-2 whitespace-nowrap"><SourceBadge isDedup={!!j.dedup_source_job_id} /></td>
                       <td className="px-2 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)', lineHeight: 1.35 }}>
                         <div>{timeAgo(j.created_at)}</div>
-                        {j.status === 'ready' && <div style={{ fontSize: '10px' }}>exp. {timeUntil(j.expires_at)}</div>}
+                        {effectiveStatus(j) === 'ready' && <div style={{ fontSize: '10px' }}>exp. {timeUntil(j.expires_at)}</div>}
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap text-right">
-                        {j.status === 'ready' && (
+                        {effectiveStatus(j) === 'ready' && (
                           <button onClick={() => setExpireTarget(j)}
                             className="text-xs font-medium px-2 py-1 rounded-lg"
                             style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
