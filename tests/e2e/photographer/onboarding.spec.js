@@ -63,9 +63,34 @@ async function resetToNewUser(uid) {
 
 async function gotoCleanDashboard(page, uid) {
   await resetToNewUser(uid)
-  await page.goto('/login')
-  await page.waitForLoadState('domcontentloaded')
-  await page.evaluate(() => localStorage.removeItem('fv-onboarding-dismissed'))
+  // This test's storageState is already authenticated, so a real user is
+  // logged in before this even runs. Going to /login first (as this used
+  // to) lands on a page the app immediately redirects away from for an
+  // authenticated session -- that redirect races the very next line's
+  // explicit page.goto('/'), and whichever navigation loses gets a real
+  // (not flaky) net::ERR_ABORTED. Going straight to / avoids the second
+  // navigation and the redirect race entirely; a reload (rather than a
+  // second goto) is enough to pick up the localStorage change afterward.
+  // The real fix: there was never a good reason to need a SECOND
+  // navigation here at all. Both reload() and a follow-up goto('/') kept
+  // hitting a near-instant ERR_ABORTED (13ms -- too fast to be a real
+  // network failure) once FinalVault's service worker got involved in
+  // intercepting that second same-URL navigation. page.addInitScript
+  // clears the key before the page's own JS ever runs, on the ONE
+  // goto('/') below -- same pre-seeding pattern already used elsewhere in
+  // this suite (see enterGallery()'s GalleryGuide localStorage seeding).
+  // addInitScript runs on EVERY navigation in this page, including a
+  // deliberate page.reload() later in a test -- unguarded, it wiped the
+  // dismissal that 'checklist does not reappear after dismiss' is trying
+  // to verify survives a reload. sessionStorage persists across reloads
+  // within a tab, so it works as a "already cleared this tab" flag: the
+  // key is cleared on the first load only.
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('pw-onboarding-reset')) {
+      localStorage.removeItem('fv-onboarding-dismissed')
+      sessionStorage.setItem('pw-onboarding-reset', '1')
+    }
+  })
   await page.goto('/')
   await page.waitForLoadState('networkidle')
 }

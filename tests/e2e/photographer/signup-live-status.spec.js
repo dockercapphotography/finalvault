@@ -209,8 +209,8 @@ test.describe('Live status page — v1.5.2 additions', () => {
   test('registering a walk-up claims the slot and creates a real client and session', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Walk-up Test Page' })
     const shootType = await createShootType(signupPage.id, { name: 'Walk-up Shoot' })
-    const today = todayInTimezone('America/New_York')
-    await createSlot(signupPage.id, shootType.id, `${today}T19:00:00Z`, `${today}T19:15:00Z`)
+    const now = Date.now()
+    await createSlot(signupPage.id, shootType.id, new Date(now - 2 * 60_000).toISOString(), new Date(now + 13 * 60_000).toISOString())
     const email = `walkup-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       await page.goto(`/sessions/signups/${signupPage.id}/status`)
@@ -244,8 +244,8 @@ test.describe('Live status page — v1.5.2 additions', () => {
   test('registering a walk-up for a slot claimed by someone else mid-flow shows a conflict error', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Walk-up Race Test Page' })
     const shootType = await createShootType(signupPage.id)
-    const today = todayInTimezone('America/New_York')
-    const slot = await createSlot(signupPage.id, shootType.id, `${today}T19:00:00Z`, `${today}T19:15:00Z`)
+    const now = Date.now()
+    const slot = await createSlot(signupPage.id, shootType.id, new Date(now - 2 * 60_000).toISOString(), new Date(now + 13 * 60_000).toISOString())
     const winnerEmail = `walkup-race-winner-${crypto.randomUUID().slice(0, 8)}@example.com`
     const loserEmail = `walkup-race-loser-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
@@ -450,7 +450,8 @@ test.describe('Live status page — v1.5.2 additions', () => {
   test('clicking an open block in Timeline view opens walk-up registration', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Timeline Open Click Test' })
     const shootType = await createShootType(signupPage.id, { name: 'Open Block Shoot' })
-    await createSlot(signupPage.id, shootType.id, '2026-09-09T19:00:00Z', '2026-09-09T19:30:00Z')
+    const now = Date.now()
+    await createSlot(signupPage.id, shootType.id, new Date(now - 2 * 60_000).toISOString(), new Date(now + 13 * 60_000).toISOString())
     try {
       await page.goto(`/sessions/signups/${signupPage.id}/status`)
       await waitForReady(page)
@@ -467,7 +468,8 @@ test.describe('Live status page — v1.5.2 additions', () => {
   test('switching back to List view from Timeline shows the row-based layout again', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Timeline Round Trip Test' })
     const shootType = await createShootType(signupPage.id, { name: 'Round Trip Shoot' })
-    await createSlot(signupPage.id, shootType.id, '2026-09-09T19:00:00Z', '2026-09-09T19:30:00Z')
+    const now = Date.now()
+    await createSlot(signupPage.id, shootType.id, new Date(now - 2 * 60_000).toISOString(), new Date(now + 13 * 60_000).toISOString())
     try {
       await page.goto(`/sessions/signups/${signupPage.id}/status`)
       await waitForReady(page)

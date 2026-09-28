@@ -92,13 +92,37 @@ async function waitForReady(page) {
 // select on reliably. UTC->local conversions below were verified
 // directly (18:00Z = 2:00 PM EDT, 19:15Z = 3:15 PM EDT, etc.) rather
 // than assumed.
+//
+// The 'move' tests below need a TARGET open slot that's genuinely in the
+// future -- RescheduleModal.jsx filters candidate slots to
+// `new Date(s.start_time) > new Date()`, so the original fixed 2026-09-1X
+// dates silently made the open-slots list empty once real time caught up
+// to them, hanging these tests waiting for a button that would never
+// appear (confirmed via the actual failure page snapshot: "No open slots
+// for this shoot type right now."). Anchored to a point comfortably in
+// the future relative to whenever the suite actually runs, same pattern
+// as this suite's other future-date helpers elsewhere (see
+// signup-booking.spec.js's futureThreePmSlot / nextSaturdayDateStr).
+function futureDateStr(daysFromNow) {
+  const d = new Date()
+  d.setUTCDate(d.getUTCDate() + daysFromNow)
+  return d.toISOString().slice(0, 10) // YYYY-MM-DD, UTC calendar date
+}
+
+// Matches the "Sep 16"-style day label SlotDayRow renders, computed from
+// the same date string used to build the fixture's ISO timestamps rather
+// than formatted separately, so the two can never drift apart.
+function shortDayLabel(dateStr) {
+  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })
+}
 
 test.describe('Reschedule and move bookings', () => {
   test('moving a booking to an open slot of the same shoot type transfers it and keeps the session in sync', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Move Same Type Test' })
     const shootType = await createShootType(signupPage.id)
-    const sourceSlot = await createSlot(signupPage.id, shootType.id, '2026-09-10T15:00:00Z', '2026-09-10T15:30:00Z')
-    const targetSlot = await createSlot(signupPage.id, shootType.id, '2026-09-10T19:15:00Z', '2026-09-10T19:45:00Z')
+    const day = futureDateStr(20)
+    const sourceSlot = await createSlot(signupPage.id, shootType.id, `${day}T15:00:00Z`, `${day}T15:30:00Z`)
+    const targetSlot = await createSlot(signupPage.id, shootType.id, `${day}T19:15:00Z`, `${day}T19:45:00Z`)
     const email = `move-same-type-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       const claimResult = await claimSlot(sourceSlot.id, { firstName: 'Move', lastName: 'Same', email })
@@ -123,7 +147,7 @@ test.describe('Reschedule and move bookings', () => {
       expect(target.client_name).toBe('Move Same')
 
       const { data: session } = await sb().from('sessions').select('session_date, start_time').eq('id', claimResult.session_id).single()
-      expect(session.session_date).toBe('2026-09-10')
+      expect(session.session_date).toBe(day)
       expect(session.start_time).toBe('15:15:00')
     } finally {
       await cleanupSignupPage(signupPage.id)
@@ -135,8 +159,9 @@ test.describe('Reschedule and move bookings', () => {
     const signupPage = await createSignupPage({ title: 'Move Cross Type Test' })
     const shootTypeA = await createShootType(signupPage.id, { name: 'Portrait Session', session_type: 'Portrait' })
     const shootTypeB = await createShootType(signupPage.id, { name: 'Group Session', session_type: 'Family' })
-    const sourceSlot = await createSlot(signupPage.id, shootTypeA.id, '2026-09-11T15:00:00Z', '2026-09-11T15:30:00Z')
-    const targetSlot = await createSlot(signupPage.id, shootTypeB.id, '2026-09-11T19:15:00Z', '2026-09-11T19:45:00Z')
+    const day = futureDateStr(20)
+    const sourceSlot = await createSlot(signupPage.id, shootTypeA.id, `${day}T15:00:00Z`, `${day}T15:30:00Z`)
+    const targetSlot = await createSlot(signupPage.id, shootTypeB.id, `${day}T19:15:00Z`, `${day}T19:45:00Z`)
     const email = `move-cross-type-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       const claimResult = await claimSlot(sourceSlot.id, { firstName: 'Cross', lastName: 'Type', email })
@@ -262,8 +287,9 @@ test.describe('Reschedule and move bookings', () => {
   test('rescheduling a booking does not create a new claim-style notification', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'No Spurious Notification Test' })
     const shootType = await createShootType(signupPage.id)
-    const sourceSlot = await createSlot(signupPage.id, shootType.id, '2026-09-15T15:00:00Z', '2026-09-15T15:30:00Z')
-    const targetSlot = await createSlot(signupPage.id, shootType.id, '2026-09-15T19:15:00Z', '2026-09-15T19:45:00Z')
+    const day = futureDateStr(20)
+    const sourceSlot = await createSlot(signupPage.id, shootType.id, `${day}T15:00:00Z`, `${day}T15:30:00Z`)
+    const targetSlot = await createSlot(signupPage.id, shootType.id, `${day}T19:15:00Z`, `${day}T19:45:00Z`)
     const email = `no-spurious-notif-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       await claimSlot(sourceSlot.id, { firstName: 'Notif', lastName: 'Test', email })
@@ -290,8 +316,9 @@ test.describe('Reschedule and move bookings', () => {
   test('the Reschedule button is also available from Sessions -> Signups', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Signups Surface Reschedule Test' })
     const shootType = await createShootType(signupPage.id)
-    const sourceSlot = await createSlot(signupPage.id, shootType.id, '2026-09-16T15:00:00Z', '2026-09-16T15:30:00Z')
-    const targetSlot = await createSlot(signupPage.id, shootType.id, '2026-09-16T19:15:00Z', '2026-09-16T19:45:00Z')
+    const day = futureDateStr(20)
+    const sourceSlot = await createSlot(signupPage.id, shootType.id, `${day}T15:00:00Z`, `${day}T15:30:00Z`)
+    const targetSlot = await createSlot(signupPage.id, shootType.id, `${day}T19:15:00Z`, `${day}T19:45:00Z`)
     const email = `signups-surface-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       await claimSlot(sourceSlot.id, { firstName: 'Signups', lastName: 'Surface', email })
@@ -305,7 +332,7 @@ test.describe('Reschedule and move bookings', () => {
       // Expand the day, use the claimed row's Reschedule button directly
       // -- SlotDayRow's rows aren't click-to-expand, only the button is
       // interactive on a claimed row.
-      await page.getByText(/Sep 16/).click()
+      await page.getByText(shortDayLabel(day)).click()
       await page.getByRole('button', { name: 'Reschedule', exact: true }).click()
       await expect(page.getByText('Reschedule booking')).toBeVisible()
 
