@@ -54,11 +54,23 @@ test.describe('Microsite editor', () => {
 
     await expect(page.getByPlaceholder('Reviews')).toBeVisible()
 
-    await page.getByTestId('show-testimonials-toggle').click({ force: true })
+    // State-driven toggling: a force-click fired right after the editor
+    // renders occasionally didn't stick (flaky before v1.5.16 too). Only
+    // click while the toggle is still in the old state, then assert the
+    // flip -- a retry inside toPass can never double-toggle it back.
+    const toggle = page.getByTestId('show-testimonials-toggle')
+
+    await expect(async () => {
+      if (await toggle.isChecked()) await toggle.click({ force: true })
+      await expect(toggle).not.toBeChecked({ timeout: 1000 })
+    }).toPass({ timeout: 10000 })
     await expect(page.getByPlaceholder('Reviews')).not.toBeVisible()
 
     // Toggling back on brings the fields back
-    await page.getByTestId('show-testimonials-toggle').click({ force: true })
+    await expect(async () => {
+      if (!(await toggle.isChecked())) await toggle.click({ force: true })
+      await expect(toggle).toBeChecked({ timeout: 1000 })
+    }).toPass({ timeout: 10000 })
     await expect(page.getByPlaceholder('Reviews')).toBeVisible()
   })
 
