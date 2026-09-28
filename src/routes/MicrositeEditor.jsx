@@ -497,7 +497,26 @@ function PricingSelect({ label, value, onChange, children }) {
     <div className="space-y-1.5">
       <PricingFieldLabel label={label} />
       <select value={value} onChange={e => onChange(e.target.value)}
-        style={{ ...PRICING_FIELD_STYLE, display: 'block', cursor: 'pointer' }}
+        // appearance: none -- Chrome's native select ignores the inherited
+        // line-height and adds its own inner padding, so it rendered shorter
+        // than the <Input> beside it with its text inset further. Without the
+        // native look it sizes exactly like Input; the chevron is drawn here.
+        style={{
+          ...PRICING_FIELD_STYLE,
+          background: undefined,
+          backgroundColor: 'var(--surface)',
+          display: 'block',
+          cursor: 'pointer',
+          lineHeight: 'inherit',
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          MozAppearance: 'none',
+          paddingRight: 34,
+          backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right 12px center',
+          backgroundSize: '14px',
+        }}
         onFocus={e => { e.target.style.borderColor = 'var(--border-strong)' }}
         onBlur={e => { e.target.style.borderColor = 'var(--border)' }}>
         {children}
