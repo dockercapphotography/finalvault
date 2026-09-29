@@ -4,6 +4,53 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.16 — September 28, 2026
+
+### New Features
+
+**Website pricing**
+- Group packages into optional categories (e.g. "Conventions & Cosplay", "Weddings"), each with its own heading, intro line, and a shared "every package includes" list shown once instead of repeated on every package -- categories are drag-reorderable, and packages move between them with a Category dropdown
+- New Price label ("Starting at") and Price note ("+$30 per additional person") fields, shown above and below the price so the price itself stays short
+- New "What's included" list per package, rendered as bullets in every layout
+- Mark a package as Most popular from its ⋮ menu (one per category) -- the badge shows in every layout, and the Featured layout highlights the marked package
+- Add a Book button to any package, linking to a specific signup page or to your all-sessions page, with an optional custom label -- the button hides automatically if the linked signup page is deleted, deactivated, or hidden, so it never leads to a closed page
+- Drag to reorder packages, and duplicate a package from its ⋮ menu
+
+**Website photos**
+- Drag to reorder hand-picked Gallery photos and Hero slideshow and mosaic images -- slideshow order is the order it cycles through
+- Hand-picked Gallery photos now adjust their focus point right on the same tiles you reorder, instead of in a separate grid
+
+### Improvements
+
+- The Featured pricing layout only auto-highlights the middle package when there are no categories -- with categories, only packages you've marked Most popular are highlighted
+- Book buttons line up across each row of pricing cards
+- The Compact pricing layout keeps every description aligned, with the Most popular badge under the package name and an outlined Book button
+- A category with no packages shows a note in the editor that it's hidden on your site until it has one
+- Packages missing a name or price are no longer shown on your site (previously an abandoned editor entry could render as a blank card)
+
+### Bug Fixes
+
+**Downloads**
+- Fixed "Download All" failing with a server error on large galleries (roughly 160+ photos) -- no download job was created and no email was ever sent, so clients never received their photos
+- Fixed queued (large-gallery) downloads never appearing in your activity feed, bell, or push notifications
+- Fixed expired ZIP downloads staying "Ready" in the Zip Job Monitor forever -- expired jobs are now marked expired automatically every hour, and the monitor never shows "Ready" next to "expired"
+
+**Website**
+- Fixed long pricing content (a long price or description) pushing the pricing grid off screen, especially on mobile
+- Fixed Book buttons and the Compact layout's Book link showing the wrong text color against your accent color
+- Fixed an accidentally added empty package getting stuck open in the editor with no way to remove it
+- Fixed the Category and Booking link dropdowns in the package editor rendering a different size from the fields beside them
+
+### Notes
+
+- Database migrations 084 (hourly `pg_cron` expiry of stale `zip_jobs` rows) and 085 (`microsites.pricing_groups`, plus `package_booking_tokens` from `get_site_by_hostname`, written against the live function definition) were applied before release
+- The large-download fix is in `r2-worker` (batched image cross-check in `POST /zip-jobs`) and deploys separately via `wrangler deploy`
+- Fixed a race in the website editor's initial load that could discard an edit made immediately after the page opened -- only reproducible in development builds (React StrictMode), but the cause of several flaky editor tests
+- Test-only fixes: the inquiry-booking calendar tests no longer depend on a hardcoded September 2026 availability window, and the microsite Testimonials toggle test is now state-driven
+- New Playwright coverage: `microsite-pricing.spec.js` (categories, Most popular, booking links, legacy packages) and `microsite-photo-order.spec.js` (hand-picked photo reordering)
+
+---
+
 ## v1.5.15 — September 28, 2026
 
 ### Improvements

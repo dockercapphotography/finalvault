@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.15'
+const VERSION = '1.5.16'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,25 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.16 — September 28, 2026">
+                  <Group label="Website Pricing">
+                    <Item>Group packages into categories like "Weddings", each with a shared list of what every package includes</Item>
+                    <Item>New Price label and Price note fields ("Starting at", "+$30 per person"), plus a bullet list of what's included</Item>
+                    <Item>Mark a package as Most popular from its ⋮ menu</Item>
+                    <Item>Add a Book button to any package, linking to a signup page or all your active sessions</Item>
+                    <Item>Drag to reorder packages, and duplicate them from the ⋮ menu</Item>
+                  </Group>
+                  <Group label="Website Photos">
+                    <Item>Drag to reorder hand-picked Gallery photos and Hero slideshow and mosaic images</Item>
+                    <Item>Hand-picked Gallery photos now adjust their focus point right on the same tiles</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed Download All failing on large galleries, so clients never received their photos</Item>
+                    <Item>Large-gallery downloads now show up in your activity feed and notifications</Item>
+                    <Item>Fixed expired ZIP downloads still showing as Ready in the Zip Job Monitor</Item>
+                    <Item>Fixed long pricing content running off screen, especially on mobile</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.15 — September 28, 2026">
                   <Group label="Location field">
                     <Item>Rebuilt on Google's current Places component, styled to match the app -- fixes broken icons and unreadable suggestions on some phones</Item>
