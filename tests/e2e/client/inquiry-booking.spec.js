@@ -100,11 +100,30 @@ function nextSaturdayDateStr() {
   return target.toISOString().slice(0, 10)
 }
 
+// createWindow()'s range is hardcoded to September 2026 -- the
+// submit_signup_inquiry RPC tests below submit fixed September dates and
+// depend on it, so it stays as-is. The calendar/submission UI tests need a
+// window that covers the *next* Saturday instead, whenever the suite runs:
+// same window, dates moved to span the start of that Saturday's month
+// through the end of the following month. The calendar opens on the
+// window's earliest month, so the target Saturday is always on screen.
+async function createUpcomingWindow(pageId) {
+  await createWindow(pageId)
+  const [y, m] = nextSaturdayDateStr().split('-').map(Number)
+  const start = `${y}-${String(m).padStart(2, '0')}-01`
+  // Day 0 of month index m+1 (0-based) = last day of the following month.
+  const end = new Date(Date.UTC(y, m + 1, 0)).toISOString().slice(0, 10)
+  const { error } = await sb().from('signup_inquiry_windows')
+    .update({ start_date: start, end_date: end })
+    .eq('signup_page_id', pageId)
+  if (error) throw new Error(error.message)
+}
+
 test.describe('Public inquiry booking page — calendar', () => {
   test('only eligible weekdays within the window range are clickable', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Calendar Eligibility Page' })
     const shootType = await createShootType(signupPage.id)
-    await createWindow(signupPage.id)
+    await createUpcomingWindow(signupPage.id)
     try {
       await page.goto(`/book/${signupPage.token}`)
       await waitForReady(page)
@@ -114,7 +133,12 @@ test.describe('Public inquiry booking page — calendar', () => {
       // Sept 1, 2026 is a Tuesday -- outside the Saturday-only window
       // (also now in the past, but wrong-weekday alone already makes
       // this correctly disabled either way).
-      await expect(page.getByRole('button', { name: '1', exact: true })).toBeDisabled()
+      // The day next to the target Saturday (Friday before it, or Sunday
+      // after if the Saturday is the 1st) -- always in the same month and
+      // never a Saturday, unlike a fixed "1".
+      const satDayNum = Number(nextSaturdayDateStr().slice(-2))
+      const neighborDay = String(satDayNum > 1 ? satDayNum - 1 : satDayNum + 1)
+      await expect(page.getByRole('button', { name: neighborDay, exact: true })).toBeDisabled()
       // A real future Saturday, rather than the old hardcoded Sept 5 --
       // that date is itself in the past now, which the app correctly
       // excludes (fixed this session), so asserting it stays enabled
@@ -130,7 +154,7 @@ test.describe('Public inquiry booking page — calendar', () => {
   test('picking a date offers only times where the full session fits inside the window', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Time Bounds Page' })
     const shootType = await createShootType(signupPage.id, { duration_minutes: 60 })
-    await createWindow(signupPage.id) // 13:00-17:00
+    await createUpcomingWindow(signupPage.id) // 13:00-17:00
     try {
       await page.goto(`/book/${signupPage.token}`)
       await waitForReady(page)
@@ -152,7 +176,7 @@ test.describe('Public inquiry booking page — calendar', () => {
   test('a day at the daily cap is excluded from the calendar', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Daily Cap Page', max_daily_inquiries: 1 })
     const shootType = await createShootType(signupPage.id)
-    await createWindow(signupPage.id)
+    await createUpcomingWindow(signupPage.id)
     const photographerId = await getPhotographerId()
     const targetDate = nextSaturdayDateStr()
     const targetDay = String(Number(targetDate.slice(-2))) // no leading zero, matching the button's own label
@@ -181,7 +205,7 @@ test.describe('Public inquiry booking page — submission', () => {
   test('full flow: pick a date/time, fill details, submit to a success screen', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Inquiry Happy Path Page' })
     const shootType = await createShootType(signupPage.id, { name: 'Grad Portrait' })
-    await createWindow(signupPage.id)
+    await createUpcomingWindow(signupPage.id)
     const email = `inquiry-happy-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       await page.goto(`/book/${signupPage.token}`)
