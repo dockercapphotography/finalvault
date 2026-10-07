@@ -14,6 +14,7 @@ import ClientDetail from './routes/ClientDetail.jsx'
 import ContractDetail from './routes/ContractDetail.jsx'
 import Sessions from './routes/Sessions.jsx'
 import SubmitForm from './routes/SubmitForm.jsx'
+import ReviewForm from './routes/ReviewForm.jsx'
 import SessionDetail from './routes/SessionDetail.jsx'
 import Admin from './routes/Admin.jsx'
 import ClientGallery from './routes/ClientGallery.jsx'
@@ -160,6 +161,7 @@ export default function App() {
       <Route path="/sign/:token" element={<SignContract />} />
       <Route path="/download/:jobId" element={<DownloadZip />} />
       <Route path="/submit/:token" element={<SubmitForm />} />
+      <Route path="/review/:token" element={<ReviewForm />} />
       <Route path="/client/:token" element={<ClientPortalRedirect />} />
       <Route path="/book/:token" element={<SignupBooking />} />
       <Route path="/book/all/:token" element={<AllSessionsBooking />} />

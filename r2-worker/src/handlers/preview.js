@@ -3,6 +3,7 @@ import { verifyShareToken } from '../middleware/shareToken.js'
 import { verifyMicrositeAccess } from '../middleware/micrositeAccess.js'
 import { verifyBookingCoverAccess } from '../middleware/bookingCoverAccess.js'
 import { verifyQuestionnaireCoverAccess } from '../middleware/questionnaireCoverAccess.js'
+import { verifyReviewImageAccess } from '../middleware/reviewImageAccess.js'
 
 /**
  * GET /preview/:key
@@ -51,7 +52,14 @@ export async function handlePreview(request, env, corsHeaders) {
   // own cover_image_r2_key. See verifyQuestionnaireCoverAccess().
   const isQuestionnaireCoverRequest = url.searchParams.get('questionnaire_cover') === '1'
 
-  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest && !isBookingCoverRequest && !isQuestionnaireCoverRequest) {
+  // Public review page (/review/:token) -- the session gallery's cover
+  // and its previews for the photo picker. Unlike the three modes above
+  // this one IS gated by a secret (the review token), so it is served
+  // private, not edge-cached. See verifyReviewImageAccess().
+  const reviewToken = url.searchParams.get('review_token')
+  const isReviewRequest = !!reviewToken
+
+  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest && !isBookingCoverRequest && !isQuestionnaireCoverRequest && !isReviewRequest) {
     return jsonResponse({ ok: false, error: 'Authentication required' }, 401, corsHeaders)
   }
 
@@ -87,11 +95,16 @@ export async function handlePreview(request, env, corsHeaders) {
     const coverAuth = await verifyBookingCoverAccess(key, env)
     if (!coverAuth.valid) return jsonResponse({ ok: false, error: coverAuth.error }, 403, corsHeaders)
     photographerId = coverAuth.photographerId
-  } else {
+  } else if (isQuestionnaireCoverRequest) {
     // Public questionnaire-template cover-photo access
     const qCoverAuth = await verifyQuestionnaireCoverAccess(key, env)
     if (!qCoverAuth.valid) return jsonResponse({ ok: false, error: qCoverAuth.error }, 403, corsHeaders)
     photographerId = qCoverAuth.photographerId
+  } else {
+    // Review page access -- token-scoped to one session's gallery
+    const reviewAuth = await verifyReviewImageAccess(key, reviewToken, env)
+    if (!reviewAuth.valid) return jsonResponse({ ok: false, error: reviewAuth.error }, 403, corsHeaders)
+    photographerId = reviewAuth.photographerId
   }
 
   if (!key.startsWith(`photographers/${photographerId}/`)) {

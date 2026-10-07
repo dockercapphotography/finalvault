@@ -64,7 +64,7 @@ function applyInline(text) {
 // -- session hasn't loaded or failed to load at all -- so these stay
 // plain and unbranded on purpose, not an oversight.
 
-function LoadingScreen() {
+export function LoadingScreen() {
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Loader size={24} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
@@ -73,7 +73,7 @@ function LoadingScreen() {
   )
 }
 
-function ErrorScreen({ message }) {
+export function ErrorScreen({ message }) {
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>

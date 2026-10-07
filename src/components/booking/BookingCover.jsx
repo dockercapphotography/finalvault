@@ -116,12 +116,15 @@ export function CoverPatternShapes({ pattern, accent = 'var(--bk-accent)', ink =
 // 'booking_cover' means every existing caller keeps working unchanged;
 // only a caller with a different cover source (SubmitForm.jsx, for
 // questionnaire template covers) needs to pass this explicitly.
-export default function BookingCover({ pattern, imageKey, focusX = 0.5, focusY = 0.5, height = 180, fade = true, coverMode = 'booking_cover' }) {
+// imageUrl (optional) bypasses coverMode entirely for a caller whose
+// access mode carries a value rather than a flag -- ReviewForm.jsx's
+// ?review_token=<token>. Every existing caller omits it and is unchanged.
+export default function BookingCover({ pattern, imageKey, focusX = 0.5, focusY = 0.5, height = 180, fade = true, coverMode = 'booking_cover', imageUrl }) {
   return (
     <div data-testid="booking-cover" style={{ position: 'relative', width: '100%', height, overflow: 'hidden', background: 'linear-gradient(160deg, var(--bk-bg) 0%, var(--bk-surface) 100%)' }}>
       {imageKey ? (
         <img
-          src={bookingCoverImageUrl(imageKey, coverMode)}
+          src={imageUrl || bookingCoverImageUrl(imageKey, coverMode)}
           alt=""
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
