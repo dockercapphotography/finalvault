@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
-import {Camera, CheckCircle, Copy, Crosshair, Eye, ImageIcon, Pencil, Plus, Shield, Tag, Trash2, Upload, X} from 'lucide-react'
+import {Camera, CheckCircle, Copy, Crosshair, Eye, ImageIcon, Pencil, Plus, Shield, Star, Tag, Trash2, Upload, X} from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
 import BellNotificationsSection from '../components/account/BellNotificationsSection.jsx'
@@ -23,6 +23,11 @@ import {
   getContractTemplates, createContractTemplate, updateContractTemplate,
   deleteContractTemplate, duplicateContractTemplate
 } from '../utils/crmApi.js'
+import {
+  getReviewRequestTemplates, createReviewRequestTemplate, updateReviewRequestTemplate,
+  deleteReviewRequestTemplate, duplicateReviewRequestTemplate, setDefaultReviewRequestTemplate,
+  REVIEW_REQUEST_VARIABLES,
+} from '../utils/reviewApi.js'
 import { THEMES, getTheme } from '../utils/themes.js'
 import Toggle from '../components/ui/Toggle.jsx'
 import WatermarkCard from '../components/watermarks/WatermarkCard.jsx'
@@ -1302,7 +1307,7 @@ function EmailTemplatesTab({ onSaveState }) {
 
   const FORM_FIELDS = [
     { key: 'name', label: 'Template Name', placeholder: 'e.g. Wedding Delivery', required: true },
-    { key: 'subject', label: 'Subject', placeholder: 'Your photos are ready!', required: true },
+    { key: 'subject', label: 'Subject', placeholder: 'Your photos are ready!', required: true, acceptsVariables: true },
     { key: 'body', label: 'Message Body', type: 'markdown', placeholder: `Hi {{client_name}},\n\nYour gallery is ready to view!\n\n{{gallery_url}}`, rows: 8 },
   ]
 
@@ -1731,6 +1736,140 @@ function QuestionnaireCoverThumb({ r2Key }) {
     return () => { cancelled = true; if (blobUrl) URL.revokeObjectURL(blobUrl) }
   }, [r2Key])
   return <div className="w-full h-full" style={{ background: 'var(--bg-subtle)' }}>{url && <img src={url} alt="" className="w-full h-full object-cover" />}</div>
+}
+
+// ── Review Request Templates (v1.5.17) ────────────────────────────────────────
+// Same layout and TemplateEditorModal as EmailTemplatesTab. The star sets
+// the template pre-selected in Session Detail's Request a review modal --
+// one default at a time (set_default_review_request_template).
+
+function ReviewRequestTemplatesTab({ onSaveState }) {
+  const [fields, setFields] = useState({ name: '', subject: '', body: '' })
+  // undefined = trust each row's is_default; set once the star is used,
+  // since useTemplateCollection owns the list and has no setter for it.
+  const [defaultOverride, setDefaultOverride] = useState(undefined)
+  const {
+    templates, loaded, editing, confirmDeleteId, saving,
+    startNew, startEdit, cancelEdit, save, handleDuplicate, handleDelete, setConfirmDeleteId,
+  } = useTemplateCollection(
+    {
+      get: getReviewRequestTemplates,
+      create: createReviewRequestTemplate,
+      update: updateReviewRequestTemplate,
+      remove: deleteReviewRequestTemplate,
+      duplicate: duplicateReviewRequestTemplate,
+    },
+    onSaveState
+  )
+
+  // Fields are seeded when the editor opens rather than in an effect
+  // watching `editing` (avoids a setState-in-effect render).
+  function openNew() {
+    setFields({ name: '', subject: '', body: '' })
+    startNew()
+  }
+  function openEdit(t) {
+    setFields({ name: t.name || '', subject: t.subject || '', body: t.body || '' })
+    startEdit(t)
+  }
+
+  const defaultId = defaultOverride !== undefined
+    ? defaultOverride
+    : (templates.find(t => t.is_default)?.id ?? null)
+
+  async function toggleDefault(t) {
+    const next = defaultId === t.id ? null : t.id
+    try {
+      await setDefaultReviewRequestTemplate(next)
+      setDefaultOverride(next)
+      onSaveState?.('saved')
+    } catch {
+      onSaveState?.('error')
+    }
+  }
+
+  const FORM_FIELDS = [
+    { key: 'name', label: 'Template Name', placeholder: 'e.g. After-session thank you', required: true },
+    { key: 'subject', label: 'Subject', placeholder: 'How was your session, {{client_first_name}}?', required: true, acceptsVariables: true },
+    { key: 'body', label: 'Message', type: 'markdown', placeholder: "Hi {{client_first_name}},\n\nThanks again for your session! If you have a minute, I'd love to hear how it went.\n\n— {{studio_name}}", rows: 8 },
+  ]
+
+  const canSave = fields.name.trim() && fields.subject.trim() && fields.body.trim()
+
+  return (
+    <>
+      <SettingsSection
+        title="Review Request Templates"
+        description="Messages to send when asking a client for a review. A Write a review button is always added below the message."
+        action={
+          <button onClick={openNew} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg"
+            style={{ background: '#6366f1', color: '#fff', cursor: 'pointer', border: 'none' }}>
+            <Plus size={14} />New Template
+          </button>
+        }>
+        {!loaded ? null : templates.length === 0 ? (
+          <div className="py-12 text-center" style={{ background: 'var(--surface)' }}>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No templates yet</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Without one, review requests use a short built-in message you can edit before sending</p>
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)' }}>
+            {templates.map((t, i) => {
+              const isDefault = defaultId === t.id
+              return (
+                <div key={t.id}>
+                  <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+                        {t.name}
+                        {isDefault && (
+                          <span className="text-xs font-semibold ml-2 px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>Default</span>
+                        )}
+                      </p>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{t.subject}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4 shrink-0">
+                      <button onClick={() => toggleDefault(t)} title={isDefault ? 'Default template (click to clear)' : 'Set as default'} className="p-1.5 rounded-lg"
+                        style={{ background: isDefault ? 'rgba(99,102,241,0.1)' : 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                        <Star size={13} style={{ color: isDefault ? '#6366f1' : 'var(--text-muted)' }} fill={isDefault ? '#6366f1' : 'none'} />
+                      </button>
+                      <button onClick={() => handleDuplicate(t)} title="Duplicate" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }}>
+                        <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+                      </button>
+                      <button onClick={() => openEdit(t)} title="Edit" className="p-1.5 rounded-lg" style={{ background: 'var(--surface-raised)', cursor: 'pointer' }}><Pencil size={13} style={{ color: 'var(--text-muted)' }} /></button>
+                      <button onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)} className="p-1.5 rounded-lg"
+                        style={{ background: confirmDeleteId === t.id ? 'var(--danger-subtle)' : 'var(--surface-raised)', cursor: 'pointer' }}>
+                        <Trash2 size={13} style={{ color: confirmDeleteId === t.id ? 'var(--danger)' : 'var(--text-muted)' }} />
+                      </button>
+                    </div>
+                  </div>
+                  {confirmDeleteId === t.id && (
+                    <div className="px-5 py-4" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+                      <DeleteConfirmRow label={`"${t.name}"`} onConfirm={() => handleDelete(t.id)} onCancel={() => setConfirmDeleteId(null)} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </SettingsSection>
+
+      {editing !== null && (
+        <TemplateEditorModal
+          title={editing?.id ? 'Edit Template' : 'New Review Request Template'}
+          fields={FORM_FIELDS}
+          values={fields}
+          onChange={(key, value) => setFields(f => ({ ...f, [key]: value }))}
+          variables={REVIEW_REQUEST_VARIABLES}
+          saving={saving}
+          canSave={canSave}
+          onSave={() => save(fields)}
+          onClose={cancelEdit}
+        />
+      )}
+    </>
+  )
 }
 
 function QuestionnairesTab({ onSaveState }) {
@@ -2335,6 +2474,7 @@ export default function Account() {
           <EmailTemplatesTab onSaveState={setSaveState} />
           <ContractTemplatesTab onSaveState={setSaveState} />
           <QuestionnairesTab onSaveState={setSaveState} />
+          <ReviewRequestTemplatesTab onSaveState={setSaveState} />
         </div>
       )}
       {activeTab === 'social' && (

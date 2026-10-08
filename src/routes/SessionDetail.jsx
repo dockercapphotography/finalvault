@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   CalendarDays, MapPin, Clock, User, ChevronRight,
   FileText, ClipboardList, Edit2, Trash2, Check, X,
-  Download, Users, ChevronDown, UserPlus, Mail, Copy,
+  Download, Users, ChevronDown, UserPlus, Mail, Copy, MessageSquare,
   Briefcase, Ticket, Home, GraduationCap, ScanFace, Baby, Trophy, Heart, BookHeart, SquareUser,
 } from 'lucide-react'
 import {
@@ -25,6 +25,8 @@ import Toast from '../components/ui/Toast.jsx'
 import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { supabase } from '../supabaseClient.js'
 import SendContractModal from '../components/SendContractModal.jsx'
+import RequestReviewModal from '../components/RequestReviewModal.jsx'
+import { getSessionReview, reviewLink } from '../utils/reviewApi.js'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
@@ -923,6 +925,120 @@ function SubmissionsSection({ sessionId, session, questionnaires = [], clients =
   )
 }
 
+// ── Review (v1.5.17) ──────────────────────────────────────────────────────────
+// One review request per session (sql/086). Private sessions only -- the
+// caller doesn't render this for walk-up/event sessions.
+
+const REVIEW_PILLS = {
+  requested: { label: 'Requested', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
+  pending: { label: 'Waiting for approval', color: '#d97706', bg: 'var(--warning-subtle)' },
+  published: { label: 'Published', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  removed: { label: 'Removed from website', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
+  rejected: { label: 'Not published', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
+}
+
+function reviewState(review) {
+  if (!review) return null
+  const sub = review.submission
+  if (!sub) return 'requested'
+  if (sub.status === 'pending') return 'pending'
+  if (sub.status === 'rejected') return 'rejected'
+  return review.onWebsite ? 'published' : 'removed'
+}
+
+function ReviewCard({ session, review, onRequest }) {
+  const [copied, setCopied] = useState(false)
+  const request = review?.request
+  const sub = review?.submission
+  const state = reviewState(review)
+  const pill = state ? REVIEW_PILLS[state] : null
+  const fmt = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+  async function copyLink() {
+    const url = reviewLink(await getPublicBaseUrl(), request.token)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      window.prompt('Copy this link:', url)
+    }
+  }
+
+  const action = pill ? (
+    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: pill.bg, color: pill.color }}>
+      {pill.label}
+    </span>
+  ) : session.clients ? (
+    <button onClick={onRequest}
+      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+      style={{ background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer' }}>
+      <MessageSquare size={12} />Request review
+    </button>
+  ) : null
+
+  return (
+    <SectionCard title="Review" action={action}>
+      {!request ? (
+        <div className="px-5 py-5 text-center">
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            {session.clients ? 'No review requested yet.' : 'Link a client to this session to request a review.'}
+          </p>
+        </div>
+      ) : !sub ? (
+        <div className="px-5 py-3.5 flex items-center gap-3">
+          <MessageSquare size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+              {request.last_sent_at ? `Sent to ${request.last_sent_to}` : 'Link created'}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {request.last_sent_at ? `${fmt(request.last_sent_at)} · ` : ''}Not submitted yet
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button onClick={copyLink}
+              className="text-xs px-2.5 py-1.5 rounded-lg"
+              style={{ background: copied ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: copied ? '#10b981' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+              {copied ? '✓ Copied' : 'Copy link'}
+            </button>
+            {session.clients?.email && (
+              <button onClick={onRequest}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
+                <Mail size={11} />{request.last_sent_at ? 'Resend' : 'Send'}
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="px-5 py-3.5 flex items-start gap-3">
+          <MessageSquare size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: 3 }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm italic" style={{ color: 'var(--text)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              &ldquo;{sub.quote}&rdquo;
+            </p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              &mdash; {sub.name} · {state === 'pending'
+                ? `Submitted ${fmt(sub.submitted_at)}`
+                : state === 'rejected'
+                  ? `Rejected ${fmt(sub.reviewed_at)}`
+                  : `Approved ${fmt(sub.reviewed_at)}`}
+            </p>
+          </div>
+          {state === 'pending' && (
+            <Link to="/website#testimonials"
+              className="text-xs px-2.5 py-1.5 rounded-lg font-medium shrink-0"
+              style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', textDecoration: 'none' }}>
+              Review in Website
+            </Link>
+          )}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
 // ── Session Detail ────────────────────────────────────────────────────────────
 
 export default function SessionDetail() {
@@ -950,6 +1066,15 @@ export default function SessionDetail() {
   const [submissionCounts, setSubmissionCounts] = useState({})
   const [copiedQ, setCopiedQ] = useState(null)
   const [questionnaireSends, setQuestionnaireSends] = useState({})
+  const [review, setReview] = useState(null)
+  const [showRequestReview, setShowRequestReview] = useState(false)
+  // null while checking -- the Review card only renders once this is
+  // true, same premium gate as the Website itself (reviews feed it).
+  const [hasPremium, setHasPremium] = useState(null)
+
+  useEffect(() => {
+    supabase.rpc('get_my_premium_access').then(({ data }) => setHasPremium(!!data))
+  }, [])
 
   useEffect(() => { load() }, [id])
 
@@ -999,6 +1124,8 @@ export default function SessionDetail() {
       getContracts({ sessionId: id }).then(setContracts).catch(() => {})
       // Load who each attached questionnaire was last sent to, and when
       getQuestionnaireSends(id).then(setQuestionnaireSends).catch(() => {})
+      // Review request + submission status (v1.5.17)
+      getSessionReview(id).then(setReview).catch(() => {})
       // Load submission counts per questionnaire
       const { supabase: sb } = await import('../supabaseClient.js').catch(() => ({ supabase }))
       supabase.from('session_submissions')
@@ -1403,6 +1530,11 @@ export default function SessionDetail() {
         )}
       </SectionCard>
 
+      {/* Review -- private sessions only; events don't get reviews */}
+      {session.mode === 'private' && hasPremium && (
+        <ReviewCard session={session} review={review} onRequest={() => setShowRequestReview(true)} />
+      )}
+
       {/* Submissions */}
       <SubmissionsSection sessionId={id} session={session} questionnaires={sessionQuestionnaires} clients={clients} />
 
@@ -1445,6 +1577,23 @@ export default function SessionDetail() {
           onSent={contract => {
             setContracts(prev => [contract, ...prev])
             setShowSendContract(false)
+          }}
+        />
+      )}
+
+      {showRequestReview && session.clients && (
+        <RequestReviewModal
+          client={session.clients}
+          session={session}
+          existing={review?.request || null}
+          onClose={() => setShowRequestReview(false)}
+          onDone={({ emailed }) => {
+            setShowRequestReview(false)
+            setToast({
+              message: emailed ? `Review request sent to ${session.clients.first_name}` : 'Review link copied',
+              type: 'success',
+            })
+            getSessionReview(id).then(setReview).catch(() => {})
           }}
         />
       )}
