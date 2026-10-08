@@ -26,6 +26,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { supabase } from '../supabaseClient.js'
 import SendContractModal from '../components/SendContractModal.jsx'
 import RequestReviewModal from '../components/RequestReviewModal.jsx'
+import PendingReviewsPanel from '../components/microsite/PendingReviewsPanel.jsx'
 import { getSessionReview, reviewLink, cancelReviewRequest, REVIEW_PILLS, reviewState } from '../utils/reviewApi.js'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
@@ -929,7 +930,7 @@ function SubmissionsSection({ sessionId, session, questionnaires = [], clients =
 // One review request per session (sql/086). Private sessions only -- the
 // caller doesn't render this for walk-up/event sessions.
 
-function ReviewCard({ session, review, onRequest, onCancelled }) {
+function ReviewCard({ session, review, onRequest, onCancelled, onChanged }) {
   const [copied, setCopied] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -1034,6 +1035,9 @@ function ReviewCard({ session, review, onRequest, onCancelled }) {
           )}
           {cancelError && <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>{cancelError}</p>}
         </div>
+      ) : state === 'pending' ? (
+        // Same Approve / Edit / Reject controls as the Website editor.
+        <PendingReviewsPanel embedded reviews={[sub]} onApproved={onChanged} onRejected={onChanged} />
       ) : (
         <div className="px-5 py-3.5 flex items-start gap-3">
           <MessageSquare size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: 3 }} />
@@ -1049,13 +1053,6 @@ function ReviewCard({ session, review, onRequest, onCancelled }) {
                   : `Approved ${fmt(sub.reviewed_at)}`}
             </p>
           </div>
-          {state === 'pending' && (
-            <Link to="/website#testimonials"
-              className="text-xs px-2.5 py-1.5 rounded-lg font-medium shrink-0"
-              style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', textDecoration: 'none' }}>
-              Review in Website
-            </Link>
-          )}
         </div>
       )}
     </SectionCard>
@@ -1098,6 +1095,18 @@ export default function SessionDetail() {
   useEffect(() => {
     supabase.rpc('get_my_premium_access').then(({ data }) => setHasPremium(!!data))
   }, [])
+
+  // /sessions/:id#review (review email, bell, push) scrolls to the Review
+  // card once it has rendered.
+  const reviewCardReady = !!session && hasPremium === true
+  const scrolledToReviewRef = useRef(false)
+  useEffect(() => {
+    if (!reviewCardReady || scrolledToReviewRef.current || window.location.hash !== '#review') return
+    scrolledToReviewRef.current = true
+    requestAnimationFrame(() => {
+      document.getElementById('review')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [reviewCardReady])
 
   useEffect(() => { load() }, [id])
 
@@ -1555,11 +1564,14 @@ export default function SessionDetail() {
 
       {/* Review -- private sessions only; events don't get reviews */}
       {session.mode === 'private' && hasPremium && (
+        <div id="review" style={{ scrollMarginTop: 80 }}>
         <ReviewCard session={session} review={review} onRequest={() => setShowRequestReview(true)}
+          onChanged={() => getSessionReview(id).then(setReview).catch(() => {})}
           onCancelled={() => {
             setReview(null)
             setToast({ message: 'Review request cancelled', type: 'success' })
           }} />
+        </div>
       )}
 
       {/* Submissions */}

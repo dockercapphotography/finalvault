@@ -981,8 +981,8 @@ function PortalLinkCard({ client, onToast, onTokenChange }) {
 // Every review from this client across their sessions -- published,
 // waiting, open requests, and rejected (greyed). Requesting happens on a
 // session; this card is read-only and hidden until there's something to
-// show. Rows open the session, or the Website editor's approval queue
-// when a review is waiting.
+// show. Rows open the session -- at its Review card when a review is
+// waiting, where it can be approved.
 
 function ClientReviewsCard({ reviews, onOpen }) {
   if (!reviews || reviews.length === 0) return null
@@ -1011,7 +1011,7 @@ function ClientReviewsCard({ reviews, onOpen }) {
             : `Approved ${fmt(sub.reviewed_at)}`
           return (
             <button key={r.request.id}
-              onClick={() => onOpen(state === 'pending' ? '/website#testimonials' : `/sessions/${r.request.session_id}`)}
+              onClick={() => onOpen(`/sessions/${r.request.session_id}${state === 'pending' ? '#review' : ''}`)}
               className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
               style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'none', border: 'none', cursor: 'pointer', opacity: state === 'rejected' ? 0.6 : 1 }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
