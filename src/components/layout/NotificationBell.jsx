@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import BottomSheet from './BottomSheet.jsx'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { useState, useEffect, useRef } from 'react'
-import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle, FileText, CalendarCheck } from 'lucide-react'
+import { Bell, Eye, Download, Package, Heart, HeartOff, MessageCircle, FileText, CalendarCheck, MessageSquareQuote } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
 import { formatDate } from '../../utils/formatters.js'
 import { getBellNotificationPreferences } from '../../utils/push.js'
@@ -15,6 +15,7 @@ const ACTION_CONFIG = {
   unfavorite:      { Icon: HeartOff,      color: '#94a3b8', bg: '#94a3b815' },
   comment:         { Icon: MessageCircle, color: '#10b981', bg: '#10b98115' },
   slot_claimed:    { Icon: CalendarCheck,  color: '#6366f1', bg: '#6366f115' },
+  testimonial_submitted: { Icon: MessageSquareQuote, color: '#d97706', bg: '#d9770615' },
 }
 
 // notifications.type -> bell_notification_preferences column.
@@ -23,6 +24,7 @@ const TYPE_TO_BELL_PREF = {
   contract_signed: 'contract_signed',
   questionnaire_response: 'questionnaire_response',
   inquiry_submitted: 'inquiry',
+  testimonial_submitted: 'testimonial',
 }
 
 // gallery_activity_log.action -> bell_notification_preferences column.
@@ -126,29 +128,79 @@ export default function NotificationBell({ mobile = false }) {
     })
   }, [])
 
+  // Live updates (v1.5.17). Realtime events trigger a debounced reload of
+  // the whole bell instead of appending the one payload, so every source
+  // stays in sync the same way:
+  //   * notifications INSERT  -- bookings, inquiries, contracts, reviews...
+  //   * gallery_activity_log INSERT -- views, favorites, comments, downloads
+  //     (RLS limits these to the photographer's own galleries)
+  //   * contracts UPDATE -- the "Needs your signature" section
+  // Realtime alone isn't enough: a backgrounded tab or a sleeping laptop
+  // drops the socket, and events missed while disconnected are never
+  // replayed. So the bell also reloads whenever the channel (re)connects,
+  // when the tab becomes visible or the window regains focus, and every
+  // 30s as a fallback -- same safety net Sessions.jsx uses for its board.
+  const refreshTimerRef = useRef(null)
+
   useEffect(() => {
     if (!userId) return
-    const channel = supabase
-      .channel(`notifications-${userId}-${mobile ? 'mobile' : 'desktop'}`)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'notifications',
-        filter: `photographer_id=eq.${userId}`,
-      }, payload => {
-        const n = payload.new
-        if (!isBellItemAllowed(n.type, n.created_at, bellPrefsRef.current, TYPE_TO_BELL_PREF)) return
-        const item = {
-          id: `notif-${n.id}`,
-          action: n.type,
-          occurred_at: n.created_at,
-          notifTitle: n.title,
-          notifBody: n.body,
-          url: n.url,
-        }
-        setItems(prev => [item, ...prev])
-        setUnreadCount(prev => prev + 1)
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    let disposed = false
+
+    async function refresh() {
+      if (disposed) return
+      const ts = await loadLastRead(userId)
+      if (disposed) return
+      await loadActivity(userId, ts, bellPrefsRef.current, { silent: true })
+      loadPendingContracts(userId)
+    }
+    function scheduleRefresh() {
+      clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(refresh, 400)
+    }
+
+    // One channel per table: if Realtime rejects a subscription (e.g. a
+    // table missing from the supabase_realtime publication), only that
+    // channel fails -- one shared channel let gallery_activity_log take
+    // notifications down with it. Errors are logged; the fallback below
+    // still keeps the bell current.
+    const suffix = `${userId}-${mobile ? 'mobile' : 'desktop'}`
+    const sources = [
+      { name: 'notifications', event: 'INSERT', filter: `photographer_id=eq.${userId}` },
+      { name: 'gallery_activity_log', event: 'INSERT' },
+      { name: 'contracts', event: 'UPDATE', filter: `photographer_id=eq.${userId}` },
+    ]
+    const channels = sources.map(src =>
+      supabase
+        .channel(`bell-${src.name}-${suffix}`)
+        .on('postgres_changes', {
+          event: src.event, schema: 'public', table: src.name,
+          ...(src.filter ? { filter: src.filter } : {}),
+        }, scheduleRefresh)
+        .subscribe((status, err) => {
+          // SUBSCRIBED fires on the first connect AND after every
+          // reconnect -- catch up on anything missed while it was down.
+          if (status === 'SUBSCRIBED') scheduleRefresh()
+          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn(`[bell] realtime ${src.name}: ${status}`, err?.message || '')
+          }
+        })
+    )
+
+    function onVisible() {
+      if (document.visibilityState === 'visible') scheduleRefresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    const fallbackInterval = setInterval(scheduleRefresh, 30_000)
+
+    return () => {
+      disposed = true
+      clearTimeout(refreshTimerRef.current)
+      clearInterval(fallbackInterval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+      channels.forEach(ch => supabase.removeChannel(ch))
+    }
   }, [userId, mobile])
 
   // Listen for the global "notifications read" event fired by the other bell instance
@@ -191,8 +243,10 @@ export default function NotificationBell({ mobile = false }) {
     setPendingContracts(data ?? [])
   }
 
-  async function loadActivity(uid, knownLastRead, bellPrefs) {
-    setLoading(true)
+  // silent: background refreshes (realtime / fallback) skip the spinner
+  // so an open panel doesn't flicker.
+  async function loadActivity(uid, knownLastRead, bellPrefs, { silent = false } = {}) {
+    if (!silent) setLoading(true)
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
     const [{ data: galleries }, { data: notifRows }] = await Promise.all([
