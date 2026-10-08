@@ -23,14 +23,17 @@ import MarkdownToolbar from './ui/MarkdownToolbar.jsx'
  *
  * Props:
  *   title      : string -- header title, e.g. "New Email Template" / "Edit Template"
- *   fields     : [{ key, label, type?: 'markdown', placeholder?, required?, rows? }]
+ *   fields     : [{ key, label, type?: 'markdown', placeholder?, required?, rows?, acceptsVariables? }]
  *                type omitted (or anything other than 'markdown') renders
  *                a plain Input; type: 'markdown' renders MarkdownToolbar.
+ *                acceptsVariables: true lets "Insert variable" target a
+ *                plain field (e.g. Subject) when the cursor is in it.
  *   values     : { [key]: string } -- current field values, controlled by caller
  *   onChange   : (key, value) => void
  *   variables  : [{ tag, desc }] | undefined -- shows the "Insert variable"
- *                pill row when present. Inserts into whichever field has
- *                type: 'markdown' (there's exactly one per form today).
+ *                pill row when present. Inserts at the cursor in the last
+ *                focused markdown or acceptsVariables field, else the
+ *                markdown field.
  *   saving     : bool
  *   canSave    : bool -- disables Save when false
  *   onSave     : () => void
@@ -41,6 +44,16 @@ export default function TemplateEditorModal({
   saving, canSave, onSave, onClose, children,
 }) {
   const markdownRefs = useRef({})
+  // Last field the cursor was in: { key, el? } -- el only for plain
+  // inputs. An <input> keeps selectionStart/End after it loses focus to
+  // the variable pill, so the caret position survives the click.
+  const variableTargetRef = useRef(null)
+
+  function noteFocus(field, e) {
+    if (field.type === 'markdown') variableTargetRef.current = { key: field.key }
+    else if (field.acceptsVariables) variableTargetRef.current = { key: field.key, el: e.target }
+    else variableTargetRef.current = null
+  }
 
   // Lock body scroll while open -- identical pattern to SendContractModal.
   useEffect(() => {
@@ -62,7 +75,25 @@ export default function TemplateEditorModal({
   }, [])
 
   function handleInsertVariable(tag) {
-    const markdownKey = fields?.find(f => f.type === 'markdown')?.key
+    const target = variableTargetRef.current
+    if (target?.el && typeof target.el.selectionStart === 'number') {
+      const el = target.el
+      const current = values[target.key] || ''
+      const start = Math.min(el.selectionStart, current.length)
+      const end = Math.min(el.selectionEnd ?? start, current.length)
+      onChange(target.key, current.slice(0, start) + tag + current.slice(end))
+      // After React re-renders the new value, put focus back and park
+      // the caret just past the inserted variable.
+      requestAnimationFrame(() => {
+        el.focus()
+        const pos = start + tag.length
+        el.setSelectionRange(pos, pos)
+      })
+      return
+    }
+
+    const markdownKey = (target && fields?.find(f => f.key === target.key && f.type === 'markdown')?.key)
+      || fields?.find(f => f.type === 'markdown')?.key
     const ref = markdownKey ? markdownRefs.current[markdownKey] : null
     if (ref?.insertAtCursor) {
       ref.insertAtCursor(tag)
@@ -101,7 +132,7 @@ export default function TemplateEditorModal({
 
           <div className="px-6 py-5 space-y-4 overflow-y-auto">
             {children ? children : fields.map(field => (
-              <div key={field.key}>
+              <div key={field.key} onFocusCapture={e => noteFocus(field, e)}>
                 {field.type === 'markdown' ? (
                   <>
                     <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>{field.label}</label>
