@@ -26,7 +26,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { supabase } from '../supabaseClient.js'
 import SendContractModal from '../components/SendContractModal.jsx'
 import RequestReviewModal from '../components/RequestReviewModal.jsx'
-import { getSessionReview, reviewLink, cancelReviewRequest } from '../utils/reviewApi.js'
+import { getSessionReview, reviewLink, cancelReviewRequest, REVIEW_PILLS, reviewState } from '../utils/reviewApi.js'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
@@ -928,23 +928,6 @@ function SubmissionsSection({ sessionId, session, questionnaires = [], clients =
 // ── Review (v1.5.17) ──────────────────────────────────────────────────────────
 // One review request per session (sql/086). Private sessions only -- the
 // caller doesn't render this for walk-up/event sessions.
-
-const REVIEW_PILLS = {
-  requested: { label: 'Requested', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
-  pending: { label: 'Waiting for approval', color: '#d97706', bg: 'var(--warning-subtle)' },
-  published: { label: 'Published', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-  removed: { label: 'Removed from website', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
-  rejected: { label: 'Not published', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
-}
-
-function reviewState(review) {
-  if (!review) return null
-  const sub = review.submission
-  if (!sub) return 'requested'
-  if (sub.status === 'pending') return 'pending'
-  if (sub.status === 'rejected') return 'rejected'
-  return review.onWebsite ? 'published' : 'removed'
-}
 
 function ReviewCard({ session, review, onRequest, onCancelled }) {
   const [copied, setCopied] = useState(false)

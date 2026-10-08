@@ -6,7 +6,7 @@ import {
   ArrowLeft, Mail, Phone, MapPin, Tag, FileText, ChevronRight, ChevronLeft, Camera,
   Pencil, Trash2, X, Plus, Clock, CheckCircle, Images,
   AlertCircle, Ban, CalendarDays, Link2, Copy, RefreshCw, Check, Search,
-  Lock, Unlock, ShieldAlert
+  Lock, Unlock, ShieldAlert, MessageSquare
 } from 'lucide-react'
 import { getPublicBaseUrl } from '../utils/publicBaseUrl.js'
 import TagInput from '../components/ui/TagInput.jsx'
@@ -21,6 +21,7 @@ import { getImages } from '../utils/imageApi.js'
 import { usePreviewUrls } from '../hooks/usePreviewUrls.js'
 import { generatePassword } from '../utils/secretGenerators.js'
 import { getSessions, getStatusConfig } from '../utils/sessionApi.js'
+import { getClientReviews, REVIEW_PILLS, reviewState } from '../utils/reviewApi.js'
 import { formatDate, formatPhone } from '../utils/formatters.js'
 import Button from '../components/ui/Button.jsx'
 import Badge from '../components/ui/Badge.jsx'
@@ -976,6 +977,75 @@ function PortalLinkCard({ client, onToast, onTokenChange }) {
   )
 }
 
+// ── Reviews (v1.5.17) ─────────────────────────────────────────────────────────
+// Every review from this client across their sessions -- published,
+// waiting, open requests, and rejected (greyed). Requesting happens on a
+// session; this card is read-only and hidden until there's something to
+// show. Rows open the session, or the Website editor's approval queue
+// when a review is waiting.
+
+function ClientReviewsCard({ reviews, onOpen }) {
+  if (!reviews || reviews.length === 0) return null
+  const fmt = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const submitted = reviews.filter(r => r.submission).length
+  const open = reviews.length - submitted
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+      <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+        <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Reviews</h3>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          {submitted} {submitted === 1 ? 'review' : 'reviews'}{open > 0 ? ` · ${open} ${open === 1 ? 'request' : 'requests'} open` : ''}
+        </p>
+      </div>
+      <div style={{ background: 'var(--surface)' }}>
+        {reviews.map((r, i) => {
+          const state = reviewState(r)
+          const pill = REVIEW_PILLS[state]
+          const sub = r.submission
+          const sessionName = r.session?.name || 'Session'
+          const detail = !sub
+            ? (r.request.last_sent_at ? `Requested ${fmt(r.request.last_sent_at)}` : `Link created ${fmt(r.request.created_at)}`) + ' · Not submitted yet'
+            : state === 'pending' ? `Submitted ${fmt(sub.submitted_at)}`
+            : state === 'rejected' ? `Rejected ${fmt(sub.reviewed_at)}`
+            : `Approved ${fmt(sub.reviewed_at)}`
+          return (
+            <button key={r.request.id}
+              onClick={() => onOpen(state === 'pending' ? '/website#testimonials' : `/sessions/${r.request.session_id}`)}
+              className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'none', border: 'none', cursor: 'pointer', opacity: state === 'rejected' ? 0.6 : 1 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-raised)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: 'rgba(99,102,241,0.1)' }}>
+                <MessageSquare size={14} style={{ color: '#6366f1' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                {sub ? (
+                  <p className="text-sm italic" style={{ color: 'var(--text)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    &ldquo;{sub.quote}&rdquo;
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{sessionName}</p>
+                )}
+                <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
+                  {sub ? `${sessionName} · ` : ''}{detail}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: pill.bg, color: pill.color }}>
+                  {pill.label}
+                </span>
+                <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function ClientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -983,6 +1053,7 @@ export default function ClientDetail() {
   const [galleries, setGalleries] = useState([])
   const [sessions, setSessions] = useState([])
   const [contracts, setContracts] = useState([])
+  const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   useDocumentTitle(client ? `${client.first_name} ${client.last_name}`.trim() : null)
@@ -1023,6 +1094,8 @@ export default function ClientDetail() {
       setGalleries(g)
       setSessions(sx)
       setContracts(cx)
+      // Reviews load on their own so a failure never blocks the page.
+      getClientReviews(id).then(setReviews).catch(() => setReviews([]))
       supabase.auth.getUser().then(({ data: { user: u } }) => { if (u) getAllTags(u.id).then(tags => setAllTags(tags || [])).catch(() => {}) })
       if (c?.avatar_r2_key) {
         const { data: { session } } = await supabase.auth.getSession()
@@ -1332,6 +1405,9 @@ export default function ClientDetail() {
           </div>
         )}
       </div>
+
+      {/* Reviews (v1.5.17) -- hidden until this client has a request */}
+      <ClientReviewsCard reviews={reviews} onOpen={path => navigate(path)} />
 
       {/* Contracts */}
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>

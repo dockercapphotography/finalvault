@@ -118,6 +118,62 @@ export async function setDefaultReviewRequestTemplate(templateId) {
   if (error) throw error
 }
 
+// Shared by Session Detail's Review card and Client Detail's Reviews card.
+export const REVIEW_PILLS = {
+  requested: { label: 'Requested', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
+  pending: { label: 'Waiting for approval', color: '#d97706', bg: 'var(--warning-subtle)' },
+  published: { label: 'Published', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  removed: { label: 'Removed from website', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
+  rejected: { label: 'Not published', color: 'var(--text-secondary)', bg: 'var(--surface-raised)' },
+}
+
+// review: { submission, onWebsite } (shape from getSessionReview /
+// getClientReviews), or null for no request.
+export function reviewState(review) {
+  if (!review) return null
+  const sub = review.submission
+  if (!sub) return 'requested'
+  if (sub.status === 'pending') return 'pending'
+  if (sub.status === 'rejected') return 'rejected'
+  return review.onWebsite ? 'published' : 'removed'
+}
+
+async function publishedTestimonialIds() {
+  const { data: site } = await supabase.from('microsites').select('testimonials').maybeSingle()
+  const list = Array.isArray(site?.testimonials) ? site.testimonials : []
+  return new Set(list.map(t => t?.id).filter(Boolean))
+}
+
+// Every review request for a client, across all their sessions, newest
+// first: [{ request, session, submission, onWebsite }]. Rejected ones are
+// included so the photographer has the full history.
+export async function getClientReviews(clientId) {
+  const { data, error } = await supabase
+    .from('testimonial_requests')
+    .select('*, sessions(id, name, session_date), testimonial_submissions(*)')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+
+  const rows = (data || []).map(r => {
+    // UNIQUE(request_id) makes PostgREST embed this as an object; accept
+    // an array too in case it's ever inferred as one-to-many.
+    const embedded = r.testimonial_submissions
+    const submission = Array.isArray(embedded) ? (embedded[0] || null) : (embedded || null)
+    return { request: r, session: r.sessions || null, submission, onWebsite: false }
+  })
+
+  if (rows.some(x => x.submission?.status === 'approved')) {
+    const ids = await publishedTestimonialIds()
+    for (const x of rows) {
+      if (x.submission?.status === 'approved') x.onWebsite = ids.has(x.submission.published_testimonial_id)
+    }
+  }
+
+  const when = x => x.submission?.submitted_at || x.request.created_at
+  return rows.sort((a, b) => String(when(b)).localeCompare(String(when(a))))
+}
+
 // ── A session's review ───────────────────────────────────────────────
 
 // Returns null when no review has been requested, otherwise
