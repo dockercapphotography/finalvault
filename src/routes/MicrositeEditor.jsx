@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink, GripVertical, Copy, Star, Link2, FolderPlus } from 'lucide-react'
 import { getMyMicrosite, updateMyMicrosite } from '../utils/micrositeApi.js'
 import { getPendingReviews, approveReview, rejectReview } from '../utils/reviewApi.js'
+import { fetchAuthedBlob } from '../utils/authedPreview.js'
+import GalleryPickThumb from '../components/microsite/GalleryPickThumb.jsx'
 import { compressForUpload } from '../utils/imageProcessor.js'
 import { callManageCustomDomain } from '../components/account/CustomDomainSection.jsx'
 import { getGalleries } from '../utils/galleryApi.js'
@@ -40,15 +42,6 @@ import {
 } from '../utils/micrositeThemeOptions.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
-
-async function fetchAuthedBlob(r2Key) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const resp = await fetch(`${WORKER_URL}/preview/${encodeURIComponent(r2Key)}`, {
-    headers: { Authorization: `Bearer ${session.access_token}` }
-  })
-  if (!resp.ok) throw new Error('Failed to fetch preview')
-  return URL.createObjectURL(await resp.blob())
-}
 
 function FontOptionRow({ active, onClick, pairing }) {
   return (
@@ -233,37 +226,6 @@ function LogoPreview({ r2Key }) {
   )
 }
 
-function GalleryPickThumb({ r2Key, onRemove, onAdjustFocus }) {
-  const [url, setUrl] = useState(null)
-  useEffect(() => {
-    let cancelled = false
-    let blobUrl = null
-    fetchAuthedBlob(r2Key).then(u => {
-      if (cancelled) { URL.revokeObjectURL(u); return }
-      blobUrl = u
-      setUrl(u)
-    }).catch(() => {})
-    return () => { cancelled = true; if (blobUrl) URL.revokeObjectURL(blobUrl) }
-  }, [r2Key])
-
-  return (
-    <div className="relative aspect-square rounded-lg overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
-      {url && <img src={url} alt="" className="w-full h-full object-cover" />}
-      {onRemove && (
-        <button onClick={onRemove} className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer' }}>
-          <X size={12} color="#fff" />
-        </button>
-      )}
-      {onAdjustFocus && (
-        <button onClick={onAdjustFocus} title="Adjust focus point" className="absolute bottom-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer' }}>
-          <Crosshair size={12} color="#fff" />
-        </button>
-      )}
-    </div>
-  )
-}
 
 function HeroThumbnail({ r2Key }) {
   const [url, setUrl] = useState(null)

@@ -210,7 +210,12 @@ export default function ReviewForm() {
 
   function applyData(result) {
     setData(result)
-    if (result?.type === 'found') setName(prev => prev || result.default_name || '')
+    if (result?.type === 'found') {
+      setName(prev => prev || result.default_name || '')
+      // The photographer's suggested photo starts selected; the client
+      // can pick another or No photo.
+      if (result.suggested_image_id) setPhotoId(prev => prev ?? result.suggested_image_id)
+    }
     setLoading(false)
   }
 
@@ -278,7 +283,10 @@ export default function ReviewForm() {
   }
 
   const studioName = branding.studio_name || 'Your photographer'
-  const images = Array.isArray(data.images) ? data.images : []
+  const allImages = Array.isArray(data.images) ? data.images : []
+  // Suggested photo first, so it's visible without "Show all".
+  const suggested = allImages.find(img => img.id === data.suggested_image_id)
+  const images = suggested ? [suggested, ...allImages.filter(img => img !== suggested)] : allImages
   const labelStyle = { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--bk-ink)', marginBottom: 6 }
 
   return (

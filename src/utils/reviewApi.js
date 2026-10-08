@@ -151,6 +151,49 @@ export async function getSessionReview(sessionId) {
   return { request, submission: submission || null, onWebsite }
 }
 
+// Deletes a request so its link stops working -- refused by the RPC once
+// the client has submitted (that would erase their review).
+export async function cancelReviewRequest(requestId) {
+  const { error } = await supabase.rpc('cancel_testimonial_request', { p_request_id: requestId })
+  if (error) throw new Error(error.message)
+}
+
+// Every live photo in the session's linked galleries -- session_galleries
+// order (plus the legacy sessions.gallery_id), active galleries only,
+// then each gallery's own image order. Same set the client's review page
+// offers (review_session_galleries in sql/089), for the Suggested photo
+// picker.
+export async function getSessionPhotos(session) {
+  const { data: links, error } = await supabase
+    .from('session_galleries')
+    .select('gallery_id, sort_order, created_at')
+    .eq('session_id', session.id)
+  if (error) throw error
+  const ordered = (links || [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || String(a.created_at).localeCompare(String(b.created_at)))
+    .map(l => l.gallery_id)
+  if (session.gallery_id && !ordered.includes(session.gallery_id)) ordered.push(session.gallery_id)
+  if (ordered.length === 0) return []
+
+  const { data: active } = await supabase.from('galleries').select('id').in('id', ordered).eq('is_active', true)
+  const activeIds = ordered.filter(id => (active || []).some(g => g.id === id))
+  if (activeIds.length === 0) return []
+
+  const { data: images, error: imgError } = await supabase
+    .from('gallery_images')
+    .select('id, gallery_id, preview_r2_key, sort_order, uploaded_at')
+    .in('gallery_id', activeIds)
+    .is('deleted_at', null)
+    .not('preview_r2_key', 'is', null)
+  if (imgError) throw imgError
+  const rank = id => activeIds.indexOf(id)
+  return (images || []).sort((a, b) =>
+    rank(a.gallery_id) - rank(b.gallery_id)
+    || (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER)
+    || String(a.uploaded_at).localeCompare(String(b.uploaded_at)))
+}
+
 // ── Approval queue (Website editor) ─────────────────────────────────
 
 export async function getPendingReviews() {
@@ -187,13 +230,14 @@ export async function rejectReview(submissionId) {
 // sendEmail false just creates (or returns) the session's link -- that's
 // how "Copy link instead" works. Errors from the RPC are written for the
 // photographer and safe to show as-is.
-export async function sendReviewRequest({ sessionId, displayName, subject, body, sendEmail }) {
+export async function sendReviewRequest({ sessionId, displayName, subject, body, sendEmail, suggestedPhotoKey = null }) {
   const { data, error } = await supabase.rpc('send_testimonial_request', {
     p_session_id: sessionId,
     p_display_name: displayName || null,
     p_subject: subject || null,
     p_body: body || null,
     p_send_email: !!sendEmail,
+    p_suggested_photo_key: suggestedPhotoKey || null,
   })
   if (error) throw new Error(error.message)
   return data

@@ -26,7 +26,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { supabase } from '../supabaseClient.js'
 import SendContractModal from '../components/SendContractModal.jsx'
 import RequestReviewModal from '../components/RequestReviewModal.jsx'
-import { getSessionReview, reviewLink } from '../utils/reviewApi.js'
+import { getSessionReview, reviewLink, cancelReviewRequest } from '../utils/reviewApi.js'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
@@ -946,13 +946,30 @@ function reviewState(review) {
   return review.onWebsite ? 'published' : 'removed'
 }
 
-function ReviewCard({ session, review, onRequest }) {
+function ReviewCard({ session, review, onRequest, onCancelled }) {
   const [copied, setCopied] = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState(null)
   const request = review?.request
   const sub = review?.submission
   const state = reviewState(review)
   const pill = state ? REVIEW_PILLS[state] : null
   const fmt = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+  async function handleCancelRequest() {
+    setCancelling(true)
+    setCancelError(null)
+    try {
+      await cancelReviewRequest(request.id)
+      setConfirmCancel(false)
+      onCancelled()
+    } catch (err) {
+      setCancelError(err.message)
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   async function copyLink() {
     const url = reviewLink(await getPublicBaseUrl(), request.token)
@@ -986,30 +1003,53 @@ function ReviewCard({ session, review, onRequest }) {
           </p>
         </div>
       ) : !sub ? (
-        <div className="px-5 py-3.5 flex items-center gap-3">
-          <MessageSquare size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
-              {request.last_sent_at ? `Sent to ${request.last_sent_to}` : 'Link created'}
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {request.last_sent_at ? `${fmt(request.last_sent_at)} · ` : ''}Not submitted yet
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button onClick={copyLink}
-              className="text-xs px-2.5 py-1.5 rounded-lg"
-              style={{ background: copied ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: copied ? '#10b981' : 'var(--text-muted)', transition: 'all 0.15s' }}>
-              {copied ? '✓ Copied' : 'Copy link'}
-            </button>
-            {session.clients?.email && (
+        <div className="px-5 py-3.5">
+          <div className="flex items-center gap-3">
+            <MessageSquare size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+                {request.last_sent_at ? `Sent to ${request.last_sent_to}` : 'Link created'}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {request.last_sent_at ? `${fmt(request.last_sent_at)} · ` : ''}Not submitted yet
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={copyLink}
+                className="text-xs px-2.5 py-1.5 rounded-lg"
+                style={{ background: copied ? 'rgba(16,185,129,0.1)' : 'var(--surface-raised)', border: 'none', cursor: 'pointer', color: copied ? '#10b981' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+                {copied ? '✓ Copied' : 'Copy link'}
+              </button>
               <button onClick={onRequest}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium"
                 style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
-                <Mail size={11} />{request.last_sent_at ? 'Resend' : 'Send'}
+                <Edit2 size={11} />Edit
               </button>
-            )}
+              <button onClick={() => { setConfirmCancel(true); setCancelError(null) }}
+                className="text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', border: 'none', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
           </div>
+          {confirmCancel && (
+            <div className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl" style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
+              <p className="text-xs flex-1 font-medium" style={{ color: 'var(--danger)' }}>
+                Cancel this request? The review link will stop working.
+              </p>
+              <button onClick={handleCancelRequest} disabled={cancelling}
+                className="text-xs font-medium px-2.5 py-1 rounded-lg"
+                style={{ background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                {cancelling ? 'Cancelling…' : 'Cancel request'}
+              </button>
+              <button onClick={() => setConfirmCancel(false)}
+                className="text-xs font-medium px-2.5 py-1 rounded-lg"
+                style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: 'none', cursor: 'pointer' }}>
+                Keep
+              </button>
+            </div>
+          )}
+          {cancelError && <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>{cancelError}</p>}
         </div>
       ) : (
         <div className="px-5 py-3.5 flex items-start gap-3">
@@ -1532,7 +1572,11 @@ export default function SessionDetail() {
 
       {/* Review -- private sessions only; events don't get reviews */}
       {session.mode === 'private' && hasPremium && (
-        <ReviewCard session={session} review={review} onRequest={() => setShowRequestReview(true)} />
+        <ReviewCard session={session} review={review} onRequest={() => setShowRequestReview(true)}
+          onCancelled={() => {
+            setReview(null)
+            setToast({ message: 'Review request cancelled', type: 'success' })
+          }} />
       )}
 
       {/* Submissions */}
@@ -1587,10 +1631,11 @@ export default function SessionDetail() {
           session={session}
           existing={review?.request || null}
           onClose={() => setShowRequestReview(false)}
-          onDone={({ emailed }) => {
+          onDone={({ action }) => {
             setShowRequestReview(false)
             setToast({
-              message: emailed ? `Review request sent to ${session.clients.first_name}` : 'Review link copied',
+              message: action === 'sent' ? `Review request sent to ${session.clients.first_name}`
+                : action === 'copied' ? 'Review link copied' : 'Review request saved',
               type: 'success',
             })
             getSessionReview(id).then(setReview).catch(() => {})
