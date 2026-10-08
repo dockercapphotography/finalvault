@@ -139,6 +139,7 @@ const PUSH_PREFERENCE_DEFAULTS = {
   contract_signed: true,
   questionnaire_response: true,
   inquiry: true,
+  testimonial: true,
   comment: false,
   favorite: false,
   download: false,
@@ -148,7 +149,7 @@ const PUSH_PREFERENCE_DEFAULTS = {
 export async function getPushNotificationPreferences(photographerId) {
   const { data, error } = await supabase
     .from('push_notification_preferences')
-    .select('claim, contract_signed, questionnaire_response, inquiry, comment, favorite, download, activity_batch_minutes')
+    .select('claim, contract_signed, questionnaire_response, inquiry, testimonial, comment, favorite, download, activity_batch_minutes')
     .eq('photographer_id', photographerId)
     .maybeSingle()
   if (error) throw error
@@ -177,6 +178,7 @@ const BELL_PREFERENCE_DEFAULTS = {
   contract_signed: true,
   questionnaire_response: true,
   inquiry: true,
+  testimonial: true,
   view: true,
   favorite: true,
   comment: true,
@@ -187,7 +189,7 @@ const BELL_PREFERENCE_DEFAULTS = {
 export async function getBellNotificationPreferences(photographerId) {
   const { data, error } = await supabase
     .from('bell_notification_preferences')
-    .select('enabled, claim, contract_signed, questionnaire_response, inquiry, view, favorite, comment, download, visible_since')
+    .select('enabled, claim, contract_signed, questionnaire_response, inquiry, testimonial, view, favorite, comment, download, visible_since')
     .eq('photographer_id', photographerId)
     .maybeSingle()
   if (error) throw error

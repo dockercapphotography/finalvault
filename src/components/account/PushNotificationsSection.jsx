@@ -15,6 +15,7 @@ const EVENT_TYPES = [
   { key: 'inquiry', label: 'New inquiry', desc: 'Get notified when a client submits an inquiry' },
   { key: 'contract_signed', label: 'Contract signed', desc: 'Get notified when a client signs a contract' },
   { key: 'questionnaire_response', label: 'Questionnaire response', desc: 'Get notified when a client submits a questionnaire' },
+  { key: 'testimonial', label: 'New review', desc: 'Get notified when a client sends a review' },
   { key: 'favorite', label: 'Client favorites', desc: 'Get notified when a client favorites images (batched)' },
   { key: 'comment', label: 'Client comments', desc: 'Get notified when a client leaves a comment' },
   { key: 'download', label: 'Client downloads', desc: 'Get notified when a client downloads images (batched)' },

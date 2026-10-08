@@ -8,6 +8,7 @@ const EVENT_TYPES = [
   { key: 'inquiry', label: 'New inquiry', desc: 'Show in the bell when a client submits an inquiry' },
   { key: 'contract_signed', label: 'Contract signed', desc: 'Show in the bell when a client signs a contract' },
   { key: 'questionnaire_response', label: 'Questionnaire response', desc: 'Show in the bell when a client submits a questionnaire' },
+  { key: 'testimonial', label: 'New review', desc: 'Show in the bell when a client sends a review' },
   { key: 'view', label: 'Gallery views', desc: 'Show in the bell when a client views a gallery' },
   { key: 'favorite', label: 'Client favorites', desc: 'Show in the bell when a client favorites an image' },
   { key: 'comment', label: 'Client comments', desc: 'Show in the bell when a client leaves a comment' },
