@@ -151,6 +151,39 @@ export async function getSessionReview(sessionId) {
   return { request, submission: submission || null, onWebsite }
 }
 
+// ── Approval queue (Website editor) ─────────────────────────────────
+
+export async function getPendingReviews() {
+  const { data, error } = await supabase
+    .from('testimonial_submissions')
+    .select('*, testimonial_requests(session_id, sessions(id, name))')
+    .eq('status', 'pending')
+    .order('submitted_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+// Returns the published testimonial entry, already added to the top of
+// microsites.testimonials by the RPC.
+export async function approveReview(submissionId, { quote, name, session_type, photo_gallery_image_key, photo_focus_x, photo_focus_y }) {
+  const { data, error } = await supabase.rpc('approve_testimonial_submission', {
+    p_submission_id: submissionId,
+    p_quote: quote,
+    p_name: name,
+    p_session_type: session_type || null,
+    p_photo_key: photo_gallery_image_key || null,
+    p_photo_focus_x: photo_focus_x ?? null,
+    p_photo_focus_y: photo_focus_y ?? null,
+  })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function rejectReview(submissionId) {
+  const { error } = await supabase.rpc('reject_testimonial_submission', { p_submission_id: submissionId })
+  if (error) throw new Error(error.message)
+}
+
 // sendEmail false just creates (or returns) the session's link -- that's
 // how "Copy link instead" works. Errors from the RPC are written for the
 // photographer and safe to show as-is.

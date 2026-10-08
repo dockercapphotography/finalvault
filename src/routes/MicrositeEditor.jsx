@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, ImageIcon, X, Crosshair, MoreVertical, Pencil, Check, Eye, FileText, Palette, ExternalLink, GripVertical, Copy, Star, Link2, FolderPlus } from 'lucide-react'
 import { getMyMicrosite, updateMyMicrosite } from '../utils/micrositeApi.js'
+import { getPendingReviews, approveReview, rejectReview } from '../utils/reviewApi.js'
 import { compressForUpload } from '../utils/imageProcessor.js'
 import { callManageCustomDomain } from '../components/account/CustomDomainSection.jsx'
 import { getGalleries } from '../utils/galleryApi.js'
@@ -910,21 +911,13 @@ function LayoutHint({ options, value, fallback }) {
   )
 }
 
-// A single testimonial row -- either the closed (saved) row, shown as a
-// table row on desktop / a card on mobile, or the open editing form,
-// shown as a full-width row (desktop) or plain card (mobile). Draggable
-// via a handle (desktop table cell / mobile card icon) using the same
-// dnd-kit useSortable pattern as Account.jsx's SortableQuestionCard --
-// disabled while open for editing, since dragging mid-edit isn't a
-// meaningful action.
-function SortableTestimonialRow({
-  testimonial: t, isOpen, mobile,
-  onOpenEdit, onDone, onCancel, onRemove, onUpdate, onUpdateFields,
-  onEditPhoto, onAdjustFocus, onRemovePhoto,
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: t.id, disabled: isOpen })
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
-  const isComplete = !!(t.quote && t.name)
+// ── Testimonial photo controls ──────────────────────────────────────────────
+// The tile (GalleryPickThumb: X to remove, crosshair to adjust focus) plus
+// Choose from gallery / Upload photo, shared by the testimonial edit form
+// and the pending-review edit form (v1.5.17) so both are identical. Lifted
+// verbatim from SortableTestimonialRow; only t.photo_gallery_image_key
+// became the photoKey prop.
+function TestimonialPhotoField({ photoKey, onUpdateFields, onRemovePhoto, onEditPhoto, onAdjustFocus }) {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const photoInputRef = useRef(null)
 
@@ -944,8 +937,8 @@ function SortableTestimonialRow({
       // Only clean up the previous file if it was a direct upload, not a
       // gallery-picked key -- a gallery key belongs to a real client
       // photo and must never be deleted from here.
-      if (t.photo_gallery_image_key && !t.photo_gallery_image_key.includes('/galleries/')) {
-        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(t.photo_gallery_image_key)}`, {
+      if (photoKey && !photoKey.includes('/galleries/')) {
+        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(photoKey)}`, {
           method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
         }).catch(() => {})
       }
@@ -970,10 +963,10 @@ function SortableTestimonialRow({
   async function handleRemovePhotoClick() {
     // Same rule as upload above: only delete the underlying R2 file for
     // a direct upload, never for a gallery-sourced key.
-    if (t.photo_gallery_image_key && !t.photo_gallery_image_key.includes('/galleries/')) {
+    if (photoKey && !photoKey.includes('/galleries/')) {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(t.photo_gallery_image_key)}`, {
+        await fetch(`${WORKER_URL}/delete/${encodeURIComponent(photoKey)}`, {
           method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` }
         })
       } catch {}
@@ -981,6 +974,51 @@ function SortableTestimonialRow({
     onRemovePhoto()
   }
 
+  return (
+    <div className="flex items-center gap-3">
+      {photoKey ? (
+        <div style={{ width: 60 }}>
+          <GalleryPickThumb
+            r2Key={photoKey}
+            onRemove={handleRemovePhotoClick}
+            onAdjustFocus={onAdjustFocus}
+          />
+        </div>
+      ) : (
+        <div style={{ width: 60, height: 60, borderRadius: 8, background: 'var(--surface-raised)', flexShrink: 0 }} />
+      )}
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <button onClick={onEditPhoto} className="text-sm font-medium px-3 py-1.5 rounded-lg"
+            style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
+            Choose from gallery
+          </button>
+          <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto} className="text-sm font-medium px-3 py-1.5 rounded-lg"
+            style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
+            {uploadingPhoto ? 'Uploading…' : 'Upload photo'}
+          </button>
+        </div>
+        <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={handlePhotoFileSelect} />
+      </div>
+    </div>
+  )
+}
+
+// A single testimonial row -- either the closed (saved) row, shown as a
+// table row on desktop / a card on mobile, or the open editing form,
+// shown as a full-width row (desktop) or plain card (mobile). Draggable
+// via a handle (desktop table cell / mobile card icon) using the same
+// dnd-kit useSortable pattern as Account.jsx's SortableQuestionCard --
+// disabled while open for editing, since dragging mid-edit isn't a
+// meaningful action.
+function SortableTestimonialRow({
+  testimonial: t, isOpen, mobile,
+  onOpenEdit, onDone, onCancel, onRemove, onUpdate, onUpdateFields,
+  onEditPhoto, onAdjustFocus, onRemovePhoto,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: t.id, disabled: isOpen })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+  const isComplete = !!(t.quote && t.name)
   const dragHandle = (
     <button {...attributes} {...listeners} aria-label="Drag to reorder"
       style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: isDragging ? 'grabbing' : 'grab', display: 'flex', padding: 2, touchAction: 'none' }}>
@@ -998,32 +1036,13 @@ function SortableTestimonialRow({
         <Input label="Client name" value={t.name || ''} onChange={v => onUpdate('name', v)} placeholder="e.g. Jordan M." />
         <Input label="Session type" value={t.session_type || ''} onChange={v => onUpdate('session_type', v)} placeholder="e.g. Studio Session" />
       </div>
-      <div className="flex items-center gap-3">
-        {t.photo_gallery_image_key ? (
-          <div style={{ width: 60 }}>
-            <GalleryPickThumb
-              r2Key={t.photo_gallery_image_key}
-              onRemove={handleRemovePhotoClick}
-              onAdjustFocus={onAdjustFocus}
-            />
-          </div>
-        ) : (
-          <div style={{ width: 60, height: 60, borderRadius: 8, background: 'var(--surface-raised)', flexShrink: 0 }} />
-        )}
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <button onClick={onEditPhoto} className="text-sm font-medium px-3 py-1.5 rounded-lg"
-              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
-              Choose from gallery
-            </button>
-            <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto} className="text-sm font-medium px-3 py-1.5 rounded-lg"
-              style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: '1px dashed var(--border)', cursor: 'pointer' }}>
-              {uploadingPhoto ? 'Uploading…' : 'Upload photo'}
-            </button>
-          </div>
-          <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={handlePhotoFileSelect} />
-        </div>
-      </div>
+      <TestimonialPhotoField
+        photoKey={t.photo_gallery_image_key}
+        onUpdateFields={onUpdateFields}
+        onRemovePhoto={onRemovePhoto}
+        onEditPhoto={onEditPhoto}
+        onAdjustFocus={onAdjustFocus}
+      />
       <div className="flex items-center gap-2">
         <EntryDoneButton isComplete={isComplete} onClick={onDone} />
         <button onClick={onCancel} className="text-sm font-medium px-3 py-1.5 rounded-lg"
@@ -1072,7 +1091,7 @@ function SortableTestimonialRow({
             <p className="truncate italic" title={t.quote} style={{ color: 'var(--text)' }}>&ldquo;{t.quote}&rdquo;</p>
           </td>
           <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', color: 'var(--text)', overflow: 'hidden' }}>
-            <p className="truncate" title={t.name}>{t.name}</p>
+            <p className="truncate" title={t.name}>{t.name}{t.submission_id && <span className="text-xs font-medium ml-1.5 px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }} title="Sent by the client through a review request">Review</span>}</p>
           </td>
           <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)', overflow: 'hidden' }}>
             <p className="truncate" title={t.session_type || ''}>{t.session_type || '—'}</p>
@@ -1083,6 +1102,204 @@ function SortableTestimonialRow({
         </>
       )}
     </tr>
+  )
+}
+
+// ── Pending reviews (v1.5.17) ─────────────────────────────────────────────────
+// Client-submitted reviews waiting for approval (sql/086). Approving calls
+// approve_testimonial_submission, which adds the review to the TOP of
+// microsites.testimonials on the server in one transaction -- so it's
+// blocked while the editor has unsaved changes (a later Save of the stale
+// local list would otherwise erase it). Reject never touches microsites,
+// so it stays available. Edits only change the published copy; the
+// client's original text stays on the submission (Restore puts it back).
+
+function pendingDraft(r) {
+  return {
+    quote: r.quote || '',
+    name: r.name || '',
+    session_type: r.session_type || '',
+    photo_gallery_image_key: r.photo_r2_key || null,
+    photo_focus_x: 0.5,
+    photo_focus_y: 0.5,
+  }
+}
+
+function PendingReviewsPanel({ reviews, blocked, onApproved, onRejected }) {
+  const [editingId, setEditingId] = useState(null)
+  const [drafts, setDrafts] = useState({})
+  const [busyId, setBusyId] = useState(null)
+  const [confirmRejectId, setConfirmRejectId] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [photoPickFor, setPhotoPickFor] = useState(null)
+  const [focalFor, setFocalFor] = useState(null)
+
+  const draftFor = r => drafts[r.id] || pendingDraft(r)
+  const updateDraft = (r, fields) => setDrafts(prev => ({ ...prev, [r.id]: { ...(prev[r.id] || pendingDraft(r)), ...fields } }))
+  const fmt = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  async function approve(r) {
+    setBusyId(r.id)
+    setErrors(prev => ({ ...prev, [r.id]: null }))
+    try {
+      const entry = await approveReview(r.id, draftFor(r))
+      setEditingId(null)
+      onApproved(entry, r.id)
+    } catch (err) {
+      setErrors(prev => ({ ...prev, [r.id]: err.message }))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function reject(r) {
+    setBusyId(r.id)
+    setErrors(prev => ({ ...prev, [r.id]: null }))
+    try {
+      await rejectReview(r.id)
+      setConfirmRejectId(null)
+      onRejected(r.id)
+    } catch (err) {
+      setErrors(prev => ({ ...prev, [r.id]: err.message }))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const pickTarget = reviews.find(r => r.id === photoPickFor)
+  const focalTarget = reviews.find(r => r.id === focalFor)
+  const softBtn = 'text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1.5'
+
+  return (
+    <div data-testid="pending-reviews" className="rounded-xl overflow-hidden" style={{ border: '1px solid #C7CDF5', background: '#F5F6FF' }}>
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+        <p className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text)' }}>
+          Waiting for approval
+          <span className="text-xs font-semibold px-1.5 rounded-full" style={{ background: '#6366f1', color: '#fff', minWidth: 20, textAlign: 'center' }}>{reviews.length}</span>
+        </p>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Not on your website yet</span>
+      </div>
+
+      {reviews.map(r => {
+        const d = draftFor(r)
+        const isEditing = editingId === r.id
+        const isBusy = busyId === r.id
+        const session = r.testimonial_requests?.sessions
+        const edited = d.quote !== (r.quote || '') || d.name !== (r.name || '') || d.session_type !== (r.session_type || '')
+          || d.photo_gallery_image_key !== (r.photo_r2_key || null)
+        const canApprove = !blocked && !isBusy && d.quote.trim() && d.name.trim()
+        return (
+          <div key={r.id} className="px-4 py-3" style={{ borderTop: '1px solid #DDE1FA', background: 'var(--surface)' }}>
+            {isEditing ? (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold uppercase" style={{ color: '#6366f1', letterSpacing: '0.04em' }}>
+                  Editing review from {r.name}
+                </div>
+                <Input label="Quote" value={d.quote} onChange={v => updateDraft(r, { quote: v })} type="textarea" placeholder="What the client said" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Client name" value={d.name} onChange={v => updateDraft(r, { name: v })} placeholder="e.g. Jordan M." />
+                  <Input label="Session type" value={d.session_type} onChange={v => updateDraft(r, { session_type: v })} placeholder="e.g. Studio Session" />
+                </div>
+                <TestimonialPhotoField
+                  photoKey={d.photo_gallery_image_key}
+                  onUpdateFields={fields => updateDraft(r, fields)}
+                  onRemovePhoto={() => updateDraft(r, { photo_gallery_image_key: null })}
+                  onEditPhoto={() => setPhotoPickFor(r.id)}
+                  onAdjustFocus={() => setFocalFor(r.id)}
+                />
+                {edited && (
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Edited from what {r.name} sent.{' '}
+                    <button onClick={() => setDrafts(prev => ({ ...prev, [r.id]: pendingDraft(r) }))}
+                      style={{ background: 'none', border: 'none', padding: 0, color: '#6366f1', cursor: 'pointer', fontSize: 12 }}>
+                      Restore original
+                    </button>
+                  </p>
+                )}
+                <div className="flex items-center gap-2">
+                  <button onClick={() => approve(r)} disabled={!canApprove} className="text-sm font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                    style={{ background: canApprove ? '#6366f1' : 'var(--surface-raised)', color: canApprove ? '#fff' : 'var(--text-muted)', border: 'none', cursor: canApprove ? 'pointer' : 'not-allowed' }}>
+                    <Check size={13} />{isBusy ? 'Approving…' : 'Approve'}
+                  </button>
+                  <button onClick={() => setEditingId(null)} className="text-sm font-medium px-3 py-1.5 rounded-lg"
+                    style={{ background: 'none', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--surface-raised)' }}>
+                  {d.photo_gallery_image_key && <GalleryPickThumb r2Key={d.photo_gallery_image_key} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm italic" style={{ color: 'var(--text)', whiteSpace: 'pre-wrap', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    &ldquo;{d.quote}&rdquo;
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    &mdash; {d.name}{d.session_type ? ` · ${d.session_type}` : ''}
+                    {session?.id && <> · <Link to={`/sessions/${session.id}`} style={{ color: '#6366f1', textDecoration: 'none' }}>{session.name}</Link></>}
+                    {' · '}{fmt(r.submitted_at)}
+                    {edited && ' · Edited'}
+                  </p>
+                  {confirmRejectId === r.id ? (
+                    <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-xl" style={{ background: 'var(--danger-subtle)', border: '1px solid var(--danger)' }}>
+                      <p className="text-xs flex-1 font-medium" style={{ color: 'var(--danger)' }}>Reject this review? It won't be shown, and {r.name} won't be notified.</p>
+                      <button onClick={() => reject(r)} disabled={isBusy} className="text-xs font-medium px-2.5 py-1 rounded-lg"
+                        style={{ background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                        {isBusy ? 'Rejecting…' : 'Reject'}
+                      </button>
+                      <button onClick={() => setConfirmRejectId(null)} className="text-xs font-medium px-2.5 py-1 rounded-lg"
+                        style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: 'none', cursor: 'pointer' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      <button onClick={() => approve(r)} disabled={!canApprove} className={softBtn}
+                        style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: 'none', cursor: canApprove ? 'pointer' : 'not-allowed', opacity: canApprove ? 1 : 0.45 }}>
+                        <Check size={12} />{isBusy ? 'Approving…' : 'Approve'}
+                      </button>
+                      <button onClick={() => setEditingId(r.id)} disabled={blocked} className={softBtn}
+                        style={{ background: 'var(--surface-raised)', color: 'var(--text)', border: 'none', cursor: blocked ? 'not-allowed' : 'pointer', opacity: blocked ? 0.45 : 1 }}>
+                        <Pencil size={12} />Edit
+                      </button>
+                      <button onClick={() => setConfirmRejectId(r.id)} className={softBtn}
+                        style={{ background: 'var(--danger-subtle)', color: 'var(--danger)', border: 'none', cursor: 'pointer' }}>
+                        <X size={12} />Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {errors[r.id] && <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>{errors[r.id]}</p>}
+          </div>
+        )
+      })}
+
+      {blocked && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs" style={{ background: 'var(--warning-subtle)', color: '#92400e', borderTop: '1px solid rgba(245,158,11,0.25)' }}>
+          You have unsaved changes on this page. Save them before approving or editing reviews.
+        </div>
+      )}
+
+      {pickTarget && (
+        <MicrositeImagePicker
+          onSelect={key => { updateDraft(pickTarget, { photo_gallery_image_key: key, photo_focus_x: 0.5, photo_focus_y: 0.5 }); setPhotoPickFor(null) }}
+          onClose={() => setPhotoPickFor(null)}
+        />
+      )}
+      {focalTarget && draftFor(focalTarget).photo_gallery_image_key && (
+        <MicrositeFocalPointModal
+          r2Key={draftFor(focalTarget).photo_gallery_image_key}
+          initialFocusX={draftFor(focalTarget).photo_focus_x ?? 0.5}
+          initialFocusY={draftFor(focalTarget).photo_focus_y ?? 0.5}
+          onSave={(x, y) => { updateDraft(focalTarget, { photo_focus_x: x, photo_focus_y: y }); setFocalFor(null) }}
+          onClose={() => setFocalFor(null)}
+        />
+      )}
+    </div>
   )
 }
 
@@ -1280,6 +1497,14 @@ export default function MicrositeEditor() {
   const [galleryPreviewKeys, setGalleryPreviewKeys] = useState([])
   const [testimonialPhotoEditIndex, setTestimonialPhotoEditIndex] = useState(null)
   const [testimonialFocalIndex, setTestimonialFocalIndex] = useState(null)
+  // Client-submitted reviews waiting for approval (v1.5.17).
+  const [pendingReviews, setPendingReviews] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    getPendingReviews().then(rows => { if (!cancelled) setPendingReviews(rows) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     supabase.rpc('get_my_premium_access').then(({ data }) => setHasPremiumAccess(!!data))
@@ -1646,6 +1871,31 @@ export default function MicrositeEditor() {
   }
 
   const isDirty = site && savedSnapshotRef.current !== null && JSON.stringify(site) !== savedSnapshotRef.current
+
+  // The approve RPC already wrote the entry to the top of
+  // microsites.testimonials, and approving is only possible with no
+  // unsaved changes -- so the saved snapshot moves forward with it and the
+  // page doesn't suddenly read as dirty.
+  function handleReviewApproved(entry, submissionId) {
+    const next = { ...site, testimonials: [entry, ...(site.testimonials || [])] }
+    setSite(next)
+    savedSnapshotRef.current = JSON.stringify(next)
+    setPendingReviews(prev => prev.filter(r => r.id !== submissionId))
+    setPreviewReloadKey(k => k + 1)
+  }
+
+  // /website#testimonials (bell notification, review email, Session
+  // Detail's "Review in Website") lands on the Testimonials section once
+  // the editor has loaded. Content is already the default tab.
+  const siteLoaded = !!site
+  const scrolledToHashRef = useRef(false)
+  useEffect(() => {
+    if (!siteLoaded || scrolledToHashRef.current || window.location.hash !== '#testimonials') return
+    scrolledToHashRef.current = true
+    requestAnimationFrame(() => {
+      document.getElementById('testimonials')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [siteLoaded])
 
   useEffect(() => {
     function handleBeforeUnload(e) {
@@ -2110,8 +2360,20 @@ export default function MicrositeEditor() {
           )}
         </SettingsSection>
 
+        <div id="testimonials" style={{ scrollMarginTop: 80 }}>
         <SettingsSection title="Testimonials" description="Quotes from past clients, shown on your site."
           action={<Toggle testId="show-testimonials-toggle" checked={site.show_testimonials !== false} onChange={v => patch({ show_testimonials: v })} />}>
+          {/* Shown even with the section toggled off -- reviews still need a decision. */}
+          {pendingReviews.length > 0 && (
+            <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
+              <PendingReviewsPanel
+                reviews={pendingReviews}
+                blocked={!!isDirty}
+                onApproved={handleReviewApproved}
+                onRejected={id => setPendingReviews(prev => prev.filter(r => r.id !== id))}
+              />
+            </div>
+          )}
           {site.show_testimonials !== false && (
             <div className="px-5 py-4 space-y-4" style={{ background: 'var(--surface)' }}>
               <Input label="Section title" value={site.testimonials_title || ''} onChange={v => patch({ testimonials_title: v })} placeholder="Reviews" />
@@ -2126,6 +2388,7 @@ export default function MicrositeEditor() {
             </div>
           )}
         </SettingsSection>
+        </div>
 
         <SettingsSection title="Contact" description="How visitors can reach you."
           action={<Toggle checked={site.show_contact !== false} onChange={v => patch({ show_contact: v })} />}>
