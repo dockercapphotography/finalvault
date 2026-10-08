@@ -1050,12 +1050,21 @@ function SortableTestimonialRow({
             </div>
           </td>
           <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', overflow: 'hidden' }}>
-            <p className="truncate italic" title={t.quote} style={{ color: 'var(--text)' }}>&ldquo;{t.quote}&rdquo;</p>
+            <p className="italic" title={t.quote}
+              style={{ color: 'var(--text)', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
+              &ldquo;{t.quote}&rdquo;
+            </p>
           </td>
           <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', color: 'var(--text)', overflow: 'hidden' }}>
-            <p className="truncate" title={t.name}>{t.name}{t.submission_id && <span className="text-xs font-medium ml-1.5 px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }} title="Sent by the client through a review request">Review</span>}</p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate" title={t.name}>{t.name}</span>
+              {t.submission_id && (
+                <span className="shrink-0 font-medium px-1.5 py-0.5 rounded-full" style={{ fontSize: 10, background: 'rgba(16,185,129,0.1)', color: '#059669' }}
+                  title="Sent by the client through a review request">Review</span>
+              )}
+            </div>
           </td>
-          <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)', overflow: 'hidden' }}>
+          <td className="px-3 py-2" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-secondary)', overflow: 'hidden' }}>
             <p className="truncate" title={t.session_type || ''}>{t.session_type || '—'}</p>
           </td>
           <td className="px-3 py-2 text-right" style={{ borderTop: '1px solid var(--border)' }}>
@@ -1388,15 +1397,15 @@ function TestimonialsEditor({ testimonials, onChange, onEditPhoto, onAdjustFocus
                 <table className="text-xs" style={{ width: '100%', tableLayout: 'fixed' }}>
                   <colgroup>
                     <col style={{ width: 28 }} />
-                    <col style={{ width: 44 }} />
+                    <col style={{ width: 56 }} />
                     <col />
-                    <col style={{ width: '18%' }} />
-                    <col style={{ width: '16%' }} />
+                    <col style={{ width: '22%' }} />
+                    <col style={{ width: '15%' }} />
                     <col style={{ width: 40 }} />
                   </colgroup>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-                      {['', 'Photo', 'Quote', 'Name', 'Session type', ''].map((h, i) => (
+                      {['', '', 'Quote', 'Name', 'Session type', ''].map((h, i) => (
                         <th key={i} className="text-left font-medium px-3 py-2 truncate" style={{ color: 'var(--text-muted)' }}>{h}</th>
                       ))}
                     </tr>
