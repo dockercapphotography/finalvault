@@ -220,6 +220,29 @@ export async function updateBellNotificationPreference(photographerId, key, valu
   if (error) throw error
 }
 
+// Photographer email preferences (v1.5.17, sql/094). No row = every
+// email on, same convention as the bell and push preferences.
+export const EMAIL_PREFERENCE_DEFAULTS = {
+  testimonial: true,
+}
+
+export async function getEmailNotificationPreferences(photographerId) {
+  const { data, error } = await supabase
+    .from('email_notification_preferences')
+    .select('testimonial')
+    .eq('photographer_id', photographerId)
+    .maybeSingle()
+  if (error) throw error
+  return { ...EMAIL_PREFERENCE_DEFAULTS, ...(data || {}) }
+}
+
+export async function updateEmailNotificationPreference(photographerId, key, value) {
+  const { error } = await supabase
+    .from('email_notification_preferences')
+    .upsert({ photographer_id: photographerId, [key]: value, updated_at: new Date().toISOString() }, { onConflict: 'photographer_id' })
+  if (error) throw error
+}
+
 // Removes a different device's subscription row by id (the ✕ button in the
 // device list) -- can't call sub.unsubscribe() on a device that isn't this
 // one, so this is just a row delete. The next push to that endpoint will

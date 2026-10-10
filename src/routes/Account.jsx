@@ -5,6 +5,7 @@ import {Camera, CheckCircle, Copy, Crosshair, Eye, ImageIcon, Pencil, Plus, Shie
 import Cropper from 'react-easy-crop'
 import PushNotificationsSection from '../components/account/PushNotificationsSection.jsx'
 import BellNotificationsSection from '../components/account/BellNotificationsSection.jsx'
+import EmailNotificationsSection from '../components/account/EmailNotificationsSection.jsx'
 import CustomDomainSection from '../components/account/CustomDomainSection.jsx'
 import MicrositeSection from '../components/account/MicrositeSection.jsx'
 import WebImageBackfillSection from '../components/account/WebImageBackfillSection.jsx'
@@ -1502,6 +1503,8 @@ function NotificationsTab({ user, onSaveState }) {
       <BellNotificationsSection photographerId={user?.id} onSaveState={onSaveState} />
 
       <PushNotificationsSection photographerId={user?.id} onSaveState={onSaveState} />
+
+      <EmailNotificationsSection photographerId={user?.id} onSaveState={onSaveState} />
 
       <SettingsSection
         title="Activity Digest"
