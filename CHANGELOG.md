@@ -4,6 +4,42 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.5.17 — October 10, 2026
+
+### New Features
+
+**Client reviews**
+- Request a review from any private session's new Review card -- by email, or with Copy link to send it yourself. Event (walk-up) sessions don't get reviews
+- Clients write their review on a page branded like your booking pages (your logo, colors, and the session gallery's cover), optionally pick a photo from the session's galleries, and agree to it appearing on your website
+- Suggest a photo when requesting: it starts selected on the client's page, and they can pick another or none
+- Edit a sent request (the name shown on the review and the suggested photo) and Save without emailing, or Save & resend; Cancel a request before the client answers and its link stops working
+- Approve, edit, or reject a waiting review right on the session's Review card, or from the new "Waiting for approval" panel in the Website editor's Testimonials section. Approved reviews go to the top of your Testimonials with a Review tag; edits only change the published copy, and Restore original brings back the client's own words
+- The Review card follows each request through Requested, Waiting for approval, Published, Removed from website, or Not published
+- Client Detail lists every review from that client across all their sessions
+- Review Request Templates in Account -> Templates, with variables (client name, session name, type, date, studio and photographer name) and a default; every account starts with three: After-session thank you, Convention follow-up, and Friendly reminder
+- New review alerts in the bell, push, and email, each opening the session's Review card. A new Email Notifications section in Account -> Notifications can turn the email off
+
+### Improvements
+
+- The notification bell now updates live: new bookings, inquiries, contracts, reviews, and gallery views, favorites, comments, and downloads appear without refreshing, and it catches up when you come back to the tab or wake your computer
+- "Insert variable" in template editors now inserts where your cursor is, including Subject lines on Email and Review Request templates
+- The Website editor's testimonials table is easier to read: the photo column fits its photo, quotes show two lines, and session types use a darker gray
+
+### Bug Fixes
+
+- Fixed the Website editor opening with unsaved changes (Save already enabled) for accounts with pricing packages saved before v1.5.16
+
+### Notes
+
+- Database migrations 086-094 were applied before release: 086 (review requests, submissions, templates, and RPCs), 087 (`review_image_access` for the worker), 088 (cover and chosen photo on reopened review links; richer photographer email), 089 (reviews use every gallery linked through `session_galleries`, not just `sessions.gallery_id`), 090 (starter Review Request Templates for every photographer, plus a signup trigger), 091 (suggested photo, `cancel_testimonial_request`, private sessions only), 092 (`gallery_activity_log` added to the `supabase_realtime` publication), 093 (review notifications link to the session), 094 (`email_notification_preferences`)
+- `r2-worker` gains a `?review_token=` preview mode (`reviewImageAccess` middleware) that serves only the session's own gallery covers and previews, as private responses; deployed via `wrangler deploy`
+- New Edge Function `send-testimonial-push`, deployed with `--no-verify-jwt`; its shared secret is `TESTIMONIAL_PUSH_SECRET` (function) / `testimonial_push_secret` (Vault)
+- Review links use final-vault.app rather than a photographer's custom domain, like the other client links
+- New Playwright coverage (37 tests): `review-page`, `review-image-access`, `review-requests`, `review-approval`, `review-request-templates`, and `review-notifications`, with shared helpers in `tests/fixtures/reviews.js`. None of them send email: requests use Copy link or are inserted directly, and specs that use the real submit turn the New review email off
+- Test-only fixes: `questionnaire-editor` scopes its New Template button to the Questionnaire section, and `inquiry-signup-pages` uses unique page titles
+
+---
+
 ## v1.5.16 — September 28, 2026
 
 ### New Features

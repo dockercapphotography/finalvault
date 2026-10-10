@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.16'
+const VERSION = '1.5.17'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,26 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.5.17 — October 10, 2026">
+                  <Group label="Client Reviews">
+                    <Item>Request a review from any private session, by email or with a link you send yourself</Item>
+                    <Item>Clients write it on a page branded like your booking pages, and can pick a photo from their session</Item>
+                    <Item>Approve, edit, or reject reviews right on the session or in the Website editor -- approved reviews join your Testimonials</Item>
+                    <Item>Suggest a photo, edit or cancel a request, and see every review from a client on their page</Item>
+                    <Item>Review Request Templates in Account → Templates, with three ready to use</Item>
+                  </Group>
+                  <Group label="Notifications">
+                    <Item>The notification bell now updates live, without refreshing the page</Item>
+                    <Item>New review alerts in the bell, push, and email, with a switch to turn the email off</Item>
+                  </Group>
+                  <Group label="Improvements">
+                    <Item>Insert variable now goes where your cursor is, including Subject lines</Item>
+                    <Item>The Website editor's testimonials table is easier to read</Item>
+                  </Group>
+                  <Group label="Bug Fixes">
+                    <Item>Fixed the Website editor opening with unsaved changes for accounts with older pricing packages</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.16 — September 28, 2026">
                   <Group label="Website Pricing">
                     <Item>Group packages into categories like "Weddings", each with a shared list of what every package includes</Item>
