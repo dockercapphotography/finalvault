@@ -103,11 +103,11 @@ test.describe('Creating an inquiry-mode signup page', () => {
 
 test.describe('Availability windows editor', () => {
   test('adding a window creates a real row with the chosen days/dates/times', async ({ page }) => {
-    const signupPage = await createSignupPage({ title: 'Add Window Page' })
+    const signupPage = await createSignupPage({ title: `Add Window Page ${crypto.randomUUID().slice(0, 8)}` })
     await createShootType(signupPage.id)
     try {
       await goToSignups(page)
-      await page.getByText('Add Window Page', { exact: true }).click()
+      await page.getByText(signupPage.title, { exact: true }).click()
       await page.getByRole('button', { name: '+ Add window' }).click()
 
       // A new window defaults to Sun+Sat already selected -- no clicks
@@ -134,7 +134,7 @@ test.describe('Availability windows editor', () => {
   })
 
   test('a page can have multiple windows with different patterns', async ({ page }) => {
-    const signupPage = await createSignupPage({ title: 'Multi Window Page' })
+    const signupPage = await createSignupPage({ title: `Multi Window Page ${crypto.randomUUID().slice(0, 8)}` })
     await createShootType(signupPage.id)
     await sb().from('signup_inquiry_windows').insert({
       signup_page_id: signupPage.id, days_of_week: [6, 0], start_date: '2026-04-01', end_date: '2026-04-30',
@@ -142,7 +142,7 @@ test.describe('Availability windows editor', () => {
     })
     try {
       await goToSignups(page)
-      await page.getByText('Multi Window Page', { exact: true }).click()
+      await page.getByText(signupPage.title, { exact: true }).click()
 
       await page.getByRole('button', { name: '+ Add window' }).click()
       // A new window defaults to Sun+Sat already selected -- no clicks needed.
@@ -163,7 +163,7 @@ test.describe('Availability windows editor', () => {
   })
 
   test('editing a window updates it in place, removing it deletes the row', async ({ page }) => {
-    const signupPage = await createSignupPage({ title: 'Edit Remove Window Page' })
+    const signupPage = await createSignupPage({ title: `Edit Remove Window Page ${crypto.randomUUID().slice(0, 8)}` })
     await createShootType(signupPage.id)
     await sb().from('signup_inquiry_windows').insert({
       signup_page_id: signupPage.id, days_of_week: [6], start_date: '2026-04-01', end_date: '2026-04-30',
@@ -171,7 +171,7 @@ test.describe('Availability windows editor', () => {
     })
     try {
       await goToSignups(page)
-      await page.getByText('Edit Remove Window Page', { exact: true }).click()
+      await page.getByText(signupPage.title, { exact: true }).click()
 
       await page.getByRole('button', { name: 'Window actions' }).click()
       await page.getByRole('button', { name: 'Edit', exact: true }).click()
@@ -198,11 +198,11 @@ test.describe('Availability windows editor', () => {
 
 test.describe('Buffer and daily cap settings', () => {
   test('setting a buffer and a daily cap persists to the page', async ({ page }) => {
-    const signupPage = await createSignupPage({ title: 'Buffer Cap Page' })
+    const signupPage = await createSignupPage({ title: `Buffer Cap Page ${crypto.randomUUID().slice(0, 8)}` })
     await createShootType(signupPage.id)
     try {
       await goToSignups(page)
-      await page.getByText('Buffer Cap Page', { exact: true }).click()
+      await page.getByText(signupPage.title, { exact: true }).click()
 
       await page.getByText('Buffer between requests (minutes)', { exact: true })
         .locator('xpath=following-sibling::input[1]').fill('20')

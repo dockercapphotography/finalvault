@@ -42,6 +42,15 @@ async function getQuestionsFor(templateId) {
   return data || []
 }
 
+// v1.5.17 added a Review Request Templates section below this one, so
+// "the last New Template button" is no longer Questionnaires'. Scope the
+// button to the Questionnaire Templates section (SettingsSection root).
+function questionnaireNewTemplateButton(page) {
+  return page.locator('div.rounded-xl.overflow-hidden')
+    .filter({ has: page.getByRole('heading', { name: 'Questionnaire Templates', exact: true }) })
+    .getByRole('button', { name: /New Template/i })
+}
+
 async function findByName(name) {
   const photographerId = await getPhotographerId()
   const { data } = await sb().from('questionnaire_templates').select('id').eq('name', name).eq('photographer_id', photographerId).maybeSingle()
@@ -54,7 +63,7 @@ test.describe('Questionnaire editor — modal', () => {
   test('New Template opens a centered modal, not a full-page swap', async ({ page }) => {
     await page.goto('/account?tab=templates')
     await page.waitForLoadState('networkidle')
-    await page.getByRole('button', { name: /New Template/i }).last().click()
+    await questionnaireNewTemplateButton(page).click()
     await expect(page.getByRole('heading', { name: 'New Template' })).toBeVisible({ timeout: 5000 })
     // The list itself should still be present underneath -- a real modal
     // overlay, not a route/content swap that replaced the page.
@@ -66,7 +75,7 @@ test.describe('Questionnaire editor — modal', () => {
     const name = `Cancel Test ${uid}`
     await page.goto('/account?tab=templates')
     await page.waitForLoadState('networkidle')
-    await page.getByRole('button', { name: /New Template/i }).last().click()
+    await questionnaireNewTemplateButton(page).click()
     await page.getByPlaceholder('e.g. Convention Walk-up Form').fill(name)
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(page.getByRole('heading', { name: 'New Template' })).not.toBeVisible({ timeout: 3000 })
@@ -84,7 +93,7 @@ test.describe('Questionnaire editor — unified save', () => {
     const name = `Unsaved Question Test ${uid}`
     await page.goto('/account?tab=templates')
     await page.waitForLoadState('networkidle')
-    await page.getByRole('button', { name: /New Template/i }).last().click()
+    await questionnaireNewTemplateButton(page).click()
     await page.getByPlaceholder('e.g. Convention Walk-up Form').fill(name)
 
     await page.getByRole('button', { name: 'Add Question' }).first().click()
@@ -109,7 +118,7 @@ test.describe('Questionnaire editor — unified save', () => {
     const name = `Full Save Test ${uid}`
     await page.goto('/account?tab=templates')
     await page.waitForLoadState('networkidle')
-    await page.getByRole('button', { name: /New Template/i }).last().click()
+    await questionnaireNewTemplateButton(page).click()
     await page.getByPlaceholder('e.g. Convention Walk-up Form').fill(name)
 
     await page.getByRole('button', { name: 'Add Question' }).first().click()
