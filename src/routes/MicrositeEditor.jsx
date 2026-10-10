@@ -678,6 +678,20 @@ function SortableGroupBlock({ group, isOpen, count, onOpenEdit, onDone, onRemove
   )
 }
 
+// Testimonials and packages saved without ids (packages before v1.5.16,
+// testimonials inserted directly) get one at LOAD time, before the
+// saved-state snapshot is taken. Otherwise the backfill effects in
+// TestimonialsEditor / PricingEditor change `site` right after the first
+// render, the page reads as having unsaved changes it never had, Save is
+// enabled on arrival, and the pending-reviews guard blocks Approve/Edit.
+// Those effects stay as a safety net; after this they find nothing to do.
+function withBackfilledIds(site) {
+  const fill = list => (Array.isArray(list) && list.some(item => item && !item.id))
+    ? list.map(item => (item && !item.id ? { ...item, id: crypto.randomUUID() } : item))
+    : list
+  return { ...site, testimonials: fill(site.testimonials), packages: fill(site.packages) }
+}
+
 function PricingEditor({ packages, groups, signupPages, onChange }) {
   const [editingId, setEditingId] = useState(null)
   const [editingGroupId, setEditingGroupId] = useState(null)
@@ -1264,6 +1278,7 @@ export default function MicrositeEditor() {
           merged = { ...micrositeData, social_links: photographer?.social_links || {} }
         }
         if (cancelled) return
+        merged = withBackfilledIds(merged)
         setSite(merged)
         savedSnapshotRef.current = JSON.stringify(merged)
       } catch (err) {
