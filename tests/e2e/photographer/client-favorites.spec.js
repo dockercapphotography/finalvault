@@ -124,7 +124,7 @@ test.describe('Client Favorites — Activity Page', () => {
   })
 
   test('does not show Client Favorites section when no favorites exist', async ({ page }) => {
-    const { data: { users } } = await sb().auth.admin.listUsers()
+    const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     const { data: gallery } = await sb().from('galleries').insert({
       photographer_id: user.id,

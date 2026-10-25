@@ -63,7 +63,7 @@ test.describe('Client Gallery — viewer gallery_id reassignment (known gap)', (
   let galleryA, galleryB
 
   test.beforeEach(async () => {
-    const { data: { users } } = await sb().auth.admin.listUsers()
+    const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
     const photographer = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     if (!photographer) throw new Error('Test photographer not found')
 

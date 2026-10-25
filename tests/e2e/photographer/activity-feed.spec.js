@@ -65,7 +65,7 @@ test.describe('Activity Feed', () => {
   })
 
   test('shows empty state when gallery has no activity', async ({ page }) => {
-    const { data: { users } } = await sb().auth.admin.listUsers()
+    const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     const { data: gallery } = await sb().from('galleries').insert({
       photographer_id: user.id,
@@ -90,7 +90,7 @@ test.describe('Activity Feed — pagination', () => {
   const EVENT_COUNT = 30 // more than the 25/page default
 
   test.beforeEach(async () => {
-    const { data: { users } } = await sb().auth.admin.listUsers()
+    const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     const { data } = await sb().from('galleries').insert({
       photographer_id: user.id,

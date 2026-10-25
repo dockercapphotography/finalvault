@@ -14,7 +14,7 @@ test.use({ storageState: 'tests/.auth/photographer.json' })
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function getTestUser() {
-  const { data: { users } } = await sb().auth.admin.listUsers()
+  const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
   const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
   if (!user) throw new Error('Test photographer user not found')
   return user

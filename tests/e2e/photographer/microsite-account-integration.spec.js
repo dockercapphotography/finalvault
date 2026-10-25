@@ -9,7 +9,7 @@ import { test, expect } from '../../fixtures/fixtures.js'
 
 test.describe('Account — Website section reflects custom domain state', () => {
   test('Manage website is disabled when no custom domain is configured', async ({ page, sb, withPremiumAccess }) => {
-    const { data: { users } } = await sb.auth.admin.listUsers()
+    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     const { data: domain } = await sb
       .from('photographer_domains')

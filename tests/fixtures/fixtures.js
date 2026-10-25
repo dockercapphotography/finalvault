@@ -90,7 +90,7 @@ export const test = base.extend({
   // Creates a fresh gallery for the test, then deletes it after.
   testGallery: async ({}, use) => {
     const sb = adminClient()
-    const { data: { users } } = await sb.auth.admin.listUsers()
+    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     if (!user) throw new Error('Test photographer user not found in Supabase')
 
@@ -126,7 +126,7 @@ export const test = base.extend({
   // Like testGallery but with password protection enabled
   testGalleryWithPassword: async ({}, use) => {
     const sb = adminClient()
-    const { data: { users } } = await sb.auth.admin.listUsers()
+    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     if (!user) throw new Error('Test photographer user not found in Supabase')
 
@@ -160,7 +160,7 @@ export const test = base.extend({
   // Like testGallery but with download PIN enabled
   testGalleryWithPin: async ({}, use) => {
     const sb = adminClient()
-    const { data: { users } } = await sb.auth.admin.listUsers()
+    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     if (!user) throw new Error('Test photographer user not found in Supabase')
 
@@ -203,7 +203,7 @@ export const test = base.extend({
   // time it's needed.
   testMicrosite: async ({}, use) => {
     const sb = adminClient()
-    const { data: { users } } = await sb.auth.admin.listUsers()
+    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     if (!user) throw new Error('Test photographer user not found in Supabase')
 
@@ -234,7 +234,7 @@ export const test = base.extend({
   // like withoutPremiumAccess is, since multiple spec files need it.
   withPremiumAccess: async ({}, use) => {
     const sb = adminClient()
-    const { data: { users } } = await sb.auth.admin.listUsers()
+    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     if (!user) throw new Error('Test photographer user not found in Supabase')
     const photographerId = user.id
@@ -277,7 +277,7 @@ export const test = base.extend({
   // Like testGallery but with allow_proofing enabled (requires allow_favorites: true)
   testGalleryWithProofing: async ({}, use) => {
     const sb = adminClient()
-    const { data: { users } } = await sb.auth.admin.listUsers()
+    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     if (!user) throw new Error('Test photographer user not found in Supabase')
 

@@ -36,7 +36,7 @@ test.describe('Bell notifications', () => {
 
   test.beforeAll(async () => {
     sb = adminClient()
-    const { data: { users } } = await sb.auth.admin.listUsers()
+    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     if (!user) throw new Error(`Test photographer not found (looking for ${process.env.PLAYWRIGHT_TEST_EMAIL})`)
     photographerId = user.id

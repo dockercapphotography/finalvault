@@ -19,7 +19,7 @@ import { test, expect } from '../../fixtures/fixtures.js'
  */
 
 async function getPhotographerId(sb) {
-  const { data: { users } } = await sb.auth.admin.listUsers()
+  const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
   const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
   if (!user) throw new Error('Test photographer not found')
   return user.id

@@ -10,7 +10,7 @@ function sb() {
 }
 
 async function getPhotographerId() {
-  const { data: { users } } = await sb().auth.admin.listUsers()
+  const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
   const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
   return user.id
 }

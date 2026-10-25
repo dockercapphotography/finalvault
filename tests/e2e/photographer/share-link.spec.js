@@ -31,7 +31,7 @@ test.describe('Share Link', () => {
   }
 
   test.beforeAll(async () => {
-    const { data: { users } } = await sb().auth.admin.listUsers()
+    const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
     const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
     // Use a unique title per worker run to avoid cross-browser beforeAll cleanup conflicts
     const suffix = crypto.randomUUID().slice(0, 8)

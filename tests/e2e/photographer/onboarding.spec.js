@@ -36,7 +36,7 @@ const PROTECTED_GALLERY_IDS = [
 // ---------------------------------------------------------------------------
 
 async function getTestUserId() {
-  const { data } = await sb().auth.admin.listUsers()
+  const { data } = await sb().auth.admin.listUsers({ perPage: 1000 })
   const email = process.env.PLAYWRIGHT_TEST_EMAIL ?? ''
   return data.users.find(u => u.email === email)?.id
 }

@@ -19,7 +19,7 @@ test.describe.configure({ mode: 'serial' })
 // Set it explicitly here so this file doesn't silently depend on
 // cross-file test order or leftover state from a previous run.
 test.beforeAll(async () => {
-  const { data: { users } } = await sb().auth.admin.listUsers()
+  const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
   const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
   if (!user) throw new Error('Test photographer not found')
   await sb().from('photographers').update({ display_name: 'Test Studio' }).eq('id', user.id)
