@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 import { X, Copy, Mail, Link, QrCode, Check, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient.js'
-import QRCode from 'https://esm.sh/qrcode@1.5.3'
 import TemplatePicker from '../ui/TemplatePicker.jsx'
 import { getPublicBaseUrl } from '../../utils/publicBaseUrl.js'
 
@@ -79,7 +78,10 @@ function QRCodeModal({ gallery, onClose }) {
 
   useEffect(() => {
     if (!canvasRef.current) return
-    import('https://esm.sh/qrcode@1.5.3').then(QRCode => {
+    // Bundled from npm and loaded only when this modal opens. Never import
+    // from a URL here: Vite leaves URL imports in the main bundle, so the
+    // whole app would fail to load whenever that host is unreachable.
+    import('qrcode').then(QRCode => {
       QRCode.default.toCanvas(canvasRef.current, galleryUrl, {
         width: 280, margin: 2,
         color: { dark: '#111111', light: '#ffffff' }
