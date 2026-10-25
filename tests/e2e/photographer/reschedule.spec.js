@@ -116,13 +116,33 @@ function shortDayLabel(dateStr) {
   return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })
 }
 
+// futureDateStr() fixtures float with the calendar, so they can land in
+// either EDT or EST -- a hardcoded "19:15Z" is 3:15 PM in October but
+// 2:15 PM in November. Build them from New York wall-clock time instead.
+// The offset is looked up twice: once at a first guess, then again at
+// the resulting instant, so a date across the DST change still resolves.
+function nyOffsetMinutes(date) {
+  const raw = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'longOffset' })
+    .formatToParts(date).find(p => p.type === 'timeZoneName').value // e.g. "GMT-05:00"
+  const [, sign, hh, mm] = raw.match(/GMT([+-])(\d{2}):(\d{2})/)
+  return (sign === '-' ? -1 : 1) * (Number(hh) * 60 + Number(mm))
+}
+
+function nyIso(dateStr, hhmm) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const [hh, mm] = hhmm.split(':').map(Number)
+  const wallClockMs = Date.UTC(y, m - 1, d, hh, mm)
+  const firstGuess = wallClockMs - nyOffsetMinutes(new Date(wallClockMs)) * 60000
+  return new Date(wallClockMs - nyOffsetMinutes(new Date(firstGuess)) * 60000).toISOString()
+}
+
 test.describe('Reschedule and move bookings', () => {
   test('moving a booking to an open slot of the same shoot type transfers it and keeps the session in sync', async ({ page }) => {
     const signupPage = await createSignupPage({ title: 'Move Same Type Test' })
     const shootType = await createShootType(signupPage.id)
     const day = futureDateStr(20)
-    const sourceSlot = await createSlot(signupPage.id, shootType.id, `${day}T15:00:00Z`, `${day}T15:30:00Z`)
-    const targetSlot = await createSlot(signupPage.id, shootType.id, `${day}T19:15:00Z`, `${day}T19:45:00Z`)
+    const sourceSlot = await createSlot(signupPage.id, shootType.id, nyIso(day, '11:00'), nyIso(day, '11:30'))
+    const targetSlot = await createSlot(signupPage.id, shootType.id, nyIso(day, '15:15'), nyIso(day, '15:45'))
     const email = `move-same-type-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       const claimResult = await claimSlot(sourceSlot.id, { firstName: 'Move', lastName: 'Same', email })
@@ -160,8 +180,8 @@ test.describe('Reschedule and move bookings', () => {
     const shootTypeA = await createShootType(signupPage.id, { name: 'Portrait Session', session_type: 'Portrait' })
     const shootTypeB = await createShootType(signupPage.id, { name: 'Group Session', session_type: 'Family' })
     const day = futureDateStr(20)
-    const sourceSlot = await createSlot(signupPage.id, shootTypeA.id, `${day}T15:00:00Z`, `${day}T15:30:00Z`)
-    const targetSlot = await createSlot(signupPage.id, shootTypeB.id, `${day}T19:15:00Z`, `${day}T19:45:00Z`)
+    const sourceSlot = await createSlot(signupPage.id, shootTypeA.id, nyIso(day, '11:00'), nyIso(day, '11:30'))
+    const targetSlot = await createSlot(signupPage.id, shootTypeB.id, nyIso(day, '15:15'), nyIso(day, '15:45'))
     const email = `move-cross-type-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       const claimResult = await claimSlot(sourceSlot.id, { firstName: 'Cross', lastName: 'Type', email })
@@ -288,8 +308,8 @@ test.describe('Reschedule and move bookings', () => {
     const signupPage = await createSignupPage({ title: 'No Spurious Notification Test' })
     const shootType = await createShootType(signupPage.id)
     const day = futureDateStr(20)
-    const sourceSlot = await createSlot(signupPage.id, shootType.id, `${day}T15:00:00Z`, `${day}T15:30:00Z`)
-    const targetSlot = await createSlot(signupPage.id, shootType.id, `${day}T19:15:00Z`, `${day}T19:45:00Z`)
+    const sourceSlot = await createSlot(signupPage.id, shootType.id, nyIso(day, '11:00'), nyIso(day, '11:30'))
+    const targetSlot = await createSlot(signupPage.id, shootType.id, nyIso(day, '15:15'), nyIso(day, '15:45'))
     const email = `no-spurious-notif-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       await claimSlot(sourceSlot.id, { firstName: 'Notif', lastName: 'Test', email })
@@ -317,8 +337,8 @@ test.describe('Reschedule and move bookings', () => {
     const signupPage = await createSignupPage({ title: 'Signups Surface Reschedule Test' })
     const shootType = await createShootType(signupPage.id)
     const day = futureDateStr(20)
-    const sourceSlot = await createSlot(signupPage.id, shootType.id, `${day}T15:00:00Z`, `${day}T15:30:00Z`)
-    const targetSlot = await createSlot(signupPage.id, shootType.id, `${day}T19:15:00Z`, `${day}T19:45:00Z`)
+    const sourceSlot = await createSlot(signupPage.id, shootType.id, nyIso(day, '11:00'), nyIso(day, '11:30'))
+    const targetSlot = await createSlot(signupPage.id, shootType.id, nyIso(day, '15:15'), nyIso(day, '15:45'))
     const email = `signups-surface-${crypto.randomUUID().slice(0, 8)}@example.com`
     try {
       await claimSlot(sourceSlot.id, { firstName: 'Signups', lastName: 'Surface', email })

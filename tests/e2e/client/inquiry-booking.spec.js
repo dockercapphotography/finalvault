@@ -95,7 +95,9 @@ function nextSaturdayDateStr() {
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())
   const [y, m, d] = todayStr.split('-').map(Number)
   const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
-  const daysUntilSaturday = (6 - weekday + 7) % 7
+  // Never today: on a Saturday the fixtures' 1 PM sessions could already
+  // be in the past by the time the suite runs. Use next week's instead.
+  const daysUntilSaturday = (6 - weekday + 7) % 7 || 7
   const target = new Date(Date.UTC(y, m - 1, d + daysUntilSaturday))
   return target.toISOString().slice(0, 10)
 }

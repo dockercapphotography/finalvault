@@ -95,8 +95,12 @@ function nyUtcOffsetMinutes(approxDate) {
 function futureThreePmSlot(daysFromNow) {
   const base = new Date()
   base.setUTCDate(base.getUTCDate() + daysFromNow)
-  const offsetMin = nyUtcOffsetMinutes(base)
-  const start = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 15, 0, 0) - offsetMin * 60000)
+  const wallClockMs = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 15, 0, 0)
+  // The offset at `base` (now + N days, at the current time of day) can
+  // differ from the offset at 3 PM on the target date when the DST change
+  // falls between them, so re-check it at the slot's own instant.
+  const firstGuess = new Date(wallClockMs - nyUtcOffsetMinutes(base) * 60000)
+  const start = new Date(wallClockMs - nyUtcOffsetMinutes(firstGuess) * 60000)
   const end = new Date(start.getTime() + 15 * 60000)
   return { start: start.toISOString(), end: end.toISOString() }
 }
