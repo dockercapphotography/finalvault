@@ -5,16 +5,13 @@ import { CheckCircle, AlertCircle, Loader } from 'lucide-react'
 
 const APP_URL = 'https://final-vault.app'
 
-// Fetch contract by sign_token using anon client (no auth needed)
+// Fetch the one contract matching this sign token (sql/099). Server-side,
+// so the contracts table itself never has to be readable by visitors.
+// Returns null for an unknown, signed or void contract, as before.
 async function getContractByToken(token) {
-  const { data, error } = await supabase
-    .from('contracts')
-    .select('id, title, body, body_hash, status, signed_at, signed_name, clients(first_name, last_name), photographers(display_name, business_name)')
-    .eq('sign_token', token)
-    .in('status', ['sent', 'pending_photographer'])
-    .single()
+  const { data, error } = await supabase.rpc('get_contract_by_sign_token', { p_token: token })
   if (error) return null
-  return data
+  return data ?? null
 }
 
 function LoadingScreen() {
