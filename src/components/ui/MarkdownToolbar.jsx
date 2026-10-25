@@ -1,10 +1,22 @@
 import { useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { Bold, Italic, Heading2, List, ListOrdered, Eye, Pencil } from 'lucide-react'
 
+// Escape before any markdown rule runs: the result is injected with
+// dangerouslySetInnerHTML, and the text is written by any photographer.
+// None of the supported syntax uses these characters.
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function renderMarkdown(text) {
   if (!text) return ''
   // Simple markdown rendering — bold, italic, headings, lists
-  return text
+  return escapeHtml(text)
     .split('\n')
     .map(line => {
       // H2

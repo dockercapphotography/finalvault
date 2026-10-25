@@ -40,9 +40,21 @@ async function submitForm({ sessionId, email, creditHandle, questions, answers, 
 // renders as raw HTML via dangerouslySetInnerHTML but still lives inside
 // that same styled subtree and inherits its custom properties normally. ──
 
+// Escape before any markdown rule runs: the result is injected with
+// dangerouslySetInnerHTML, and the text is written by any photographer.
+// None of the supported syntax uses these characters.
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function renderMarkdown(text) {
   if (!text) return ''
-  return text.split('\n').map(line => {
+  return escapeHtml(text).split('\n').map(line => {
     if (line.startsWith('## ')) return `<h2 style="font-size:17px;font-weight:700;color:var(--bk-ink);margin:12px 0 6px">${line.slice(3)}</h2>`
     if (line.startsWith('- ')) return `<li style="margin-left:20px;list-style-type:disc;margin-bottom:4px;color:var(--bk-muted)">${applyInline(line.slice(2))}</li>`
     const ol = line.match(/^(\d+)\.\s(.*)/)
