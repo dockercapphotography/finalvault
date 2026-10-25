@@ -1,5 +1,4 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
 import { sendPushToPhotographer } from '../_shared/sendPush.ts'
 
 // v1.5.17: push when a client sends a review. Mirrors send-inquiry-push.
@@ -19,7 +18,7 @@ function excerpt(text: string, max = 90) {
   return `${(lastSpace > 40 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
