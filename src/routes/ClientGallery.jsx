@@ -198,7 +198,8 @@ export default function ClientGallery() {
       if (existingViewer) {
         if (g.require_password) {
           const storedPw = localStorage.getItem(`fv-pw-${g.id}`)
-          if (storedPw && storedPw === g.plain_password) { navigate(`/g/${token}/view${window.location.search}`, { replace: true }); return }
+          // Re-checked server-side: the gallery's password is no longer sent to the browser.
+          if (storedPw && await verifyGalleryPassword(g.id, storedPw).catch(() => false)) { navigate(`/g/${token}/view${window.location.search}`, { replace: true }); return }
           setStage('password')
         } else {
           navigate(`/g/${token}/view${window.location.search}`, { replace: true })

@@ -3,41 +3,33 @@ import { supabaseAnon as supabase } from '../supabaseClientAnon.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
+// Server-side lookup (sql/097): display-safe columns only -- never the
+// gallery password or download PIN -- and only for an active, unexpired
+// gallery. Throws when nothing comes back, like the old .single() did,
+// so callers keep showing "Could not load gallery."
 export async function getGalleryByToken(token) {
-  const { data, error } = await supabase
-    .from('galleries')
-    .select(`
-      id, title, client_name, event_name, template, is_active, expires_at,
-      require_password, allow_downloads, allow_favorites, allow_comments,
-      require_download_pin, download_watermarked, allow_hires_download, share_token,
-      photographer_id, cover_image_id, cover_r2_key, cover_focus_x, cover_focus_y,
-      event_date, plain_password, plain_download_pin, show_guide,
-      theme_color, grid_size, grid_spacing, allow_proofing
-    `)
-    .eq('share_token', token)
-    .single()
+  const { data, error } = await supabase.rpc('get_gallery_by_share_token', { p_token: token })
   if (error) throw error
+  if (!data) throw new Error('Gallery not found')
   return data
 }
 
+// Compared in the database (sql/097) -- the password never reaches the browser.
 export async function verifyGalleryPassword(galleryId, password) {
-  const { data, error } = await supabase
-    .from('galleries')
-    .select('plain_password')
-    .eq('id', galleryId)
-    .single()
+  const { data, error } = await supabase.rpc('gallery_password_matches', {
+    p_gallery_id: galleryId, p_password: password,
+  })
   if (error) throw error
-  return data?.plain_password === password
+  return data === true
 }
 
+// Compared in the database (sql/097) -- the PIN never reaches the browser.
 export async function verifyDownloadPin(galleryId, pin) {
-  const { data, error } = await supabase
-    .from('galleries')
-    .select('plain_download_pin')
-    .eq('id', galleryId)
-    .single()
+  const { data, error } = await supabase.rpc('gallery_download_pin_matches', {
+    p_gallery_id: galleryId, p_pin: pin,
+  })
   if (error) throw error
-  return data?.plain_download_pin === pin
+  return data === true
 }
 
 export async function getPhotographerName(photographerId) {
