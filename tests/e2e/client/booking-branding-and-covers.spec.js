@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { FIXTURE_GALLERY } from '../../fixtures/fixtures.js'
+import { withTemporaryTier } from '../../fixtures/tiers.js'
 
 // Covers the v1.5.11 booking-page redesign's new visual features on the
 // single-session public booking page (/book/:token): microsite branding
@@ -91,42 +92,7 @@ async function waitForReady(page) {
 // very next test in this file passing without it).
 async function withPremiumAccess(fn) {
   const photographerId = await getPhotographerId()
-
-  const { data: storageRow, error: storageErr } = await sb()
-    .from('photographer_storage')
-    .select('tier_id')
-    .eq('photographer_id', photographerId)
-    .maybeSingle()
-  if (storageErr) throw new Error(`Could not read photographer_storage: ${storageErr.message}`)
-  const originalTierId = storageRow?.tier_id ?? null
-
-  const { data: tier, error: tierErr } = await sb()
-    .from('storage_tiers')
-    .insert({
-      name: `pw-premium-${crypto.randomUUID().slice(0, 8)}`,
-      storage_gb: 50,
-      price_monthly: 0,
-      allow_premium_features: true,
-    })
-    .select()
-    .single()
-  if (tierErr) throw new Error(`Could not create disposable premium tier: ${tierErr.message}`)
-
-  const { error: assignErr } = await sb()
-    .from('photographer_storage')
-    .upsert({ photographer_id: photographerId, tier_id: tier.id }, { onConflict: 'photographer_id' })
-  if (assignErr) throw new Error(`Could not assign disposable premium tier: ${assignErr.message}`)
-
-  try {
-    await fn()
-  } finally {
-    if (originalTierId) {
-      await sb().from('photographer_storage').update({ tier_id: originalTierId }).eq('photographer_id', photographerId)
-    } else {
-      await sb().from('photographer_storage').delete().eq('photographer_id', photographerId)
-    }
-    await sb().from('storage_tiers').delete().eq('id', tier.id)
-  }
+  return withTemporaryTier(sb(), photographerId, { premium: true }, () => fn())
 }
 
 async function withMicrosite(overrides, fn) {

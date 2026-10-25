@@ -1,5 +1,6 @@
 import { test as base, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import { getTestPhotographerId, withTemporaryTier } from './tiers.js'
 
 export { expect }
 
@@ -234,44 +235,8 @@ export const test = base.extend({
   // like withoutPremiumAccess is, since multiple spec files need it.
   withPremiumAccess: async ({}, use) => {
     const sb = adminClient()
-    const { data: { users } } = await sb.auth.admin.listUsers({ perPage: 1000 })
-    const user = users.find(u => u.email === process.env.PLAYWRIGHT_TEST_EMAIL)
-    if (!user) throw new Error('Test photographer user not found in Supabase')
-    const photographerId = user.id
-
-    const { data: storageRow, error: storageErr } = await sb
-      .from('photographer_storage')
-      .select('tier_id')
-      .eq('photographer_id', photographerId)
-      .maybeSingle()
-    if (storageErr) throw new Error(`Could not read photographer_storage: ${storageErr.message}`)
-    const originalTierId = storageRow?.tier_id ?? null
-
-    const { data: tier, error: tierErr } = await sb
-      .from('storage_tiers')
-      .insert({
-        name: `pw-premium-${crypto.randomUUID().slice(0, 8)}`,
-        storage_gb: 50,
-        price_monthly: 0,
-        allow_premium_features: true,
-      })
-      .select()
-      .single()
-    if (tierErr) throw new Error(`Could not create disposable premium tier: ${tierErr.message}`)
-
-    const { error: assignErr } = await sb
-      .from('photographer_storage')
-      .upsert({ photographer_id: photographerId, tier_id: tier.id }, { onConflict: 'photographer_id' })
-    if (assignErr) throw new Error(`Could not assign disposable premium tier: ${assignErr.message}`)
-
-    await use({ photographerId, tierId: tier.id })
-
-    if (originalTierId) {
-      await sb.from('photographer_storage').update({ tier_id: originalTierId }).eq('photographer_id', photographerId)
-    } else {
-      await sb.from('photographer_storage').delete().eq('photographer_id', photographerId)
-    }
-    await sb.from('storage_tiers').delete().eq('id', tier.id)
+    const photographerId = await getTestPhotographerId(sb)
+    await withTemporaryTier(sb, photographerId, { premium: true }, tierId => use({ photographerId, tierId }))
   },
 
   // Like testGallery but with allow_proofing enabled (requires allow_favorites: true)

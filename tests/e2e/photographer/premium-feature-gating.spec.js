@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/fixtures.js'
+import { withTemporaryTier } from '../../fixtures/tiers.js'
 
 /**
  * Premium feature tier gating (Custom Domain + Microsite)
@@ -34,40 +35,7 @@ const test2 = test.extend({
   // pass/fail.
   withoutPremiumAccess: async ({ sb }, use) => {
     const photographerId = await getPhotographerId(sb)
-
-    const { data: storageRow, error: storageErr } = await sb
-      .from('photographer_storage')
-      .select('tier_id')
-      .eq('photographer_id', photographerId)
-      .maybeSingle()
-    if (storageErr) throw new Error(`Could not read photographer_storage: ${storageErr.message}`)
-    const originalTierId = storageRow?.tier_id ?? null
-
-    const { data: tier, error: tierErr } = await sb
-      .from('storage_tiers')
-      .insert({
-        name: `pw-no-premium-${crypto.randomUUID().slice(0, 8)}`,
-        storage_gb: 5,
-        price_monthly: 0,
-        allow_premium_features: false,
-      })
-      .select()
-      .single()
-    if (tierErr) throw new Error(`Could not create disposable tier: ${tierErr.message}`)
-
-    const { error: assignErr } = await sb
-      .from('photographer_storage')
-      .upsert({ photographer_id: photographerId, tier_id: tier.id }, { onConflict: 'photographer_id' })
-    if (assignErr) throw new Error(`Could not assign disposable tier: ${assignErr.message}`)
-
-    await use({ photographerId, tierId: tier.id })
-
-    if (originalTierId) {
-      await sb.from('photographer_storage').update({ tier_id: originalTierId }).eq('photographer_id', photographerId)
-    } else {
-      await sb.from('photographer_storage').delete().eq('photographer_id', photographerId)
-    }
-    await sb.from('storage_tiers').delete().eq('id', tier.id)
+    await withTemporaryTier(sb, photographerId, { premium: false }, tierId => use({ photographerId, tierId }))
   },
 })
 
@@ -104,16 +72,10 @@ test2.describe('Premium feature tier gating', () => {
     expect(error.message).toContain('does not include the Microsite feature')
   })
 
-  test2('a normal tier is unaffected — Website section shows real status, not the upsell card', async ({ page, sb }) => {
-    const photographerId = await getPhotographerId(sb)
-    const { data: storageRow } = await sb
-      .from('photographer_storage')
-      .select('tier_id, storage_tiers(allow_premium_features)')
-      .eq('photographer_id', photographerId)
-      .maybeSingle()
-
-    test2.skip(!storageRow?.storage_tiers?.allow_premium_features, 'Test photographer\'s current tier does not include premium features')
-
+  // Uses withPremiumAccess rather than the account's own tier: the test
+  // account is on Free (no premium), so relying on its own tier made this
+  // test skip itself on every normal run.
+  test2('a normal tier is unaffected — Website section shows real status, not the upsell card', async ({ page, withPremiumAccess }) => {
     await page.goto('/account')
     await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText("Websites aren't included in your current plan.")).not.toBeVisible()
