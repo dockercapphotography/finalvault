@@ -34,7 +34,17 @@
               // newly-installed worker skips waiting and activates on
               // its own once found; this just makes sure "found"
               // actually happens promptly while the tab stays open.
-              setInterval(() => registration.update(), 60 * 1000)
+              //
+              // update() rejects whenever the check itself fails --
+              // laptop waking from sleep, a dropped connection, a deploy
+              // swapping sw.js mid-fetch. Nothing to do about any of
+              // those; the next tick simply retries. Left uncaught, each
+              // one landed in Sentry as an unhandled rejection
+              // (FINALVAULT-7, -B, -C).
+              setInterval(() => {
+                if (!navigator.onLine) return
+                registration.update().catch(() => {})
+              }, 60 * 1000)
             })
             .catch(err => {
               console.warn('Service worker registration failed:', err)

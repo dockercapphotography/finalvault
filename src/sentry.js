@@ -14,6 +14,11 @@ Sentry.init({
   tracesSampleRate: 0.2,
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
+  // Instagram's Android in-app browser injects its own script
+  // (iabjs://navigation_performance_logger_android) that throws
+  // "Java object is gone" on beforeunload once its native bridge is
+  // torn down. Not FinalVault code, nothing to fix (FINALVAULT-A).
+  ignoreErrors: [/Java object is gone/],
   // 2026-06-28: service worker registration occasionally rejects with a
   // bare "Rejected" error, no further detail -- seen ~16x over 20 days,
   // exclusively on Chrome Mobile/Android in production, never reported by
