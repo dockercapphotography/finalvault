@@ -57,8 +57,19 @@
           // loaded into the running page. Guarded against firing twice
           // (controllerchange can theoretically fire more than once in
           // some edge cases), matching the standard recommended pattern.
+          //
+          // But NOT on a first-ever visit: sw.js claims the page as soon
+          // as it installs, which also fires controllerchange even though
+          // nothing is stale. Reloading then made every new visitor's
+          // page reload a moment after it appeared. Only reload when an
+          // existing worker is replaced, i.e. an actual deploy.
+          let hadController = Boolean(navigator.serviceWorker.controller)
           let refreshing = false
           navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!hadController) {
+              hadController = true
+              return
+            }
             if (refreshing) return
             refreshing = true
             window.location.reload()
