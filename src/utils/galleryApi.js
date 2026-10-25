@@ -505,56 +505,20 @@ export async function submitSelection(galleryId, viewerId, imageIds, note = null
     return { ok: false, error: 'Cannot submit an empty selection.' }
   }
 
-  const { data: viewer, error: viewerErr } = await supabaseAnon
-    .from('gallery_viewers')
-    .select('display_name, email')
-    .eq('id', viewerId)
-    .single()
+  // Server-side (sql/101): checks the images belong to this viewer's open
+  // gallery, upserts the selection and logs 'selection_submitted'.
+  const { data: selection, error } = await supabaseAnon.rpc('submit_gallery_selection', {
+    p_viewer_id: viewerId,
+    p_image_ids: imageIds,
+    p_note: note ?? null,
+  })
 
-  if (viewerErr) return { ok: false, error: viewerErr.message }
-
-  const { data: selection, error: selectionErr } = await supabaseAnon
-    .from('gallery_selections')
-    .upsert(
-      {
-        gallery_id:   galleryId,
-        viewer_id:    viewerId,
-        image_ids:    imageIds,
-        image_count:  imageIds.length,
-        viewer_name:  viewer.display_name || viewer.email || 'Anonymous',
-        viewer_email: viewer.email ?? null,
-        note:         note ?? null,
-        submitted_at: new Date().toISOString(),
-      },
-      { onConflict: 'gallery_id,viewer_id' }
-    )
-    .select()
-    .single()
-
-  if (selectionErr) return { ok: false, error: selectionErr.message }
-
-  const { error: logErr } = await supabaseAnon
-    .from('gallery_activity_log')
-    .insert({
-      gallery_id: galleryId,
-      viewer_id:  viewerId,
-      action:     'selection_submitted',
-    })
-
-  if (logErr) {
-    console.error('[submitSelection] Failed to write activity log:', logErr.message)
-  }
-
+  if (error) return { ok: false, error: error.message }
   return { ok: true, data: selection }
 }
 
 export async function getViewerSelection(galleryId, viewerId) {
-  const { data, error } = await supabaseAnon
-    .from('gallery_selections')
-    .select('id, image_ids, image_count, submitted_at, note')
-    .eq('gallery_id', galleryId)
-    .eq('viewer_id', viewerId)
-    .maybeSingle()
+  const { data, error } = await supabaseAnon.rpc('get_viewer_selection', { p_viewer_id: viewerId })
 
   if (error) return { ok: false, error: error.message }
   if (data) data.image_ids = _parseImageIds(data.image_ids)

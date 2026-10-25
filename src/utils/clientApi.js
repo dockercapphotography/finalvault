@@ -195,15 +195,12 @@ export async function getClientImages(galleryId) {
   return data
 }
 
-export async function getOrCreateViewer(galleryId, email, displayName = null) {
+export async function getOrCreateViewer(galleryId, email, displayName = null, shareToken) {
   const storageKey = `fv-viewer-${galleryId}`
   const existing = localStorage.getItem(storageKey)
   if (existing) {
     const { id: viewerId } = JSON.parse(existing)
-    await supabase
-      .from('gallery_viewers')
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq('id', viewerId)
+    await supabase.rpc('touch_gallery_viewer', { p_viewer_id: viewerId })
     return JSON.parse(existing)
   }
   // Finds an existing viewer for this gallery+email server-side before
@@ -211,8 +208,11 @@ export async function getOrCreateViewer(galleryId, email, displayName = null) {
   // device/browser (no localStorage entry) reconnects to their existing
   // favorites/comments/selections instead of starting a disconnected new
   // viewer identity every time.
-  const { data, error } = await supabase.rpc('get_or_create_gallery_viewer', {
-    p_gallery_id: galleryId,
+  //
+  // Keyed by share token (sql/101): the server only creates/returns a
+  // viewer for a gallery that is active and unexpired.
+  const { data, error } = await supabase.rpc('get_or_create_gallery_viewer_by_token', {
+    p_token: shareToken,
     p_email: email,
     p_display_name: displayName,
   })
@@ -226,30 +226,22 @@ export function getViewerFromSession(galleryId) {
   return stored ? JSON.parse(stored) : null
 }
 
+// Viewer actions below go through sql/101's functions, which act only on
+// the caller's own viewer_id and only while the gallery is open.
 export async function getViewerFavorites(galleryId, viewerId) {
-  const { data, error } = await supabase
-    .from('gallery_favorites')
-    .select('image_id')
-    .eq('gallery_id', galleryId)
-    .eq('viewer_id', viewerId)
+  const { data, error } = await supabase.rpc('get_viewer_favorites', { p_viewer_id: viewerId })
   if (error) throw error
-  return new Set(data.map(f => f.image_id))
+  return new Set(data || [])
 }
 
+// Returns the new state: true = favorited, false = removed.
 export async function toggleFavorite(galleryId, imageId, viewerId) {
-  const { data: existing } = await supabase
-    .from('gallery_favorites')
-    .select('id')
-    .eq('image_id', imageId)
-    .eq('viewer_id', viewerId)
-    .maybeSingle()
-  if (existing) {
-    await supabase.from('gallery_favorites').delete().eq('id', existing.id)
-    return false
-  } else {
-    await supabase.from('gallery_favorites').insert({ gallery_id: galleryId, image_id: imageId, viewer_id: viewerId })
-    return true
-  }
+  const { data, error } = await supabase.rpc('toggle_gallery_favorite', {
+    p_viewer_id: viewerId,
+    p_image_id: imageId,
+  })
+  if (error) throw error
+  return data
 }
 
 export async function getComments(galleryId, imageId = null, viewerId = null) {
@@ -259,48 +251,24 @@ export async function getComments(galleryId, imageId = null, viewerId = null) {
   // regardless of what's requested here, but the app should still ask for
   // the right thing rather than rely on the database to silently narrow
   // an over-broad request.
-  let query = supabase
-    .from('gallery_comments')
-    .select(`
-      id, body, created_at, image_id,
-      viewer_id, photographer_id,
-      gallery_viewers (display_name, email),
-      photographers (display_name)
-    `)
-    .eq('gallery_id', galleryId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true })
-  if (imageId) {
-    query = query.eq('image_id', imageId)
-  } else {
-    query = query.is('image_id', null)
-  }
-  if (viewerId) {
-    query = query.or(`viewer_id.eq.${viewerId},photographer_id.not.is.null`)
-  } else {
-    // No viewer context (e.g. not past the gate yet) -- only photographer
-    // comments are visible, matching what RLS would return anyway.
-    query = query.not('photographer_id', 'is', null)
-  }
-  const { data, error } = await query
+  //
+  // 2026-10-25: now enforced server-side by get_gallery_comments (sql/101)
+  // -- same rows and shape. Without a viewer: photographer comments only.
+  const { data, error } = await supabase.rpc('get_gallery_comments', {
+    p_gallery_id: galleryId,
+    p_image_id: imageId || null,
+    p_viewer_id: viewerId || null,
+  })
   if (error) throw error
-  return data
+  return data || []
 }
 
 export async function addComment(galleryId, imageId, viewerId, body) {
-  const { data, error } = await supabase
-    .from('gallery_comments')
-    .insert({
-      gallery_id: galleryId,
-      image_id: imageId || null,
-      viewer_id: viewerId,
-      body,
-    })
-    .select(`
-      id, body, created_at, image_id,
-      viewer_id, gallery_viewers (email)
-    `)
-    .single()
+  const { data, error } = await supabase.rpc('add_gallery_comment', {
+    p_viewer_id: viewerId,
+    p_image_id: imageId || null,
+    p_body: body,
+  })
   if (error) throw error
   await logActivity(galleryId, viewerId, 'comment', imageId || null, { comment_body: body })
   return data
@@ -597,14 +565,17 @@ export async function logActivity(galleryId, viewerId, action, imageId = null, m
     if (sessionStorage.getItem(key)) return
     sessionStorage.setItem(key, '1')
   }
+  // Activity is recorded against a real viewer only (sql/101). Every
+  // non-preview visitor has one -- the name gate creates it.
+  if (!viewerId) return
   try {
-    await supabase.from('gallery_activity_log').insert({
-      gallery_id: galleryId,
-      viewer_id: viewerId,
-      action,
-      image_id: imageId || null,
-      metadata: metadata || null,
+    const { error } = await supabase.rpc('log_gallery_activity', {
+      p_viewer_id: viewerId,
+      p_action: action,
+      p_image_id: imageId || null,
+      p_metadata: metadata || null,
     })
+    if (error) console.warn('Activity log failed:', error)
   } catch (err) {
     console.warn('Activity log failed:', err)
   }

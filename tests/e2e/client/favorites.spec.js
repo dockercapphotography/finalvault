@@ -49,7 +49,7 @@ test.describe('Favorites — enabled', () => {
     await firstImage.hover()
     const heartBtn = firstImage.locator('button').first()
     const insertDone = page.waitForResponse(r =>
-      r.url().includes('gallery_favorites') && r.request().method() === 'POST'
+      r.url().includes('rpc/toggle_gallery_favorite') && r.request().method() === 'POST'
     )
     await heartBtn.click()
     await insertDone
@@ -64,7 +64,7 @@ test.describe('Favorites — enabled', () => {
 
     // Heart it
     const insertDone = page.waitForResponse(r =>
-      r.url().includes('gallery_favorites') && r.request().method() === 'POST'
+      r.url().includes('rpc/toggle_gallery_favorite') && r.request().method() === 'POST'
     )
     await heartBtn.click()
     await insertDone
@@ -73,10 +73,10 @@ test.describe('Favorites — enabled', () => {
     // Wait for React state to reflect the heart (fill attribute set)
     await expect(heartBtn.locator('svg')).toHaveAttribute('fill', '#ef4444', { timeout: 5000 })
 
-    // Unheart it — now React state has favorites set so second click will DELETE
+    // Unheart it — the same toggle RPC removes it this time
     await firstImage.hover()
     const deleteDone = page.waitForResponse(r =>
-      r.url().includes('gallery_favorites') && r.request().method() === 'DELETE'
+      r.url().includes('rpc/toggle_gallery_favorite') && r.request().method() === 'POST'
     )
     await heartBtn.click()
     await deleteDone
@@ -89,7 +89,7 @@ test.describe('Favorites — enabled', () => {
     const firstImage = page.locator('.group').first()
     await firstImage.hover()
     const insertDone = page.waitForResponse(r =>
-      r.url().includes('gallery_favorites') && r.request().method() === 'POST'
+      r.url().includes('rpc/toggle_gallery_favorite') && r.request().method() === 'POST'
     )
     await firstImage.locator('button').first().click()
     await insertDone
@@ -106,7 +106,7 @@ test.describe('Favorites — enabled', () => {
     const firstImage = page.locator('.group').first()
     await firstImage.hover()
     const insertDone = page.waitForResponse(r =>
-      r.url().includes('gallery_favorites') && r.request().method() === 'POST'
+      r.url().includes('rpc/toggle_gallery_favorite') && r.request().method() === 'POST'
     )
     await firstImage.locator('button').first().click()
     await insertDone
