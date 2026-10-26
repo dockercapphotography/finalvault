@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 // ── Supabase admin client ─────────────────────────────────────────────────────

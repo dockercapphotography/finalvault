@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect } from './base.js'
 import { createClient } from '@supabase/supabase-js'
 import { getTestPhotographerId, withTemporaryTier } from './tiers.js'
 
@@ -76,7 +76,8 @@ export const test = base.extend({
   // Photographer page — pre-authenticated via saved storage state
   page: async ({ browser }, use) => {
     const ctx = await browser.newContext({
-      storageState: 'tests/.auth/photographer.json',
+      // This worker's account (tests/fixtures/base.js).
+      storageState: process.env.FV_AUTH_STATE,
     })
     const page = await ctx.newPage()
     await use(page)
@@ -213,6 +214,15 @@ export const test = base.extend({
       .select('*')
       .eq('photographer_id', user.id)
       .maybeSingle()
+
+    // Pool accounts (tests/fixtures/base.js) start without a row, and many
+    // tests seed content with an UPDATE -- so make sure one exists, the
+    // same default the editor's getMyMicrosite would create. Removed again
+    // below, since none existed before.
+    if (!existing) {
+      const { error: createErr } = await sb.from('microsites').insert({ photographer_id: user.id })
+      if (createErr) throw new Error(`Could not create test microsite: ${createErr.message}`)
+    }
 
     await use({ photographerId: user.id })
 

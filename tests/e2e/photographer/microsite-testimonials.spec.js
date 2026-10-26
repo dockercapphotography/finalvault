@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 import { withTemporaryTier } from '../../fixtures/tiers.js'
 
@@ -144,7 +145,7 @@ function makeTestimonials(count) {
   }))
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 test.describe('Testimonials listing', () => {
   test('pagination appears once there are more than one page, and page size controls work', async ({ page }) => {

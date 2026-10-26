@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 function sb() {
@@ -73,7 +74,7 @@ async function cleanupClientsByEmail(emails) {
   }
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 // The bell button exists as two separate DOM instances at once (mobile
 // header + desktop sidebar) regardless of actual viewport -- CSS handles

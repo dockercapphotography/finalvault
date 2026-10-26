@@ -1,3 +1,3 @@
-import { test } from '@playwright/test'
+import { test } from '../../fixtures/base.js'
 // Admin tests consolidated into user-management.spec.js
 // This file is kept for naming consistency but tests live in user-management.spec.js

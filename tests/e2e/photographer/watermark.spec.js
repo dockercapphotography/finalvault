@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 function sb() {
@@ -15,7 +16,7 @@ async function getPhotographerId() {
   return user.id
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 async function goToWatermarksTab(page) {
   await page.goto('/account')
@@ -121,7 +122,8 @@ test.describe('Account — Profile', () => {
   test('saves display name on blur', async ({ page }) => {
     await goToProfileTab(page)
     const input = page.getByPlaceholder('Your name')
-    await input.fill('Test Studio')
+    // Not "Test Studio" -- the admin tests reserve that name for the main account.
+    await input.fill('PW Profile Name')
     await input.blur()
     await expect(page.getByText('Changes saved')).toBeVisible({ timeout: 10000 })
   })

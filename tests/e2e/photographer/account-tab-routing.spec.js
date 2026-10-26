@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 
 /**
  * Account Tab URL Routing
@@ -7,7 +8,7 @@ import { test, expect } from '@playwright/test'
  * Tabs use role="button" (matching the existing watermark.spec.js pattern).
  */
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 test.describe('Account tab routing via ?tab= param', () => {
   test('/account?tab=watermarks lands on Watermarks tab', async ({ page }) => {

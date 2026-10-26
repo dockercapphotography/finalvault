@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 function sb() {
@@ -61,7 +62,7 @@ async function openPageAndGenerator(page, title) {
   await page.getByText('+ Generate or add time slots').click()
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 test.describe('Recurring slot generation', () => {
   test('a single day (no end date) never shows the day-of-week picker', async ({ page }) => {

@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 import { FIXTURE_GALLERY, COMMENTS_FIXTURE_GALLERY } from '../../fixtures/fixtures.js'
 
@@ -23,7 +24,7 @@ function sb() {
   )
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 // IDs that must never be deleted
 const PROTECTED_GALLERY_IDS = [

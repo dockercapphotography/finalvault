@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test"
+import { photographerState, currentPhotographerId } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from "@supabase/supabase-js"
 
 function sb() {
@@ -9,12 +10,14 @@ function sb() {
   )
 }
 
-test.use({ storageState: "tests/.auth/photographer.json" })
+test.use({ storageState: photographerState })
 
 test.describe("Gallery Creation", () => {
   test.afterEach(async () => {
+    // Only this worker's account -- other workers' testGallery fixtures use the same title.
     const { data } = await sb().from("galleries")
       .select("id").ilike("title", "Playwright Test Gallery%")
+      .eq("photographer_id", await currentPhotographerId(sb()))
     if (data?.length) {
       await sb().from("galleries").delete().in("id", data.map(g => g.id))
     }

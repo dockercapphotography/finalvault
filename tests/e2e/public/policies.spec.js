@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 
 /**
  * Public Policy Pages — Privacy Policy & Terms of Service
@@ -54,7 +55,7 @@ test.describe('Policy links — login page footer', () => {
 
 test.describe('Policy links — app footer', () => {
   test.use({
-    storageState: 'tests/.auth/photographer.json',
+    storageState: photographerState,
     viewport: { width: 1280, height: 800 },
   })
 

@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 function sb() {
@@ -16,7 +17,7 @@ async function getPhotographerId() {
   return user.id
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 async function createTestQuestionnaireTemplate(overrides = {}) {
   const photographerId = await getPhotographerId()

@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 function sb() {
@@ -55,7 +56,7 @@ async function goToSignups(page) {
   await page.getByRole('button', { name: 'Sign-ups' }).click()
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 test.describe('Creating an inquiry-mode signup page', () => {
   test('choosing Inquiry at creation sets mode=inquiry and the tab reads Availability', async ({ page }) => {

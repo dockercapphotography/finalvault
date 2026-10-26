@@ -1,3 +1,4 @@
+import { isTestAccountEmail } from './base.js'
 // Shared helpers for the disposable storage tiers tests use to switch the
 // Playwright account's premium access on or off.
 //
@@ -114,7 +115,11 @@ export async function withTemporaryTier(sb, photographerId, { premium }, fn) {
 // default tier, then deletes every test tier nobody is on. Leaves a test
 // tier alone (and says so) if anyone other than the test account is on it.
 export async function sweepLeftoverTestTiers(sb) {
-  const photographerId = await getTestPhotographerId(sb)
+  // Main + pool accounts (tests/fixtures/base.js) -- any of them can be
+  // left on a leftover tier by an interrupted parallel run.
+  const { data: userList, error: usersErr } = await sb.auth.admin.listUsers({ perPage: 1000 })
+  if (usersErr) throw new Error(`Could not list auth users: ${usersErr.message}`)
+  const accountIds = userList.users.filter(u => isTestAccountEmail(u.email)).map(u => u.id)
 
   const { data: candidates, error: listErr } = await sb.from('storage_tiers').select('id, name').like('name', 'pw-%')
   if (listErr) throw new Error(`Could not list storage tiers: ${listErr.message}`)
@@ -129,17 +134,18 @@ export async function sweepLeftoverTestTiers(sb) {
   if (assignedErr) throw new Error(`Could not read tier assignments: ${assignedErr.message}`)
 
   let movedTestAccount = false
-  if (assigned.some(row => row.photographer_id === photographerId)) {
+  const strandedIds = [...new Set(assigned.filter(row => accountIds.includes(row.photographer_id)).map(row => row.photographer_id))]
+  if (strandedIds.length) {
     const { error: moveErr } = await sb
       .from('photographer_storage')
       .update({ tier_id: await getDefaultTierId(sb) })
-      .eq('photographer_id', photographerId)
+      .in('photographer_id', strandedIds)
     if (moveErr) throw new Error(`Could not move the test account off a leftover test tier: ${moveErr.message}`)
     movedTestAccount = true
   }
 
   const keptInUse = [...new Set(
-    assigned.filter(row => row.photographer_id !== photographerId).map(row => row.tier_id)
+    assigned.filter(row => !accountIds.includes(row.photographer_id)).map(row => row.tier_id)
   )]
   const deletable = leftoverIds.filter(id => !keptInUse.includes(id))
   if (deletable.length) {

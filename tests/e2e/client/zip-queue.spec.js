@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'node:crypto'
 import { enterGalleryAsClient, FIXTURE_GALLERY } from '../../fixtures/fixtures.js'
@@ -362,9 +362,14 @@ test.describe('Async ZIP queue — content-based dedup', () => {
     await clickWebSizeDownload(page)
     await expect(page.getByText(/preparing your download/i)).toBeVisible({ timeout: 10000 })
 
-    await page.waitForTimeout(1500)
-    const { data: jobs } = await sb().from('zip_jobs').select('*').eq('gallery_id', gallery.id)
-    expect(jobs).toHaveLength(2) // the seeded unrelated job + a real new one
+    // Poll rather than a fixed wait -- the new row can take a few seconds
+    // to land when the suite runs in parallel.
+    let jobs = []
+    await expect.poll(async () => {
+      const { data } = await sb().from('zip_jobs').select('*').eq('gallery_id', gallery.id)
+      jobs = data ?? []
+      return jobs.length
+    }, { timeout: 15000 }).toBe(2) // the seeded unrelated job + a real new one
     const newJob = jobs.find(j => j.notify_email === 'testclient@example.com')
     expect(newJob).toBeTruthy()
     expect(newJob.dedup_source_job_id).toBeNull()

@@ -1,6 +1,7 @@
-import { test, expect } from "@playwright/test"
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 
-test.use({ storageState: "tests/.auth/photographer.json" })
+test.use({ storageState: photographerState })
 
 async function signOut(page) {
   await page.goto("/")

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/base.js'
 import { FIXTURE_GALLERY } from '../../fixtures/fixtures.js'
 import { createClient } from '@supabase/supabase-js'
 

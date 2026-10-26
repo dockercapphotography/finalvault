@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 function sb() {
@@ -73,7 +74,7 @@ function signupCard(page, title) {
   return page.locator('div.rounded-2xl').filter({ hasText: title }).first()
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 test.describe('Signup page hide/unhide', () => {
   test('hiding a page removes it from the default list and shows a Show hidden toggle', async ({ page }) => {

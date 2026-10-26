@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 
 /**
  * Desktop Footer
@@ -7,7 +8,7 @@ import { test, expect } from '@playwright/test'
  * hidden below that breakpoint.
  */
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 const DESKTOP = { width: 1280, height: 800 }
 const MOBILE  = { width: 375,  height: 812 }

@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 // ── Supabase admin client ─────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ async function waitForPortalReady(page) {
 // itself). The default page fixture below is the photographer; each test
 // spins up its own anonymous browser context for the client side, mirroring
 // the pattern already used in activity-feed.spec.js.
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 async function setRealPortalPassword(page, clientId, password) {
   await page.goto(`/clients/${clientId}`)
@@ -118,6 +119,9 @@ test.describe('Client portal password gate', () => {
   })
 
   test('locks out after repeated wrong attempts, with a live countdown', async ({ page, browser }) => {
+    // Six real wrong-password round trips plus the countdown -- can pass 30s
+    // when the suite runs in parallel.
+    test.slow()
     const client = await createTestClient()
     try {
       await setRealPortalPassword(page, client.id, 'correcthorse3')

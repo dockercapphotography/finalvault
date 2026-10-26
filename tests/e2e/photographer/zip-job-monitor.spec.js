@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'node:crypto'
 
@@ -10,7 +11,7 @@ function sb() {
   )
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 test.describe.configure({ mode: 'serial' })
 
 // Every test searches by this gallery's own unique title before asserting

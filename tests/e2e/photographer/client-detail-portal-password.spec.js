@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 // ── Supabase admin client ─────────────────────────────────────────────────────
@@ -46,7 +47,7 @@ async function waitForClientReady(page, fullName) {
   await expect(page.getByRole('heading', { name: fullName })).toBeVisible({ timeout: 15000 })
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 test.describe('Client portal password — management', () => {
   let client

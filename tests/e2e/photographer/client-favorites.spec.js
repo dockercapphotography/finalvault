@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 import { FIXTURE_GALLERY } from '../../fixtures/fixtures.js'
 
@@ -14,7 +15,7 @@ function sb() {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 const galleryId = FIXTURE_GALLERY.id
 const images = FIXTURE_GALLERY.images
@@ -240,7 +241,8 @@ test.describe('Client Favorites — Activity Page', () => {
       const thumbBtn = panel.locator('button').filter({ has: page.locator('img') }).first()
       await thumbBtn.click()
       // Lightbox renders "1 of N" counter text at the bottom
-      await expect(page.getByText(/1 of \d+/)).toBeVisible({ timeout: 5000 })
+      // Exact match -- the page's own "Showing 1–1 of N" pagination also contains "1 of".
+      await expect(page.getByText(/^1 of \d+$/)).toBeVisible({ timeout: 5000 })
     } finally {
       await cleanupByViewerId(viewer.id)
     }

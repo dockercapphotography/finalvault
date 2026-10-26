@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { photographerState } from '../../fixtures/base.js'
+import { test, expect } from '../../fixtures/base.js'
 import { createClient } from '@supabase/supabase-js'
 
 function sb() {
@@ -67,7 +68,7 @@ async function cleanupQuestionnaire(id) {
   await sb().from('questionnaire_templates').delete().eq('id', id)
 }
 
-test.use({ storageState: 'tests/.auth/photographer.json' })
+test.use({ storageState: photographerState })
 
 async function goToSignups(page) {
   await page.goto('/sessions')
