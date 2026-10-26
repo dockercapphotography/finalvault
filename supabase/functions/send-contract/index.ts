@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${senderName} <noreply@mail.final-vault.app>`,
+        from: `${safeFromName(senderName)} <noreply@mail.final-vault.app>`,
         to: [contract.clients.email],
         subject: `Please sign: ${contract.title}`,
         html,
@@ -132,6 +133,11 @@ function buildContractEmailHtml({ senderName, clientName, contractTitle, signUrl
   contractTitle: string
   signUrl: string
 }) {
+  // Every value below is placed into HTML -- escaped on entry.
+  senderName = escapeHtml(senderName)
+  clientName = escapeHtml(clientName)
+  contractTitle = escapeHtml(contractTitle)
+  signUrl = safeUrl(signUrl)
   return `<!DOCTYPE html>
 <html>
 <head>

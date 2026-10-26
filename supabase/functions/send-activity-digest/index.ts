@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -207,6 +208,8 @@ function buildDigestHtml({ senderName, byGallery, totalEvents, galleryCount, sin
   galleryCount: number
   since: Date
 }) {
+  // Every value below is placed into HTML -- escaped on entry.
+  senderName = escapeHtml(senderName)
   const appUrl = 'https://final-vault.app'
 
   const sinceStr = since.getTime() === 0
@@ -218,14 +221,14 @@ function buildDigestHtml({ senderName, byGallery, totalEvents, galleryCount, sin
 
     const eventRows = events.slice(0, 20).map(event => {
       const viewer = event.gallery_viewers
-      const viewerName = viewer?.display_name || viewer?.email || 'Unknown client'
+      const viewerName = escapeHtml(viewer?.display_name || viewer?.email || 'Unknown client')
       const actionMeta = ACTION_ICONS[event.action]
       const label = actionMeta?.label || event.action
       const time = new Date(event.occurred_at).toLocaleString('en-US', {
         month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
       })
       const imageName = event.gallery_images?.file_name
-        ? `<span style="color:#6b7280;font-size:12px;"> — ${event.gallery_images.file_name}</span>`
+        ? `<span style="color:#6b7280;font-size:12px;"> — ${escapeHtml(event.gallery_images.file_name)}</span>`
         : ''
       const iconHtml = actionMeta
         ? `<img src="${actionMeta.img}" width="20" height="20" style="display:inline-block;vertical-align:middle;margin-right:6px;border-radius:4px;" />`
@@ -250,7 +253,7 @@ function buildDigestHtml({ senderName, byGallery, totalEvents, galleryCount, sin
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;overflow:hidden;">
             <tr>
               <td style="padding:14px 20px;background:#f3f4f6;border-bottom:1px solid #e5e7eb;">
-                <a href="${galleryUrl}" style="color:#111111;font-size:14px;font-weight:700;text-decoration:none;">${title}</a>
+                <a href="${galleryUrl}" style="color:#111111;font-size:14px;font-weight:700;text-decoration:none;">${escapeHtml(title)}</a>
                 <span style="color:#9ca3af;font-size:12px;margin-left:8px;">${events.length} event${events.length !== 1 ? 's' : ''}</span>
               </td>
             </tr>

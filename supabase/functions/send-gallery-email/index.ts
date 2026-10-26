@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
@@ -212,7 +213,7 @@ Deno.serve(async (req) => {
       })
 
       const { res, data } = await sendWithRetry({
-        from: `${senderName} <noreply@mail.final-vault.app>`,
+        from: `${safeFromName(senderName)} <noreply@mail.final-vault.app>`,
         to: [email],
         subject: finalSubject,
         html,
@@ -327,6 +328,18 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, clientName, eventNa
   socialLinks: Record<string, string>
   paymentLinks: Record<string, string>
 }) {
+  // Every value below is placed into HTML -- escaped on entry.
+  senderName = escapeHtml(senderName)
+  galleryTitle = escapeHtml(galleryTitle)
+  clientName = escapeHtml(clientName)
+  eventName = escapeHtml(eventName)
+  eventDate = escapeHtml(eventDate)
+  password = escapeHtml(password)
+  downloadPin = escapeHtml(downloadPin)
+  expiryDate = escapeHtml(expiryDate)
+  logoUrl = safeUrl(logoUrl)
+  galleryUrl = safeUrl(galleryUrl)
+  coverImageUrl = safeUrl(coverImageUrl)
   const allLinks = { ...socialLinks, ...paymentLinks }
   const BASE_URL = 'https://final-vault.app/brand-icons'
   const linkIconsHtml = Object.entries(allLinks)
@@ -334,7 +347,7 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, clientName, eventNa
     .map(([id, url]) => {
       const meta = SOCIAL_META[id]
       if (!meta) return ''
-      return `<a href="${url}" style="display:inline-block;margin:0 6px;text-decoration:none;">
+      return `<a href="${safeUrl(url)}" style="display:inline-block;margin:0 6px;text-decoration:none;">
         <img src="${BASE_URL}/${id}.png" alt="${meta.label}" width="32" height="32" style="display:block;border:0;border-radius:8px;" />
       </a>`
     }).join('')

@@ -14,6 +14,7 @@
 // for photographer-initiated jobs.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
@@ -91,7 +92,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${senderName} <noreply@mail.final-vault.app>`,
+        from: `${safeFromName(senderName)} <noreply@mail.final-vault.app>`,
         to: [job.notify_email],
         subject: `We ran into a problem preparing your ${job.size === 'web' ? 'web-size' : 'hi-res'} download — ${galleryTitle}`,
         html,
@@ -124,6 +125,11 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, retryUrl }: {
   galleryTitle: string
   retryUrl: string
 }) {
+  // Every value below is placed into HTML -- escaped on entry.
+  senderName = escapeHtml(senderName)
+  galleryTitle = escapeHtml(galleryTitle)
+  logoUrl = safeUrl(logoUrl)
+  retryUrl = safeUrl(retryUrl)
   return `<!DOCTYPE html>
 <html>
 <head>

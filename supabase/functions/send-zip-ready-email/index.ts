@@ -16,6 +16,7 @@
 // land, this link will 404 -- expected at this stage, not a bug here.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${senderName} <noreply@mail.final-vault.app>`,
+        from: `${safeFromName(senderName)} <noreply@mail.final-vault.app>`,
         to: [job.notify_email],
         subject: `Your ${job.size === 'web' ? 'web-size' : 'hi-res'} download is ready — ${galleryTitle}`,
         html,
@@ -139,6 +140,11 @@ function buildEmailHtml({ senderName, logoUrl, galleryTitle, downloadUrl, includ
   skippedCount: number
   size: string
 }) {
+  // Every value below is placed into HTML -- escaped on entry.
+  senderName = escapeHtml(senderName)
+  galleryTitle = escapeHtml(galleryTitle)
+  logoUrl = safeUrl(logoUrl)
+  downloadUrl = safeUrl(downloadUrl)
   const photoDescriptor = size === 'web' ? 'web-size, watermarked photo' : 'full-resolution photo'
   return `<!DOCTYPE html>
 <html>

@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 import { sendPushToPhotographer } from '../_shared/sendPush.ts'
 
 const corsHeaders = {
@@ -147,6 +148,13 @@ function buildPhotographerNotificationHtml({ senderName, clientName, contractTit
   signedAt: string
   contractUrl: string
 }) {
+  // Every value below is placed into HTML -- escaped on entry.
+  senderName = escapeHtml(senderName)
+  clientName = escapeHtml(clientName)
+  contractTitle = escapeHtml(contractTitle)
+  signedName = escapeHtml(signedName)
+  signedAt = escapeHtml(signedAt)
+  contractUrl = safeUrl(contractUrl)
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>

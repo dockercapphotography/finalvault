@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 import { getPublicBaseUrl } from '../_shared/getPublicBaseUrl.ts'
 
 const corsHeaders = {
@@ -130,7 +131,7 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: `${senderName} <noreply@mail.final-vault.app>`,
+            from: `${safeFromName(senderName)} <noreply@mail.final-vault.app>`,
             to: [viewer.email],
             subject,
             html,
@@ -173,6 +174,17 @@ function buildExpiryEmailHtml({ senderName, galleryTitle, clientName, eventName,
   password: string | null
   downloadPin: string | null
 }) {
+  // Every value below is placed into HTML -- escaped on entry.
+  senderName = escapeHtml(senderName)
+  galleryTitle = escapeHtml(galleryTitle)
+  clientName = escapeHtml(clientName)
+  eventName = escapeHtml(eventName)
+  eventDate = escapeHtml(eventDate)
+  expiryDate = escapeHtml(expiryDate)
+  password = escapeHtml(password)
+  downloadPin = escapeHtml(downloadPin)
+  galleryUrl = safeUrl(galleryUrl)
+  coverImageUrl = safeUrl(coverImageUrl)
   const urgencyColor = daysUntilExpiry <= 1 ? '#dc2626' : daysUntilExpiry <= 3 ? '#d97706' : '#6366f1'
   const urgencyBg   = daysUntilExpiry <= 1 ? '#fef2f2' : daysUntilExpiry <= 3 ? '#fffbeb' : '#eef2ff'
   const urgencyText = daysUntilExpiry <= 1

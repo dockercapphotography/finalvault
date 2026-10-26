@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 import { PDFDocument, StandardFonts, rgb } from 'https://esm.sh/pdf-lib@1.17.1'
 
 const corsHeaders = {
@@ -204,13 +205,13 @@ Deno.serve(async (req) => {
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;max-width:560px;">
         <tr><td style="background:#111;padding:24px 40px;text-align:center;">
-          <p style="margin:0;color:#fff;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;">${senderName}</p>
+          <p style="margin:0;color:#fff;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;">${escapeHtml(senderName)}</p>
         </td></tr>
         <tr><td style="padding:36px 40px 32px;">
           <p style="margin:0 0 16px;color:#111;font-size:20px;font-weight:700;">Contract fully signed</p>
-          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6;">Hi ${recipientName},</p>
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6;">Hi ${escapeHtml(recipientName)},</p>
           <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6;">
-            <strong>${contract.title}</strong> has been signed by both parties on ${signedDate}.
+            <strong>${escapeHtml(contract.title)}</strong> has been signed by both parties on ${escapeHtml(signedDate)}.
             A copy of the signed contract is attached to this email as a PDF.
           </p>
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;margin-bottom:20px;">
@@ -219,7 +220,7 @@ Deno.serve(async (req) => {
             </p>
           </div>
           <p style="margin:0;color:#9ca3af;font-size:13px;">
-            Client: ${clientName} · Photographer: ${contract.photographer_signed_name} · ${signedDate}
+            Client: ${escapeHtml(clientName)} · Photographer: ${escapeHtml(contract.photographer_signed_name)} · ${escapeHtml(signedDate)}
           </p>
         </td></tr>
         <tr><td style="padding:16px 40px;border-top:1px solid #f0f0f0;text-align:center;">
@@ -237,7 +238,7 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: `${senderName} <noreply@mail.final-vault.app>`,
+          from: `${safeFromName(senderName)} <noreply@mail.final-vault.app>`,
           to: [clientEmail],
           subject: `Signed contract: ${contract.title}`,
           html: confirmedHtml(clientFirstName),
