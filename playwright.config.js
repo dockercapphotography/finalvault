@@ -15,6 +15,14 @@ try {
   }
 } catch { /* .env not found */ }
 
+// Default: test a production build (mode "e2e") served by `vite preview`
+// -- a few bundled files per page instead of the dev server's hundreds of
+// separate modules, which made every test's first page load slow.
+// PW_DEV=1 switches back to the dev server (handy while debugging a test
+// against code you're editing, since it needs no rebuild).
+const useDevServer = process.env.PW_DEV === '1'
+const appUrl = useDevServer ? 'http://localhost:5173' : 'http://localhost:4173'
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -30,7 +38,7 @@ export default defineConfig({
       ],
 
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || appUrl,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
@@ -77,9 +85,17 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: useDevServer
+    ? {
+        command: 'npm run dev',
+        url: 'http://localhost:5173',
+        reuseExistingServer: !process.env.CI,
+      }
+    : {
+        // Fresh build every run, so tests never hit a stale bundle.
+        command: 'FV_E2E_BUILD=1 npx vite build --mode e2e --outDir dist-e2e && npx vite preview --outDir dist-e2e --port 4173 --strictPort',
+        url: 'http://localhost:4173',
+        reuseExistingServer: false,
+        timeout: 180_000,
+      },
 })

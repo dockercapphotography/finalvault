@@ -4,6 +4,7 @@ r2-worker/node_modules/
 
 # Build output
 dist/
+dist-e2e/
 r2-worker/dist/
 
 # Environment variables — never commit these

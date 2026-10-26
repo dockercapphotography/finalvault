@@ -6,7 +6,8 @@ import { sentryVitePlugin } from '@sentry/vite-plugin'
 
 // Set on Cloudflare Pages (Settings -> Variables and Secrets). When it's
 // missing -- every local build -- no source maps are produced at all.
-const uploadSourceMaps = Boolean(process.env.SENTRY_AUTH_TOKEN)
+// Never for the Playwright build (FV_E2E_BUILD, see playwright.config.js).
+const uploadSourceMaps = Boolean(process.env.SENTRY_AUTH_TOKEN) && !process.env.FV_E2E_BUILD
 
 export default defineConfig({
   plugins: [

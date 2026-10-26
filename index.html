@@ -24,8 +24,10 @@
           // dev, vite-plugin-pwa serves the injectManifest worker at
           // /dev-sw.js?dev-sw, not /sw.js (that's prod-only). Requires
           // this to be a module script so import.meta.env resolves.
-          const swUrl = import.meta.env.MODE === 'production' ? '/sw.js' : '/dev-sw.js?dev-sw'
-          navigator.serviceWorker.register(swUrl, { type: import.meta.env.MODE === 'production' ? 'classic' : 'module' })
+          // PROD (not MODE) so the Playwright e2e build registers the real
+          // /sw.js too; production and dev are unchanged.
+          const swUrl = import.meta.env.PROD ? '/sw.js' : '/dev-sw.js?dev-sw'
+          navigator.serviceWorker.register(swUrl, { type: import.meta.env.PROD ? 'classic' : 'module' })
             .then(registration => {
               // Without this, the browser only naturally re-checks for
               // a new worker on a full page navigation or its own

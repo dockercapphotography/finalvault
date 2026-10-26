@@ -3,7 +3,9 @@ import * as Sentry from '@sentry/react'
 Sentry.init({
   dsn: 'https://c736cfc1a3330813b9ff0621d727c51e@o4511492370333696.ingest.us.sentry.io/4511492371513345',
   environment: import.meta.env.MODE,
-  enabled: import.meta.env.PROD,
+  // Off for the Playwright build (vite build --mode e2e) -- test runs must
+  // not report errors or replays into the real project.
+  enabled: import.meta.env.PROD && import.meta.env.MODE !== 'e2e',
   integrations: [
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration({
