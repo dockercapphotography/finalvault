@@ -12,6 +12,22 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Scheduled job only: pg_cron sends the service role key from Vault.
+  // Without this anyone could trigger these emails at will.
+  const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+  if (!bearer || bearer !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+  // {"ping": true} verifies the credentials without sending anything.
+  const reqBody = await req.clone().json().catch(() => ({}))
+  if (reqBody?.ping) {
+    return new Response(JSON.stringify({ ok: true, ping: true }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
