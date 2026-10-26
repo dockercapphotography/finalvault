@@ -34,33 +34,22 @@ test.use({ contextOptions: { storageState: undefined } })
 // automated coverage for it either way at the moment.
 
 
-// ── gallery_viewers cross-gallery reassignment (KNOWN GAP, not a guarantee) ─
+// ── gallery_viewers lockdown (sql/101 + sql/102, 2026-10-25) ───────────────
 //
-// IMPORTANT: this test documents ACTUAL behavior, not a security boundary
-// that's been verified to hold. The UPDATE policy in
-// 027_gallery_viewers_rls_enable.sql checks gallery_viewers.gallery_id
-// against "does this belong to an active gallery" in BOTH the USING clause
-// (evaluated against the row being updated) AND the WITH CHECK clause
-// (evaluated against the NEW row after the update, per Postgres RLS
-// semantics). Because the check is "is this an active gallery" rather than
-// "is this the SAME gallery the row started in", an anonymous caller CAN
-// reassign an existing viewer row's gallery_id to a different active
-// gallery -- both the before and after states pass the same check.
-//
-// This was discovered while writing this test (2026-06-28), reasoning
-// through Postgres's documented WITH CHECK semantics rather than assuming
-// the fix from earlier today closed this. It's a narrower issue than the
-// platform-wide SELECT enumeration gap already flagged as a follow-up, but
-// it's real: in practice this would let someone move a viewer record
-// between galleries via a direct API call, bypassing the app's UI (the
-// app itself never sends an update like this).
-//
-// This test asserts the current (gap-having) behavior so a future fix
-// shows up as an intentional, visible change here -- not as a silent
-// behavior shift discovered by accident the way the original UPDATE-grant
-// bug was.
-test.describe('Client Gallery — viewer gallery_id reassignment (known gap)', () => {
+// Until 102, anon policies let anyone with the public key list every viewer
+// (name + email) in any active gallery and move a viewer row between
+// galleries (documented here as a known gap since 2026-06-28). Client
+// galleries now go through SECURITY DEFINER functions keyed by the
+// visitor's own viewer_id, and anon has no direct access to the table.
+// These tests pin that down so a policy re-added later shows up here.
+test.describe('Client Gallery — viewer rows are not reachable directly', () => {
   let galleryA, galleryB
+
+  const anon = () => createClient(
+    process.env.PLAYWRIGHT_SUPABASE_URL,
+    process.env.VITE_SUPABASE_ANON_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
 
   test.beforeEach(async () => {
     const { data: { users } } = await sb().auth.admin.listUsers({ perPage: 1000 })
@@ -92,7 +81,7 @@ test.describe('Client Gallery — viewer gallery_id reassignment (known gap)', (
     await sb().from('galleries').delete().in('id', [galleryA.id, galleryB.id])
   })
 
-  test('a viewer row CAN currently be reassigned from one active gallery to another (documents a known gap)', async ({ page }) => {
+  test('a viewer row cannot be listed or moved to another gallery with the public key', async ({ page }) => {
     await enterGalleryAsClient(page, galleryA.share_token)
     const { data: viewerRows } = await sb()
       .from('gallery_viewers')
@@ -101,27 +90,41 @@ test.describe('Client Gallery — viewer gallery_id reassignment (known gap)', (
     expect(viewerRows.length).toBe(1)
     const viewerId = viewerRows[0].id
 
-    const anonClient = createClient(
-      process.env.PLAYWRIGHT_SUPABASE_URL,
-      process.env.VITE_SUPABASE_ANON_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-    const { error } = await anonClient
+    // Listing: no anon SELECT policy, so nothing comes back.
+    const { data: listed } = await anon()
+      .from('gallery_viewers')
+      .select('id, email')
+      .eq('gallery_id', galleryA.id)
+    expect(listed ?? []).toHaveLength(0)
+
+    // Reassignment: no anon UPDATE policy, so the update matches no rows.
+    await anon()
       .from('gallery_viewers')
       .update({ gallery_id: galleryB.id })
       .eq('id', viewerId)
-
-    // This currently SUCCEEDS (error is null) -- see the comment block
-    // above. If this assertion ever starts failing, it means the gap has
-    // been closed (good!) -- update this test to assert the opposite and
-    // remove the "known gap" framing.
-    expect(error).toBeNull()
 
     const { data: rowAfter } = await sb()
       .from('gallery_viewers')
       .select('gallery_id')
       .eq('id', viewerId)
       .single()
-    expect(rowAfter.gallery_id).toBe(galleryB.id)
+    expect(rowAfter.gallery_id).toBe(galleryA.id)
+  })
+
+  test('the old gallery-id viewer function is closed to the public key', async () => {
+    const { error } = await anon().rpc('get_or_create_gallery_viewer', {
+      p_gallery_id: galleryA.id,
+      p_email: 'pw-probe@finalvault.test',
+    })
+    expect(error).not.toBeNull()
+    const { data: rows } = await sb().from('gallery_viewers').select('id').eq('gallery_id', galleryA.id)
+    expect(rows).toHaveLength(0)
+  })
+
+  test('activity cannot be inserted directly with the public key', async () => {
+    const { error } = await anon()
+      .from('gallery_activity_log')
+      .insert({ gallery_id: galleryA.id, action: 'download_all' })
+    expect(error).not.toBeNull()
   })
 })
