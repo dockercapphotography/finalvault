@@ -1,5 +1,5 @@
 import { verifyJWT } from '../middleware/auth.js'
-import { verifyShareToken } from '../middleware/shareToken.js'
+import { verifyShareToken, keyInSharedGallery } from '../middleware/shareToken.js'
 import { verifyMicrositeAccess } from '../middleware/micrositeAccess.js'
 import { verifyBookingCoverAccess } from '../middleware/bookingCoverAccess.js'
 import { verifyQuestionnaireCoverAccess } from '../middleware/questionnaireCoverAccess.js'
@@ -84,6 +84,7 @@ export async function handlePreview(request, env, corsHeaders) {
 
     const shareAuth = await verifyShareToken(tokenRequest, env, false, allowExpiredPreview)
     if (!shareAuth.valid) return jsonResponse({ ok: false, error: shareAuth.error }, 403, corsHeaders)
+    if (!keyInSharedGallery(key, shareAuth)) return jsonResponse({ ok: false, error: 'Access denied' }, 403, corsHeaders)
     photographerId = shareAuth.photographerId
   } else if (isMicrositeRequest) {
     // Public microsite access

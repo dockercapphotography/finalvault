@@ -1,4 +1,16 @@
 /**
+ * A share token grants access to ONE gallery, not to everything its
+ * photographer owns. Every share-token request must pass this before
+ * reading from R2: the key has to live in that gallery's own folder, or
+ * be that gallery's cover image.
+ */
+export function keyInSharedGallery(key, shareAuth) {
+  if (!shareAuth?.photographerId || !shareAuth?.galleryId) return false
+  const prefix = `photographers/${shareAuth.photographerId}/galleries/${shareAuth.galleryId}/`
+  return key.startsWith(prefix) || (!!shareAuth.coverR2Key && key === shareAuth.coverR2Key)
+}
+
+/**
  * Verify a share token against Supabase.
  * Uses plain text password and PIN comparison.
  */
@@ -9,7 +21,7 @@ export async function verifyShareToken(request, env, requirePin = false, allowEx
   }
 
   try {
-    const url = `${env.SUPABASE_URL}/rest/v1/galleries?share_token=eq.${encodeURIComponent(shareToken)}&is_active=eq.true&select=id,photographer_id,require_password,require_download_pin,plain_download_pin,download_watermarked,allow_downloads,allow_hires_download,expires_at`
+    const url = `${env.SUPABASE_URL}/rest/v1/galleries?share_token=eq.${encodeURIComponent(shareToken)}&is_active=eq.true&select=id,photographer_id,require_password,require_download_pin,plain_download_pin,download_watermarked,allow_downloads,allow_hires_download,expires_at,cover_r2_key`
 
     const resp = await fetch(url, {
       headers: {
@@ -54,6 +66,7 @@ export async function verifyShareToken(request, env, requirePin = false, allowEx
       downloadWatermarked: gallery.download_watermarked,
       allowDownloads: gallery.allow_downloads,
       allowHiresDownload: gallery.allow_hires_download,
+      coverR2Key: gallery.cover_r2_key || null,
     }
   } catch (err) {
     console.error('Share token verification error:', err)

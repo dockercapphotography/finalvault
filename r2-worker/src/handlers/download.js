@@ -11,7 +11,7 @@
  */
 
 import { verifyJWT } from '../middleware/auth.js'
-import { verifyShareToken } from '../middleware/shareToken.js'
+import { verifyShareToken, keyInSharedGallery } from '../middleware/shareToken.js'
 import { fetchWatermarkById, processWebImage } from '../utils/imageProcess.js'
 
 export async function handleDownload(request, env, corsHeaders) {
@@ -66,6 +66,9 @@ export async function handleDownload(request, env, corsHeaders) {
         corsHeaders
       )
     }
+    if (!keyInSharedGallery(key, shareAuth)) {
+      return jsonResponse({ ok: false, error: 'Access denied' }, 403, corsHeaders)
+    }
     photographerId = shareAuth.photographerId
   }
 
@@ -98,8 +101,14 @@ export async function handleDownload(request, env, corsHeaders) {
 
   // --- WEB: serve pre-generated JPEG directly if available (fast path) ---
   if (size === 'web' && webKey) {
+    // The pre-generated web copy must be the one sitting next to this
+    // original (same gallery folder, /web/) -- never an arbitrary key.
+    const decodedWebKey = decodeURIComponent(webKey)
+    const galleryFolder = key.slice(0, key.indexOf('/original/'))
+    if (!decodedWebKey.startsWith(`${galleryFolder}/web/`)) {
+      return jsonResponse({ ok: false, error: 'Access denied' }, 403, corsHeaders)
+    }
     try {
-      const decodedWebKey = decodeURIComponent(webKey)
       const webObj = await env.BUCKET.get(decodedWebKey)
       if (webObj) {
         const webFileName = key.split('/').pop().replace(/\.[^.]+$/, '_web.jpg')

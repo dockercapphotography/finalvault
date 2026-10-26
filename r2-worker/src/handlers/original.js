@@ -1,5 +1,5 @@
 import { verifyJWT } from '../middleware/auth.js'
-import { verifyShareToken } from '../middleware/shareToken.js'
+import { verifyShareToken, keyInSharedGallery } from '../middleware/shareToken.js'
 
 /**
  * GET /original/:key
@@ -31,6 +31,7 @@ export async function handleOriginal(request, env, corsHeaders) {
   let photographerId
   let isClientDownload = false
   let downloadWatermarked = false
+  let allowHiresDownload = false
 
   if (hasJWT) {
     // Photographer accessing their own original
@@ -49,9 +50,13 @@ export async function handleOriginal(request, env, corsHeaders) {
     if (!shareAuth.allowDownloads) {
       return jsonResponse({ ok: false, error: 'Downloads are not enabled for this gallery' }, 403, corsHeaders)
     }
+    if (!keyInSharedGallery(key, shareAuth)) {
+      return jsonResponse({ ok: false, error: 'Access denied' }, 403, corsHeaders)
+    }
     photographerId = shareAuth.photographerId
     isClientDownload = true
     downloadWatermarked = shareAuth.downloadWatermarked
+    allowHiresDownload = shareAuth.allowHiresDownload
   }
 
   // Security: ensure the key belongs to this photographer
@@ -63,9 +68,16 @@ export async function handleOriginal(request, env, corsHeaders) {
   const hiresRequested = request.headers.get('X-Hires') === 'true'
 
   // If gallery is set to watermarked downloads, serve the preview instead
-  const fetchKey = (isClientDownload && downloadWatermarked && !hiresRequested)
+  const servePreview = isClientDownload && downloadWatermarked && !hiresRequested
+  const fetchKey = servePreview
     ? key.replace('/original/', '/preview/').replace(/\.[^.]+$/, '.webp')
     : key
+
+  // A client only gets the unwatermarked original when the gallery
+  // allows hi-res downloads (same rule /download and the zips enforce).
+  if (isClientDownload && !servePreview && !allowHiresDownload) {
+    return jsonResponse({ ok: false, error: 'High resolution downloads are not enabled for this gallery' }, 403, corsHeaders)
+  }
 
   try {
     const object = await env.BUCKET.get(fetchKey)
