@@ -1,5 +1,6 @@
 // Client-facing API — viewers, favorites, comments
 import { supabaseAnon as supabase } from '../supabaseClientAnon.js'
+import { supabase as supabaseAuthed } from '../supabaseClient.js'
 
 const WORKER_URL = import.meta.env.VITE_R2_WORKER_URL
 
@@ -184,15 +185,42 @@ export async function verifyPortalPassword(token, password) {
   return data
 }
 
-export async function getClientImages(galleryId) {
-  const { data, error } = await supabase
-    .from('gallery_images')
-    .select('id, preview_r2_key, original_r2_key, web_r2_key, file_name, file_size, width, height, sort_order, set_id, watermark_id, updated_at, watermarks(r2_key, opacity, position, scale)')
-    .eq('gallery_id', galleryId)
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: true })
+// Password the gate page confirmed for this gallery (ClientGallery.jsx).
+export function getStoredGalleryPassword(galleryId) {
+  try { return localStorage.getItem(`fv-pw-${galleryId}`) } catch { return null }
+}
+
+// A client gallery's photos and sets, checked server-side (sql/103):
+// open gallery + correct password if it has one. Returns
+// { images, sets }, { password_required: true }, or null.
+export async function getClientGalleryContent(token, password = null) {
+  const { data, error } = await supabase.rpc('get_client_gallery_content', {
+    p_token: token,
+    p_password: password || null,
+  })
   if (error) throw error
-  return data
+  return data ?? null
+}
+
+// Preview mode (?preview=1): the photographer's own login reads their
+// own gallery through their normal policies. Anyone else gets nothing.
+export async function getOwnGalleryContent(galleryId) {
+  const [imgs, sets] = await Promise.all([
+    supabaseAuthed
+      .from('gallery_images')
+      .select('id, preview_r2_key, original_r2_key, web_r2_key, file_name, file_size, width, height, sort_order, set_id, watermark_id, updated_at, watermarks(r2_key, opacity, position, scale)')
+      .eq('gallery_id', galleryId)
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true }),
+    supabaseAuthed
+      .from('gallery_sets')
+      .select('id, name, sort_order')
+      .eq('gallery_id', galleryId)
+      .order('sort_order', { ascending: true }),
+  ])
+  if (imgs.error) throw imgs.error
+  if (sets.error) throw sets.error
+  return { images: imgs.data || [], sets: sets.data || [] }
 }
 
 export async function getOrCreateViewer(galleryId, email, displayName = null, shareToken) {
@@ -581,12 +609,3 @@ export async function logActivity(galleryId, viewerId, action, imageId = null, m
   }
 }
 
-export async function getClientSets(galleryId) {
-  const { data, error } = await supabase
-    .from('gallery_sets')
-    .select('id, name, sort_order')
-    .eq('gallery_id', galleryId)
-    .order('sort_order', { ascending: true })
-  if (error) throw error
-  return data || []
-}

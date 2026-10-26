@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Mail, Phone, MapPin, Clock, ArrowUp, X, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabaseAnon as supabase } from '../../supabaseClientAnon.js'
+import { supabase as supabaseAuthed } from '../../supabaseClient.js'
 import { useScrollLock } from '../../hooks/useScrollLock.js'
 import {
   FONT_PAIRINGS, DEFAULT_FONT_PAIRING, RADIUS_MAP, DEFAULT_RADIUS,
@@ -175,14 +176,26 @@ export default function MicrositeRenderer({ site, previewAuthToken }) {
         return
       }
       if (site.gallery_source_type === 'gallery' && site.gallery_source_gallery_id) {
-        const { data, error } = await supabase
-          .from('gallery_images')
-          .select('preview_r2_key')
-          .eq('gallery_id', site.gallery_source_gallery_id)
-          .is('deleted_at', null)
-          .order('sort_order', { ascending: true })
-        if (!cancelled && !error && data) {
-          setGalleryKeys(data.map(row => row.preview_r2_key))
+        if (_previewAuthToken) {
+          // Editor / preview: the photographer's own login, so a draft
+          // (not yet enabled) site still shows its gallery.
+          const { data, error } = await supabaseAuthed
+            .from('gallery_images')
+            .select('preview_r2_key')
+            .eq('gallery_id', site.gallery_source_gallery_id)
+            .is('deleted_at', null)
+            .order('sort_order', { ascending: true })
+          if (!cancelled && !error && data) {
+            setGalleryKeys(data.map(row => row.preview_r2_key))
+          }
+        } else {
+          // Public site: only the gallery an enabled microsite showcases (sql/103).
+          const { data, error } = await supabase.rpc('get_microsite_gallery_keys', {
+            p_gallery_id: site.gallery_source_gallery_id,
+          })
+          if (!cancelled && !error && Array.isArray(data)) {
+            setGalleryKeys(data)
+          }
         }
       }
     }

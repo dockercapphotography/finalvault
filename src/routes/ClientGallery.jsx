@@ -15,22 +15,8 @@ function GateWrapper({ gallery, photographerName, logoUrl, children }) {
   useEffect(() => {
     if (!gallery) return
     async function loadCover() {
-      let r2Key = gallery.cover_r2_key
-      if (!r2Key && gallery.cover_image_id) {
-        try {
-          const { createClient } = await import('@supabase/supabase-js')
-          const anonClient = createClient(
-            import.meta.env.VITE_SUPABASE_URL,
-            import.meta.env.VITE_SUPABASE_ANON_KEY
-          )
-          const { data } = await anonClient
-            .from('gallery_images')
-            .select('preview_r2_key')
-            .eq('id', gallery.cover_image_id)
-            .single()
-          r2Key = data?.preview_r2_key
-        } catch { return }
-      }
+      // cover_preview_r2_key comes with the token lookup (sql/103).
+      const r2Key = gallery.cover_r2_key || gallery.cover_preview_r2_key || null
       if (!r2Key) return
       const url = gallery.share_token
         ? `${WORKER_URL}/preview/${encodeURIComponent(r2Key)}?share_token=${gallery.share_token}`

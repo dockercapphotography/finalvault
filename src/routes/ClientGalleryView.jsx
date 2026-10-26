@@ -6,10 +6,10 @@ import { Heart, Download, X, ChevronLeft, ChevronRight, MessageCircle } from 'lu
 import GalleryGuide from '../components/client/GalleryGuide.jsx'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import {
-  getGalleryByToken, getClientImages, getViewerFromSession,
+  getGalleryByToken, getClientGalleryContent, getOwnGalleryContent, getStoredGalleryPassword, getViewerFromSession,
   getViewerFavorites, toggleFavorite, getComments, addComment,
   getPreviewUrl, downloadWebSize, downloadHiRes, downloadZip, verifyDownloadPin, logActivity,
-  getClientSets, queueZip, shouldQueueZip, getGalleryPhotographerEmail
+  queueZip, shouldQueueZip, getGalleryPhotographerEmail
 } from '../utils/clientApi.js'
 import { getTheme } from '../utils/themes.js'
 
@@ -581,7 +581,15 @@ export default function ClientGalleryView() {
       if (!g || !g.is_active) { navigate(`/g/${token}`, { replace: true }); return }
       const v = getViewerFromSession(g.id)
       if (!v && !isPreview) { navigate(`/g/${token}`, { replace: true }); return }
-      const [imgs, favs, setsData] = await Promise.all([getClientImages(g.id), v ? getViewerFavorites(g.id, v.id) : Promise.resolve(new Set()), getClientSets(g.id)])
+      // Photos come from the server only with the right password (sql/103);
+      // preview mode uses the photographer's own login instead.
+      const contentPromise = isPreview
+        ? getOwnGalleryContent(g.id)
+        : getClientGalleryContent(token, g.require_password ? getStoredGalleryPassword(g.id) : null)
+      const [content, favs] = await Promise.all([contentPromise, v ? getViewerFavorites(g.id, v.id) : Promise.resolve(new Set())])
+      if (!content || content.password_required) { navigate(`/g/${token}`, { replace: true }); return }
+      const imgs = content.images || []
+      const setsData = content.sets || []
       setGallery(g); setImages(imgs); setViewer(v); setFavorites(favs)
       setSets(setsData)
       if (setsData.length > 0) setActiveSetId(setsData[0].id)
