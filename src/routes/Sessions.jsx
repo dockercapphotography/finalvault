@@ -20,6 +20,8 @@ import {
 import { getClients } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
 import { setSessionQuestionnaires } from '../utils/sessionApi.js'
+import { getInvoiceCatalogItems, saveInvoice } from '../utils/invoiceApi.js'
+import SessionInvoiceStep, { EMPTY_SESSION_INVOICE, sessionInvoiceProblems, sessionInvoicePayload } from '../components/invoices/SessionInvoiceStep.jsx'
 import {
   getSignupPages, getSignupPage, createSignupPage, updateSignupPage, deleteSignupPage,
   createShootType, updateShootType, deleteShootType, generateSlots, getSlots, deleteSlot,
@@ -182,7 +184,10 @@ function StatusBadge({ status }) {
   )
 }
 
-function PaymentBadge({ status }) {
+function PaymentBadge({ status, overdue }) {
+  if (overdue) {
+    return <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#ef444418', color: '#ef4444' }}>Overdue</span>
+  }
   if (!status || status === 'unpaid') return null
   const cfg = getPaymentConfig(status)
   return (
@@ -240,23 +245,17 @@ function NewSessionModal({ onClose, onCreated }) {
   const [questionnaireIds, setQuestionnaireIds] = useState([])
   const [clients, setClients] = useState([])
   const [questionnaires, setQuestionnaires] = useState([])
-  const [sessionFee, setSessionFee] = useState('')
-  const [retainerAmount, setRetainerAmount] = useState('')
-  const [retainerPaid, setRetainerPaid] = useState(false)
-  const [balanceDue, setBalanceDue] = useState('')
-  const [balanceDueDate, setBalanceDueDate] = useState('')
-  const [paymentStatus, setPaymentStatus] = useState('unpaid')
+  const [invoice, setInvoice] = useState(EMPTY_SESSION_INVOICE)
+  const [catalog, setCatalog] = useState([])
+  const [createError, setCreateError] = useState(null)
 
   useEffect(() => {
     getClients().then(setClients).catch(() => {})
     getQuestionnaireTemplates().then(setQuestionnaires).catch(() => {})
+    getInvoiceCatalogItems().then(setCatalog).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    const fee = parseFloat(sessionFee) || 0
-    const retainer = parseFloat(retainerAmount) || 0
-    if (fee > 0) setBalanceDue((fee - retainer).toFixed(2))
-  }, [sessionFee, retainerAmount])
+  const invoiceProblems = mode === 'private' ? sessionInvoiceProblems(invoice, Boolean(clientId)) : []
 
   async function handleCreate() {
     if (!name.trim()) return
@@ -267,18 +266,26 @@ function NewSessionModal({ onClose, onCreated }) {
         sessionDate: sessionDate || null, startTime: startTime || null, endTime: endTime || null,
         location: location || null, description: description || null, internalNotes: internalNotes || null,
         clientId: clientId || null, questionnaireId: null,
-        sessionFee: sessionFee ? parseFloat(sessionFee) : null,
-        retainerAmount: retainerAmount ? parseFloat(retainerAmount) : null,
-        retainerPaid, balanceDue: balanceDue ? parseFloat(balanceDue) : null,
-        balanceDueDate: balanceDueDate || null, paymentStatus,
       })
       if (questionnaireIds.length) await setSessionQuestionnaires(session.id, questionnaireIds)
-      onCreated(session)
-    } catch (err) { console.error(err) }
+      let invoiceId = null
+      if (mode === 'private' && invoice.enabled && clientId) {
+        try {
+          invoiceId = await saveInvoice(sessionInvoicePayload(invoice, { clientId, sessionId: session.id }))
+        } catch (err) {
+          // The session exists; the invoice can be added from Session Detail.
+          console.error(err)
+        }
+      }
+      onCreated(session, invoice.openAfter ? invoiceId : null)
+    } catch (err) {
+      console.error(err)
+      setCreateError(err.message || 'Could not create the session.')
+    }
     finally { setSaving(false) }
   }
 
-  const stepTitles = ['Basics', 'Details', mode === 'private' ? 'Financials' : null].filter(Boolean)
+  const stepTitles = ['Basics', 'Details', mode === 'private' ? 'Invoice' : null].filter(Boolean)
   const totalSteps = mode === 'private' ? 3 : 2
 
   const stepperEl = (
@@ -308,7 +315,7 @@ function NewSessionModal({ onClose, onCreated }) {
       </button>
       {step < totalSteps
         ? <Button onClick={() => setStep(s => s + 1)} disabled={step === 1 && !name.trim()}>Next →</Button>
-        : <Button onClick={handleCreate} disabled={saving || !name.trim()}>{saving ? 'Creating...' : 'Create Session'}</Button>
+        : <Button onClick={handleCreate} disabled={saving || !name.trim() || invoiceProblems.length > 0}>{saving ? 'Creating...' : 'Create Session'}</Button>
       }
     </div>
   )
@@ -403,64 +410,14 @@ function NewSessionModal({ onClose, onCreated }) {
 
         {step === 3 && mode === 'private' && (
           <>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Session fee</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
-                  <input type="number" min="0" step="0.01" value={sessionFee} onChange={e => setSessionFee(e.target.value)} placeholder="0.00"
-                    style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px 9px 24px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Retainer</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
-                  <input type="number" min="0" step="0.01" value={retainerAmount} onChange={e => setRetainerAmount(e.target.value)} placeholder="0.00"
-                    style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px 9px 24px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between py-2 px-3 rounded-xl" style={{ background: 'var(--surface-raised)' }}>
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Retainer paid</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Mark retainer as received</p>
-              </div>
-              <Toggle checked={retainerPaid} onChange={setRetainerPaid} />
-            </div>
-            <div style={{ height: 1, background: 'var(--border)' }} />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Balance due</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
-                  <input type="number" min="0" step="0.01" value={balanceDue} onChange={e => setBalanceDue(e.target.value)} placeholder="0.00"
-                    style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px 9px 24px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Due date <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(opt.)</span></label>
-                <input type="date" value={balanceDueDate} onChange={e => setBalanceDueDate(e.target.value)}
-                  style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-                  onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Payment status</label>
-              <div className="flex gap-2">
-                {[{ value: 'unpaid', label: 'Unpaid' }, { value: 'partial', label: 'Partial' }, { value: 'paid', label: 'Paid' }].map(opt => (
-                  <button key={opt.value} onClick={() => setPaymentStatus(opt.value)} className="flex-1 py-2 rounded-lg text-sm font-medium"
-                    style={{ border: paymentStatus === opt.value ? '2px solid #6366f1' : '2px solid var(--border)', background: paymentStatus === opt.value ? 'rgba(99,102,241,0.08)' : 'var(--surface)', color: paymentStatus === opt.value ? '#6366f1' : 'var(--text-muted)', cursor: 'pointer' }}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <SessionInvoiceStep value={invoice} onChange={setInvoice} catalog={catalog}
+              hasClient={Boolean(clientId)} onBackToDetails={() => setStep(2)} />
+            {invoice.enabled && clientId && invoiceProblems.length > 0 && (
+              <p className="text-xs" style={{ margin: 0, color: 'var(--text-muted)' }}>{invoiceProblems[0]}</p>
+            )}
           </>
         )}
+        {createError && <p className="text-sm" role="alert" style={{ margin: 0, color: 'var(--danger)' }}>{createError}</p>}
       </div>
       <div style={{display:'none'}}>
       </div>
@@ -469,9 +426,12 @@ function NewSessionModal({ onClose, onCreated }) {
 }
 
 function SessionCard({ session, onClick }) {
-  const paymentCfg = session.payment_status && session.payment_status !== 'unpaid'
-    ? { label: session.payment_status === 'paid' ? 'Paid' : 'Partial', color: session.payment_status === 'paid' ? '#10b981' : '#f97316' }
-    : null
+  // v1.6.0: payment_status comes from the session's invoices (getSessions).
+  const paymentCfg = session.payment_overdue
+    ? { label: 'Overdue', color: '#ef4444' }
+    : session.payment_status && session.payment_status !== 'unpaid'
+      ? { label: session.payment_status === 'paid' ? 'Paid' : 'Partial', color: session.payment_status === 'paid' ? '#10b981' : '#f97316' }
+      : null
 
   const statusCfg = getStatusConfig(session.status)
   return (
@@ -2130,9 +2090,9 @@ export default function Sessions() {
     } catch (err) { console.error(err) }
   }
 
-  function handleCreated(session) {
+  function handleCreated(session, openInvoiceId) {
     setShowNew(false)
-    navigate(`/sessions/${session.id}`)
+    navigate(openInvoiceId ? `/invoices/${openInvoiceId}` : `/sessions/${session.id}`)
   }
 
   const filtered = sessions.filter(s => {
@@ -2141,7 +2101,10 @@ export default function Sessions() {
     const matchesStatus = !filterStatus || s.status === filterStatus
     const matchesMode = !filterMode || s.mode === filterMode
     const matchesType = !filterType || s.type === filterType
-    const matchesPayment = !filterPayment || s.payment_status === filterPayment
+    const matchesPayment = !filterPayment
+      || (filterPayment === 'none' ? !s.payment_status
+        : filterPayment === 'overdue' ? s.payment_overdue
+        : s.payment_status === filterPayment)
     return matchesSearch && matchesStatus && matchesMode && matchesType && matchesPayment
   }).sort((a, b) => {
     switch (sortBy) {
@@ -2187,7 +2150,11 @@ export default function Sessions() {
           {
             key: 'payment', label: 'Payment status', type: 'select',
             value: filterPayment, onChange: setFilterPayment,
-            options: PAYMENT_STATUSES.map(p => ({ value: p.value, label: p.label })),
+            options: [
+              ...PAYMENT_STATUSES.map(p => ({ value: p.value, label: p.label })),
+              { value: 'overdue', label: 'Overdue' },
+              { value: 'none', label: 'No invoice' },
+            ],
           },
           {
             key: 'sort', label: 'Sort by', type: 'sort',
@@ -2286,7 +2253,7 @@ export default function Sessions() {
                     </div>
                     <div className="hidden md:flex items-center gap-2 shrink-0">
                       <StatusBadge status={session.status} />
-                      <PaymentBadge status={session.payment_status} />
+                      <PaymentBadge status={session.payment_status} overdue={session.payment_overdue} />
                     </div>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-muted)', flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
                   </button>

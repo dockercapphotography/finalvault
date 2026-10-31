@@ -9,8 +9,8 @@ import {
 } from 'lucide-react'
 import {
   getSession, updateSession, updateSessionStatus, deleteSession,
-  SESSION_TYPES, SESSION_STATUSES, PAYMENT_STATUSES,
-  getStatusConfig, getPaymentConfig, formatSessionDate, SESSION_TYPE_ICON,
+  SESSION_TYPES, SESSION_STATUSES,
+  getStatusConfig, formatSessionDate, SESSION_TYPE_ICON,
   getSubmissions, getSessionQuestionnaires, setSessionQuestionnaires,
   deleteSubmission,
   getSessionGalleries, addSessionGallery, removeSessionGallery,
@@ -30,7 +30,7 @@ import PendingReviewsPanel from '../components/microsite/PendingReviewsPanel.jsx
 import { getSessionReview, reviewLink, cancelReviewRequest, REVIEW_PILLS, reviewState } from '../utils/reviewApi.js'
 import Button from '../components/ui/Button.jsx'
 import Input from '../components/ui/Input.jsx'
-import Toggle from '../components/ui/Toggle.jsx'
+import SessionInvoicesCard from '../components/invoices/SessionInvoicesCard.jsx'
 import PlaceAutocomplete from '../components/ui/PlaceAutocomplete.jsx'
 import BottomSheet from '../components/layout/BottomSheet.jsx'
 import GalleryPicker from '../components/ui/GalleryPicker.jsx'
@@ -181,16 +181,6 @@ function StatusBadge({ status, large }) {
   )
 }
 
-function PaymentBadge({ status }) {
-  const cfg = getPaymentConfig(status)
-  return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-      style={{ background: cfg.color + '18', color: cfg.color }}>
-      {cfg.label}
-    </span>
-  )
-}
-
 function SectionCard({ title, action, children }) {
   return (
     <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
@@ -261,12 +251,6 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
   const [clientId, setClientId] = useState(session.client_id || '')
   const [questionnaireIds, setQuestionnaireIds] = useState([])
   const [loadingQIds, setLoadingQIds] = useState(true)
-  const [sessionFee, setSessionFee] = useState(session.session_fee ?? '')
-  const [retainerAmount, setRetainerAmount] = useState(session.retainer_amount ?? '')
-  const [retainerPaid, setRetainerPaid] = useState(session.retainer_paid || false)
-  const [balanceDue, setBalanceDue] = useState(session.balance_due ?? '')
-  const [balanceDueDate, setBalanceDueDate] = useState(session.balance_due_date || '')
-  const [paymentStatus, setPaymentStatus] = useState(session.payment_status || 'unpaid')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -275,12 +259,6 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
       setLoadingQIds(false)
     }).catch(() => setLoadingQIds(false))
   }, [session.id])
-
-  useEffect(() => {
-    const fee = parseFloat(sessionFee) || 0
-    const retainer = parseFloat(retainerAmount) || 0
-    if (fee > 0) setBalanceDue((fee - retainer).toFixed(2))
-  }, [sessionFee, retainerAmount])
 
   async function handleSave() {
     if (!name.trim()) return
@@ -296,12 +274,6 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
         internalNotes: internalNotes || null,
         clientId: clientId || null,
         questionnaireId: null,
-        sessionFee: sessionFee !== '' ? parseFloat(sessionFee) : null,
-        retainerAmount: retainerAmount !== '' ? parseFloat(retainerAmount) : null,
-        retainerPaid,
-        balanceDue: balanceDue !== '' ? parseFloat(balanceDue) : null,
-        balanceDueDate: balanceDueDate || null,
-        paymentStatus,
       })
       await setSessionQuestionnaires(session.id, questionnaireIds)
       onSaved(updated)
@@ -414,71 +386,7 @@ function EditSessionModal({ session, clients, questionnaires, onClose, onSaved }
             )}
           </div>
 
-          {session.mode === 'private' && (
-            <>
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Financials</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Session fee</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
-                    <input type="number" min="0" step="0.01" value={sessionFee} onChange={e => setSessionFee(e.target.value)}
-                      placeholder="0.00"
-                      style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px 9px 24px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Retainer</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
-                    <input type="number" min="0" step="0.01" value={retainerAmount} onChange={e => setRetainerAmount(e.target.value)}
-                      placeholder="0.00"
-                      style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px 9px 24px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl" style={{ background: 'var(--surface-raised)' }}>
-                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Retainer paid</p>
-                <Toggle checked={retainerPaid} onChange={setRetainerPaid} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Balance due</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
-                    <input type="number" min="0" step="0.01" value={balanceDue} onChange={e => setBalanceDue(e.target.value)}
-                      placeholder="0.00"
-                      style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px 9px 24px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium block mb-1" style={{ color: 'var(--text)' }}>Due date <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(opt.)</span></label>
-                  <input type="date" value={balanceDueDate} onChange={e => setBalanceDueDate(e.target.value)}
-                    style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--border-strong)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text)' }}>Payment status</label>
-                <div className="flex gap-2">
-                  {PAYMENT_STATUSES.map(opt => (
-                    <button key={opt.value} onClick={() => setPaymentStatus(opt.value)}
-                      className="flex-1 py-2 rounded-lg text-sm font-medium"
-                      style={{
-                        border: paymentStatus === opt.value ? `2px solid ${opt.color}` : '2px solid var(--border)',
-                        background: paymentStatus === opt.value ? opt.color + '15' : 'var(--surface)',
-                        color: paymentStatus === opt.value ? opt.color : 'var(--text-muted)',
-                        cursor: 'pointer',
-                      }}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
+
         </div>
     </EditSessionWrapper>
   )
@@ -1199,11 +1107,6 @@ export default function SessionDetail() {
     }
   }
 
-  async function handlePaymentStatusChange(newStatus) {
-    const updated = await updateSession(id, { paymentStatus: newStatus })
-    setSession(prev => ({ ...prev, ...updated }))
-  }
-
   async function handleSendQuestionnaire(questionnaireId) {
     if (!session.clients?.email) return
     setSendingForm(questionnaireId)
@@ -1406,46 +1309,8 @@ export default function SessionDetail() {
         )}
       </SectionCard>
 
-      {/* Financials — private only */}
-      {session.mode === 'private' && (
-        <SectionCard title="Financials"
-          action={<PaymentBadge status={session.payment_status} />}>
-          <InfoRow label="Session fee" value={session.session_fee != null ? `$${parseFloat(session.session_fee).toFixed(2)}` : null} />
-          <InfoRow label="Retainer" value={session.retainer_amount != null ? `$${parseFloat(session.retainer_amount).toFixed(2)}` : null} />
-          <InfoRow label="Retainer paid" value={session.retainer_amount != null ? (session.retainer_paid ? 'Yes' : 'No') : null} />
-          <InfoRow label="Balance due" value={session.balance_due != null ? `$${parseFloat(session.balance_due).toFixed(2)}` : null} />
-          <InfoRow label="Due date" value={session.balance_due_date
-            ? new Date(session.balance_due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-            : null} />
-
-          {/* Quick payment actions */}
-          {session.payment_status !== 'paid' && (session.session_fee || session.retainer_amount || session.balance_due) && (
-            <div className="px-5 py-3 flex flex-wrap gap-2" style={{ borderTop: '1px solid var(--border)' }}>
-              {session.payment_status === 'unpaid' && session.retainer_amount && !session.retainer_paid && (
-                <button onClick={async () => {
-                  const u = await updateSession(id, { retainerPaid: true, paymentStatus: 'partial' })
-                  setSession(prev => ({ ...prev, ...u }))
-                }}
-                  className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                  style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: 'none', cursor: 'pointer' }}>
-                  Mark retainer paid
-                </button>
-              )}
-              <button onClick={() => handlePaymentStatusChange('paid')}
-                className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: 'none', cursor: 'pointer' }}>
-                Mark paid in full
-              </button>
-            </div>
-          )}
-
-          {(!session.session_fee && !session.retainer_amount && !session.balance_due) && (
-            <div className="px-5 py-5 text-center">
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No financial details set. Edit the session to add fees.</p>
-            </div>
-          )}
-        </SectionCard>
-      )}
+      {/* Invoices (v1.6.0) -- replaces the Financials card; private only */}
+      {session.mode === 'private' && <SessionInvoicesCard session={session} />}
 
       {/* Contracts */}
       <SectionCard title="Contracts"

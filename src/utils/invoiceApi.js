@@ -274,6 +274,39 @@ export async function getInvoice(id) {
   }
 }
 
+// A session's invoices for Session Detail: number, status, money and the
+// first line's name (so a row reads "#1058 · Full Wedding Package").
+export async function getSessionInvoices(sessionId) {
+  const [{ data: rows, error }, { data: totals, error: tErr }] = await Promise.all([
+    supabase.from('invoices')
+      .select('id, invoice_number, status, created_at, invoice_line_items(title, sort_order)')
+      .eq('session_id', sessionId)
+      .order('invoice_number', { ascending: true }),
+    supabase.from('invoice_totals')
+      .select('invoice_id, total, amount_paid, balance_due, payment_status, is_overdue, next_due_date')
+      .eq('session_id', sessionId),
+  ])
+  if (error) throw error
+  if (tErr) throw tErr
+  const byId = Object.fromEntries((totals || []).map(t => [t.invoice_id, t]))
+  return (rows || []).map(r => {
+    const lines = [...(r.invoice_line_items || [])].sort((a, b) => a.sort_order - b.sort_order)
+    const rest = { ...r }
+    delete rest.invoice_line_items
+    return { ...rest, first_line: lines[0]?.title || '', line_count: lines.length, ...(byId[r.id] || {}) }
+  })
+}
+
+// Invoice-derived payment status per session (sql/108 session_invoice_status),
+// keyed by session id. Void invoices are already left out by the view.
+export async function getSessionPaymentStatuses() {
+  const { data, error } = await supabase
+    .from('session_invoice_status')
+    .select('session_id, payment_status, is_overdue, invoice_count')
+  if (error) throw error
+  return Object.fromEntries((data || []).map(r => [r.session_id, r]))
+}
+
 // payload: see sql/111 save_invoice. Returns the invoice id.
 export async function saveInvoice(payload) {
   const { data, error } = await supabase.rpc('save_invoice', { p_invoice: payload })

@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient.js'
+import { getSessionPaymentStatuses } from './invoiceApi.js'
 import { formatPlainTimeRange } from './formatters.js'
 
 const SESSION_TYPES = [
@@ -44,9 +45,18 @@ export async function getSessions({ status, type, mode, clientId } = {}) {
   if (mode) query = query.eq('mode', mode)
   if (clientId) query = query.eq('client_id', clientId)
 
-  const { data, error } = await query
+  const [{ data, error }, invoiceStatus] = await Promise.all([
+    query,
+    getSessionPaymentStatuses().catch(() => ({})),
+  ])
   if (error) throw error
-  return data ?? []
+  // v1.6.0: payment status comes from the session's invoices. The old
+  // sessions.payment_status column is no longer read (null = no invoices).
+  return (data ?? []).map(s => ({
+    ...s,
+    payment_status: invoiceStatus[s.id]?.payment_status ?? null,
+    payment_overdue: Boolean(invoiceStatus[s.id]?.is_overdue),
+  }))
 }
 
 export async function getSession(id) {
