@@ -38,10 +38,11 @@ import MarkdownToolbar from './ui/MarkdownToolbar.jsx'
  *   canSave    : bool -- disables Save when false
  *   onSave     : () => void
  *   onClose    : () => void
+ *   saveLabel  : string -- Save button text (default "Save Template")
  */
 export default function TemplateEditorModal({
   title, fields, values, onChange, variables,
-  saving, canSave, onSave, onClose, children,
+  saving, canSave, onSave, onClose, children, saveLabel = 'Save Template',
 }) {
   const markdownRefs = useRef({})
   // Last field the cursor was in: { key, el? } -- el only for plain
@@ -175,7 +176,7 @@ export default function TemplateEditorModal({
 
           <div className="px-6 py-4 flex items-center gap-3 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
             <Button onClick={onSave} disabled={!canSave || saving}>
-              {saving ? 'Saving…' : 'Save Template'}
+              {saving ? 'Saving…' : saveLabel}
             </Button>
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
           </div>

@@ -10,6 +10,8 @@ import CustomDomainSection from '../components/account/CustomDomainSection.jsx'
 import MicrositeSection from '../components/account/MicrositeSection.jsx'
 import WebImageBackfillSection from '../components/account/WebImageBackfillSection.jsx'
 import ZipJobMonitorSection from '../components/account/ZipJobMonitorSection.jsx'
+import InvoiceCatalogSection from '../components/account/InvoiceCatalogSection.jsx'
+import DefaultInvoicePlatformSection from '../components/account/DefaultInvoicePlatformSection.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
   getWatermarks, uploadWatermark, updateWatermark,
@@ -488,7 +490,7 @@ const BASE_ACCOUNT_TABS = [
   { id: 'watermarks',      label: 'Watermarks' },
   { id: 'templates',       label: 'Templates' },
   { id: 'social',          label: 'Social' },
-  { id: 'payment',         label: 'Payment' },
+  { id: 'payment',         label: 'Invoicing' },
   { id: 'notifications',   label: 'Notifications' },
   { id: 'tags',            label: 'Tags' },
 ]
@@ -1424,7 +1426,9 @@ const PAYMENT_PLATFORMS = [
   { id: 'zelle',   label: 'Zelle',    placeholder: 'your-email@example.com or (555) 123-4567', inputType: 'text' },
 ]
 
-function LinksTab({ platforms, dbColumn, onSaveState }) {
+// onLinksChange (optional): told the current links after loading and after
+// each save -- the Invoicing tab's default-platform picker uses it.
+function LinksTab({ platforms, dbColumn, onSaveState, onLinksChange }) {
   const [links, setLinks] = useState({})
   const [loaded, setLoaded] = useState(false)
   const [userId, setUserId] = useState(null)
@@ -1434,14 +1438,20 @@ function LinksTab({ platforms, dbColumn, onSaveState }) {
       if (!user) return
       setUserId(user.id)
       supabase.from('photographers').select(dbColumn).eq('id', user.id).single()
-        .then(({ data }) => { setLinks(data?.[dbColumn] || {}); setLoaded(true) })
+        .then(({ data }) => {
+          const loadedLinks = data?.[dbColumn] || {}
+          setLinks(loadedLinks)
+          setLoaded(true)
+          onLinksChange?.(loadedLinks)
+        })
     })
-  }, [dbColumn])
+  }, [dbColumn]) // eslint-disable-line react-hooks/exhaustive-deps -- onLinksChange is a fresh arrow each render
 
   async function handleSave(platformId, value) {
     const updated = { ...links, [platformId]: value }
     if (!value.trim()) delete updated[platformId]
     setLinks(updated)
+    onLinksChange?.(updated)
     try {
       await supabase.from('photographers').update({ [dbColumn]: updated }).eq('id', userId)
       onSaveState('saved')
@@ -1466,6 +1476,25 @@ function LinksTab({ platforms, dbColumn, onSaveState }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Invoicing Tab (v1.6.0) ───────────────────────────────────────────────────
+// Was "Payment" (links only). The links feed the invoice Pay button, so they
+// sit with the default platform for new invoices and the invoice catalog.
+
+function InvoicingTab({ onSaveState }) {
+  const [paymentLinks, setPaymentLinks] = useState({})
+  return (
+    <div className="space-y-6">
+      <SettingsSection title="Payment Links" description="Shown in the footer of gallery emails, and used for the Pay button on invoices.">
+        <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
+          <LinksTab platforms={PAYMENT_PLATFORMS} dbColumn="payment_links" onSaveState={onSaveState} onLinksChange={setPaymentLinks} />
+        </div>
+      </SettingsSection>
+      <DefaultInvoicePlatformSection links={paymentLinks} platforms={PAYMENT_PLATFORMS} onSaveState={onSaveState} />
+      <InvoiceCatalogSection onSaveState={onSaveState} />
     </div>
   )
 }
@@ -2499,13 +2528,7 @@ export default function Account() {
           </div>
         </SettingsSection>
       )}
-      {activeTab === 'payment' && (
-        <SettingsSection title="Payment Links" description="Payment links shown in the footer of gallery emails.">
-          <div className="px-5 py-4" style={{ background: 'var(--surface)' }}>
-            <LinksTab platforms={PAYMENT_PLATFORMS} dbColumn="payment_links" onSaveState={setSaveState} />
-          </div>
-        </SettingsSection>
-      )}
+      {activeTab === 'payment'       && <InvoicingTab onSaveState={setSaveState} />}
       {activeTab === 'notifications' && <NotificationsTab user={user} onSaveState={setSaveState} />}
       {activeTab === 'tags'          && <TagsTab onSaveState={setSaveState} />}
       {activeTab === 'maintenance' && isAdmin && (

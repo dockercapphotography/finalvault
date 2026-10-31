@@ -91,9 +91,11 @@ export function useTemplateCollection(api, onSaveState) {
     } catch { onSaveState?.('error') }
   }
 
+  // setTemplates lets a section update one row in place (e.g. the
+  // Invoice Catalog's archive/restore) without a refetch.
   return {
     templates, loaded, editing, confirmDeleteId, saving,
     startNew, startEdit, cancelEdit, save,
-    handleDuplicate, handleDelete, setConfirmDeleteId,
+    handleDuplicate, handleDelete, setConfirmDeleteId, setTemplates,
   }
 }
