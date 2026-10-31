@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FinalVault v1.6.0 — Invoicing UI Mockups</title>
+<style>
+  :root {
+    --surface: #ffffff;
+    --surface-raised: #f8f9fb;
+    --border: #e5e7eb;
+    --text: #0f172a;
+    --text-muted: #6b7280;
+    --indigo: #6366f1;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f1f2f5;
+    color: var(--text);
+    margin: 0;
+    padding: 32px;
+  }
+  .doc-header {
+    max-width: 900px;
+    margin: 0 auto 32px;
+  }
+  .doc-header h1 { font-size: 24px; font-weight: 700; margin: 0 0 6px; }
+  .doc-header p { font-size: 14px; color: var(--text-muted); margin: 0; }
+  .screen {
+    max-width: 900px;
+    margin: 0 auto 28px;
+    background: var(--surface);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    padding: 24px;
+  }
+  .screen-label {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+  .screen-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--indigo); color: #fff;
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .screen-label h2 { font-size: 16px; font-weight: 700; margin: 0; }
+  .screen-label span { font-size: 12px; color: var(--text-muted); }
+  .card { border-radius: 14px; border: 1px solid var(--border); background: var(--surface); }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; }
+  .badge { font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 600; }
+  .b-paid { background: #10b98118; color: var(--success); }
+  .b-partial { background: #f59e0b18; color: var(--warning); }
+  .b-draft { background: #6b728018; color: var(--text-muted); }
+  .b-overdue { background: #ef444418; color: var(--danger); }
+  .btn-primary { background: var(--indigo); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; padding: 8px 14px; cursor: pointer; }
+  .btn-secondary { background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-weight: 500; padding: 8px 14px; cursor: pointer; }
+  input, select { font-family: inherit; }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <h1>FinalVault v1.6.0 — Invoicing Interface Reference</h1>
+  <p>Consolidated view of every screen mocked during the invoicing scoping session. Layout/content reference only — implementation reads the real component files (SectionCard, StatusBadge, PaymentBadge, useTemplateCollection) directly rather than these mockups.</p>
+</div>
+
+<!-- 1. FINANCIALS DASHBOARD -->
+<div class="screen">
+  <div class="screen-label"><div class="screen-num">1</div><h2>Financials Dashboard</h2><span>new top-level nav item</span></div>
+  <h1 style="font-size:24px;font-weight:700;margin:0 0 2px;">Financials</h1>
+  <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">$2,340 outstanding across 2 invoices</p>
+  <div style="display:flex;gap:10px;margin-bottom:12px;">
+    <div style="flex:1;display:flex;align-items:center;gap:8px;padding:0 14px;height:40px;border-radius:10px;border:1px solid var(--border);background:var(--surface-raised);font-size:13px;color:var(--text-muted);">🔍 Search invoices...</div>
+    <button class="btn-primary">+ New invoice</button>
+    <button class="btn-secondary">⇅ Filters &amp; sort</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+    <div class="card" style="padding:12px 14px;"><p style="font-size:12px;color:var(--text-muted);margin:0 0 4px;">Collected YTD</p><p style="font-size:19px;font-weight:700;margin:0;">$18,420</p></div>
+    <div class="card" style="padding:12px 14px;"><p style="font-size:12px;color:var(--text-muted);margin:0 0 4px;">Outstanding</p><p style="font-size:19px;font-weight:700;margin:0;">$2,340</p></div>
+    <div class="card" style="padding:12px 14px;"><p style="font-size:12px;color:var(--text-muted);margin:0 0 4px;">Overdue</p><p style="font-size:19px;font-weight:700;margin:0;color:var(--danger);">$300</p></div>
+    <div class="card" style="padding:12px 14px;"><p style="font-size:12px;color:var(--text-muted);margin:0 0 4px;">Drafts</p><p style="font-size:19px;font-weight:700;margin:0;">3</p></div>
+  </div>
+  <div class="card">
+    <div class="row" style="border-bottom:1px solid var(--border);">
+      <div><b>Maya Rodriguez</b> <span class="badge b-draft">#1061 · Draft</span><div style="font-size:12px;color:var(--text-muted);">Fall Portraits</div></div>
+      <div>$50.00</div>
+    </div>
+    <div class="row">
+      <div><b>Dana Ruiz</b> <span class="badge b-partial">#1058 · Partial</span><div style="font-size:12px;color:var(--text-muted);">Wedding — Sept 12</div></div>
+      <div>$1,200.00</div>
+    </div>
+  </div>
+</div>
+
+<!-- 2. SESSION DETAIL INVOICES CARD -->
+<div class="screen">
+  <div class="screen-label"><div class="screen-num">2</div><h2>Session Detail — Invoices Card</h2><span>replaces the old Financials card</span></div>
+  <div class="card">
+    <div class="row" style="border-bottom:1px solid var(--border);"><b>Invoices</b><button class="btn-primary">+ New invoice</button></div>
+    <div class="row" style="border-bottom:1px solid var(--border);"><div>#1042 · Retainer</div><div class="badge b-paid">Paid</div></div>
+    <div class="row" style="border-bottom:1px solid var(--border);"><div>#1058 · Final balance</div><div class="badge b-partial">Partial · $300 of $1,500</div></div>
+    <div class="row"><div style="color:var(--text-muted);">#1061 · 8x10 reprints</div><div class="badge b-draft">Draft</div></div>
+  </div>
+</div>
+
+<!-- 3. SESSION WIZARD INVOICE STEP -->
+<div class="screen">
+  <div class="screen-label"><div class="screen-num">3</div><h2>Session Wizard — Invoice Step</h2><span>4th step, catalog-picker driven</span></div>
+  <div style="max-width:420px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:2px solid var(--indigo);border-radius:10px;background:#6366f108;margin-bottom:12px;">
+      <span style="font-size:14px;font-weight:600;color:var(--indigo);">Create an invoice for this session</span>
+      <div style="width:32px;height:18px;border-radius:999px;background:var(--indigo);"></div>
+    </div>
+    <div style="border:1px solid var(--indigo);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text-muted);margin-bottom:10px;">🔍 Search catalog or type a custom item...</div>
+    <div style="display:grid;grid-template-columns:1fr 100px;gap:10px;">
+      <div style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;">Qty: 1</div>
+      <div style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;">$350.00</div>
+    </div>
+  </div>
+</div>
+
+<!-- 4. FULL INVOICE EDITOR -->
+<div class="screen">
+  <div class="screen-label"><div class="screen-num">4</div><h2>Invoice Editor — Editable (no payment logged yet)</h2><span>client/session, line items, tax, discount, schedule</span></div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+    <b>Invoice #1071 · Draft</b>
+    <div><button class="btn-secondary">Save as draft</button> <button class="btn-primary">Send invoice</button></div>
+  </div>
+  <div class="card">
+    <div class="row" style="border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted);"><span>ITEM</span><span>TOTAL</span></div>
+    <div class="row" style="border-bottom:1px solid var(--border);"><div><b>Full Wedding Package</b> <span class="badge" style="background:#6366f118;color:var(--indigo);">catalog</span><div style="font-size:12px;color:var(--text-muted);">10-Hour Wedding Package. Includes Primary and Secondary Shooter...</div></div><div>$2,200</div></div>
+    <div class="row"><div>Travel Fee</div><div>$75</div></div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin:12px 0;">
+    <div style="width:220px;font-size:13px;color:var(--text-muted);">
+      <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>$2,275.00</span></div>
+      <div style="display:flex;justify-content:space-between;"><span>Discount (10%)</span><span>&minus;$227.50</span></div>
+      <div style="display:flex;justify-content:space-between;"><span>Tax (8.0%)</span><span>$147.42</span></div>
+      <div style="display:flex;justify-content:space-between;font-weight:700;color:var(--text);border-top:1px solid var(--border);padding-top:4px;"><span>Total</span><span>$2,194.92</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. LOCKED INVOICE EDITOR -->
+<div class="screen">
+  <div class="screen-label"><div class="screen-num">5</div><h2>Invoice Editor — Locked (payment logged)</h2><span>edit lock triggers on first payment, not on Send</span></div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><b>Invoice #1058</b> <span class="badge b-partial">Partial</span></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;background:#6366f108;border:1px solid #6366f130;margin-bottom:12px;font-size:12px;">
+    🔒 Line items are locked — a payment has been logged against this invoice. Void and reissue to make changes.
+  </div>
+  <div class="card">
+    <div class="row" style="border-bottom:1px solid var(--border);color:var(--text-muted);"><div>Full Wedding Package</div><div>$2,200</div></div>
+    <div class="row" style="color:var(--text-muted);"><div>Travel Fee</div><div>$75</div></div>
+  </div>
+  <div style="margin-top:10px;"><button class="btn-secondary" style="color:var(--danger);">Void invoice</button></div>
+</div>
+
+<!-- 6. PAYMENT SCHEDULE -->
+<div class="screen">
+  <div class="screen-label"><div class="screen-num">6</div><h2>Payment Schedule</h2><span>functionally tied to payments · auto-rebalances · locks per-row when paid</span></div>
+  <div class="card">
+    <div class="row" style="border-bottom:1px solid var(--border);background:var(--surface-raised);">
+      <div>1 of 2 <span class="badge b-paid">Paid</span></div><div>$1,225.50 (50%)</div><div style="color:var(--text-muted);">Aug 3, 2026</div>
+    </div>
+    <div class="row">
+      <div>2 of 2 <span class="badge b-draft">Unpaid</span></div><div>$1,225.50 (50%)</div><div>Sept 11, 2026 (editable)</div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. CATALOG MANAGER -->
+<div class="screen">
+  <div class="screen-label"><div class="screen-num">7</div><h2>Invoice Catalog Manager</h2><span>Account → Templates pattern · delete if unused, archive if used</span></div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:12px;"><b>Invoice Catalog</b><button class="btn-primary">+ New Item</button></div>
+  <div class="card">
+    <div class="row" style="border-bottom:1px solid var(--border);"><div><b>Session Fee</b> $350.00<div style="font-size:12px;color:var(--text-muted);">Covers the photographer's time, talent, and equipment...</div></div><span class="badge" style="background:#6366f118;color:var(--indigo);">Taxable</span></div>
+    <div class="row"><div><b>Travel Fee</b> $0.65 / mi<div style="font-size:12px;color:var(--text-muted);">Covers mileage, transportation, and time spent traveling...</div></div><span class="badge b-draft">Non-taxable</span></div>
+  </div>
+</div>
+
+<!-- 8. CLIENT PORTAL -->
+<div class="screen">
+  <div class="screen-label"><div class="screen-num">8</div><h2>Client Portal — Invoices</h2><span>/client/:token/invoices · matches Contracts page grouping</span></div>
+  <p style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin:0 0 8px;">Needs payment</p>
+  <div style="border:1px solid #f59e0b40;background:#f59e0b08;border-radius:14px;padding:16px 18px;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;"><b>Wedding — Sept 12</b><span style="font-weight:700;">$1,225.50 due</span></div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">Invoice #1058 · Due Sep 11</div>
+    <button class="btn-primary" style="width:100%;">Pay via Venmo</button>
+  </div>
+  <p style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin:0 0 8px;">Paid</p>
+  <div class="card"><div class="row"><div>✅ Fall Portraits — Invoice #1042</div><div>$500.00</div></div></div>
+</div>
+
+</body>
+</html>
