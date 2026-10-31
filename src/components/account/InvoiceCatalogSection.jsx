@@ -36,7 +36,9 @@ function Badge({ kind }) {
 
 const iconButton = { background: 'var(--surface-raised)', cursor: 'pointer', border: 'none' }
 
-export default function InvoiceCatalogSection({ onSaveState }) {
+// onCatalogChange (optional): called after any save, archive, restore or
+// delete, so the Invoice Templates section can reload.
+export default function InvoiceCatalogSection({ onSaveState, onCatalogChange }) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [showArchived, setShowArchived] = useState(false)
   const [blockedDeleteId, setBlockedDeleteId] = useState(null)
@@ -71,14 +73,15 @@ export default function InvoiceCatalogSection({ onSaveState }) {
   const price = parseMoneyInput(form.price)
   const canSave = Boolean(form.name.trim()) && price !== null
 
-  function handleSave() {
-    save({
+  async function handleSave() {
+    await save({
       name: form.name,
       description: form.description,
       defaultUnitPrice: price,
       unitLabel: form.unit,
       taxableDefault: form.taxable,
     })
+    onCatalogChange?.()
   }
 
   async function setActive(item, active) {
@@ -87,6 +90,7 @@ export default function InvoiceCatalogSection({ onSaveState }) {
       setItems(prev => prev.map(i => i.id === item.id ? updated : i))
       setBlockedDeleteId(null)
       onSaveState?.('saved')
+      onCatalogChange?.()
     } catch {
       onSaveState?.('error')
     }
@@ -98,6 +102,7 @@ export default function InvoiceCatalogSection({ onSaveState }) {
       setItems(prev => prev.filter(i => i.id !== item.id))
       setConfirmDeleteId(null)
       onSaveState?.('saved')
+      onCatalogChange?.()
     } catch {
       // Put on an invoice since the list loaded (or the count was stale):
       // the database refused, so offer Archive instead.

@@ -20,7 +20,7 @@ import {
 import { getClients } from '../utils/crmApi.js'
 import { getQuestionnaireTemplates } from '../utils/questionnaireApi.js'
 import { setSessionQuestionnaires } from '../utils/sessionApi.js'
-import { getInvoiceCatalogItems, saveInvoice } from '../utils/invoiceApi.js'
+import { getInvoiceCatalogItems, getInvoiceTemplates, saveInvoice } from '../utils/invoiceApi.js'
 import SessionInvoiceStep, { EMPTY_SESSION_INVOICE, sessionInvoiceProblems, sessionInvoicePayload } from '../components/invoices/SessionInvoiceStep.jsx'
 import {
   getSignupPages, getSignupPage, createSignupPage, updateSignupPage, deleteSignupPage,
@@ -247,12 +247,14 @@ function NewSessionModal({ onClose, onCreated }) {
   const [questionnaires, setQuestionnaires] = useState([])
   const [invoice, setInvoice] = useState(EMPTY_SESSION_INVOICE)
   const [catalog, setCatalog] = useState([])
+  const [invoiceTemplates, setInvoiceTemplates] = useState([])
   const [createError, setCreateError] = useState(null)
 
   useEffect(() => {
     getClients().then(setClients).catch(() => {})
     getQuestionnaireTemplates().then(setQuestionnaires).catch(() => {})
     getInvoiceCatalogItems().then(setCatalog).catch(() => {})
+    getInvoiceTemplates().then(setInvoiceTemplates).catch(() => {})
   }, [])
 
   const invoiceProblems = mode === 'private' ? sessionInvoiceProblems(invoice, Boolean(clientId)) : []
@@ -271,7 +273,7 @@ function NewSessionModal({ onClose, onCreated }) {
       let invoiceId = null
       if (mode === 'private' && invoice.enabled && clientId) {
         try {
-          invoiceId = await saveInvoice(sessionInvoicePayload(invoice, { clientId, sessionId: session.id }))
+          invoiceId = await saveInvoice(sessionInvoicePayload(invoice, { clientId, sessionId: session.id, sessionDate: sessionDate || null }))
         } catch (err) {
           // The session exists; the invoice can be added from Session Detail.
           console.error(err)
@@ -410,8 +412,8 @@ function NewSessionModal({ onClose, onCreated }) {
 
         {step === 3 && mode === 'private' && (
           <>
-            <SessionInvoiceStep value={invoice} onChange={setInvoice} catalog={catalog}
-              hasClient={Boolean(clientId)} onBackToDetails={() => setStep(2)} />
+            <SessionInvoiceStep value={invoice} onChange={setInvoice} catalog={catalog} templates={invoiceTemplates}
+              hasClient={Boolean(clientId)} sessionDate={sessionDate || null} onBackToDetails={() => setStep(2)} />
             {invoice.enabled && clientId && invoiceProblems.length > 0 && (
               <p className="text-xs" style={{ margin: 0, color: 'var(--text-muted)' }}>{invoiceProblems[0]}</p>
             )}

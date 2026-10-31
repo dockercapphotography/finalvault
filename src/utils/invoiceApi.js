@@ -357,6 +357,117 @@ export async function deletePayment(paymentId) {
   if (error) throw error
 }
 
+// ── Invoice templates (sql/112) ──────────────────────────────────────
+
+export const DUE_RULES = [
+  { id: 'on_create', label: 'When the invoice is created', needsDays: false },
+  { id: 'after_create', label: 'Days after the invoice is created', needsDays: true },
+  { id: 'before_session', label: 'Days before the session', needsDays: true },
+  { id: 'on_session', label: 'On the session date', needsDays: false },
+]
+
+// "50% now · 50% 14 days before the session"
+export function describeSchedulePattern(rows) {
+  return (rows || []).map(r => {
+    const pct = `${Number(r.percent)}%`
+    switch (r.due_rule) {
+      case 'after_create': return `${pct} ${r.due_days} days after creating`
+      case 'before_session': return `${pct} ${r.due_days} days before the session`
+      case 'on_session': return `${pct} on the session date`
+      default: return `${pct} now`
+    }
+  }).join(' · ')
+}
+
+// Templates with their lines (catalog values filled in, sql/112's view)
+// and schedule pattern.
+export async function getInvoiceTemplates() {
+  const [{ data: templates, error }, { data: items, error: iErr }, { data: schedule, error: sErr }] = await Promise.all([
+    supabase.from('invoice_templates').select('*').order('name', { ascending: true }),
+    supabase.from('invoice_template_items_resolved').select('*').order('sort_order', { ascending: true }),
+    supabase.from('invoice_template_schedule').select('*').order('sequence', { ascending: true }),
+  ])
+  if (error) throw error
+  if (iErr) throw iErr
+  if (sErr) throw sErr
+  return (templates || []).map(t => ({
+    ...t,
+    items: (items || []).filter(i => i.template_id === t.id),
+    schedule: (schedule || []).filter(s => s.template_id === t.id),
+  }))
+}
+
+export async function saveInvoiceTemplate(payload) {
+  const { data, error } = await supabase.rpc('save_invoice_template', { p_template: payload })
+  if (error) throw error
+  return data
+}
+
+export async function deleteInvoiceTemplate(id) {
+  const { error } = await supabase.from('invoice_templates').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Template lines -> editor lines (the shape LineItemsEditor uses).
+// `newKey` makes each line's React key. `overrides` records which fields of
+// a catalog line the photographer changed (sql/112's view), so saving
+// keeps every other field following the catalog.
+export function templateToLines(template, newKey) {
+  return (template.items || []).map(i => ({
+    key: newKey(), catalog_item_id: i.catalog_item_id || null,
+    title: i.title || '', description: i.description || '',
+    quantity: String(Number(i.quantity)),
+    unit_price: centsToInput(Math.round(Number(i.unit_price || 0) * 100)),
+    unit_label: i.unit_label || '', taxable: i.taxable !== false,
+    overrides: {
+      title: Boolean(i.title_overridden), description: Boolean(i.description_overridden),
+      unit_price: Boolean(i.price_overridden), unit_label: Boolean(i.unit_overridden),
+      taxable: Boolean(i.taxable_overridden),
+    },
+  }))
+}
+
+// Catalog line field -> the catalog item's value it's compared against.
+export function catalogFieldValue(item, field) {
+  switch (field) {
+    case 'title': return item.name || ''
+    case 'description': return item.description || ''
+    case 'unit_price': return Math.round(Number(item.default_unit_price || 0) * 100)
+    case 'unit_label': return item.unit_label || ''
+    case 'taxable': return item.taxable_default !== false
+    default: return undefined
+  }
+}
+
+function addDays(isoDate, days) {
+  const d = new Date(`${isoDate}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Due date for one pattern row. Session-based rules need a session date;
+// without one the installment gets no date.
+export function patternDueDate(row, { createdDate, sessionDate }) {
+  switch (row.due_rule) {
+    case 'after_create': return addDays(createdDate, Number(row.due_days || 0))
+    case 'before_session': return sessionDate ? addDays(sessionDate, -Number(row.due_days || 0)) : ''
+    case 'on_session': return sessionDate || ''
+    default: return createdDate
+  }
+}
+
+// Pattern percentages -> installment amounts (cents) that add up exactly to
+// the total; the last one takes the rounding.
+export function patternAmounts(pattern, totalCents) {
+  let assigned = 0
+  return pattern.map((r, i) => {
+    if (i === pattern.length - 1) return totalCents - assigned
+    const cents = Math.round(totalCents * Number(r.percent) / 100)
+    assigned += cents
+    return cents
+  })
+}
+
 // ── Status display ───────────────────────────────────────────────────
 
 export const INVOICE_STATUS_STYLES = {

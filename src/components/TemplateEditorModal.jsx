@@ -39,10 +39,11 @@ import MarkdownToolbar from './ui/MarkdownToolbar.jsx'
  *   onSave     : () => void
  *   onClose    : () => void
  *   saveLabel  : string -- Save button text (default "Save Template")
+ *   maxWidth   : number -- dialog width in px (default 560)
  */
 export default function TemplateEditorModal({
   title, fields, values, onChange, variables,
-  saving, canSave, onSave, onClose, children, saveLabel = 'Save Template',
+  saving, canSave, onSave, onClose, children, saveLabel = 'Save Template', maxWidth = 560,
 }) {
   const markdownRefs = useRef({})
   // Last field the cursor was in: { key, el? } -- el only for plain
@@ -110,7 +111,7 @@ export default function TemplateEditorModal({
   const modalStyle = {
     position: 'fixed', left: '50%', top: '50%', zIndex: 50,
     transform: 'translate(-50%, -50%)',
-    width: '100%', maxWidth: 560,
+    width: '100%', maxWidth,
     padding: '0 16px',
   }
   const innerStyle = {

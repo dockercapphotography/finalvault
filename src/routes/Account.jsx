@@ -12,6 +12,7 @@ import WebImageBackfillSection from '../components/account/WebImageBackfillSecti
 import ZipJobMonitorSection from '../components/account/ZipJobMonitorSection.jsx'
 import InvoiceCatalogSection from '../components/account/InvoiceCatalogSection.jsx'
 import DefaultInvoicePlatformSection from '../components/account/DefaultInvoicePlatformSection.jsx'
+import InvoiceTemplatesSection from '../components/account/InvoiceTemplatesSection.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
   getWatermarks, uploadWatermark, updateWatermark,
@@ -1486,6 +1487,9 @@ function LinksTab({ platforms, dbColumn, onSaveState, onLinksChange }) {
 
 function InvoicingTab({ onSaveState }) {
   const [paymentLinks, setPaymentLinks] = useState({})
+  // Bumped by the catalog section on every change; the templates section
+  // reloads so it never shows (or saves) stale catalog prices.
+  const [catalogVersion, setCatalogVersion] = useState(0)
   return (
     <div className="space-y-6">
       <SettingsSection title="Payment Links" description="Shown in the footer of gallery emails, and used for the Pay button on invoices.">
@@ -1494,7 +1498,8 @@ function InvoicingTab({ onSaveState }) {
         </div>
       </SettingsSection>
       <DefaultInvoicePlatformSection links={paymentLinks} platforms={PAYMENT_PLATFORMS} onSaveState={onSaveState} />
-      <InvoiceCatalogSection onSaveState={onSaveState} />
+      <InvoiceCatalogSection onSaveState={onSaveState} onCatalogChange={() => setCatalogVersion(v => v + 1)} />
+      <InvoiceTemplatesSection onSaveState={onSaveState} catalogVersion={catalogVersion} />
     </div>
   )
 }

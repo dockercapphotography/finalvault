@@ -6,11 +6,11 @@ import ClientPicker from '../components/ui/ClientPicker.jsx'
 import Button from '../components/ui/Button.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import Toast from '../components/ui/Toast.jsx'
-import LineItemsEditor from '../components/invoices/LineItemsEditor.jsx'
+import LineItemsEditor, { newLineKey } from '../components/invoices/LineItemsEditor.jsx'
 import ScheduleEditor from '../components/invoices/ScheduleEditor.jsx'
 import LogPaymentModal from '../components/invoices/LogPaymentModal.jsx'
 import { Card, InvoiceStatusPill, PaymentStatusPill, inputStyle, focusBorder, blurBorder } from '../components/invoices/invoiceUi.jsx'
-import { rescaleToTotal, startSchedule } from '../components/invoices/scheduleMath.js'
+import { rescaleToTotal, startSchedule, newRowKey } from '../components/invoices/scheduleMath.js'
 import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import { getClients } from '../utils/crmApi.js'
@@ -20,6 +20,7 @@ import {
   logPayment, updatePayment, deletePayment, getInvoiceCatalogItems, getPaymentLinks,
   computeTotals, parseQuantity, parseRate, toCents, centsToInput, formatCents, formatInvoiceDate,
   INVOICE_PLATFORMS, platformLabel, todayIso,
+  getInvoiceTemplates, templateToLines, patternAmounts, patternDueDate,
 } from '../utils/invoiceApi.js'
 
 // ── Invoice editor (v1.6.0) ──────────────────────────────────────────────
@@ -94,6 +95,7 @@ export default function InvoiceEditor() {
   const [clients, setClients] = useState([])
   const [sessions, setSessions] = useState([])
   const [catalog, setCatalog] = useState([])
+  const [templates, setTemplates] = useState([])
   const [links, setLinks] = useState({})
   const [loadError, setLoadError] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -108,11 +110,13 @@ export default function InvoiceEditor() {
 
   const fetchAll = useCallback(() => Promise.all([
     getClients(), getInvoiceCatalogItems(), getPaymentLinks(), isNew ? Promise.resolve(null) : getInvoice(id),
+    getInvoiceTemplates().catch(() => []),
   ]), [id, isNew])
 
-  const applyLoaded = useCallback(([clientList, catalogItems, linkInfo, inv]) => {
+  const applyLoaded = useCallback(([clientList, catalogItems, linkInfo, inv, templateList]) => {
     setClients(clientList)
     setCatalog(catalogItems)
+    setTemplates(templateList || [])
     setLinks(linkInfo.links)
     setInvoice(inv)
     const f = formFromInvoice(inv, {
@@ -205,6 +209,39 @@ export default function InvoiceEditor() {
   const paidDates = paidDatesFor(form.schedule, payments)
 
   const platformOptions = INVOICE_PLATFORMS.filter(p => (links[p.id] || '').trim() || p.id === form.payment_platform)
+
+  // ── Templates ───────────────────────────────────────────────────────
+  // Adds the template's lines. Tax, discount and notes are filled only where
+  // the invoice has none; its payment schedule is used only if this invoice
+  // doesn't have one yet (dates from today/creation and the session date).
+  function applyTemplate(t) {
+    setForm(f => {
+      const next = {
+        ...f,
+        lines: [...f.lines, ...templateToLines(t, newLineKey)],
+        discount_rate: f.discount_rate === '' && t.discount_rate != null ? String(Number(t.discount_rate)) : f.discount_rate,
+        tax_rate: f.tax_rate === '' && t.tax_rate != null ? String(Number(t.tax_rate)) : f.tax_rate,
+        notes: f.notes.trim() ? f.notes : (t.notes || ''),
+      }
+      const total = computeTotals(next.lines, next.discount_rate, next.tax_rate)
+      if (!total.valid) return next
+      if (!f.scheduleOn && (t.schedule || []).length > 1 && total.total > 0) {
+        const amounts = patternAmounts(t.schedule, total.total)
+        if (amounts.every(a => a > 0)) {
+          const createdDate = invoice?.created_at ? String(invoice.created_at).slice(0, 10) : todayIso()
+          const sessionDate = clientSessions.find(s => s.id === f.session_id)?.session_date || ''
+          next.scheduleOn = true
+          next.schedule = t.schedule.map((r, i) => ({
+            key: newRowKey(), amountCents: amounts[i], allocatedCents: 0,
+            due_date: patternDueDate(r, { createdDate, sessionDate }),
+          }))
+        }
+      } else if (f.scheduleOn) {
+        next.schedule = rescaleToTotal(f.schedule, total.total)
+      }
+      return next
+    })
+  }
 
   // ── Validation ──────────────────────────────────────────────────────
   function validate({ forSend } = {}) {
@@ -446,6 +483,8 @@ export default function InvoiceEditor() {
             onTaxRate={v => setMoney({ tax_rate: v })}
             ratesInvalid={{ discount: parseRate(form.discount_rate) === null, tax: parseRate(form.tax_rate) === null }}
             paidCents={paidCents}
+            templates={templates}
+            onApplyTemplate={applyTemplate}
           />
           {(!isVoid || form.scheduleOn) && (
             <ScheduleEditor

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { GripVertical, Plus, Search, Trash2 } from 'lucide-react'
 import {
@@ -10,7 +11,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import Modal from '../ui/Modal.jsx'
 import { Card, MoneyInput, LockIcon, inputStyle, smallInputStyle, focusBorder, blurBorder } from './invoiceUi.jsx'
-import { formatCents, formatUnitPrice, centsToInput, parseQuantity, toCents } from '../../utils/invoiceApi.js'
+import { computeTotals, formatCents, formatUnitPrice, centsToInput, parseQuantity, toCents, catalogFieldValue } from '../../utils/invoiceApi.js'
 
 // ── Line items + totals (v1.6.0) ─────────────────────────────────────────
 // Each line leads with its name and description; quantity, price and the
@@ -29,7 +30,7 @@ function autoGrow(el) {
   el.style.height = `${el.scrollHeight + 2}px`
 }
 
-function SortableLine({ line, index, total, onChange, onRemove, focusField }) {
+function SortableLine({ line, index, total, onChange, onRemove, focusField, catalogItem }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: line.key })
   const descRef = useRef(null)
   useEffect(() => { autoGrow(descRef.current) }, [line.description])
@@ -79,6 +80,7 @@ function SortableLine({ line, index, total, onChange, onRemove, focusField }) {
                 data-testid="line-taxable" style={{ width: 16, height: 16, accentColor: '#6366f1' }} />Taxed
             </label>
           </div>
+          {catalogItem && <CatalogPriceHint line={line} item={catalogItem} onChange={onChange} />}
           {focusField && <FocusNewLine field={focusField} />}
         </div>
 
@@ -106,6 +108,67 @@ function FocusNewLine({ field }) {
     row?.querySelector(`[data-testid="${field}"]`)?.focus({ preventScroll: true })
   }, [field])
   return <span ref={ref} hidden />
+}
+
+// Templates: a catalog line follows the catalog's price unless changed
+// (sql/112 stores only what differs). Says which, with a way back.
+function CatalogPriceHint({ line, item, onChange }) {
+  const catalogCents = Math.round(Number(item.default_unit_price || 0) * 100)
+  const lineCents = toCents(line.unit_price)
+  if (lineCents === null) return null
+  // Whether the price was changed comes from what the photographer did
+  // (line.overrides), never from comparing against a possibly stale catalog.
+  if (!line.overrides?.unit_price) {
+    return <p className="text-xs" style={{ margin: 0, color: 'var(--text-muted)' }} data-testid="line-price-follows">Follows your catalog price, including future changes.</p>
+  }
+  return (
+    <p className="text-xs" style={{ margin: 0, color: 'var(--text-muted)' }} data-testid="line-price-changed">
+      Changed from the catalog price ({formatCents(catalogCents)}), so catalog changes won't affect it.{' '}
+      <button type="button" onClick={() => onChange({ unit_price: centsToInput(catalogCents) })}
+        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#6366f1', cursor: 'pointer' }}>
+        Use catalog price
+      </button>
+    </p>
+  )
+}
+
+// Pick a template to add its lines (and, where the invoice has none yet,
+// its tax, discount, notes and payment schedule).
+function ApplyTemplateDialog({ templates, onApply, onClose }) {
+  return (
+    <Modal title="Apply a template" onClose={onClose} size="md">
+      <div data-testid="apply-template-dialog">
+        {templates.length === 0 ? (
+          <p className="text-sm" style={{ margin: 0, color: 'var(--text-muted)' }}>
+            No invoice templates yet. Create them in Account › Invoicing.
+          </p>
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, border: '1px solid var(--border)', borderRadius: 12, maxHeight: '55vh', overflowY: 'auto' }}>
+            {templates.map((t, i) => {
+              const totals = computeTotals(t.items.map(it => ({ quantity: Number(it.quantity), unit_price: Number(it.unit_price || 0), taxable: it.taxable })), t.discount_rate ?? '', t.tax_rate ?? '')
+              return (
+                <li key={t.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                  <button type="button" onClick={() => { onApply(t); onClose() }} data-testid="apply-template-option"
+                    className="w-full text-left px-3.5 py-3 flex items-center justify-between gap-3"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-raised)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none' }}>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</span>
+                      <span className="block text-xs truncate" style={{ color: 'var(--text-muted)', marginTop: 2 }}>
+                        {t.items.map(it => it.title).join(', ') || 'No items'}
+                      </span>
+                    </span>
+                    <span className="text-sm font-medium shrink-0" style={{ color: 'var(--text)' }}>{formatCents(totals.total)}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+    </Modal>
+  )
 }
 
 function ReadOnlyLine({ line, index, total }) {
@@ -213,19 +276,42 @@ function RateInput({ id, label, value, onChange, testId, invalid }) {
   )
 }
 
+// Optional:
+//   catalogHints   -- show whether each catalog line follows the catalog price (templates)
+//   templates, onApplyTemplate(template) -- adds an "Apply template" button
+//   title          -- card title (default "Line items")
+//   manageCatalogLink -- show the "Manage catalog" link (off where leaving would lose work)
 export default function LineItemsEditor({
   lines, onLinesChange, catalog, locked, totals,
   discountRate, taxRate, onDiscountRate, onTaxRate, ratesInvalid, paidCents,
+  catalogHints = false, templates, onApplyTemplate, title = 'Line items', manageCatalogLink = true,
 }) {
   const [focusNew, setFocusNew] = useState(null)  // { key, field }
   const [adding, setAdding] = useState(false)
+  const [applying, setApplying] = useState(false)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
+  // For catalog lines, editing a field marks it overridden unless the new
+  // value matches the catalog (e.g. "Use catalog price"), which un-marks it.
   function update(key, patch) {
-    onLinesChange(lines.map(l => (l.key === key ? { ...l, ...patch } : l)))
+    onLinesChange(lines.map(l => {
+      if (l.key !== key) return l
+      const next = { ...l, ...patch }
+      const item = l.catalog_item_id && catalog.find(c => c.id === l.catalog_item_id)
+      if (item) {
+        const overrides = { ...(l.overrides || {}) }
+        for (const field of ['title', 'description', 'unit_price', 'unit_label', 'taxable']) {
+          if (!(field in patch)) continue
+          const value = field === 'unit_price' ? toCents(patch.unit_price) : patch[field]
+          overrides[field] = value !== catalogFieldValue(item, field)
+        }
+        next.overrides = overrides
+      }
+      return next
+    }))
   }
 
   function addFromCatalog(item) {
@@ -235,6 +321,7 @@ export default function LineItemsEditor({
       key, catalog_item_id: item.id, title: item.name, description: item.description || '',
       quantity: '1', unit_price: centsToInput(Math.round(Number(item.default_unit_price || 0) * 100)),
       unit_label: item.unit_label || '', taxable: item.taxable_default !== false,
+      overrides: { title: false, description: false, unit_price: false, unit_label: false, taxable: false },
     }])
   }
   function addCustom(title) {
@@ -255,9 +342,9 @@ export default function LineItemsEditor({
 
   return (
     <Card
-      title="Line items"
+      title={title}
       icon={locked ? <LockIcon /> : null}
-      action={!locked && <Link to="/account?tab=payment" className="text-xs" style={{ color: '#6366f1', textDecoration: 'none' }}>Manage catalog</Link>}
+      action={!locked && manageCatalogLink && <Link to="/account?tab=payment" className="text-xs" style={{ color: '#6366f1', textDecoration: 'none' }}>Manage catalog</Link>}
       testId="line-items-card"
     >
       {lines.length === 0 && !locked && (
@@ -272,6 +359,7 @@ export default function LineItemsEditor({
             {lines.map((l, i) => (
               <SortableLine key={l.key} line={l} index={i} total={totals.lineTotals[i]}
                 focusField={focusNew?.key === l.key ? focusNew.field : null}
+                catalogItem={catalogHints && l.catalog_item_id ? catalog.find(c => c.id === l.catalog_item_id) : null}
                 onChange={patch => { update(l.key, patch); if (focusNew?.key === l.key) setFocusNew(null) }}
                 onRemove={() => onLinesChange(lines.filter(x => x.key !== l.key))} />
             ))}
@@ -281,14 +369,26 @@ export default function LineItemsEditor({
 
       {!locked && (
         <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
-          <button type="button" onClick={() => setAdding(true)} data-testid="add-item"
-            className="w-full flex items-center justify-center gap-2 text-sm font-medium rounded-xl"
-            style={{ minHeight: 44, border: '1px dashed rgba(99,102,241,0.45)', background: 'rgba(99,102,241,0.04)', color: '#6366f1', cursor: 'pointer' }}>
-            <Plus size={16} />Add item
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setAdding(true)} data-testid="add-item"
+              className="flex items-center justify-center gap-2 text-sm font-medium rounded-xl"
+              style={{ flex: '1 1 200px', minHeight: 44, border: '1px dashed rgba(99,102,241,0.45)', background: 'rgba(99,102,241,0.04)', color: '#6366f1', cursor: 'pointer' }}>
+              <Plus size={16} />Add item
+            </button>
+            {onApplyTemplate && (
+              <button type="button" onClick={() => setApplying(true)} data-testid="apply-template"
+                className="flex items-center justify-center gap-2 text-sm font-medium rounded-xl"
+                style={{ flex: '0 1 200px', minHeight: 44, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer' }}>
+                Apply template
+              </button>
+            )}
+          </div>
         </div>
       )}
-      {adding && <AddItemDialog catalog={catalog} onPick={addFromCatalog} onCustom={addCustom} onClose={() => setAdding(false)} />}
+      {/* Portaled: a host modal centred with a CSS transform (TemplateEditorModal,
+          BottomSheet) would otherwise trap these fixed-position dialogs inside it. */}
+      {adding && createPortal(<AddItemDialog catalog={catalog} onPick={addFromCatalog} onCustom={addCustom} onClose={() => setAdding(false)} />, document.body)}
+      {applying && createPortal(<ApplyTemplateDialog templates={templates || []} onApply={onApplyTemplate} onClose={() => setApplying(false)} />, document.body)}
 
       <div className="flex justify-end px-5 py-4" style={{ background: 'var(--bg-subtle)', borderTop: '1px solid var(--border)' }}>
         <div className="w-full flex flex-col gap-2.5 text-sm" style={{ maxWidth: 360, color: 'var(--text)' }} data-testid="invoice-totals">

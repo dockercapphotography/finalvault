@@ -1,16 +1,22 @@
 import Toggle from '../ui/Toggle.jsx'
-import { MoneyInput, inputStyle, focusBorder, blurBorder } from './invoiceUi.jsx'
-import { computeTotals, formatCents, formatUnitPrice, centsToInput, parseQuantity, toCents } from '../../utils/invoiceApi.js'
+import LineItemsEditor, { newLineKey } from './LineItemsEditor.jsx'
+import { inputStyle, focusBorder, blurBorder } from './invoiceUi.jsx'
+import {
+  computeTotals, parseQuantity, parseRate, toCents, todayIso,
+  templateToLines, patternAmounts, patternDueDate, describeSchedulePattern,
+} from '../../utils/invoiceApi.js'
 
 // ── New Session wizard: Invoice step (v1.6.0) ────────────────────────────
-// Replaces the old Financials step. One line from the catalog (or a custom
-// item), a due date, and Draft or Sent. Anything more (more lines, tax,
-// a payment schedule) is done in the full editor, which "Open the invoice
-// afterwards" jumps straight to.
+// Start from an invoice template and/or add items; tax and discount can be
+// set here too. A template's payment schedule pattern is turned into dated
+// installments from the session date when the session is created. Anything
+// else is done in the full editor ("Open the invoice afterwards").
+
+function rateText(v) { return v === null || v === undefined ? '' : String(Number(v)) }
 
 export const EMPTY_SESSION_INVOICE = {
-  enabled: false, itemId: '', title: '', description: '', unitLabel: '', taxable: true,
-  quantity: '1', price: '', dueDate: '', send: false, openAfter: false,
+  enabled: false, templateId: '', lines: [], discount_rate: '', tax_rate: '', notes: '',
+  pattern: [], usePattern: true, dueDate: '', send: false, openAfter: false,
 }
 
 // Problems that block creating the session, or [] when ready.
@@ -18,55 +24,73 @@ export function sessionInvoiceProblems(value, hasClient) {
   if (!value.enabled) return []
   const problems = []
   if (!hasClient) problems.push('Link a client in Details to create an invoice.')
-  if (!value.title.trim()) problems.push('Choose an item or name a custom one.')
-  if (parseQuantity(value.quantity) === null) problems.push('Enter a quantity above 0.')
-  if (toCents(value.price) === null) problems.push('Enter a price.')
+  if (value.lines.length === 0) problems.push('Add at least one item, or start from a template.')
+  if (value.lines.some(l => !l.title.trim() || parseQuantity(l.quantity) === null || toCents(l.unit_price) === null)) {
+    problems.push('Every item needs a name, a quantity and a price.')
+  }
+  if (parseRate(value.discount_rate) === null || parseRate(value.tax_rate) === null) problems.push('Tax and discount are percents from 0 to 100.')
   return problems
 }
 
 // save_invoice payload for the new session.
-export function sessionInvoicePayload(value, { clientId, sessionId }) {
+export function sessionInvoicePayload(value, { clientId, sessionId, sessionDate }) {
+  const totals = computeTotals(value.lines, value.discount_rate, value.tax_rate)
+  let schedule = []
+  if (value.usePattern && value.pattern.length > 1 && totals.total > 0) {
+    const amounts = patternAmounts(value.pattern, totals.total)
+    if (amounts.every(a => a > 0)) {
+      const createdDate = todayIso()
+      schedule = value.pattern.map((r, i) => ({
+        amount: amounts[i] / 100,
+        due_date: patternDueDate(r, { createdDate, sessionDate }) || null,
+      }))
+    }
+  }
   return {
     client_id: clientId,
     session_id: sessionId,
-    due_date: value.dueDate || null,
+    due_date: value.dueDate || (schedule.length ? schedule[schedule.length - 1].due_date : null),
     status: value.send ? 'sent' : 'draft',
-    line_items: [{
-      catalog_item_id: value.itemId && value.itemId !== 'custom' ? value.itemId : null,
-      title: value.title.trim(),
-      description: value.description.trim() || null,
-      quantity: parseQuantity(value.quantity) / 100,
-      unit_price: toCents(value.price) / 100,
-      unit_label: value.unitLabel || null,
-      taxable: value.taxable,
-    }],
+    notes: value.notes || null,
+    tax_rate: value.tax_rate === '' ? null : Number(value.tax_rate),
+    discount_rate: value.discount_rate === '' ? null : Number(value.discount_rate),
+    line_items: value.lines.map(l => ({
+      catalog_item_id: l.catalog_item_id || null,
+      title: l.title.trim(),
+      description: l.description.trim() || null,
+      quantity: parseQuantity(l.quantity) / 100,
+      unit_price: toCents(l.unit_price) / 100,
+      unit_label: l.unit_label || null,
+      taxable: l.taxable,
+    })),
+    schedule,
   }
 }
 
 const labelStyle = { color: 'var(--text)' }
 
-export default function SessionInvoiceStep({ value, onChange, catalog, hasClient, onBackToDetails }) {
+export default function SessionInvoiceStep({ value, onChange, catalog, templates = [], hasClient, sessionDate, onBackToDetails }) {
   const set = patch => onChange({ ...value, ...patch })
-  const active = catalog.filter(c => c.active)
 
-  function pickItem(id) {
-    if (id === 'custom') {
-      set({ itemId: 'custom', title: '', description: '', unitLabel: '', taxable: true, price: '' })
-      return
-    }
-    const item = active.find(c => c.id === id)
-    if (!item) {
-      // Back to "Choose from your catalog…": forget the previous item.
-      set({ itemId: '', title: '', description: '', unitLabel: '', taxable: true, quantity: '1', price: '' })
+  function pickTemplate(id) {
+    const t = templates.find(x => x.id === id)
+    if (!t) {
+      set({ templateId: '', lines: [], discount_rate: '', tax_rate: '', notes: '', pattern: [] })
       return
     }
     set({
-      itemId: item.id, title: item.name, description: item.description || '', unitLabel: item.unit_label || '',
-      taxable: item.taxable_default !== false, price: centsToInput(Math.round(Number(item.default_unit_price || 0) * 100)),
+      templateId: t.id,
+      lines: templateToLines(t, newLineKey),
+      discount_rate: rateText(t.discount_rate),
+      tax_rate: rateText(t.tax_rate),
+      notes: t.notes || '',
+      pattern: (t.schedule || []).map(r => ({ percent: Number(r.percent), due_rule: r.due_rule, due_days: r.due_days })),
+      usePattern: true,
     })
   }
 
-  const totals = computeTotals([{ quantity: value.quantity, unit_price: value.price, taxable: value.taxable }], '', '')
+  const totals = computeTotals(value.lines, value.discount_rate, value.tax_rate)
+  const needsSessionDate = value.pattern.some(r => r.due_rule === 'before_session' || r.due_rule === 'on_session')
 
   return (
     <div className="space-y-4" data-testid="session-invoice-step">
@@ -91,47 +115,53 @@ export default function SessionInvoiceStep({ value, onChange, catalog, hasClient
 
       {value.enabled && hasClient && (
         <>
-          <div>
-            <label className="text-sm font-medium block mb-1.5" style={labelStyle} htmlFor="session-invoice-item">Item</label>
-            <select id="session-invoice-item" value={value.itemId} onChange={e => pickItem(e.target.value)} data-testid="session-invoice-item"
-              style={{ ...inputStyle, cursor: 'pointer' }}>
-              <option value="">Choose from your catalog…</option>
-              {active.map(c => <option key={c.id} value={c.id}>{c.name} · {formatUnitPrice(c.default_unit_price, c.unit_label)}</option>)}
-              <option value="custom">Custom item…</option>
-            </select>
-          </div>
-
-          {value.itemId === 'custom' && (
+          {templates.length > 0 && (
             <div>
-              <label className="text-sm font-medium block mb-1.5" style={labelStyle} htmlFor="session-invoice-title">Item name</label>
-              <input id="session-invoice-title" value={value.title} onChange={e => set({ title: e.target.value })} placeholder="e.g. Engagement Session"
-                data-testid="session-invoice-title" style={inputStyle} onFocus={focusBorder} onBlur={blurBorder} />
+              <label className="text-sm font-medium block mb-1.5" style={labelStyle} htmlFor="session-invoice-template">Start from a template</label>
+              <select id="session-invoice-template" value={value.templateId} onChange={e => pickTemplate(e.target.value)} data-testid="session-invoice-template"
+                style={{ ...inputStyle, cursor: 'pointer' }}>
+                <option value="">No template</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              <p className="text-xs" style={{ margin: '6px 0 0', color: 'var(--text-muted)' }}>Fills in the items below. You can still add, remove or change them.</p>
             </div>
           )}
 
-          {value.itemId && (
-            <div className="grid gap-3" style={{ gridTemplateColumns: '90px minmax(0, 1fr)' }}>
-              <div>
-                <label className="text-sm font-medium block mb-1.5" style={labelStyle} htmlFor="session-invoice-qty">Qty</label>
-                <input id="session-invoice-qty" inputMode="decimal" value={value.quantity} onChange={e => set({ quantity: e.target.value })}
-                  data-testid="session-invoice-qty" style={{ ...inputStyle, textAlign: 'right' }} onFocus={focusBorder} onBlur={blurBorder} />
-              </div>
-              <div>
-                <p className="text-sm font-medium" style={{ margin: '0 0 6px', ...labelStyle }}>Price{value.unitLabel ? ` per ${value.unitLabel}` : ''}</p>
-                <MoneyInput value={value.price} onChange={v => set({ price: v })} ariaLabel="Price" testId="session-invoice-price" />
-              </div>
-            </div>
-          )}
+          <LineItemsEditor
+            title="Items"
+            manageCatalogLink={false}
+            lines={value.lines}
+            onLinesChange={lines => set({ lines })}
+            catalog={catalog}
+            locked={false}
+            totals={totals}
+            discountRate={value.discount_rate}
+            taxRate={value.tax_rate}
+            onDiscountRate={v => set({ discount_rate: v })}
+            onTaxRate={v => set({ tax_rate: v })}
+            ratesInvalid={{ discount: parseRate(value.discount_rate) === null, tax: parseRate(value.tax_rate) === null }}
+            paidCents={0}
+          />
 
-          {value.itemId && totals.valid && (
-            <p className="text-sm" style={{ margin: 0, color: 'var(--text-secondary)' }}>
-              Invoice total: <span className="font-semibold" style={{ color: 'var(--text)' }}>{formatCents(totals.total)}</span>
-            </p>
+          {value.pattern.length > 1 && (
+            <div className="px-4 py-3 rounded-xl" style={{ border: '1px solid var(--border)' }} data-testid="session-invoice-pattern">
+              <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--text)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={value.usePattern} onChange={e => set({ usePattern: e.target.checked })}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: '#6366f1' }} />
+                <span>
+                  Use the template's payment schedule
+                  <span className="block text-xs" style={{ color: 'var(--text-muted)', marginTop: 2 }}>{describeSchedulePattern(value.pattern)}</span>
+                  {value.usePattern && needsSessionDate && !sessionDate && (
+                    <span className="block text-xs" style={{ color: '#d97706', marginTop: 2 }}>This session has no date, so installments tied to it won't get a due date.</span>
+                  )}
+                </span>
+              </label>
+            </div>
           )}
 
           <div>
             <label className="text-sm font-medium block mb-1.5" style={labelStyle} htmlFor="session-invoice-due">
-              Due date <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
+              Due date <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional{value.usePattern && value.pattern.length > 1 ? '; defaults to the last installment' : ''})</span>
             </label>
             <input id="session-invoice-due" type="date" value={value.dueDate} onChange={e => set({ dueDate: e.target.value })}
               data-testid="session-invoice-due" style={inputStyle} onFocus={focusBorder} onBlur={blurBorder} />
@@ -154,7 +184,7 @@ export default function SessionInvoiceStep({ value, onChange, catalog, hasClient
           <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--text)', cursor: 'pointer' }}>
             <input type="checkbox" checked={value.openAfter} onChange={e => set({ openAfter: e.target.checked })}
               data-testid="session-invoice-open-after" style={{ width: 16, height: 16, accentColor: '#6366f1' }} />
-            Open the invoice afterwards to add more items, tax or a payment schedule
+            Open the invoice afterwards to adjust it
           </label>
         </>
       )}
