@@ -294,6 +294,8 @@ export function resolveTemplateVariables(body, { photographer, client, gallery, 
     ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : ''
   const fmtMoney = (v) => v != null ? `$${parseFloat(v).toFixed(2)}` : ''
+  // "14:30:00" -> "2:30 PM"
+  const fmtTime = (t) => { const [h, m] = t.split(':'); const hour = parseInt(h); return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}` }
 
   const vars = {
     client_name: client ? `${client.first_name} ${client.last_name}` : '',
@@ -315,16 +317,17 @@ export function resolveTemplateVariables(body, { photographer, client, gallery, 
     session_type: session?.type ?? '',
     session_date: session?.session_date ? fmtDate(session.session_date) : '',
     session_time: session?.start_time
-      ? (() => {
-          const fmt = t => { const [h, m] = t.split(':'); const hour = parseInt(h); return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}` }
-          return fmt(session.start_time) + (session.end_time ? ` – ${fmt(session.end_time)}` : '')
-        })()
+      ? fmtTime(session.start_time) + (session.end_time ? ` – ${fmtTime(session.end_time)}` : '')
       : '',
+    session_start_time: session?.start_time ? fmtTime(session.start_time) : '',
+    session_end_time: session?.end_time ? fmtTime(session.end_time) : '',
     session_location: session?.location ?? '',
     session_fee: fmtMoney(session?.session_fee),
     retainer_amount: fmtMoney(session?.retainer_amount),
     balance_due: fmtMoney(session?.balance_due),
     balance_due_date: session?.balance_due_date ? fmtDate(session.balance_due_date) : '',
+    // Never had a source -- hidden from the variable picker, but kept
+    // resolving to blank so a saved template using it doesn't show the raw tag.
     cancellation_days: '',
   }
 
