@@ -1,15 +1,16 @@
-import { NavLink } from 'react-router-dom'
-import { Images, Settings, Bookmark, Users, CalendarDays } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { MoreHorizontal } from 'lucide-react'
 import NotificationBell from './NotificationBell.jsx'
 import MobileBottomNav from './MobileBottomNav.jsx'
+import MobileMoreSheet from './MobileMoreSheet.jsx'
+import {
+  NAV_DESTINATIONS, destinationByKey, destinationForPath, getCachedMobileNav, loadMobileNav,
+} from '../../utils/mobileNav.js'
 
-const baseNavItems = [
-  { to: '/', label: 'Galleries', icon: Images, end: true },
-  { to: '/clients', label: 'Clients', icon: Users },
-  { to: '/sessions', label: 'Sessions', icon: CalendarDays },
-  { to: '/bookmarked', label: 'Bookmarked', icon: Bookmark },
-  { to: '/account', label: 'Account', icon: Settings },
-]
+// Desktop shows every destination; mobile shows the photographer's picks
+// plus More (src/utils/mobileNav.js, sql/113).
+const baseNavItems = NAV_DESTINATIONS
 
 const LogoMark = () => (
   <img src="/finalvault_logo.svg" alt="FinalVault" width="28" height="28" style={{ flexShrink: 0 }} />
@@ -17,6 +18,30 @@ const LogoMark = () => (
 
 export default function Sidebar() {
   const navItems = baseNavItems
+  const location = useLocation()
+  const [mobilePicked, setMobilePicked] = useState(getCachedMobileNav)
+  const [moreOpen, setMoreOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    loadMobileNav().then(keys => { if (!cancelled) setMobilePicked(keys) })
+    return () => { cancelled = true }
+  }, [])
+
+  // More lights up while its sheet is open or the current page is one of
+  // the destinations kept in it.
+  const currentDestination = destinationForPath(location.pathname)
+  const mobileItems = [
+    ...mobilePicked.map(key => {
+      const d = destinationByKey(key)
+      return { ...d, testId: `mobile-nav-${d.key}` }
+    }),
+    {
+      label: 'More', icon: MoreHorizontal, testId: 'mobile-nav-more',
+      onClick: () => setMoreOpen(true),
+      active: moreOpen || Boolean(currentDestination && !mobilePicked.includes(currentDestination)),
+    },
+  ]
 
   return (
     <>
@@ -62,7 +87,9 @@ export default function Sidebar() {
       </aside>
 
       {/* ── Mobile bottom nav ── */}
-      <MobileBottomNav items={navItems} />
+      <MobileBottomNav items={mobileItems} />
+      <MobileMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)}
+        picked={mobilePicked} onPickedChange={setMobilePicked} />
     </>
   )
 }

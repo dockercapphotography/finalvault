@@ -17,6 +17,7 @@ import SubmitForm from './routes/SubmitForm.jsx'
 import ReviewForm from './routes/ReviewForm.jsx'
 import SessionDetail from './routes/SessionDetail.jsx'
 import InvoiceEditor from './routes/InvoiceEditor.jsx'
+import Financials from './routes/Financials.jsx'
 import Admin from './routes/Admin.jsx'
 import ClientGallery from './routes/ClientGallery.jsx'
 import ClientGalleryView from './routes/ClientGalleryView.jsx'
@@ -193,6 +194,11 @@ export default function App() {
       <Route path="/sessions/:id" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><SessionDetail /></PageWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/financials" element={
+        <ProtectedRoute session={session}>
+          <PageWrapper session={session}><Financials /></PageWrapper>
         </ProtectedRoute>
       } />
       <Route path="/invoices/new" element={
