@@ -85,7 +85,7 @@ export default function TemplateEditorModal({
       // After React re-renders the new value, put focus back and park
       // the caret just past the inserted variable.
       requestAnimationFrame(() => {
-        el.focus()
+        el.focus({ preventScroll: true })
         const pos = start + tag.length
         el.setSelectionRange(pos, pos)
       })

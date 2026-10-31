@@ -33,6 +33,26 @@ function renderMarkdown(text) {
     .join('')
 }
 
+// Change the textarea's text and put the caret back without the view
+// jumping. Setting a new value moves the browser's scroll to the end of
+// the text, and focus() can scroll the modal, so save every scroll
+// position first and restore them once React has re-rendered.
+function editKeepingScroll(el, onChange, newVal, selStart, selEnd = selStart) {
+  const saved = []
+  for (let node = el; node; node = node.parentElement) {
+    saved.push([node, node.scrollTop, node.scrollLeft])
+  }
+  onChange(newVal)
+  requestAnimationFrame(() => {
+    el.focus({ preventScroll: true })
+    el.setSelectionRange(selStart, selEnd)
+    for (const [node, top, left] of saved) {
+      node.scrollTop = top
+      node.scrollLeft = left
+    }
+  })
+}
+
 function applyInline(text) {
   return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -50,11 +70,7 @@ const MarkdownToolbar = forwardRef(function MarkdownToolbar({ value, onChange, p
       const start = el.selectionStart
       const end = el.selectionEnd
       const newVal = value.slice(0, start) + text + value.slice(end)
-      onChange(newVal)
-      setTimeout(() => {
-        el.focus()
-        el.selectionStart = el.selectionEnd = start + text.length
-      }, 0)
+      editKeepingScroll(el, onChange, newVal, start + text.length)
     },
   }))
 
@@ -65,12 +81,7 @@ const MarkdownToolbar = forwardRef(function MarkdownToolbar({ value, onChange, p
     const end = el.selectionEnd
     const selected = value.slice(start, end) || 'text'
     const newVal = value.slice(0, start) + before + selected + after + value.slice(end)
-    onChange(newVal)
-    setTimeout(() => {
-      el.focus()
-      el.selectionStart = start + before.length
-      el.selectionEnd = start + before.length + selected.length
-    }, 0)
+    editKeepingScroll(el, onChange, newVal, start + before.length, start + before.length + selected.length)
   }
 
   function prependLine(prefix) {
@@ -79,11 +90,7 @@ const MarkdownToolbar = forwardRef(function MarkdownToolbar({ value, onChange, p
     const start = el.selectionStart
     const lineStart = value.lastIndexOf('\n', start - 1) + 1
     const newVal = value.slice(0, lineStart) + prefix + value.slice(lineStart)
-    onChange(newVal)
-    setTimeout(() => {
-      el.focus()
-      el.selectionStart = el.selectionEnd = start + prefix.length
-    }, 0)
+    editKeepingScroll(el, onChange, newVal, start + prefix.length)
   }
 
   const toolbarButtons = [
