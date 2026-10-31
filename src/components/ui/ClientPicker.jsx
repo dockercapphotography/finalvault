@@ -275,7 +275,7 @@ export default function ClientPicker({ clients = [], value = '', onChange, place
           border: `1px solid ${open ? 'var(--border-strong)' : 'var(--border)'}`,
           color: 'var(--text)',
           borderRadius: 8,
-          padding: '8px 36px 8px 12px',
+          padding: selected ? '8px 62px 8px 12px' : '8px 36px 8px 12px',
           fontSize: 14,
           outline: 'none',
           cursor: disabled ? 'not-allowed' : 'pointer',
@@ -294,11 +294,12 @@ export default function ClientPicker({ clients = [], value = '', onChange, place
         {selected ? (
           <>
             <ClientAvatarCircle client={selected} sessionToken={sessionToken} size={20} />
-            <span style={{ flex: 1, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {/* Name keeps priority; the email gives up its space first. */}
+            <span style={{ flex: '0 1 auto', minWidth: 0, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {selected.first_name} {selected.last_name}
             </span>
             {selected.email && (
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>{selected.email}</span>
+              <span style={{ flex: '0 100 auto', minWidth: 0, fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.email}</span>
             )}
           </>
         ) : (
@@ -311,7 +312,9 @@ export default function ClientPicker({ clients = [], value = '', onChange, place
           {selected && (
             <span
               onClick={handleClear}
-              style={{ display: 'flex', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px', borderRadius: 4 }}
+              role="button"
+              aria-label="Clear client"
+              style={{ display: 'flex', cursor: 'pointer', color: 'var(--text-muted)', padding: 6, margin: '-4px 0', borderRadius: 6 }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
             >
