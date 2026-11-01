@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { Images, ChevronRight, Search, SlidersHorizontal, Lock, Copy, Check } from 'lucide-react'
 import { getPortalData } from '../utils/clientApi.js'
+import { pendingInvoiceCount } from '../utils/portalInvoices.js'
 import PortalPasswordGate from '../components/layout/PortalPasswordGate.jsx'
 import ClientPortalLayout from '../components/layout/ClientPortalLayout.jsx'
 import ClientPortalFilterSheet from '../components/layout/ClientPortalFilterSheet.jsx'
@@ -321,6 +322,7 @@ export default function ClientPortalGalleries() {
       photographerId={data.client?.photographer_id}
       pendingContracts={(data.contracts || []).filter(c => c.status !== 'signed').length}
       pendingQuestionnaires={(data.pending_questionnaires || []).length}
+      pendingInvoices={pendingInvoiceCount(data)}
     >
       <div className="space-y-4" style={{ maxWidth: 560 }}>
         <div className="flex items-center justify-between gap-4">

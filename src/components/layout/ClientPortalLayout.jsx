@@ -22,7 +22,7 @@ const brandingCache = new Map()
 // Analogous to PageWrapper.jsx, but PageWrapper hardcodes the authenticated
 // Sidebar directly rather than accepting it as a prop -- so this is a
 // parallel wrapper rather than a parameterized version of that one.
-export default function ClientPortalLayout({ token, photographerId, pendingContracts, pendingQuestionnaires, children }) {
+export default function ClientPortalLayout({ token, photographerId, pendingContracts, pendingQuestionnaires, pendingInvoices, children }) {
   const [branding, setBranding] = useState(() =>
     photographerId ? (brandingCache.get(photographerId) || null) : null
   )
@@ -52,6 +52,7 @@ export default function ClientPortalLayout({ token, photographerId, pendingContr
         branding={branding}
         pendingContracts={pendingContracts}
         pendingQuestionnaires={pendingQuestionnaires}
+        pendingInvoices={pendingInvoices}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <main className="flex-1 p-7 pt-[calc(1.75rem+52px)] md:pt-7 overflow-auto" style={{ paddingBottom: 'calc(1.75rem + 60px)' }}>

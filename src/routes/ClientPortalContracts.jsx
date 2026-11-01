@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { FileText, CheckCircle, Clock } from 'lucide-react'
 import { getPortalData } from '../utils/clientApi.js'
+import { pendingInvoiceCount } from '../utils/portalInvoices.js'
 import PortalPasswordGate from '../components/layout/PortalPasswordGate.jsx'
 import ClientPortalLayout from '../components/layout/ClientPortalLayout.jsx'
 
@@ -160,6 +161,7 @@ export default function ClientPortalContracts() {
       photographerId={data.client?.photographer_id}
       pendingContracts={needsSignature.length}
       pendingQuestionnaires={(data.pending_questionnaires || []).length}
+      pendingInvoices={pendingInvoiceCount(data)}
     >
       <div className="space-y-5" style={{ maxWidth: 560 }}>
         <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Contracts</h1>

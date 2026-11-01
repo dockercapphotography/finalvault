@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle, ShieldCheck, ChevronDown, Download } from 'lucide-react'
 import { getPortalData } from '../utils/clientApi.js'
+import { pendingInvoiceCount } from '../utils/portalInvoices.js'
 import PortalPasswordGate from '../components/layout/PortalPasswordGate.jsx'
 import ClientPortalLayout from '../components/layout/ClientPortalLayout.jsx'
 
@@ -113,6 +114,7 @@ export default function ClientPortalContractDetail() {
         photographerId={data.client?.photographer_id}
         pendingContracts={pending.length}
         pendingQuestionnaires={(data.pending_questionnaires || []).length}
+        pendingInvoices={pendingInvoiceCount(data)}
       >
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Contract not found</p>
@@ -130,6 +132,7 @@ export default function ClientPortalContractDetail() {
       photographerId={data.client?.photographer_id}
       pendingContracts={pending.length}
       pendingQuestionnaires={(data.pending_questionnaires || []).length}
+      pendingInvoices={pendingInvoiceCount(data)}
     >
       <div className="space-y-4" style={{ maxWidth: 560 }}>
         <Link to={`/client/${token}/contracts`}

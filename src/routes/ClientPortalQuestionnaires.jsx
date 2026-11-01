@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { ClipboardList, ChevronRight } from 'lucide-react'
 import { getPortalData } from '../utils/clientApi.js'
+import { pendingInvoiceCount } from '../utils/portalInvoices.js'
 import PortalPasswordGate from '../components/layout/PortalPasswordGate.jsx'
 import ClientPortalLayout from '../components/layout/ClientPortalLayout.jsx'
 
@@ -100,6 +101,7 @@ export default function ClientPortalQuestionnaires() {
       photographerId={data.client?.photographer_id}
       pendingContracts={pendingContracts.length}
       pendingQuestionnaires={questionnaires.length}
+      pendingInvoices={pendingInvoiceCount(data)}
     >
       <div className="space-y-5" style={{ maxWidth: 560 }}>
         <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Questionnaires</h1>

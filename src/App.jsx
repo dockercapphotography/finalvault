@@ -30,6 +30,8 @@ import ClientPortalGalleries from './routes/ClientPortalGalleries.jsx'
 import ClientPortalContracts from './routes/ClientPortalContracts.jsx'
 import ClientPortalContractDetail from './routes/ClientPortalContractDetail.jsx'
 import ClientPortalQuestionnaires from './routes/ClientPortalQuestionnaires.jsx'
+import ClientPortalInvoices from './routes/ClientPortalInvoices.jsx'
+import ClientPortalInvoiceDetail from './routes/ClientPortalInvoiceDetail.jsx'
 import ClientPortalRedirect from './routes/ClientPortalRedirect.jsx'
 import SignupBooking from './routes/SignupBooking.jsx'
 import AllSessionsBooking from './routes/AllSessionsBooking.jsx'
@@ -171,6 +173,8 @@ export default function App() {
       <Route path="/client/:token/contracts" element={<ClientPortalContracts />} />
       <Route path="/client/:token/contracts/:contractId" element={<ClientPortalContractDetail />} />
       <Route path="/client/:token/questionnaires" element={<ClientPortalQuestionnaires />} />
+      <Route path="/client/:token/invoices" element={<ClientPortalInvoices />} />
+      <Route path="/client/:token/invoices/:invoiceId" element={<ClientPortalInvoiceDetail />} />
       <Route path="/clients" element={
         <ProtectedRoute session={session}>
           <PageWrapper session={session}><Clients /></PageWrapper>

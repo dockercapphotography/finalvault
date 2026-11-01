@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Images, FileText, ClipboardList } from 'lucide-react'
+import { Images, FileText, ClipboardList, Receipt } from 'lucide-react'
 
 // Sibling to Sidebar.jsx, deliberately not shared/parameterized -- this nav
 // is anonymous and token-scoped, while Sidebar.jsx is authenticated and
@@ -35,10 +35,12 @@ export default function ClientPortalSidebar({
   branding,
   pendingContracts = 0,
   pendingQuestionnaires = 0,
+  pendingInvoices = 0,
 }) {
   const navItems = [
     { to: `/client/${token}/galleries`, label: 'Galleries', icon: Images },
     { to: `/client/${token}/contracts`, label: 'Contracts', icon: FileText, badge: pendingContracts > 0 },
+    { to: `/client/${token}/invoices`, label: 'Invoices', icon: Receipt, badge: pendingInvoices > 0 },
     { to: `/client/${token}/questionnaires`, label: 'Questionnaires', icon: ClipboardList, badge: pendingQuestionnaires > 0 },
   ]
 
