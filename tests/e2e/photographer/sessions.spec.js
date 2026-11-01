@@ -230,9 +230,10 @@ test.describe('New Session modal', () => {
   test('private mode has 3 steps, walk-up has 2', async ({ page }) => {
     await page.goto('/sessions')
     await page.getByRole('button', { name: /New Session/i }).first().click()
-    await expect(page.getByText('Financials').first()).toBeVisible()
+    // Step 3 of a private session is the Invoice step; walk-ups have no invoice step.
+    await expect(page.getByText('Invoice', { exact: true })).toBeVisible()
     await walkUpCard(page).click()
-    await expect(page.getByText('Financials')).not.toBeVisible()
+    await expect(page.getByText('Invoice', { exact: true })).toHaveCount(0)
   })
 
   test('creates a private session and navigates to detail', async ({ page }) => {
@@ -359,9 +360,10 @@ test.describe('Session detail', () => {
     await expect(page.getByText('Booked').first()).toBeVisible()
   })
 
-  test('shows financials section for private session', async ({ page }) => {
+  // v1.6.0: the Financials fields became the Invoices card.
+  test('shows the invoices card for private session', async ({ page }) => {
     await page.goto(`/sessions/${session.id}`)
-    await expect(page.getByText(/Session fee|Financials/i).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible()
   })
 })
 
