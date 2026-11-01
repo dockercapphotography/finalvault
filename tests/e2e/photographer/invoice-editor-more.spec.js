@@ -89,6 +89,9 @@ test.describe('Invoice editor — money', () => {
       await expect(page.getByTestId('schedule-card')).toContainText('Adds up to $300.00')
       await page.getByTestId('invoice-save').click()
       await expect(page.getByText('Invoice saved')).toBeVisible({ timeout: 10000 })
+      // The toast shows before the saved invoice reloads; edits made before
+      // then are replaced. Save draft is disabled again once it has reloaded.
+      await expect(page.getByRole('button', { name: 'Save draft' })).toBeDisabled()
 
       const { data: rows } = await sb().from('invoice_payment_schedule').select('sequence, amount, due_date').eq('invoice_id', inv.id).order('sequence')
       expect(rows.map(r => [Number(r.amount), r.due_date])).toEqual([[100, isoDaysFromToday(3)], [200, isoDaysFromToday(40)]])
