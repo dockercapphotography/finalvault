@@ -378,10 +378,23 @@ const CONTRACT_TEMPLATE_VARIABLES = [
   { tag: '{{session_location}}',     desc: 'Session location' },
   { tag: '{{today_date}}',           desc: 'Date contract is sent' },
   { tag: '{{sign_date}}',            desc: 'Date client signs' },
-  { tag: '{{session_fee}}',          desc: 'Total session fee' },
-  { tag: '{{retainer_amount}}',      desc: 'Retainer due on signing' },
-  { tag: '{{balance_due}}',          desc: 'Remaining balance' },
-  { tag: '{{balance_due_date}}',     desc: 'Date balance is due' },
+  { tag: '{{invoice_number}}',        desc: 'Invoice number (from the invoice picked when sending)' },
+  { tag: '{{invoice_total}}',         desc: 'Invoice total' },
+  { tag: '{{invoice_first_payment}}', desc: 'First installment, e.g. the retainer' },
+  { tag: '{{invoice_final_payment}}', desc: 'Last installment, e.g. the remaining balance' },
+  { tag: '{{invoice_final_due_date}}', desc: 'When the last installment is due' },
+  { tag: '{{invoice_balance_due}}',   desc: 'Balance left to pay' },
+  { tag: '{{invoice_due_date}}',      desc: 'Next payment due date' },
+]
+
+// v1.6.0: session money variables that no longer fill in (sessions don't
+// store fees any more). sql/119 swapped the three with clean invoice
+// equivalents; anything left is flagged on the template row.
+const RETIRED_CONTRACT_VARIABLES = [
+  { tag: '{{retainer_amount}}', use: '{{invoice_first_payment}}' },
+  { tag: '{{session_fee}}', use: '{{invoice_total}}' },
+  { tag: '{{balance_due}}', use: '{{invoice_final_payment}} (or {{invoice_balance_due}} for everything still owed)' },
+  { tag: '{{balance_due_date}}', use: '{{invoice_final_due_date}}' },
 ]
 
 function ContractTemplatesTab({ onSaveState }) {
@@ -439,6 +452,11 @@ function ContractTemplatesTab({ onSaveState }) {
                   style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{t.name}</p>
+                    {RETIRED_CONTRACT_VARIABLES.filter(v => t.body.includes(v.tag)).map(v => (
+                      <p key={v.tag} className="text-xs mt-0.5" style={{ color: 'var(--warning, #d97706)' }} data-testid="contract-template-retired-variable">
+                        Needs update: {v.tag} no longer fills in. Try {v.use} instead.
+                      </p>
+                    ))}
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                       {t.body.split('\n').filter(Boolean).length} lines
                       {' · '}Updated {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

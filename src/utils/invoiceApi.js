@@ -297,6 +297,41 @@ export async function getSessionInvoices(sessionId) {
   })
 }
 
+// A client's invoices for the Send Contract invoice picker (drafts included,
+// voids left out), newest first, with what the contract variables need.
+// first_payment = the first installment when there's a schedule of 2+.
+export async function getClientInvoicesForContracts(clientId) {
+  const [{ data: rows, error }, { data: totals, error: tErr }] = await Promise.all([
+    supabase.from('invoices')
+      .select('id, invoice_number, status, session_id, due_date, invoice_payment_schedule(sequence, amount, due_date), invoice_line_items(title, sort_order)')
+      .eq('client_id', clientId)
+      .neq('status', 'void')
+      .order('invoice_number', { ascending: false }),
+    supabase.from('invoice_totals')
+      .select('invoice_id, total, balance_due, next_due_date')
+      .eq('client_id', clientId),
+  ])
+  if (error) throw error
+  if (tErr) throw tErr
+  const byId = Object.fromEntries((totals || []).map(t => [t.invoice_id, t]))
+  return (rows || []).map(r => {
+    const sched = [...(r.invoice_payment_schedule || [])].sort((a, b) => a.sequence - b.sequence)
+    const firstLine = [...(r.invoice_line_items || [])].sort((a, b) => a.sort_order - b.sort_order)[0]
+    const t = byId[r.id] || {}
+    return {
+      id: r.id, invoice_number: r.invoice_number, status: r.status, session_id: r.session_id,
+      label: firstLine?.title || '',
+      total: Number(t.total || 0),
+      balance_due: Number(t.balance_due || 0),
+      due_date: t.next_due_date || r.due_date || null,
+      first_payment: sched.length > 1 ? Number(sched[0].amount) : null,
+      // Last installment, or the whole invoice when there's no schedule.
+      final_payment: sched.length > 1 ? Number(sched[sched.length - 1].amount) : Number(t.total || 0),
+      final_due_date: sched.length > 1 ? (sched[sched.length - 1].due_date || null) : (r.due_date || null),
+    }
+  })
+}
+
 // Invoice-derived payment status per session (sql/108 session_invoice_status),
 // keyed by session id. Void invoices are already left out by the view.
 export async function getSessionPaymentStatuses() {

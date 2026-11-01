@@ -7,6 +7,7 @@ import {
   resolveTemplateVariables, sha256
 } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
+import { getClientInvoicesForContracts, formatMoney } from '../utils/invoiceApi.js'
 import Button from './ui/Button.jsx'
 
 const STEPS = ['pick', 'preview', 'send']
@@ -34,6 +35,26 @@ export default function SendContractModal({ client, galleries = [], sessionData 
   const [contractTitle, setContractTitle] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
+  // v1.6.0: fills {{invoice_total}} and friends. Pre-selected when the
+  // session has exactly one invoice; otherwise the photographer picks.
+  const [invoices, setInvoices] = useState([])
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null)
+  const selectedInvoice = invoices.find(i => i.id === selectedInvoiceId) || null
+
+  useEffect(() => {
+    if (!client?.id) return undefined
+    let cancelled = false
+    const sid = sessionId || sessionData?.id || null
+    getClientInvoicesForContracts(client.id)
+      .then(list => {
+        if (cancelled) return
+        setInvoices(list)
+        const forSession = sid ? list.filter(i => i.session_id === sid) : []
+        if (forSession.length === 1) setSelectedInvoiceId(forSession[0].id)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [client?.id, sessionId, sessionData?.id])
 
   useEffect(() => {
     async function load() {
@@ -75,7 +96,7 @@ export default function SendContractModal({ client, galleries = [], sessionData 
 
   function handleSelectTemplate(template) {
     setSelectedTemplate(template)
-    const resolved = resolveTemplateVariables(template.body, { photographer, client, gallery: selectedGallery, session: sessionData })
+    const resolved = resolveTemplateVariables(template.body, { photographer, client, gallery: selectedGallery, session: sessionData, invoice: selectedInvoice })
     setResolvedBody(resolved)
     setEditedBody(resolved)
     setContractTitle(template.name)
@@ -189,6 +210,26 @@ export default function SendContractModal({ client, galleries = [], sessionData 
                 </div>
               )}
 
+              {/* Invoice picker -- only shown when the client has invoices */}
+              {invoices.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Invoice (optional)</p>
+                  <select value={selectedInvoiceId || ''} onChange={e => setSelectedInvoiceId(e.target.value || null)}
+                    data-testid="contract-invoice-picker"
+                    style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '9px 12px', fontSize: 14, outline: 'none', cursor: 'pointer' }}>
+                    <option value="">No invoice</option>
+                    {invoices.map(inv => (
+                      <option key={inv.id} value={inv.id}>
+                        #{inv.invoice_number}{inv.label ? ` · ${inv.label}` : ''} · {formatMoney(inv.total)}{inv.status === 'draft' ? ' (draft)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Fills in invoice variables like {'{{invoice_total}}'} and {'{{invoice_due_date}}'}. With none picked they stay blank.
+                  </p>
+                </div>
+              )}
+
               {/* Template picker */}
               <div>
                 <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Contract template</p>
@@ -217,7 +258,7 @@ export default function SendContractModal({ client, galleries = [], sessionData 
                 disabled={!selectedTemplate || !client.email}
                 onClick={() => {
                   if (!selectedTemplate) return
-                  const resolved = resolveTemplateVariables(selectedTemplate.body, { photographer, client, gallery: selectedGallery, session: sessionData })
+                  const resolved = resolveTemplateVariables(selectedTemplate.body, { photographer, client, gallery: selectedGallery, session: sessionData, invoice: selectedInvoice })
                   setResolvedBody(resolved)
                   setEditedBody(resolved)
                   setContractTitle(selectedTemplate.name)

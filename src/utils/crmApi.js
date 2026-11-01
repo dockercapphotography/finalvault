@@ -268,7 +268,9 @@ export async function deleteContractTemplate(id) {
 
 // ── Variable resolution ───────────────────────────────────────────────────────
 
-export function resolveTemplateVariables(body, { photographer, client, gallery, session } = {}) {
+// invoice (optional, picked in SendContractModal): { invoice_number, total,
+// balance_due, due_date, first_payment } -- see invoiceApi.getClientInvoicesForContracts.
+export function resolveTemplateVariables(body, { photographer, client, gallery, session, invoice } = {}) {
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   const eventDate = gallery?.event_date
     ? new Date(gallery.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -294,6 +296,9 @@ export function resolveTemplateVariables(body, { photographer, client, gallery, 
     ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : ''
   const fmtMoney = (v) => v != null ? `$${parseFloat(v).toFixed(2)}` : ''
+  const fmtInvoiceMoney = (v) => v != null && v !== ''
+    ? Number(v).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    : ''
   // "14:30:00" -> "2:30 PM"
   const fmtTime = (t) => { const [h, m] = t.split(':'); const hour = parseInt(h); return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}` }
 
@@ -326,6 +331,14 @@ export function resolveTemplateVariables(body, { photographer, client, gallery, 
     retainer_amount: fmtMoney(session?.retainer_amount),
     balance_due: fmtMoney(session?.balance_due),
     balance_due_date: session?.balance_due_date ? fmtDate(session.balance_due_date) : '',
+    // v1.6.0: from the invoice picked when sending; blank when none is.
+    invoice_number: invoice ? `#${invoice.invoice_number}` : '',
+    invoice_total: fmtInvoiceMoney(invoice?.total),
+    invoice_balance_due: fmtInvoiceMoney(invoice?.balance_due),
+    invoice_due_date: invoice?.due_date ? fmtDate(invoice.due_date) : '',
+    invoice_first_payment: fmtInvoiceMoney(invoice?.first_payment),
+    invoice_final_payment: fmtInvoiceMoney(invoice?.final_payment),
+    invoice_final_due_date: invoice?.final_due_date ? fmtDate(invoice.final_due_date) : '',
     // Never had a source -- hidden from the variable picker, but kept
     // resolving to blank so a saved template using it doesn't show the raw tag.
     cancellation_days: '',
