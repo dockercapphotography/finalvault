@@ -56,7 +56,7 @@ export async function createInvoiceSession(clientId, overrides = {}) {
   return data
 }
 
-// lines: [{ title, unit_price, quantity?, taxable?, description? }]
+// lines: [{ title, unit_price, quantity?, taxable?, description?, catalog_item_id? }]
 // schedule: [{ amount, due_date }]  payments: [{ amount, paid_date, method? }]
 // status 'draft' | 'sent' | 'void'. Returns the invoice row (with invoice_number).
 export async function createInvoice({
@@ -74,7 +74,7 @@ export async function createInvoice({
 
   if (lines.length) {
     const { error: lErr } = await db.from('invoice_line_items').insert(lines.map((l, i) => ({
-      invoice_id: inv.id, title: l.title, description: l.description ?? null,
+      invoice_id: inv.id, catalog_item_id: l.catalog_item_id ?? null, title: l.title, description: l.description ?? null,
       quantity: l.quantity ?? 1, unit_price: l.unit_price, taxable: l.taxable ?? false, sort_order: i,
     })))
     if (lErr) throw new Error(`lines: ${lErr.message}`)
@@ -126,6 +126,55 @@ export async function getPaymentLinks() {
   const photographerId = await getPhotographerId()
   const { data } = await sb().from('photographers').select('payment_links, default_invoice_platform').eq('id', photographerId).single()
   return data
+}
+
+// ── Catalog and invoice templates (batch 2) ─────────────────────────────
+
+export async function createCatalogItem({ name, price = 100, unit = null, taxable = true, description = null } = {}) {
+  const { data, error } = await sb().from('invoice_catalog_items').insert({
+    photographer_id: await getPhotographerId(),
+    name: name ?? `PW Item ${uid()}`, description, default_unit_price: price, unit_label: unit, taxable_default: taxable,
+    sort_order: 9999,
+  }).select().single()
+  if (error) throw new Error(`catalog item: ${error.message}`)
+  return data
+}
+
+// items: [{ catalog_item_id } | { title, unit_price }] (+ quantity?, taxable?)
+// schedule: [{ percent, due_rule, due_days? }]
+export async function createInvoiceTemplate({ name, items = [], schedule = [], notes = null, taxRate = null, discountRate = null } = {}) {
+  const db = sb()
+  const { data: t, error } = await db.from('invoice_templates').insert({
+    photographer_id: await getPhotographerId(),
+    name: name ?? `PW Template ${uid()}`, notes, tax_rate: taxRate, discount_rate: discountRate,
+  }).select().single()
+  if (error) throw new Error(`template: ${error.message}`)
+  if (items.length) {
+    const { error: iErr } = await db.from('invoice_template_items').insert(items.map((it, i) => ({
+      template_id: t.id, catalog_item_id: it.catalog_item_id ?? null,
+      title: it.title ?? null, unit_price: it.unit_price ?? null,
+      taxable: it.taxable ?? (it.catalog_item_id ? null : false),
+      quantity: it.quantity ?? 1, sort_order: i,
+    })))
+    if (iErr) throw new Error(`template items: ${iErr.message}`)
+  }
+  if (schedule.length) {
+    const { error: sErr } = await db.from('invoice_template_schedule').insert(schedule.map((r, i) => ({
+      template_id: t.id, sequence: i + 1, percent: r.percent, due_rule: r.due_rule, due_days: r.due_days ?? 0,
+    })))
+    if (sErr) throw new Error(`template schedule: ${sErr.message}`)
+  }
+  return t
+}
+
+// The service role skips the archive-not-delete rule; any invoice line
+// still pointing at the item just loses the link (on delete set null).
+export async function deleteCatalogItems(ids = []) {
+  if (ids.length) await sb().from('invoice_catalog_items').delete().in('id', ids)
+}
+
+export async function deleteInvoiceTemplates(ids = []) {
+  if (ids.length) await sb().from('invoice_templates').delete().in('id', ids)
 }
 
 export function isoDaysFromToday(days) {
