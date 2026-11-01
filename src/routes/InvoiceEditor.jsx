@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Check, Lock, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import PageBreadcrumb from '../components/ui/PageBreadcrumb.jsx'
 import ClientPicker from '../components/ui/ClientPicker.jsx'
@@ -15,6 +15,8 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import { getClients } from '../utils/crmApi.js'
 import { downloadInvoicePdf } from '../utils/invoicePdf.js'
+import { sendInvoiceEmail, getInvoiceEmailLog } from '../utils/invoiceEmailApi.js'
+import SendInvoiceModal from '../components/invoices/SendInvoiceModal.jsx'
 import { getSessions } from '../utils/sessionApi.js'
 import {
   getInvoice, saveInvoice, duplicateInvoice, voidInvoice, deleteInvoice,
@@ -100,12 +102,28 @@ export default function InvoiceEditor() {
   const [links, setLinks] = useState({})
   const [loadError, setLoadError] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState(null)
-  const [confirm, setConfirm] = useState(null)       // 'send' | 'void' | 'delete'
+  const routerLocation = useLocation()
+  // A toast handed over by the save that created this invoice (the new ->
+  // :id navigation remounts the page). Ignored after a few seconds so a
+  // reload doesn't show it again.
+  const [toast, setToast] = useState(() => {
+    const t = routerLocation.state?.toast
+    return t && Date.now() - (t.at || 0) < 8000 ? { message: t.message, type: t.type } : null
+  })
+  const [confirm, setConfirm] = useState(null)       // 'send' | 'resend' | 'remind' | 'void' | 'delete'
   const [paymentModal, setPaymentModal] = useState(null)  // { payment? }
   const [confirmDeletePaymentId, setConfirmDeletePaymentId] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [errors, setErrors] = useState([])
+  const [emailLog, setEmailLog] = useState([])
+  const [logVersion, setLogVersion] = useState(0)
+
+  useEffect(() => {
+    if (isNew || !id) return undefined
+    let cancelled = false
+    getInvoiceEmailLog(id).then(rows => { if (!cancelled) setEmailLog(rows) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [id, isNew, logVersion])
 
   useDocumentTitle(invoice ? `Invoice #${invoice.invoice_number}` : 'New invoice')
 
@@ -298,21 +316,32 @@ export default function InvoiceEditor() {
     return p
   }
 
-  async function save({ send } = {}) {
+  // afterSave(savedId) runs once the invoice is saved (used to email it);
+  // if it fails the invoice stays saved and the toast says so.
+  async function save({ send, afterSave } = {}) {
     const problems = validate({ forSend: send })
     setErrors(problems)
     if (problems.length) return false
     setSaving(true)
     try {
       const savedId = await saveInvoice(buildPayload(send ? { status: 'sent' } : {}))
-      setToast({ message: send ? 'Invoice sent' : 'Invoice saved', type: 'success' })
+      let note = { message: send ? 'Invoice sent' : 'Invoice saved', type: 'success' }
+      if (afterSave) {
+        try {
+          note = { message: (await afterSave(savedId)) || note.message, type: 'success' }
+        } catch (err) {
+          note = { message: `Saved as sent, but the email didn't go out: ${err.message} Use More → Email invoice again.`, type: 'error' }
+        }
+      }
+      setToast(note)
       if (isNew) {
         setBaseline(JSON.stringify(form))  // don't warn on the navigation below
-        navigate(`/invoices/${savedId}`, { replace: true })
+        navigate(`/invoices/${savedId}`, { replace: true, state: { toast: { ...note, at: Date.now() } } })
       } else {
         await load()
+        setLogVersion(v => v + 1)
       }
-      return true
+      return savedId
     } catch (err) {
       setErrors([err.message || 'Could not save the invoice.'])
       return false
@@ -385,10 +414,37 @@ export default function InvoiceEditor() {
       : invoice ? `Created ${formatInvoiceDate(invoice.created_at)} · Draft: your client can't see it yet` : 'Not saved yet'
 
   const canSend = status === 'draft' && !isVoid
+  const canRemind = status === 'sent' && balanceCents > 0
+
+  // ── Email dialog values ─────────────────────────────────────────────
+  const dueNowCents = nextRow ? nextRow.amountCents - nextRow.allocatedCents : balanceCents
+  const emailCtx = {
+    client_first_name: client?.first_name || clientName.split(' ')[0] || '',
+    client_name: clientName,
+    // A new invoice gets its number when saved; the server fills it in.
+    ...(invoice ? { invoice_number: String(invoice.invoice_number) } : {}),
+    invoice_total: formatCents(totals.total),
+    amount_due: formatCents(Math.max(0, dueNowCents)),
+    balance_due: formatCents(Math.max(0, balanceCents)),
+    due_date: nextDue ? formatInvoiceDate(nextDue, { month: 'long', day: 'numeric', year: 'numeric' }) : '',
+    session_name: session?.name || '',
+  }
+  const payPlatform = INVOICE_PLATFORMS.find(p => p.id === form.payment_platform)
+  const emailPayInfo = payPlatform ? { label: payPlatform.label, hasLink: Boolean((links[payPlatform.id] || '').trim()) } : null
+  const lastEmail = emailLog[0]
+
+  // Already-sent invoice: email what's saved (unsaved edits aren't included).
+  async function emailSaved(kind, fields) {
+    await sendInvoiceEmail({ invoiceId: invoice.id, kind, ...fields })
+    setConfirm(null)
+    setLogVersion(v => v + 1)
+    setToast({ message: kind === 'reminder' ? `Reminder sent to ${fields.to}` : `Invoice emailed to ${fields.to}`, type: 'success' })
+  }
   const saveLabel = saving ? 'Saving…' : isNew || status === 'draft' ? 'Save draft' : 'Save'
 
   const menuItems = [
     invoice && { label: dirty ? 'Download PDF (last saved)' : 'Download PDF', onClick: handleDownloadPdf, testId: 'invoice-pdf' },
+    invoice && status === 'sent' && { label: 'Email invoice again', onClick: () => setConfirm('resend'), testId: 'invoice-resend' },
     invoice && { label: 'Duplicate as new draft', onClick: handleDuplicate, testId: 'invoice-duplicate' },
     invoice && status === 'draft' && payments.length === 0 && { label: 'Delete draft…', danger: true, onClick: () => setConfirm('delete'), testId: 'invoice-delete' },
     invoice && !isVoid && (status !== 'draft' || payments.length > 0) && { label: 'Void invoice…', danger: true, onClick: () => setConfirm('void'), testId: 'invoice-void' },
@@ -402,6 +458,11 @@ export default function InvoiceEditor() {
       {canSend && (
         <Button onClick={() => { const p = validate({ forSend: true }); setErrors(p); if (!p.length) setConfirm('send') }} disabled={saving}>
           <span data-testid="invoice-send">Send invoice</span>
+        </Button>
+      )}
+      {canRemind && (
+        <Button variant="secondary" onClick={() => setConfirm('remind')} disabled={saving}>
+          <span data-testid="invoice-remind">Send reminder</span>
         </Button>
       )}
     </>
@@ -422,6 +483,12 @@ export default function InvoiceEditor() {
             {overdue && <PaymentStatusPill status="unpaid" label="Overdue" />}
           </div>
           <p className="text-sm mt-1" style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>{subtitle}</p>
+          {lastEmail && (
+            <p className="text-xs" style={{ margin: '2px 0 0', color: 'var(--text-muted)' }} data-testid="invoice-email-log">
+              {lastEmail.kind === 'reminder' ? 'Reminder emailed' : 'Emailed'} {formatInvoiceDate(lastEmail.sent_at)} to {lastEmail.sent_to}
+              {emailLog.length > 1 ? ` · ${emailLog.length} emails sent` : ''}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2" style={{ position: 'relative' }}>
           {!narrow && actionButtons}
@@ -648,17 +715,45 @@ export default function InvoiceEditor() {
       )}
 
       {confirm === 'send' && (
-        <Modal title={`Send invoice${invoice ? ` #${invoice.invoice_number}` : ''}?`} onClose={() => setConfirm(null)} size="sm">
-          <p className="text-sm" style={{ margin: 0, color: 'var(--text)' }}>
-            {clientName || 'Your client'} will be able to see it, and its line items can still change until a payment is logged. A sent invoice can't go back to draft, but it can be voided.
-          </p>
-          <div className="flex gap-3 mt-5">
-            <Button onClick={async () => { await save({ send: true }); setConfirm(null) }} disabled={saving}>
-              <span data-testid="invoice-send-confirm">{saving ? 'Sending…' : 'Send invoice'}</span>
-            </Button>
-            <Button variant="secondary" onClick={() => setConfirm(null)}>Cancel</Button>
-          </div>
-        </Modal>
+        <SendInvoiceModal
+          kind="invoice"
+          title={`Send invoice${invoice ? ` #${invoice.invoice_number}` : ''}`}
+          intro={`${clientName || 'Your client'} will be able to see it, and its line items can still change until a payment is logged. A sent invoice can't go back to draft, but it can be voided.${invoice ? '' : ' The invoice number is filled in when it saves.'}`}
+          clientEmail={client?.email || ''}
+          ctx={emailCtx}
+          payInfo={emailPayInfo}
+          hasPortal={Boolean(client?.portal_token)}
+          onSend={async fields => {
+            const savedId = await save({
+              send: true,
+              afterSave: async newId => {
+                await sendInvoiceEmail({ invoiceId: newId, kind: 'invoice', ...fields })
+                return `Invoice sent and emailed to ${fields.to}`
+              },
+            })
+            if (!savedId) throw new Error("The invoice couldn't be saved. See the problems on the page.")
+            setConfirm(null)
+          }}
+          onMarkSent={async () => {
+            const savedId = await save({ send: true })
+            if (!savedId) throw new Error("The invoice couldn't be saved. See the problems on the page.")
+            setConfirm(null)
+          }}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {(confirm === 'resend' || confirm === 'remind') && invoice && (
+        <SendInvoiceModal
+          kind={confirm === 'remind' ? 'reminder' : 'invoice'}
+          title={confirm === 'remind' ? `Payment reminder for invoice #${invoice.invoice_number}` : `Email invoice #${invoice.invoice_number}`}
+          intro={dirty ? 'You have unsaved changes on this page. The email uses the last saved version, so save first if they should be included.' : null}
+          clientEmail={client?.email || invoice.client_email || ''}
+          ctx={emailCtx}
+          payInfo={emailPayInfo}
+          hasPortal={Boolean(client?.portal_token)}
+          onSend={fields => emailSaved(confirm === 'remind' ? 'reminder' : 'invoice', fields)}
+          onClose={() => setConfirm(null)}
+        />
       )}
       {confirm === 'void' && (
         <Modal title={`Void invoice #${invoice.invoice_number}?`} onClose={() => setConfirm(null)} size="sm">

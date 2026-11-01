@@ -13,6 +13,7 @@ import ZipJobMonitorSection from '../components/account/ZipJobMonitorSection.jsx
 import InvoiceCatalogSection from '../components/account/InvoiceCatalogSection.jsx'
 import DefaultInvoicePlatformSection from '../components/account/DefaultInvoicePlatformSection.jsx'
 import InvoiceLogoSection from '../components/account/InvoiceLogoSection.jsx'
+import InvoiceEmailTemplatesSection from '../components/account/InvoiceEmailTemplatesSection.jsx'
 import InvoiceTemplatesSection from '../components/account/InvoiceTemplatesSection.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
@@ -2526,6 +2527,8 @@ export default function Account() {
           <ContractTemplatesTab onSaveState={setSaveState} />
           <QuestionnairesTab onSaveState={setSaveState} />
           <ReviewRequestTemplatesTab onSaveState={setSaveState} />
+          <InvoiceEmailTemplatesSection kind="invoice" onSaveState={setSaveState} />
+          <InvoiceEmailTemplatesSection kind="reminder" onSaveState={setSaveState} />
         </div>
       )}
       {activeTab === 'social' && (
