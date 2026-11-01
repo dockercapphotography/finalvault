@@ -618,12 +618,15 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
   const [sessionType, setSessionType] = useState(shootType.session_type)
   const [price, setPrice] = useState(shootType.price != null ? String(shootType.price) : '')
   const [retainerAmount, setRetainerAmount] = useState(shootType.retainer_amount != null ? String(shootType.retainer_amount) : '')
+  const [invoiceTemplateId, setInvoiceTemplateId] = useState(shootType.invoice_template_id || '')
+  const [invoiceTemplates, setInvoiceTemplates] = useState(null)
   const [questionnaireIds, setQuestionnaireIds] = useState([])
   const [loadingQuestionnaires, setLoadingQuestionnaires] = useState(false)
   const [saving, setSaving] = useState(false)
 
   async function startEditing() {
     setEditing(true)
+    if (invoiceTemplates === null) getInvoiceTemplates().then(setInvoiceTemplates).catch(() => setInvoiceTemplates([]))
     setLoadingQuestionnaires(true)
     try {
       setQuestionnaireIds(await getShootTypeQuestionnaires(shootType.id))
@@ -638,6 +641,7 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
         name, durationMinutes: parseInt(duration, 10) || shootType.duration_minutes, sessionType,
         price: price.trim() === '' ? null : parseFloat(price),
         retainerAmount: retainerAmount.trim() === '' ? null : parseFloat(retainerAmount),
+        invoiceTemplateId: invoiceTemplateId || null,
       })
       await setShootTypeQuestionnaires(shootType.id, questionnaireIds)
       onUpdated(updated)
@@ -684,6 +688,20 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
         </div>
 
         <div>
+          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Invoice for bookings</p>
+          <select value={invoiceTemplateId} onChange={e => setInvoiceTemplateId(e.target.value)} data-testid="shoot-type-invoice-template"
+            style={{ width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }}>
+            <option value="">Price above{retainerAmount.trim() ? ' with the retainer as the first payment' : ''}</option>
+            {(invoiceTemplates || []).map(t => <option key={t.id} value={t.id}>Template: {t.name}</option>)}
+            {invoiceTemplateId && invoiceTemplates && !invoiceTemplates.some(t => t.id === invoiceTemplateId) && <option value={invoiceTemplateId}>Template (deleted)</option>}
+          </select>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            Each booking creates a draft invoice for you to review and send.
+            {invoiceTemplateId ? ' It uses the template\'s items and payment schedule instead of the price.' : price.trim() ? '' : ' With no price or template, no invoice is created.'}
+          </p>
+        </div>
+
+        <div>
           <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Questionnaires assigned automatically when someone books this shoot type</p>
           {loadingQuestionnaires ? (
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Loading...</p>
@@ -716,7 +734,7 @@ function ShootTypeRow({ shootType, allQuestionnaires, onUpdated, onDeleted }) {
     <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
       <button onClick={startEditing} className="text-left flex-1 min-w-0" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
         <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{shootType.name}</p>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{shootType.duration_minutes} min · {shootType.session_type}{shootType.price != null ? ` · $${parseFloat(shootType.price).toFixed(2)}` : ''}</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{shootType.duration_minutes} min · {shootType.session_type}{shootType.price != null ? ` · $${parseFloat(shootType.price).toFixed(2)}` : ''}{shootType.invoice_template_id ? ' · Invoice template' : ''}</p>
       </button>
       <button onClick={() => onDeleted(shootType.id)} aria-label={`Delete ${shootType.name}`} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: 4 }}>
         <Trash2 size={14} />

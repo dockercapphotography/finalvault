@@ -218,6 +218,8 @@ export async function updateShootType(id, updates) {
   if (updates.sortOrder !== undefined) mapped.sort_order = updates.sortOrder
   if (updates.price !== undefined) mapped.price = updates.price === '' || updates.price == null ? null : updates.price
   if (updates.retainerAmount !== undefined) mapped.retainer_amount = updates.retainerAmount === '' || updates.retainerAmount == null ? null : updates.retainerAmount
+  // v1.6.0: booked sessions' draft invoice uses this template instead of the price (sql/120).
+  if (updates.invoiceTemplateId !== undefined) mapped.invoice_template_id = updates.invoiceTemplateId || null
 
   const { data, error } = await supabase
     .from('signup_shoot_types')
