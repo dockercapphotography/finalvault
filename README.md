@@ -54,6 +54,9 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Live status page** — a dedicated, mobile-friendly view for checking bookings on the go: a "Happening now" card shows the current or next session with a countdown, search and Booked-only filtering, a day-timeline view alongside the list, private per-slot notes, one-tap call/text/email, mark-as-no-show to free up a slot without losing the client record, registering a walk-up client directly against an open slot (creates a real booking identical to a public signup), and rescheduling an existing booking to a different open slot or a custom time (with conflict prevention and an optional updated confirmation email to the client); real push notifications for new claims, contract signatures, and questionnaire responses, each independently configurable, delivered even when the app is closed, with per-device enable/disable; an in-app notification bell alongside gallery activity and pending contracts
 - **Custom domains** — point your own domain (e.g. `book.yourstudio.com`) at your client-facing links instead of the default FinalVault domain; guided CNAME setup with registrar-specific instructions, live status checking, and plain-language error messages if DNS isn’t configured correctly yet
 - **FinalVault Microsite** — a full one-page website for your studio, live at your custom domain; Hero, About, Gallery, Pricing, Testimonials, and Contact sections, each with multiple layout variants; seven built-in color themes plus a custom accent color picker; live preview while you edit, on desktop and mobile; social share previews so your link looks right the moment someone shares it; an optional custom favicon shown in the browser tab on your custom domain; structured pricing with categories, shared "what's included" lists, a Most popular badge, and per-package Book buttons linked to your signup pages; and drag-to-reorder for hand-picked gallery and hero photos
+- **Invoicing** — itemized invoices from your own catalog with tax, discount and notes; payment schedules (retainer + balance or any split) and a payment log; reusable invoice templates; email invoices and reminders with a PDF attached and a Pay button to your Venmo/PayPal/Cash App/Ko-fi (or Zelle details); PDF download with a light-background logo option; bookings create a draft invoice automatically; contract variables for invoice totals and due dates
+- **Financials** — collected this year, outstanding, overdue and drafts at a glance, every invoice in one filterable list, and a CSV export of payments for any date range
+- **Customizable phone menu** — pick the 4 pages on the bottom bar; everything else is under More
 - **Client reviews** — request a review from any private session by email or a shareable link; clients write it on a branded page and can pick a photo from their session's galleries; approve, edit, or reject from the session or the Website editor, and approved reviews join your website's Testimonials; reusable Review Request Templates with variables and a default (three included); bell, push, and email alerts, with the email switchable off
 
 ### For Clients
@@ -68,6 +71,7 @@ Clients get a beautiful, branded gallery experience with no account required. Th
 - **Client Portal** — a single link showing all of your galleries (grouped by session, with search/sort/filter once you have several), contracts awaiting or already signed with downloadable PDFs, and any outstanding questionnaires; password- or PIN-protected galleries show their access code directly in the portal with one-click copy, and open in a new tab so the code stays visible while you browse
 - **iOS native downloads** — save directly to Photos via the system share sheet
 - **Right-click and drag protection** on preview images
+- **Invoices in the portal** — see what's due and what's paid, pay through your photographer's payment link, and download a PDF of any invoice
 - **Leave a review** — from your photographer's link, write a few words on a simple branded page, optionally pick a favorite photo from your session, and choose whether it can appear on their website
 - **Mobile PWA** — installable as a home screen app on iOS and Android
 
@@ -222,6 +226,14 @@ npx playwright test
 | `gallery_tag_assignments` | Many-to-many tag assignments to galleries |
 | `photographer_domains` | Custom domain configuration and Cloudflare verification status |
 | `microsites` | One-page studio website content, theme, and section settings |
+| `invoices` | Invoices (draft/sent/void), per-photographer numbering, client snapshot |
+| `invoice_line_items` | Invoice lines: quantity, unit price, taxable |
+| `invoice_payment_schedule` | Installments with due dates |
+| `invoice_payments` | Payments logged against an invoice |
+| `invoice_catalog_items` | Per-photographer catalog of standard items and prices |
+| `invoice_templates` | Reusable invoice templates (+ `invoice_template_items`, `invoice_template_schedule`) |
+| `invoice_email_templates` | Invoice and payment reminder email templates |
+| `invoice_email_log` | Every invoice email sent |
 
 All tables use Row Level Security (RLS). Photographers access only their own data. Clients access galleries via share token through anon RLS policies.
 

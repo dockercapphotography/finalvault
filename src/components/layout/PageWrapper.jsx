@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.5.17'
+const VERSION = '1.6.0'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,30 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.6.0 — November 1, 2026">
+                  <Group label="Invoicing">
+                    <Item>Real invoices: itemized lines from your own catalog, tax, discount, notes, and a payment platform per invoice</Item>
+                    <Item>Payment schedules (retainer + balance, or any split) and a payment log; an invoice locks once it's paid toward</Item>
+                    <Item>Invoice templates you can apply in one click, also from the New Session wizard</Item>
+                    <Item>Email invoices and payment reminders with your own templates, a PDF attached, and a Pay button to Venmo, PayPal and more</Item>
+                    <Item>Download any invoice as a PDF, with your logo (a version for light backgrounds can be set in Account → Invoicing)</Item>
+                    <Item>Bookings now create a draft invoice from the shoot type's price or invoice template</Item>
+                    <Item>Contract templates can fill in invoice totals, retainer, balance and due dates</Item>
+                  </Group>
+                  <Group label="Financials">
+                    <Item>A new Financials page: collected this year, outstanding, overdue and drafts, with every invoice in one list</Item>
+                    <Item>Export your payments as a spreadsheet for any date range</Item>
+                  </Group>
+                  <Group label="Client Portal">
+                    <Item>Clients see their invoices, what's due, a Pay button, and a PDF download</Item>
+                  </Group>
+                  <Group label="Improvements">
+                    <Item>Pick which 4 pages sit on the phone menu bar; everything else is under More</Item>
+                    <Item>Contract templates gain session start and end time variables</Item>
+                    <Item>Inserting a variable no longer scrolls the template editor away</Item>
+                    <Item>Security and reliability improvements throughout</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.5.17 — October 10, 2026">
                   <Group label="Client Reviews">
                     <Item>Request a review from any private session, by email or with a link you send yourself</Item>

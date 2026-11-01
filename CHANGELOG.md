@@ -4,6 +4,52 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.6.0 — November 1, 2026
+
+### New Features
+
+**Invoicing**
+- Invoices replace the old fee, retainer and balance fields on sessions. Each invoice has line items (quantity × price, each taxable or not), an optional discount and tax rate, notes for the client, and a payment platform; totals are computed by the database, so every screen shows the same numbers
+- An Invoice Catalog in Account -> Invoicing holds your standard items and prices; lines added from it follow later price changes unless you change the price on that line. Items in use can be archived, not deleted
+- Payment schedules: split an invoice into installments (retainer + balance, or any number) with their own due dates. Logging a payment fills them in order; paid installments lock, and an invoice's items, client, tax and discount lock once any payment is logged (void and duplicate to reissue)
+- Invoice templates: saved sets of items, tax, discount, notes and a schedule pattern (percentages with due-date rules like "14 days before the session"). Apply one to any invoice, or start the New Session wizard's Invoice step from one
+- Invoices can be standalone or belong to a session; Session Detail lists a session's invoices, and the Sessions board shows Paid, Partly paid, Unpaid and Overdue from them
+- Send dialog: edit the recipient for that send, pick an email template, adjust the subject and message (variables already filled in), attach the PDF, or Mark as sent without emailing. Send reminder for anything still owed, and Email invoice again from the menu. Every email is logged on the invoice
+- Invoice emails include the invoice summary, a Pay button straight to your Venmo, PayPal, Cash App or Ko-fi page with the amount filled in (or your Zelle address), and a View online button for clients who have a portal link. Replies go to your business email
+- Invoice Emails and Payment Reminders templates in Account -> Templates, each with a default
+- Download PDF from the invoice editor or the Client Portal, generated fresh with the current payments. A "Logo on invoices" setting lets you use a version of your logo made for light backgrounds (or copy your website's dark logo)
+- Bookings from Signup Pages create a draft invoice for the new session: from the shoot type's linked invoice template, or its price with the retainer as the first installment
+- Contract templates gain {{invoice_number}}, {{invoice_total}}, {{invoice_first_payment}}, {{invoice_final_payment}}, {{invoice_final_due_date}}, {{invoice_balance_due}} and {{invoice_due_date}}, filled from an invoice picked when sending. Saved templates using the old fee variables were switched over; any still using {{retainer_amount}} are flagged
+
+**Financials**
+- New Financials page: Collected this year, Outstanding, Overdue and Drafts at a glance (each card filters the list), and every invoice with search, status, client and date filters and sorting
+- Export payments as a CSV for any date range (void invoices left out unless you include them)
+
+**Client Portal**
+- A new Invoices section: what needs paying (with a Pay button for the amount due now) and what's paid, plus a page per invoice with items, schedule, payments received, notes and a PDF download
+
+### Improvements
+
+- Choose which 4 pages sit on the phone menu bar (More -> Customize menu); the rest live in the new More sheet
+- Contract templates: {{session_start_time}} and {{session_end_time}}, and all session variables now listed in the picker
+- Inserting a variable or using a formatting button keeps the template editor scrolled where you were
+
+### Security & reliability
+
+- A full security review before this release closed every place a public page could read other photographers' data: galleries, contracts, sessions, questionnaires, viewer activity and photos now go through token-checked database functions; the image server only serves the shared gallery's own files; every value placed in an email is escaped; HSTS is on
+- The test suite runs in parallel against per-worker accounts (about 21 → 7 minutes)
+
+### Notes
+
+- Database migrations 107-121: 107-110 (invoice tables, totals views, rules, catalog seed), 111 (`save_invoice`, `duplicate_invoice`), 112 (invoice templates), 113 (`mobile_nav_items`), 114 (session fee fields → invoices, re-run at release), 115 (portal invoices in `get_client_portal_data`), 116 (backdate migrated invoices' sent date, re-run after 114), 117 (invoice logo), 118 (invoice email templates and send log), 119 (contract template variable swap), 120 (booking draft invoices; `signup_shoot_types.invoice_template_id`), 121 (schedule-total check runs as its owner, so anonymous bookings commit)
+- Security audit migrations 096-106 shipped to production before this release
+- New Edge Functions `invoice-pdf` and `send-invoice` (JWT verification on; both check ownership or the portal token and password themselves); shared code in `supabase/functions/_shared/invoicePdf.ts` and `invoiceEmail.ts`
+- The old session fee columns stay in the database untouched; nothing reads them
+- New Playwright coverage: `invoices`, `invoice-editor-more`, `invoice-catalog-templates`, `invoice-settings`, `session-invoices`, `client-portal-invoices`, `client-portal-invoice-pdf`, `booking-invoices`, `mobile-nav-customize`, `contract-variables`; shared helpers in `tests/fixtures/invoices.js`. No test sends a real invoice email (the send function is intercepted)
+- Database behaviour tests for the invoicing migrations in `test/sql/` (run `test/sql/run.sh` against a local Postgres)
+
+---
+
 ## v1.5.17 — October 10, 2026
 
 ### New Features
