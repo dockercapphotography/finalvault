@@ -107,7 +107,7 @@ const portalDataCache = new Map() // token -> { data, expiresAt }
 // login since this password guards contracts and gallery access codes.
 const PORTAL_PW_STORAGE_PREFIX = 'fv-portal-pw-'
 
-function getStoredPortalPassword(token) {
+export function getStoredPortalPassword(token) {
   try {
     return sessionStorage.getItem(PORTAL_PW_STORAGE_PREFIX + token)
   } catch {

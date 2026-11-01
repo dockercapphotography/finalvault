@@ -14,6 +14,7 @@ import { rescaleToTotal, startSchedule, newRowKey } from '../components/invoices
 import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { useMediaQuery } from '../hooks/useMediaQuery.js'
 import { getClients } from '../utils/crmApi.js'
+import { downloadInvoicePdf } from '../utils/invoicePdf.js'
 import { getSessions } from '../utils/sessionApi.js'
 import {
   getInvoice, saveInvoice, duplicateInvoice, voidInvoice, deleteInvoice,
@@ -340,6 +341,9 @@ export default function InvoiceEditor() {
     setBaseline(JSON.stringify(form))
     navigate(invoice.session_id ? `/sessions/${invoice.session_id}` : invoice.client_id ? `/clients/${invoice.client_id}` : '/sessions')
   })
+  // Built from the last saved version (the server renders what's stored).
+  const handleDownloadPdf = () => runAction(() => downloadInvoicePdf(invoice.id, invoice.invoice_number))
+
   const handleDuplicate = () => runAction(async () => {
     const newId = await duplicateInvoice(invoice.id)
     navigate(`/invoices/${newId}`)
@@ -384,6 +388,7 @@ export default function InvoiceEditor() {
   const saveLabel = saving ? 'Saving…' : isNew || status === 'draft' ? 'Save draft' : 'Save'
 
   const menuItems = [
+    invoice && { label: dirty ? 'Download PDF (last saved)' : 'Download PDF', onClick: handleDownloadPdf, testId: 'invoice-pdf' },
     invoice && { label: 'Duplicate as new draft', onClick: handleDuplicate, testId: 'invoice-duplicate' },
     invoice && status === 'draft' && payments.length === 0 && { label: 'Delete draft…', danger: true, onClick: () => setConfirm('delete'), testId: 'invoice-delete' },
     invoice && !isVoid && (status !== 'draft' || payments.length > 0) && { label: 'Void invoice…', danger: true, onClick: () => setConfirm('void'), testId: 'invoice-void' },

@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
+import { downloadPortalInvoicePdf } from '../utils/invoicePdf.js'
 import { usePortalData } from '../hooks/usePortalData.js'
 import { invoicesOf, needsPayment, invoiceTitle, paymentMethodLabel, nextAmountText } from '../utils/portalInvoices.js'
 import { formatMoney, formatUnitPrice, formatInvoiceDate, todayIso } from '../utils/invoiceApi.js'
@@ -42,6 +44,32 @@ function rate(value) {
   return `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 3 })}%`
 }
 
+function PdfButton({ inv, token }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  async function handleClick() {
+    setBusy(true)
+    setError(null)
+    try {
+      await downloadPortalInvoicePdf(token, inv.id, inv.invoice_number)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="text-right">
+      <button type="button" onClick={handleClick} disabled={busy} data-testid="portal-invoice-pdf"
+        className="inline-flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-1.5"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+        <Download size={14} />{busy ? 'Preparing…' : 'Download PDF'}
+      </button>
+      {error && <p className="text-xs mt-1" style={{ color: 'var(--danger)' }}>{error}</p>}
+    </div>
+  )
+}
+
 function InvoiceBody({ inv, token }) {
   const due = needsPayment(inv)
   const schedule = inv.schedule || []
@@ -51,10 +79,13 @@ function InvoiceBody({ inv, token }) {
 
   return (
     <div className="space-y-4" style={{ maxWidth: 560 }} data-testid="portal-invoice-detail">
-      <Link to={`/client/${token}/invoices`} className="flex items-center gap-2 text-sm"
-        style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-        <ArrowLeft size={15} />Invoices
-      </Link>
+      <div className="flex items-start justify-between gap-3">
+        <Link to={`/client/${token}/invoices`} className="flex items-center gap-2 text-sm"
+          style={{ color: 'var(--text-muted)', textDecoration: 'none', paddingTop: 6 }}>
+          <ArrowLeft size={15} />Invoices
+        </Link>
+        <PdfButton inv={inv} token={token} />
+      </div>
 
       {/* Header + what's owed */}
       <div className="rounded-xl px-4 py-4"

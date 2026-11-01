@@ -12,6 +12,7 @@ import WebImageBackfillSection from '../components/account/WebImageBackfillSecti
 import ZipJobMonitorSection from '../components/account/ZipJobMonitorSection.jsx'
 import InvoiceCatalogSection from '../components/account/InvoiceCatalogSection.jsx'
 import DefaultInvoicePlatformSection from '../components/account/DefaultInvoicePlatformSection.jsx'
+import InvoiceLogoSection from '../components/account/InvoiceLogoSection.jsx'
 import InvoiceTemplatesSection from '../components/account/InvoiceTemplatesSection.jsx'
 import { supabase } from '../supabaseClient.js'
 import {
@@ -1498,6 +1499,7 @@ function InvoicingTab({ onSaveState }) {
         </div>
       </SettingsSection>
       <DefaultInvoicePlatformSection links={paymentLinks} platforms={PAYMENT_PLATFORMS} onSaveState={onSaveState} />
+      <InvoiceLogoSection onSaveState={onSaveState} />
       <InvoiceCatalogSection onSaveState={onSaveState} onCatalogChange={() => setCatalogVersion(v => v + 1)} />
       <InvoiceTemplatesSection onSaveState={onSaveState} catalogVersion={catalogVersion} />
     </div>
