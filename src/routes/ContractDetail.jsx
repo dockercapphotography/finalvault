@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { renderMarkdown } from '../utils/markdown.js'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, AlertCircle, FileText,
@@ -392,13 +393,11 @@ export default function ContractDetail() {
           <h3 className="font-medium text-sm" style={{ color: 'var(--text)' }}>Contract Body</h3>
         </div>
         <div className="px-5 py-5" style={{ background: 'var(--surface)' }}>
-          <pre style={{
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            fontSize: 13, lineHeight: 1.8, color: 'var(--text)',
-            fontFamily: 'inherit', margin: 0,
-          }}>
-            {contract.body}
-          </pre>
+          <div
+            data-testid="contract-body"
+            style={{ wordBreak: 'break-word', fontSize: 13, lineHeight: 1.8, color: 'var(--text)' }}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(contract.body) }}
+          />
         </div>
       </div>
 

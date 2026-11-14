@@ -8,6 +8,7 @@ import {
 } from '../utils/crmApi.js'
 import { supabase } from '../supabaseClient.js'
 import { getClientInvoicesForContracts, formatMoney } from '../utils/invoiceApi.js'
+import { renderMarkdown } from '../utils/markdown.js'
 import Button from './ui/Button.jsx'
 
 const STEPS = ['pick', 'preview', 'send']
@@ -331,13 +332,11 @@ export default function SendContractModal({ client, galleries = [], sessionData 
                   onBlur={e => e.target.style.borderColor = 'var(--border)'}
                 />
               ) : (
-                <pre style={{
-                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                  fontSize: 13, lineHeight: 1.8, color: 'var(--text)',
-                  fontFamily: 'inherit', margin: 0,
-                }}>
-                  {editedBody}
-                </pre>
+                <div
+                  data-testid="contract-review-body"
+                  style={{ wordBreak: 'break-word', fontSize: 13, lineHeight: 1.8, color: 'var(--text)' }}
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(editedBody) }}
+                />
               )}
             </div>
 

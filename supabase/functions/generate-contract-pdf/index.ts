@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
 import { escapeHtml, safeUrl, safeFromName } from '../_shared/escapeHtml.ts'
 import { PDFDocument, StandardFonts, rgb } from 'https://esm.sh/pdf-lib@1.17.1'
+import { parseContractMarkdown, type Run } from '../_shared/contractMarkdown.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,6 +45,15 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Only the contract's own photographer: building the PDF also emails it
+    // to both parties, so a bare Authorization header isn't enough.
+    const { data: { user: caller } } = await supabase.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''))
+    if (!caller || caller.id !== contract.photographer_id) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     if (contract.status !== 'signed') {
       return new Response(JSON.stringify({ error: 'Contract is not fully signed yet' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -60,6 +70,8 @@ Deno.serve(async (req) => {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     const fontMono = await pdfDoc.embedFont(StandardFonts.Courier)
+    const fontItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique)
+    const fontBoldItalic = await pdfDoc.embedFont(StandardFonts.HelveticaBoldOblique)
 
     const PAGE_WIDTH = 612
     const PAGE_HEIGHT = 792
@@ -119,15 +131,81 @@ Deno.serve(async (req) => {
     page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_WIDTH - MARGIN, y }, thickness: 1, color: rgb(0.85, 0.85, 0.85) })
     y -= 20
 
-    for (const rawLine of contract.body.split('\n')) {
-      if (!rawLine.trim()) { y -= LINE_HEIGHT * 0.6; checkNewPage(); continue }
-      const isHeader = /^[A-Z\s&\/]{4,}$/.test(rawLine.trim()) && !rawLine.includes('.')
-      const wrapped = wrapText(rawLine, CONTENT_WIDTH, 10, isHeader ? fontBold : font)
-      for (const line of wrapped) {
-        checkNewPage()
-        page.drawText(line, { x: MARGIN, y, size: 10, font: isHeader ? fontBold : font, color: isHeader ? rgb(0.15, 0.15, 0.15) : rgb(0.2, 0.2, 0.2) })
-        y -= LINE_HEIGHT
+    // ── Contract body: the template's Markdown ──────────────────────────────
+    const fontFor = (r: Run) => r.bold ? (r.italic ? fontBoldItalic : fontBold) : (r.italic ? fontItalic : font)
+    // The standard fonts only cover WinAnsi; anything else becomes "?"
+    // instead of failing the whole PDF.
+    const encodable = new Map<string, boolean>()
+    const clean = (text: string) => Array.from(text).map(ch => {
+      if (!encodable.has(ch)) {
+        try { font.encodeText(ch); encodable.set(ch, true) } catch { encodable.set(ch, false) }
       }
+      return encodable.get(ch) ? ch : '?'
+    }).join('')
+
+    // Draws styled runs from x to the right margin, wrapping on spaces. A word
+    // that changes style part-way ("**bold**,") stays together.
+    function drawRuns(runs: Run[], x: number, size: number, color: ReturnType<typeof rgb>) {
+      type Piece = { text: string; f: typeof font }
+      const words: Piece[][] = [[]]
+      for (const r of runs) {
+        for (const part of clean(r.text).split(/( +)/)) {
+          if (!part) continue
+          if (/^ +$/.test(part)) { if (words[words.length - 1].length) words.push([]); continue }
+          words[words.length - 1].push({ text: part, f: fontFor(r) })
+        }
+      }
+      const maxWidth = PAGE_WIDTH - MARGIN - x
+      const space = font.widthOfTextAtSize(' ', size)
+      const widthOf = (w: Piece[]) => w.reduce((s, p) => s + p.f.widthOfTextAtSize(p.text, size), 0)
+      let line: Piece[][] = []
+      let lineWidth = 0
+      const flush = () => {
+        checkNewPage()
+        let cx = x
+        line.forEach((w, i) => {
+          if (i) cx += space
+          for (const p of w) {
+            page.drawText(p.text, { x: cx, y, size, font: p.f, color })
+            cx += p.f.widthOfTextAtSize(p.text, size)
+          }
+        })
+        y -= size * 1.6
+        line = []
+        lineWidth = 0
+      }
+      for (const w of words) {
+        if (!w.length) continue
+        const ww = widthOf(w)
+        if (line.length && lineWidth + space + ww > maxWidth) flush()
+        lineWidth += (line.length ? space : 0) + ww
+        line.push(w)
+      }
+      if (line.length) flush()
+    }
+
+    const bodyColor = rgb(0.2, 0.2, 0.2)
+    for (const block of parseContractMarkdown(contract.body)) {
+      if (block.kind === 'blank') { y -= LINE_HEIGHT * 0.6; checkNewPage(); continue }
+      if (block.kind === 'heading') {
+        const size = block.level === 1 ? 14 : block.level === 2 ? 12 : 11
+        y -= 6
+        checkNewPage(size * 3)
+        drawRuns(block.runs, MARGIN, size, rgb(0.1, 0.1, 0.1))
+        y -= 2
+        continue
+      }
+      if (block.kind === 'item') {
+        checkNewPage()
+        page.drawText(block.marker, { x: MARGIN + 4, y, size: 10, font, color: bodyColor })
+        drawRuns(block.runs, MARGIN + 22, 10, bodyColor)
+        continue
+      }
+      // Plain all-capitals lines are drawn bold, as before Markdown support.
+      const runs = block.allCaps ? block.runs.map(r => ({ ...r, bold: true })) : block.runs
+      // A section title (a line that is all bold) isn't left alone at the foot of a page.
+      if (runs.every(r => r.bold)) checkNewPage(LINE_HEIGHT * 3)
+      drawRuns(runs, MARGIN, 10, block.allCaps ? rgb(0.15, 0.15, 0.15) : bodyColor)
     }
 
     y -= 20

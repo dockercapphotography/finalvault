@@ -46,7 +46,7 @@ test('Send Contract fills session and invoice variables in the preview', async (
     await page.getByText(template.name).click()
     await page.getByRole('button', { name: /Continue/ }).click()
 
-    const preview = page.locator('pre')
+    const preview = page.getByTestId('contract-review-body')
     await expect(preview).toContainText('Date: June 15, 2027')
     await expect(preview).toContainText('Start: 2:00 PM')
     await expect(preview).toContainText('End: 4:30 PM')

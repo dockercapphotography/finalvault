@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { renderMarkdown } from '../utils/markdown.js'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient.js'
 import { CheckCircle, AlertCircle, Loader } from 'lucide-react'
@@ -203,17 +204,11 @@ export default function SignContract() {
             position: 'relative',
           }}
         >
-          <pre style={{
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontSize: 14,
-            lineHeight: 1.8,
-            color: '#1f2937',
-            fontFamily: 'inherit',
-            margin: 0,
-          }}>
-            {contract.body}
-          </pre>
+          <div
+            data-testid="sign-contract-body"
+            style={{ wordBreak: 'break-word', fontSize: 14, lineHeight: 1.8, color: '#1f2937' }}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(contract.body) }}
+          />
         </div>
 
         {/* Scroll nudge */}

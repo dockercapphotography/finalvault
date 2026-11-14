@@ -1,37 +1,6 @@
 import { useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { Bold, Italic, Heading2, List, ListOrdered, Eye, Pencil } from 'lucide-react'
-
-// Escape before any markdown rule runs: the result is injected with
-// dangerouslySetInnerHTML, and the text is written by any photographer.
-// None of the supported syntax uses these characters.
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function renderMarkdown(text) {
-  if (!text) return ''
-  // Simple markdown rendering — bold, italic, headings, lists
-  return escapeHtml(text)
-    .split('\n')
-    .map(line => {
-      // H2
-      if (line.startsWith('## ')) return `<h2 style="font-size:15px;font-weight:600;margin:8px 0 4px">${line.slice(3)}</h2>`
-      // Unordered list
-      if (line.startsWith('- ')) return `<li style="margin-left:16px;list-style-type:disc">${applyInline(line.slice(2))}</li>`
-      // Ordered list — simple 1. 2. etc
-      const olMatch = line.match(/^(\d+)\.\s(.*)/)
-      if (olMatch) return `<li style="margin-left:16px;list-style-type:decimal">${applyInline(olMatch[2])}</li>`
-      // Empty line → paragraph break
-      if (line.trim() === '') return '<br/>'
-      return `<p style="margin:2px 0">${applyInline(line)}</p>`
-    })
-    .join('')
-}
+import { renderMarkdown } from '../../utils/markdown.js'
 
 // Change the textarea's text and put the caret back without the view
 // jumping. Setting a new value moves the browser's scroll to the end of
@@ -51,12 +20,6 @@ function editKeepingScroll(el, onChange, newVal, selStart, selEnd = selStart) {
       node.scrollLeft = left
     }
   })
-}
-
-function applyInline(text) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
 }
 
 const MarkdownToolbar = forwardRef(function MarkdownToolbar({ value, onChange, placeholder, rows = 8 }, ref) {
