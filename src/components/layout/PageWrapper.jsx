@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-const VERSION = '1.6.0'
+const VERSION = '1.6.1'
 // __BUILD_DATE__ is injected by Vite's `define` at build time (see
 // vite.config.js) -- NOT computed here. Computing it here with `new
 // Date()` would run in the browser at page-load time, so it would show
@@ -115,6 +115,12 @@ export default function PageWrapper({ session, children }) {
               </div>
               {/* Scrollable content */}
               <div className="overflow-y-auto px-6 py-4 space-y-5 text-sm" style={{ color: 'var(--text)' }}>
+                <Section title="v1.6.1 — November 13, 2026">
+                  <Group label="Fixes">
+                    <Item>Contracts now show their formatting (headings, bold, italic, lists) when you review them before sending, on the contract page, on your client's signing page, and in the signed PDF</Item>
+                    <Item>Security improvements</Item>
+                  </Group>
+                </Section>
                 <Section title="v1.6.0 — November 1, 2026">
                   <Group label="Invoicing">
                     <Item>Real invoices: itemized lines from your own catalog, tax, discount, notes, and a payment platform per invoice</Item>

@@ -4,6 +4,25 @@ All notable changes to FinalVault are documented here.
 
 ---
 
+## v1.6.1 — November 13, 2026
+
+### Fixes
+
+- Contract formatting: the Markdown a template is written in (## headings, **bold**, *italic*, "- " bullets, "1. " numbered lines) was only rendered in the template editor's Preview; everywhere else showed the raw symbols. It now renders in Send Contract's review step, on the contract page, on the client's signing page and in the signed PDF. Numbered lines keep the number that was typed, plain all-capitals lines read as sub-headings everywhere, and the saved contract text (and its signature hash) is unchanged
+- Signed contract PDFs: characters the PDF font can't draw (emoji, arrows) become "?" instead of failing the PDF, and a section title is no longer left alone at the foot of a page
+
+### Security
+
+- `generate-contract-pdf` only checked that an Authorization header was present; it now requires the caller to be the contract's photographer (building the PDF also emails it to both parties)
+
+### Notes
+
+- Shared renderers: `src/utils/markdown.js` (screens and the template Preview) and `supabase/functions/_shared/contractMarkdown.ts` (PDF)
+- Edge Function redeployed: `generate-contract-pdf`. No database changes
+- New Playwright coverage: `contract-markdown`
+
+---
+
 ## v1.6.0 — November 1, 2026
 
 ### New Features
