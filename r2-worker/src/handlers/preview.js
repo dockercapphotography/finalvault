@@ -4,6 +4,7 @@ import { verifyMicrositeAccess } from '../middleware/micrositeAccess.js'
 import { verifyBookingCoverAccess } from '../middleware/bookingCoverAccess.js'
 import { verifyQuestionnaireCoverAccess } from '../middleware/questionnaireCoverAccess.js'
 import { verifyReviewImageAccess } from '../middleware/reviewImageAccess.js'
+import { verifyShotListAccess } from '../middleware/shotListAccess.js'
 
 /**
  * GET /preview/:key
@@ -59,7 +60,14 @@ export async function handlePreview(request, env, corsHeaders) {
   const reviewToken = url.searchParams.get('review_token')
   const isReviewRequest = !!reviewToken
 
-  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest && !isBookingCoverRequest && !isQuestionnaireCoverRequest && !isReviewRequest) {
+  // Public shot list page (/poses/:token) -- poses on that list, plus the
+  // visitor's own pending uploads when ?viewer= is given. Gated by the
+  // list's share token, so served private. See verifyShotListAccess().
+  const shotListToken = url.searchParams.get('shot_list')
+  const shotListViewer = url.searchParams.get('viewer')
+  const isShotListRequest = !!shotListToken
+
+  if (!hasJWT && !queryToken && !hasShareHeader && !queryShareToken && !isMicrositeRequest && !isBookingCoverRequest && !isQuestionnaireCoverRequest && !isReviewRequest && !isShotListRequest) {
     return jsonResponse({ ok: false, error: 'Authentication required' }, 401, corsHeaders)
   }
 
@@ -101,6 +109,11 @@ export async function handlePreview(request, env, corsHeaders) {
     const qCoverAuth = await verifyQuestionnaireCoverAccess(key, env)
     if (!qCoverAuth.valid) return jsonResponse({ ok: false, error: qCoverAuth.error }, 403, corsHeaders)
     photographerId = qCoverAuth.photographerId
+  } else if (isShotListRequest) {
+    // Shot list page access -- token-scoped to that list's poses
+    const shotAuth = await verifyShotListAccess(key, shotListToken, shotListViewer, env)
+    if (!shotAuth.valid) return jsonResponse({ ok: false, error: shotAuth.error }, 403, corsHeaders)
+    photographerId = shotAuth.photographerId
   } else {
     // Review page access -- token-scoped to one session's gallery
     const reviewAuth = await verifyReviewImageAccess(key, reviewToken, env)

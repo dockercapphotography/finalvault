@@ -1,4 +1,5 @@
 import { verifyJWT } from '../middleware/auth.js'
+import { rpc } from '../utils/supabase.js'
 
 /**
  * DELETE /delete/:key
@@ -64,7 +65,10 @@ export async function handleDelete(request, env, corsHeaders) {
     }
 
     // Update storage usage
-    if (originalSize > 0) {
+    if (originalSize > 0 && key.includes('/poses/')) {
+      const dec = await rpc(env, 'increment_photographer_storage', { p_photographer_id: auth.userId, p_delta: -originalSize })
+      if (!dec.ok) console.error('Failed to update storage usage after delete:', dec.error)
+    } else if (originalSize > 0) {
       try {
         await decrementStorageUsage(env, auth.userId, originalSize)
       } catch (err) {

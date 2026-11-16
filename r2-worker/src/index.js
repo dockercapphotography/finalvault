@@ -10,6 +10,8 @@ import { handleMicrositeHeroServe } from './handlers/micrositeHero.js'
 import { handlePdfUpload } from './handlers/upload-pdf.js'
 import { handleContractPdf } from './handlers/contract-pdf.js'
 import { handleZipJobs, handleZipJobStatus, handleZipJobDownload, handleZipJobExpire } from './handlers/zip-jobs.js'
+import { handleShotListUpload } from './handlers/shotListUpload.js'
+import { handleSuggestPoseTags } from './handlers/poseTags.js'
 
 // Re-exported so the Workflows binding (see wrangler.jsonc) can find the
 // class -- Cloudflare's Workflows runtime looks for the named export in
@@ -57,6 +59,20 @@ export default {
       // ── Upload (no rate limit — JWT auth is the protection) ────────────
       if (request.method === 'POST' && pathname === '/upload') {
         return await handleUpload(request, env, CORS_HEADERS)
+      }
+
+      // ── Shot list reference upload (public, 20/min per IP) ─────────────
+      // No login: the list's share token + the visitor's viewer id, checked
+      // again by record_shot_list_upload in the database.
+      if (request.method === 'POST' && pathname === '/shot-list-upload') {
+        const { success } = await env.RATE_LIMIT_SHOT_LIST.limit({ key: ip })
+        if (!success) return rateLimitedResponse()
+        return await handleShotListUpload(request, env, CORS_HEADERS)
+      }
+
+      // ── AI pose-tag suggestions (JWT + account flag + daily cap) ───────
+      if (request.method === 'POST' && pathname === '/poses/suggest-tags') {
+        return await handleSuggestPoseTags(request, env, CORS_HEADERS)
       }
 
       // ── Watermark upload (no rate limit — JWT auth is the protection) ──

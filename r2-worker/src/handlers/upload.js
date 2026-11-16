@@ -1,4 +1,5 @@
 import { verifyJWT } from '../middleware/auth.js'
+import { rpc } from '../utils/supabase.js'
 
 /**
  * POST /upload
@@ -39,7 +40,15 @@ export async function handleUpload(request, env, corsHeaders) {
   }
 
   // Key must follow expected pattern (original or preview)
-  if (!key.includes('/original/') && !key.includes('/preview/') && !key.includes('/web/') && !key.includes('/folders/') && !key.includes('/clients/')) {
+  // v1.7.0: Pose Library images (1200px WebP made in the browser).
+  const isPoseLibrary = key.startsWith(`photographers/${auth.userId}/poses/library/`)
+  if (isPoseLibrary) {
+    if (!['image/webp', 'image/jpeg'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      return jsonResponse({ ok: false, error: 'Pose images must be WebP or JPEG, 5 MB or smaller' }, 400, corsHeaders)
+    }
+  }
+
+  if (!isPoseLibrary && !key.includes('/original/') && !key.includes('/preview/') && !key.includes('/web/') && !key.includes('/folders/') && !key.includes('/clients/')) {
     return jsonResponse({ ok: false, error: 'Invalid key: must contain /original/ or /preview/' }, 400, corsHeaders)
   }
 
@@ -63,8 +72,11 @@ export async function handleUpload(request, env, corsHeaders) {
       }
     })
 
-    // Update storage usage for originals only
-    if (!isPreview) {
+    // Update storage usage for originals only (Pose Library: atomic counter)
+    if (isPoseLibrary) {
+      const inc = await rpc(env, 'increment_photographer_storage', { p_photographer_id: auth.userId, p_delta: file.size })
+      if (!inc.ok) console.error('Failed to update storage usage:', inc.error)
+    } else if (!isPreview) {
       try {
         await updateStorageUsage(env, auth.userId, file.size)
       } catch (err) {

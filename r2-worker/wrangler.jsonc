@@ -19,6 +19,9 @@
     }
   ],
 
+  // v1.7.0: Workers AI (Gemma 4 pose-tag suggestions)
+  "ai": { "binding": "AI" },
+
   "unsafe": {
     "bindings": [
       {
@@ -38,13 +41,22 @@
         "type": "ratelimit",
         "namespace_id": "1003",
         "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMIT_SHOT_LIST",
+        "type": "ratelimit",
+        "namespace_id": "1004",
+        "simple": { "limit": 20, "period": 60 }
       }
     ]
   },
 
   // Environment variables (non-secret)
   "vars": {
-    "SUPABASE_URL": "https://imukbaawmtmctfqchxdx.supabase.co"
+    "SUPABASE_URL": "https://imukbaawmtmctfqchxdx.supabase.co",
+    // Max AI tag suggestions per account per 24 hours (Workers AI free
+    // allowance covers roughly 730 Gemma 4 images a day across all accounts).
+    "AI_TAG_DAILY_CAP": "300"
   }
 
   // Secrets — set via Wrangler CLI, never stored here:
