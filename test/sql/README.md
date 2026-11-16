@@ -2,6 +2,8 @@
 
 These checks cover the invoicing rules that live in the database (migrations 107 onward). They test totals and rounding, the rule that a schedule must add up to the total, locking after a payment, numbering, templates, the session-money migration (114), portal invoice data, email logging and booking invoices. They also test who can read and change what: app users, anonymous visitors and the service role.
 
+From v1.7.0 they also cover the Pose Library and Shot Lists (migrations 122–124): the tag vocabulary and its seed, renaming and deleting tags, admin-only feature flags, the AI daily cap, the storage counter, shot list ownership, the public viewer functions (favorites, comments, locks), client uploads recorded by the r2-worker, and the preview check.
+
 They run on a **local** Postgres, never on Supabase. `000_stub_live_schema.sql` stands in for the parts of the live schema that the migrations touch. The script builds throwaway databases, applies the stub and migrations 107 onward, runs each file, and drops the databases again.
 
 ```

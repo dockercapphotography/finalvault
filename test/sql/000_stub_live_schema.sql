@@ -87,3 +87,23 @@ create table signup_pages (id uuid primary key default gen_random_uuid(), photog
 create table signup_slots (id uuid primary key default gen_random_uuid(), signup_page_id uuid, shoot_type_id uuid,
   start_time timestamptz, end_time timestamptz, claimed_at timestamptz, session_id uuid);
 create table signup_inquiry_windows (id uuid primary key default gen_random_uuid(), signup_page_id uuid);
+-- v1.7.0 (122–124): admin flag, is_admin() and photographer_storage, copied
+-- from the Nov 14–15 schema checks. photographer_storage.photographer_id is
+-- unique live (assign_default_storage_tier upserts ON CONFLICT on it).
+alter table photographers add column is_admin boolean default false;
+CREATE OR REPLACE FUNCTION public.is_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE(is_admin, false) FROM photographers WHERE id = auth.uid()
+$function$;
+grant execute on function public.is_admin() to anon, authenticated, service_role;
+create table photographer_storage (
+  id uuid primary key default gen_random_uuid(),
+  photographer_id uuid not null unique references photographers(id) on delete cascade,
+  tier_id uuid,
+  bytes_used bigint default 0,
+  updated_at timestamptz default now()
+);

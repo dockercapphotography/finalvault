@@ -1,5 +1,5 @@
 #!/bin/bash
-# FinalVault database behaviour tests (v1.6.0 invoicing).
+# FinalVault database behaviour tests (v1.6.0 invoicing, v1.7.0 shot lists).
 #
 # Builds throwaway databases on a LOCAL Postgres (16+), applies a stub of the
 # live Supabase schema plus migrations 107 onward, then runs the checks
@@ -44,8 +44,10 @@ fresh_db fvtest_d 114_ && run_check fvtest_d 240_session_money_migration_tests.s
 fresh_db fvtest_e && run_check fvtest_e 250_portal_invoice_tests.sql
 fresh_db fvtest_f && run_check fvtest_f 260_invoice_email_tests.sql
 fresh_db fvtest_g && run_check fvtest_g 270_booking_invoice_tests.sql
+fresh_db fvtest_h && run_check fvtest_h 280_pose_library_tests.sql
+fresh_db fvtest_i && run_check fvtest_i 290_shot_list_tests.sql
 
-for db in fvtest_a fvtest_b fvtest_c fvtest_d fvtest_e fvtest_f fvtest_g; do dropdb --if-exists "$db" >/dev/null 2>&1; done
+for db in fvtest_a fvtest_b fvtest_c fvtest_d fvtest_e fvtest_f fvtest_g fvtest_h fvtest_i; do dropdb --if-exists "$db" >/dev/null 2>&1; done
 
 if [ "$failures" -gt 0 ]; then echo "$failures test file(s) failed"; exit 1; fi
 echo "All database checks passed"
