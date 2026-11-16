@@ -35,7 +35,7 @@ export async function handleOriginal(request, env, corsHeaders) {
 
   if (hasJWT) {
     // Photographer accessing their own original
-    const auth = await verifyJWT(request)
+    const auth = await verifyJWT(request, env)
     if (!auth.valid) {
       return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
     }

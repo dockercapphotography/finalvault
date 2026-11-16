@@ -6,7 +6,7 @@ import { verifyJWT } from '../middleware/auth.js'
  * Only the owning photographer can delete their files.
  */
 export async function handleDelete(request, env, corsHeaders) {
-  const auth = await verifyJWT(request)
+  const auth = await verifyJWT(request, env)
   if (!auth.valid) {
     return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
   }

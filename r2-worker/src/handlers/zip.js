@@ -40,7 +40,7 @@ export async function handleZip(request, env, corsHeaders) {
   let watermarkIds = []
 
   if (hasJWT) {
-    const auth = await verifyJWT(request)
+    const auth = await verifyJWT(request, env)
     if (!auth.valid) {
       return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
     }

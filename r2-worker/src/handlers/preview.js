@@ -70,7 +70,7 @@ export async function handlePreview(request, env, corsHeaders) {
     const authRequest = queryToken
       ? new Request(request.url, { headers: { 'Authorization': `Bearer ${queryToken}` } })
       : request
-    const auth = await verifyJWT(authRequest)
+    const auth = await verifyJWT(authRequest, env)
     if (!auth.valid) return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
     photographerId = auth.userId
   } else if (hasShareHeader || queryShareToken) {

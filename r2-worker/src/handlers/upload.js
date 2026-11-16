@@ -14,7 +14,7 @@ import { verifyJWT } from '../middleware/auth.js'
  *   - Writing metadata to Supabase after both uploads succeed
  */
 export async function handleUpload(request, env, corsHeaders) {
-  const auth = await verifyJWT(request)
+  const auth = await verifyJWT(request, env)
   if (!auth.valid) {
     return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
   }

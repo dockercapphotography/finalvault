@@ -10,7 +10,7 @@ import { verifyShareToken } from '../middleware/shareToken.js'
  *   key   - The R2 key, must be photographers/{userId}/watermarks/{filename}
  */
 export async function handleWatermarkUpload(request, env, corsHeaders) {
-  const auth = await verifyJWT(request)
+  const auth = await verifyJWT(request, env)
   if (!auth.valid) {
     return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
   }
@@ -93,9 +93,9 @@ export async function handleWatermarkServe(request, env, corsHeaders) {
       const syntheticRequest = new Request(request.url, {
         headers: { 'Authorization': `Bearer ${queryToken}` }
       })
-      auth = await verifyJWT(syntheticRequest)
+      auth = await verifyJWT(syntheticRequest, env)
     } else {
-      auth = await verifyJWT(request)
+      auth = await verifyJWT(request, env)
     }
 
     if (!auth.valid) {

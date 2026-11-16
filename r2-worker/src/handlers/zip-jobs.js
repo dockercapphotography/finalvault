@@ -60,7 +60,7 @@ export async function handleZipJobs(request, env, corsHeaders) {
   let size = 'hires'
 
   if (hasJWT) {
-    const auth = await verifyJWT(request)
+    const auth = await verifyJWT(request, env)
     if (!auth.valid) {
       return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
     }
@@ -469,7 +469,7 @@ export async function handleZipJobDownload(request, env, corsHeaders, jobId) {
  * free for those.
  */
 export async function handleZipJobExpire(request, env, corsHeaders, jobId) {
-  const auth = await verifyJWT(request)
+  const auth = await verifyJWT(request, env)
   if (!auth.valid) {
     return jsonResponse({ ok: false, error: auth.error }, 401, corsHeaders)
   }
